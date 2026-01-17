@@ -1,0 +1,375 @@
+{
+  "metadata": {
+    "crate": "log",
+    "go_version": "1.24",
+    "library_version": "0.4.0",
+    "captured_at": "2026-01-17T17:24:54Z"
+  },
+  "tests": [
+    {
+      "name": "level_debug",
+      "category": "unit",
+      "input": {
+        "level_name": "Debug"
+      },
+      "expected_output": {
+        "level_string": "debug",
+        "level_value": -4
+      }
+    },
+    {
+      "name": "level_info",
+      "category": "unit",
+      "input": {
+        "level_name": "Info"
+      },
+      "expected_output": {
+        "level_string": "info",
+        "level_value": 0
+      }
+    },
+    {
+      "name": "level_warn",
+      "category": "unit",
+      "input": {
+        "level_name": "Warn"
+      },
+      "expected_output": {
+        "level_string": "warn",
+        "level_value": 4
+      }
+    },
+    {
+      "name": "level_error",
+      "category": "unit",
+      "input": {
+        "level_name": "Error"
+      },
+      "expected_output": {
+        "level_string": "error",
+        "level_value": 8
+      }
+    },
+    {
+      "name": "level_fatal",
+      "category": "unit",
+      "input": {
+        "level_name": "Fatal"
+      },
+      "expected_output": {
+        "level_string": "fatal",
+        "level_value": 12
+      }
+    },
+    {
+      "name": "parse_level_debug",
+      "category": "unit",
+      "input": {
+        "input": "debug"
+      },
+      "expected_output": {
+        "error": "",
+        "parsed_value": -4
+      }
+    },
+    {
+      "name": "parse_level_info",
+      "category": "unit",
+      "input": {
+        "input": "info"
+      },
+      "expected_output": {
+        "error": "",
+        "parsed_value": 0
+      }
+    },
+    {
+      "name": "parse_level_warn",
+      "category": "unit",
+      "input": {
+        "input": "warn"
+      },
+      "expected_output": {
+        "error": "",
+        "parsed_value": 4
+      }
+    },
+    {
+      "name": "parse_level_error",
+      "category": "unit",
+      "input": {
+        "input": "error"
+      },
+      "expected_output": {
+        "error": "",
+        "parsed_value": 8
+      }
+    },
+    {
+      "name": "parse_level_fatal",
+      "category": "unit",
+      "input": {
+        "input": "fatal"
+      },
+      "expected_output": {
+        "error": "",
+        "parsed_value": 12
+      }
+    },
+    {
+      "name": "parse_level_debug",
+      "category": "unit",
+      "input": {
+        "input": "DEBUG"
+      },
+      "expected_output": {
+        "error": "",
+        "parsed_value": -4
+      }
+    },
+    {
+      "name": "parse_level_info",
+      "category": "unit",
+      "input": {
+        "input": "INFO"
+      },
+      "expected_output": {
+        "error": "",
+        "parsed_value": 0
+      }
+    },
+    {
+      "name": "format_text_basic",
+      "category": "unit",
+      "input": {
+        "level": "info",
+        "message": "test message"
+      },
+      "expected_output": {
+        "contains_level": true,
+        "contains_msg": true,
+        "output": "INFO test message"
+      }
+    },
+    {
+      "name": "format_debug",
+      "category": "unit",
+      "input": {
+        "level": "debug",
+        "message": "debug message"
+      },
+      "expected_output": {
+        "contains_level": true,
+        "output": "DEBU debug message"
+      }
+    },
+    {
+      "name": "format_warn",
+      "category": "unit",
+      "input": {
+        "level": "warn",
+        "message": "warning message"
+      },
+      "expected_output": {
+        "contains_level": true,
+        "output": "WARN warning message"
+      }
+    },
+    {
+      "name": "format_error",
+      "category": "unit",
+      "input": {
+        "level": "error",
+        "message": "error message"
+      },
+      "expected_output": {
+        "contains_level": true,
+        "output": "ERRO error message"
+      }
+    },
+    {
+      "name": "format_printf",
+      "category": "unit",
+      "input": {
+        "args": [
+          42
+        ],
+        "format": "count is %d"
+      },
+      "expected_output": {
+        "contains_42": true,
+        "output": "INFO count is 42"
+      }
+    },
+    {
+      "name": "structured_single_field",
+      "category": "unit",
+      "input": {
+        "fields": {
+          "key": "value"
+        },
+        "message": "message"
+      },
+      "expected_output": {
+        "contains_key": true,
+        "contains_value": true,
+        "output": "INFO message key=value"
+      }
+    },
+    {
+      "name": "structured_multiple_fields",
+      "category": "unit",
+      "input": {
+        "fields": {
+          "action": "login",
+          "status": "success",
+          "user": "alice"
+        },
+        "message": "event"
+      },
+      "expected_output": {
+        "contains_action": true,
+        "contains_alice": true,
+        "contains_user": true,
+        "output": "INFO event user=alice action=login status=success"
+      }
+    },
+    {
+      "name": "structured_numeric_fields",
+      "category": "unit",
+      "input": {
+        "fields": {
+          "count": 100,
+          "rate": 3.14
+        },
+        "message": "metrics"
+      },
+      "expected_output": {
+        "contains_100": true,
+        "contains_3.14": true,
+        "output": "INFO metrics count=100 rate=3.14"
+      }
+    },
+    {
+      "name": "structured_boolean_fields",
+      "category": "unit",
+      "input": {
+        "fields": {
+          "debug": false,
+          "enabled": true
+        },
+        "message": "config"
+      },
+      "expected_output": {
+        "contains_false": true,
+        "contains_true": true,
+        "output": "INFO config enabled=true debug=false"
+      }
+    },
+    {
+      "name": "structured_with_fields",
+      "category": "unit",
+      "input": {
+        "message": "request",
+        "with_fields": {
+          "component": "auth"
+        }
+      },
+      "expected_output": {
+        "contains_auth": true,
+        "contains_component": true,
+        "output": "INFO request component=auth"
+      }
+    },
+    {
+      "name": "timestamp_enabled",
+      "category": "unit",
+      "input": {
+        "format": "Kitchen",
+        "timestamp_enabled": true
+      },
+      "expected_output": {
+        "has_time_separator": true,
+        "output": "12:24PM INFO with timestamp"
+      }
+    },
+    {
+      "name": "timestamp_disabled",
+      "category": "unit",
+      "input": {
+        "timestamp_enabled": false
+      },
+      "expected_output": {
+        "output": "INFO no timestamp"
+      }
+    },
+    {
+      "name": "timestamp_custom_format",
+      "category": "unit",
+      "input": {
+        "format": "2006-01-02",
+        "timestamp_enabled": true
+      },
+      "expected_output": {
+        "contains_dash": true,
+        "output": "2026-01-17 INFO custom format"
+      }
+    },
+    {
+      "name": "prefix_set",
+      "category": "unit",
+      "input": {
+        "message": "message",
+        "prefix": "myapp"
+      },
+      "expected_output": {
+        "contains_prefix": true,
+        "output": "INFO myapp: message"
+      }
+    },
+    {
+      "name": "prefix_none",
+      "category": "unit",
+      "input": {
+        "message": "no prefix",
+        "prefix": ""
+      },
+      "expected_output": {
+        "output": "INFO no prefix"
+      }
+    },
+    {
+      "name": "prefix_emoji",
+      "category": "unit",
+      "input": {
+        "message": "rocket launch",
+        "prefix": "🚀"
+      },
+      "expected_output": {
+        "output": "INFO 🚀: rocket launch"
+      }
+    },
+    {
+      "name": "caller_enabled",
+      "category": "unit",
+      "input": {
+        "caller_enabled": true
+      },
+      "expected_output": {
+        "contains_colon": true,
+        "contains_go": true,
+        "output": "INFO \u003clog/main.go:431\u003e with caller"
+      }
+    },
+    {
+      "name": "caller_disabled",
+      "category": "unit",
+      "input": {
+        "caller_enabled": false
+      },
+      "expected_output": {
+        "output": "INFO no caller"
+      }
+    }
+  ]
+}

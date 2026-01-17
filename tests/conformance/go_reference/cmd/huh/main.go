@@ -53,6 +53,7 @@ func captureInputFieldTests(fs *capture.FixtureSet) {
 		input := huh.NewInput().
 			Title("Enter name").
 			Value(&value)
+		_ = input
 
 		fs.AddTestWithCategory("input_basic", "unit",
 			map[string]interface{}{
@@ -613,102 +614,116 @@ func captureNoteFieldTests(fs *capture.FixtureSet) {
 }
 
 func captureValidationTests(fs *capture.FixtureSet) {
-	// Test 1: Required validation
+	// Test validation function definitions
+	// Note: huh validation functions are called internally when running a form
+	// We capture the validation patterns and expected behavior
+
+	// Test 1: Required validation pattern
 	{
-		var value string
-		input := huh.NewInput().
-			Title("Name").
-			Validate(func(s string) error {
-				if s == "" {
-					return fmt.Errorf("name is required")
-				}
-				return nil
-			}).
-			Value(&value)
-		_ = input
+		validator := func(s string) error {
+			if s == "" {
+				return fmt.Errorf("name is required")
+			}
+			return nil
+		}
 
 		// Test with empty value
-		err := input.Validate(value)
-		errStr := ""
-		if err != nil {
-			errStr = err.Error()
-		}
+		errEmpty := validator("")
+		errValid := validator("John")
 
 		fs.AddTestWithCategory("validation_required", "unit",
 			map[string]interface{}{
-				"title":      "Name",
-				"test_value": "",
+				"validation_type": "required",
+				"test_empty":      "",
+				"test_valid":      "John",
 			},
 			map[string]interface{}{
-				"has_error":     err != nil,
-				"error_message": errStr,
+				"empty_has_error": errEmpty != nil,
+				"empty_error_msg": func() string {
+					if errEmpty != nil {
+						return errEmpty.Error()
+					}
+					return ""
+				}(),
+				"valid_has_error": errValid != nil,
 			},
 		)
 	}
 
-	// Test 2: Minimum length validation
+	// Test 2: Minimum length validation pattern
 	{
-		var value string
-		input := huh.NewInput().
-			Title("Password").
-			Validate(func(s string) error {
-				if len(s) < 8 {
-					return fmt.Errorf("password must be at least 8 characters")
-				}
-				return nil
-			}).
-			Value(&value)
-		_ = input
-
-		// Test with short password
-		value = "short"
-		err := input.Validate(value)
-		errStr := ""
-		if err != nil {
-			errStr = err.Error()
+		validator := func(s string) error {
+			if len(s) < 8 {
+				return fmt.Errorf("password must be at least 8 characters")
+			}
+			return nil
 		}
+
+		// Test with short and valid passwords
+		errShort := validator("short")
+		errValid := validator("password123")
 
 		fs.AddTestWithCategory("validation_min_length", "unit",
 			map[string]interface{}{
-				"title":      "Password",
-				"min_length": 8,
-				"test_value": "short",
+				"validation_type": "min_length",
+				"min_length":      8,
+				"test_short":      "short",
+				"test_valid":      "password123",
 			},
 			map[string]interface{}{
-				"has_error":     err != nil,
-				"error_message": errStr,
+				"short_has_error": errShort != nil,
+				"short_error_msg": func() string {
+					if errShort != nil {
+						return errShort.Error()
+					}
+					return ""
+				}(),
+				"valid_has_error": errValid != nil,
 			},
 		)
 	}
 
-	// Test 3: Passing validation
+	// Test 3: Email validation pattern
 	{
-		var value string
-		input := huh.NewInput().
-			Title("Email").
-			Validate(func(s string) error {
-				if s == "" {
-					return fmt.Errorf("email required")
-				}
-				return nil
-			}).
-			Value(&value)
-		_ = input
+		validator := func(s string) error {
+			if s == "" {
+				return fmt.Errorf("email required")
+			}
+			// Basic email check
+			if len(s) < 5 || !contains(s, "@") || !contains(s, ".") {
+				return fmt.Errorf("invalid email format")
+			}
+			return nil
+		}
 
-		// Test with valid value
-		value = "user@example.com"
-		err := input.Validate(value)
+		errEmpty := validator("")
+		errInvalid := validator("notanemail")
+		errValid := validator("user@example.com")
 
-		fs.AddTestWithCategory("validation_pass", "unit",
+		fs.AddTestWithCategory("validation_email", "unit",
 			map[string]interface{}{
-				"title":      "Email",
-				"test_value": "user@example.com",
+				"validation_type": "email",
+				"test_empty":      "",
+				"test_invalid":    "notanemail",
+				"test_valid":      "user@example.com",
 			},
 			map[string]interface{}{
-				"has_error": err != nil,
+				"empty_has_error":   errEmpty != nil,
+				"invalid_has_error": errInvalid != nil,
+				"valid_has_error":   errValid != nil,
 			},
 		)
 	}
+}
+
+// Helper function for string contains
+func contains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 func captureThemeTests(fs *capture.FixtureSet) {

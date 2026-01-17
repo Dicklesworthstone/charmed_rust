@@ -1,0 +1,431 @@
+{
+  "metadata": {
+    "crate": "huh",
+    "go_version": "1.24",
+    "library_version": "0.6.0",
+    "captured_at": "2026-01-17T17:24:55Z"
+  },
+  "tests": [
+    {
+      "name": "input_basic",
+      "category": "unit",
+      "input": {
+        "title": "Enter name"
+      },
+      "expected_output": {
+        "field_type": "input",
+        "initial_value": ""
+      }
+    },
+    {
+      "name": "input_placeholder",
+      "category": "unit",
+      "input": {
+        "placeholder": "user@example.com",
+        "title": "Email"
+      },
+      "expected_output": {
+        "field_type": "input",
+        "initial_value": ""
+      }
+    },
+    {
+      "name": "input_char_limit",
+      "category": "unit",
+      "input": {
+        "char_limit": 20,
+        "title": "Username"
+      },
+      "expected_output": {
+        "field_type": "input",
+        "initial_value": ""
+      }
+    },
+    {
+      "name": "input_description",
+      "category": "unit",
+      "input": {
+        "description": "Must be at least 8 characters",
+        "title": "Password"
+      },
+      "expected_output": {
+        "field_type": "input",
+        "initial_value": ""
+      }
+    },
+    {
+      "name": "input_password",
+      "category": "unit",
+      "input": {
+        "echo_mode": "password",
+        "title": "Password"
+      },
+      "expected_output": {
+        "echo_mode": 1,
+        "field_type": "input",
+        "initial_value": ""
+      }
+    },
+    {
+      "name": "input_initial_value",
+      "category": "unit",
+      "input": {
+        "initial_value": "initial",
+        "title": "Name"
+      },
+      "expected_output": {
+        "field_type": "input",
+        "value": "initial"
+      }
+    },
+    {
+      "name": "text_basic",
+      "category": "unit",
+      "input": {
+        "title": "Description"
+      },
+      "expected_output": {
+        "field_type": "text",
+        "initial_value": ""
+      }
+    },
+    {
+      "name": "text_with_lines",
+      "category": "unit",
+      "input": {
+        "lines": 5,
+        "title": "Bio"
+      },
+      "expected_output": {
+        "field_type": "text",
+        "initial_value": ""
+      }
+    },
+    {
+      "name": "text_placeholder",
+      "category": "unit",
+      "input": {
+        "placeholder": "Enter your notes...",
+        "title": "Notes"
+      },
+      "expected_output": {
+        "field_type": "text",
+        "initial_value": ""
+      }
+    },
+    {
+      "name": "text_char_limit",
+      "category": "unit",
+      "input": {
+        "char_limit": 500,
+        "title": "Message"
+      },
+      "expected_output": {
+        "field_type": "text",
+        "initial_value": ""
+      }
+    },
+    {
+      "name": "select_basic",
+      "category": "unit",
+      "input": {
+        "options": [
+          "a",
+          "b",
+          "c"
+        ],
+        "title": "Choose an option"
+      },
+      "expected_output": {
+        "field_type": "select",
+        "initial_value": "a"
+      }
+    },
+    {
+      "name": "select_description",
+      "category": "unit",
+      "input": {
+        "description": "Choose your favorite",
+        "options": [
+          "red",
+          "green",
+          "blue"
+        ],
+        "title": "Select Color"
+      },
+      "expected_output": {
+        "field_type": "select",
+        "initial_value": "red"
+      }
+    },
+    {
+      "name": "select_height",
+      "category": "unit",
+      "input": {
+        "height": 5,
+        "title": "Choose"
+      },
+      "expected_output": {
+        "field_type": "select",
+        "initial_value": "1"
+      }
+    },
+    {
+      "name": "select_int",
+      "category": "unit",
+      "input": {
+        "options": [
+          1,
+          2,
+          3
+        ],
+        "title": "Choose number"
+      },
+      "expected_output": {
+        "field_type": "select",
+        "initial_value": 1
+      }
+    },
+    {
+      "name": "multiselect_basic",
+      "category": "unit",
+      "input": {
+        "options": [
+          "a",
+          "b",
+          "c"
+        ],
+        "title": "Select items"
+      },
+      "expected_output": {
+        "field_type": "multiselect",
+        "initial_value": null
+      }
+    },
+    {
+      "name": "multiselect_limit",
+      "category": "unit",
+      "input": {
+        "limit": 2,
+        "options": [
+          "x",
+          "y",
+          "z"
+        ],
+        "title": "Select up to 2"
+      },
+      "expected_output": {
+        "field_type": "multiselect",
+        "initial_value": null
+      }
+    },
+    {
+      "name": "multiselect_description",
+      "category": "unit",
+      "input": {
+        "description": "Choose multiple",
+        "options": [
+          "f1",
+          "f2",
+          "f3"
+        ],
+        "title": "Select features"
+      },
+      "expected_output": {
+        "field_type": "multiselect",
+        "initial_value": null
+      }
+    },
+    {
+      "name": "multiselect_preselected",
+      "category": "unit",
+      "input": {
+        "preselected": [
+          "a"
+        ],
+        "title": "Modify selection"
+      },
+      "expected_output": {
+        "field_type": "multiselect",
+        "initial_value": [
+          "a"
+        ]
+      }
+    },
+    {
+      "name": "confirm_basic",
+      "category": "unit",
+      "input": {
+        "title": "Continue?"
+      },
+      "expected_output": {
+        "field_type": "confirm",
+        "initial_value": false
+      }
+    },
+    {
+      "name": "confirm_description",
+      "category": "unit",
+      "input": {
+        "description": "This action cannot be undone",
+        "title": "Delete file?"
+      },
+      "expected_output": {
+        "field_type": "confirm",
+        "initial_value": false
+      }
+    },
+    {
+      "name": "confirm_labels",
+      "category": "unit",
+      "input": {
+        "affirmative": "Yes!",
+        "negative": "No",
+        "title": "Save changes?"
+      },
+      "expected_output": {
+        "field_type": "confirm",
+        "initial_value": false
+      }
+    },
+    {
+      "name": "confirm_default_true",
+      "category": "unit",
+      "input": {
+        "default": true,
+        "title": "Enable feature?"
+      },
+      "expected_output": {
+        "field_type": "confirm",
+        "initial_value": true
+      }
+    },
+    {
+      "name": "note_basic",
+      "category": "unit",
+      "input": {
+        "description": "Please read carefully",
+        "title": "Important"
+      },
+      "expected_output": {
+        "field_type": "note"
+      }
+    },
+    {
+      "name": "note_title_only",
+      "category": "unit",
+      "input": {
+        "title": "Welcome"
+      },
+      "expected_output": {
+        "field_type": "note"
+      }
+    },
+    {
+      "name": "note_next",
+      "category": "unit",
+      "input": {
+        "next": true,
+        "next_label": "Continue",
+        "title": "Step 1"
+      },
+      "expected_output": {
+        "field_type": "note"
+      }
+    },
+    {
+      "name": "validation_required",
+      "category": "unit",
+      "input": {
+        "test_empty": "",
+        "test_valid": "John",
+        "validation_type": "required"
+      },
+      "expected_output": {
+        "empty_error_msg": "name is required",
+        "empty_has_error": true,
+        "valid_has_error": false
+      }
+    },
+    {
+      "name": "validation_min_length",
+      "category": "unit",
+      "input": {
+        "min_length": 8,
+        "test_short": "short",
+        "test_valid": "password123",
+        "validation_type": "min_length"
+      },
+      "expected_output": {
+        "short_error_msg": "password must be at least 8 characters",
+        "short_has_error": true,
+        "valid_has_error": false
+      }
+    },
+    {
+      "name": "validation_email",
+      "category": "unit",
+      "input": {
+        "test_empty": "",
+        "test_invalid": "notanemail",
+        "test_valid": "user@example.com",
+        "validation_type": "email"
+      },
+      "expected_output": {
+        "empty_has_error": true,
+        "invalid_has_error": true,
+        "valid_has_error": false
+      }
+    },
+    {
+      "name": "theme_base",
+      "category": "unit",
+      "input": {
+        "theme_name": "base"
+      },
+      "expected_output": {
+        "theme_available": true
+      }
+    },
+    {
+      "name": "theme_charm",
+      "category": "unit",
+      "input": {
+        "theme_name": "charm"
+      },
+      "expected_output": {
+        "theme_available": true
+      }
+    },
+    {
+      "name": "theme_dracula",
+      "category": "unit",
+      "input": {
+        "theme_name": "dracula"
+      },
+      "expected_output": {
+        "theme_available": true
+      }
+    },
+    {
+      "name": "theme_catppuccin",
+      "category": "unit",
+      "input": {
+        "theme_name": "catppuccin"
+      },
+      "expected_output": {
+        "theme_available": true
+      }
+    },
+    {
+      "name": "form_with_theme",
+      "category": "unit",
+      "input": {
+        "theme": "charm"
+      },
+      "expected_output": {
+        "form_created": true
+      }
+    }
+  ]
+}

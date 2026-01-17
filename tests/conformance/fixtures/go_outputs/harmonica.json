@@ -3,7 +3,7 @@
     "crate": "harmonica",
     "go_version": "1.24",
     "library_version": "0.2.0",
-    "captured_at": "2026-01-17T17:04:49Z"
+    "captured_at": "2026-01-17T17:24:53Z"
   },
   "tests": [
     {

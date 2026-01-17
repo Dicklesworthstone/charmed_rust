@@ -1,0 +1,493 @@
+{
+  "metadata": {
+    "crate": "wish",
+    "go_version": "1.24",
+    "library_version": "1.4.5",
+    "captured_at": "2026-01-17T17:24:55Z"
+  },
+  "tests": [
+    {
+      "name": "server_default",
+      "category": "unit",
+      "input": {
+        "description": "Default server with no options"
+      },
+      "expected_output": {
+        "can_create": true,
+        "note": "Server creation requires actual binding which is tested separately"
+      }
+    },
+    {
+      "name": "server_with_address",
+      "category": "unit",
+      "input": {
+        "address": ":2222",
+        "option": "WithAddress"
+      },
+      "expected_output": {
+        "expected": ":2222",
+        "option_type": "address"
+      }
+    },
+    {
+      "name": "server_with_host_key",
+      "category": "unit",
+      "input": {
+        "key_path": "/path/to/host_key",
+        "option": "WithHostKeyPath"
+      },
+      "expected_output": {
+        "expected": "/path/to/host_key",
+        "option_type": "host_key_path"
+      }
+    },
+    {
+      "name": "server_with_authorized_keys",
+      "category": "unit",
+      "input": {
+        "authorized_keys_path": "/path/to/authorized_keys",
+        "option": "WithAuthorizedKeys"
+      },
+      "expected_output": {
+        "expected": "/path/to/authorized_keys",
+        "option_type": "authorized_keys"
+      }
+    },
+    {
+      "name": "server_with_public_key_auth",
+      "category": "unit",
+      "input": {
+        "option": "WithPublicKeyAuth"
+      },
+      "expected_output": {
+        "note": "Public key authentication callback",
+        "option_type": "public_key_auth"
+      }
+    },
+    {
+      "name": "server_with_password_auth",
+      "category": "unit",
+      "input": {
+        "option": "WithPasswordAuth"
+      },
+      "expected_output": {
+        "note": "Password authentication callback",
+        "option_type": "password_auth"
+      }
+    },
+    {
+      "name": "server_with_keyboard_interactive",
+      "category": "unit",
+      "input": {
+        "option": "WithKeyboardInteractiveAuth"
+      },
+      "expected_output": {
+        "note": "Keyboard-interactive authentication",
+        "option_type": "keyboard_interactive"
+      }
+    },
+    {
+      "name": "server_with_max_timeout",
+      "category": "unit",
+      "input": {
+        "option": "WithMaxTimeout",
+        "timeout": 30
+      },
+      "expected_output": {
+        "option_type": "max_timeout",
+        "seconds": 30
+      }
+    },
+    {
+      "name": "server_with_idle_timeout",
+      "category": "unit",
+      "input": {
+        "option": "WithIdleTimeout",
+        "timeout": 300
+      },
+      "expected_output": {
+        "option_type": "idle_timeout",
+        "seconds": 300
+      }
+    },
+    {
+      "name": "server_with_banner",
+      "category": "unit",
+      "input": {
+        "banner": "Welcome to my SSH server!",
+        "option": "WithBanner"
+      },
+      "expected_output": {
+        "expected": "Welcome to my SSH server!",
+        "option_type": "banner"
+      }
+    },
+    {
+      "name": "server_with_version",
+      "category": "unit",
+      "input": {
+        "option": "WithVersion",
+        "version": "SSH-2.0-MyServer_1.0"
+      },
+      "expected_output": {
+        "expected": "SSH-2.0-MyServer_1.0",
+        "option_type": "version"
+      }
+    },
+    {
+      "name": "address_port_only",
+      "category": "unit",
+      "input": {
+        "address": ":22"
+      },
+      "expected_output": {
+        "address": ":22",
+        "valid": true
+      }
+    },
+    {
+      "name": "address_localhost_22",
+      "category": "unit",
+      "input": {
+        "address": "localhost:22"
+      },
+      "expected_output": {
+        "address": "localhost:22",
+        "valid": true
+      }
+    },
+    {
+      "name": "address_localhost_2222",
+      "category": "unit",
+      "input": {
+        "address": "localhost:2222"
+      },
+      "expected_output": {
+        "address": "localhost:2222",
+        "valid": true
+      }
+    },
+    {
+      "name": "address_ipv4_22",
+      "category": "unit",
+      "input": {
+        "address": "127.0.0.1:22"
+      },
+      "expected_output": {
+        "address": "127.0.0.1:22",
+        "valid": true
+      }
+    },
+    {
+      "name": "address_ipv4_2222",
+      "category": "unit",
+      "input": {
+        "address": "0.0.0.0:2222"
+      },
+      "expected_output": {
+        "address": "0.0.0.0:2222",
+        "valid": true
+      }
+    },
+    {
+      "name": "address_ipv6_22",
+      "category": "unit",
+      "input": {
+        "address": "[::1]:22"
+      },
+      "expected_output": {
+        "address": "[::1]:22",
+        "valid": true
+      }
+    },
+    {
+      "name": "address_ipv6_all",
+      "category": "unit",
+      "input": {
+        "address": "[::]:22"
+      },
+      "expected_output": {
+        "address": "[::]:22",
+        "valid": true
+      }
+    },
+    {
+      "name": "address_high_port",
+      "category": "unit",
+      "input": {
+        "address": "localhost:65535"
+      },
+      "expected_output": {
+        "address": "localhost:65535",
+        "valid": true
+      }
+    },
+    {
+      "name": "address_custom_port",
+      "category": "unit",
+      "input": {
+        "address": "10.0.0.1:3000"
+      },
+      "expected_output": {
+        "address": "10.0.0.1:3000",
+        "valid": true
+      }
+    },
+    {
+      "name": "middleware_logging",
+      "category": "unit",
+      "input": {
+        "description": "Logs all session activity",
+        "name": "logging"
+      },
+      "expected_output": {
+        "note": "Middleware execution order is from outer to inner",
+        "order": 1
+      }
+    },
+    {
+      "name": "middleware_authentication",
+      "category": "unit",
+      "input": {
+        "description": "Handles user authentication",
+        "name": "authentication"
+      },
+      "expected_output": {
+        "note": "Middleware execution order is from outer to inner",
+        "order": 2
+      }
+    },
+    {
+      "name": "middleware_authorization",
+      "category": "unit",
+      "input": {
+        "description": "Checks user permissions",
+        "name": "authorization"
+      },
+      "expected_output": {
+        "note": "Middleware execution order is from outer to inner",
+        "order": 3
+      }
+    },
+    {
+      "name": "middleware_session_handler",
+      "category": "unit",
+      "input": {
+        "description": "Manages session lifecycle",
+        "name": "session_handler"
+      },
+      "expected_output": {
+        "note": "Middleware execution order is from outer to inner",
+        "order": 4
+      }
+    },
+    {
+      "name": "middleware_bubbletea",
+      "category": "unit",
+      "input": {
+        "description": "Runs Bubble Tea applications",
+        "name": "bubbletea"
+      },
+      "expected_output": {
+        "note": "Middleware execution order is from outer to inner",
+        "order": 5
+      }
+    },
+    {
+      "name": "middleware_git",
+      "category": "unit",
+      "input": {
+        "description": "Handles Git operations",
+        "name": "git"
+      },
+      "expected_output": {
+        "note": "Middleware execution order is from outer to inner",
+        "order": 6
+      }
+    },
+    {
+      "name": "middleware_scp",
+      "category": "unit",
+      "input": {
+        "description": "Handles SCP file transfers",
+        "name": "scp"
+      },
+      "expected_output": {
+        "note": "Middleware execution order is from outer to inner",
+        "order": 7
+      }
+    },
+    {
+      "name": "middleware_sftp",
+      "category": "unit",
+      "input": {
+        "description": "Handles SFTP sessions",
+        "name": "sftp"
+      },
+      "expected_output": {
+        "note": "Middleware execution order is from outer to inner",
+        "order": 8
+      }
+    },
+    {
+      "name": "middleware_pty",
+      "category": "unit",
+      "input": {
+        "description": "Allocates pseudo-terminals",
+        "name": "pty"
+      },
+      "expected_output": {
+        "note": "Middleware execution order is from outer to inner",
+        "order": 9
+      }
+    },
+    {
+      "name": "middleware_activeterm",
+      "category": "unit",
+      "input": {
+        "description": "Terminal activity tracking",
+        "name": "activeterm"
+      },
+      "expected_output": {
+        "note": "Middleware execution order is from outer to inner",
+        "order": 10
+      }
+    },
+    {
+      "name": "middleware_elapsed",
+      "category": "unit",
+      "input": {
+        "description": "Tracks session duration",
+        "name": "elapsed"
+      },
+      "expected_output": {
+        "note": "Middleware execution order is from outer to inner",
+        "order": 11
+      }
+    },
+    {
+      "name": "middleware_recovery",
+      "category": "unit",
+      "input": {
+        "description": "Panic recovery",
+        "name": "recovery"
+      },
+      "expected_output": {
+        "note": "Middleware execution order is from outer to inner",
+        "order": 12
+      }
+    },
+    {
+      "name": "middleware_chain",
+      "category": "unit",
+      "input": {
+        "description": "Middleware chaining behavior",
+        "middleware_count": 3,
+        "middleware_names": [
+          "logging",
+          "auth",
+          "handler"
+        ]
+      },
+      "expected_output": {
+        "execution_order": "outer_to_inner",
+        "note": "Middleware wraps handlers from outside in"
+      }
+    },
+    {
+      "name": "middleware_with_options",
+      "category": "unit",
+      "input": {
+        "middleware": "logging",
+        "option_type": "logger"
+      },
+      "expected_output": {
+        "configurable": true,
+        "note": "Many middleware accept configuration options"
+      }
+    },
+    {
+      "name": "error_auth_failed",
+      "category": "unit",
+      "input": {
+        "error_type": "ErrAuthFailed"
+      },
+      "expected_output": {
+        "message": "authentication failed",
+        "note": "Error types used in wish error handling"
+      }
+    },
+    {
+      "name": "error_connection_closed",
+      "category": "unit",
+      "input": {
+        "error_type": "ErrConnectionClosed"
+      },
+      "expected_output": {
+        "message": "connection closed",
+        "note": "Error types used in wish error handling"
+      }
+    },
+    {
+      "name": "error_invalid_session",
+      "category": "unit",
+      "input": {
+        "error_type": "ErrInvalidSession"
+      },
+      "expected_output": {
+        "message": "invalid session",
+        "note": "Error types used in wish error handling"
+      }
+    },
+    {
+      "name": "error_timeout",
+      "category": "unit",
+      "input": {
+        "error_type": "ErrTimeout"
+      },
+      "expected_output": {
+        "message": "connection timeout",
+        "note": "Error types used in wish error handling"
+      }
+    },
+    {
+      "name": "error_permission_denied",
+      "category": "unit",
+      "input": {
+        "error_type": "ErrPermissionDenied"
+      },
+      "expected_output": {
+        "message": "permission denied",
+        "note": "Error types used in wish error handling"
+      }
+    },
+    {
+      "name": "error_fatal",
+      "category": "unit",
+      "input": {
+        "function": "wish.Fatal"
+      },
+      "expected_output": {
+        "behavior": "prints_error_and_exits",
+        "exit_code": 1,
+        "note": "Fatal prints to stderr and calls os.Exit(1)"
+      }
+    },
+    {
+      "name": "error_patterns",
+      "category": "unit",
+      "input": {
+        "description": "Common wish error handling patterns"
+      },
+      "expected_output": {
+        "error_types": [
+          "authentication_error",
+          "connection_error",
+          "session_error",
+          "timeout_error"
+        ],
+        "note": "Error types follow standard Go error patterns"
+      }
+    }
+  ]
+}

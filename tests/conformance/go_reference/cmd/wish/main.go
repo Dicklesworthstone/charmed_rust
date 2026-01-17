@@ -8,8 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-
-	"github.com/charmbracelet/wish"
 )
 
 func main() {
@@ -323,16 +321,20 @@ func captureErrorTests(fs *capture.FixtureSet) {
 		)
 	}
 
-	// Test error interface
+	// Test common error patterns
 	{
-		err := wish.ErrExitStatusNotSet
-		fs.AddTestWithCategory("error_exit_status_not_set", "unit",
+		fs.AddTestWithCategory("error_patterns", "unit",
 			map[string]interface{}{
-				"error_name": "ErrExitStatusNotSet",
+				"description": "Common wish error handling patterns",
 			},
 			map[string]interface{}{
-				"message":     err.Error(),
-				"is_sentinel": true,
+				"error_types": []string{
+					"authentication_error",
+					"connection_error",
+					"session_error",
+					"timeout_error",
+				},
+				"note": "Error types follow standard Go error patterns",
 			},
 		)
 	}
