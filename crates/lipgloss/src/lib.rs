@@ -280,13 +280,21 @@ pub fn join_vertical(pos: Position, strs: &[&str]) -> String {
             let left_pad = (extra as f64 * pos.factor()).round() as usize;
             let right_pad = extra.saturating_sub(left_pad);
 
+            // For left alignment (pos=0), keep trailing spaces to maintain width
+            // For right alignment (pos=1), we can trim trailing (no right_pad)
+            // For center alignment, keep trailing spaces to maintain width
             let padded = format!(
                 "{}{}{}",
                 " ".repeat(left_pad),
                 line,
                 " ".repeat(right_pad)
             );
-            result.push(padded.trim_end().to_string());
+            // Only trim trailing for right alignment where right_pad would be 0
+            if pos.factor() >= 1.0 {
+                result.push(padded.trim_end().to_string());
+            } else {
+                result.push(padded);
+            }
         }
     }
 
@@ -345,14 +353,14 @@ pub fn place(
     let content_width = self::width(s);
     let content_height = self::height(s);
 
-    // Horizontal padding
+    // Horizontal padding - use floor for Go compatibility
     let h_extra = width.saturating_sub(content_width);
-    let left_pad = (h_extra as f64 * h_pos.factor()).round() as usize;
+    let left_pad = (h_extra as f64 * h_pos.factor()).floor() as usize;
     let _right_pad = h_extra.saturating_sub(left_pad);
 
-    // Vertical padding
+    // Vertical padding - use floor for Go compatibility
     let v_extra = height.saturating_sub(content_height);
-    let top_pad = (v_extra as f64 * v_pos.factor()).round() as usize;
+    let top_pad = (v_extra as f64 * v_pos.factor()).floor() as usize;
     let bottom_pad = v_extra.saturating_sub(top_pad);
 
     let mut result = Vec::with_capacity(height);
@@ -366,7 +374,7 @@ pub fn place(
     for line in s.lines() {
         let line_width = visible_width(line);
         let line_extra = width.saturating_sub(line_width);
-        let line_left = (line_extra as f64 * h_pos.factor()).round() as usize;
+        let line_left = (line_extra as f64 * h_pos.factor()).floor() as usize;
         let line_right = line_extra.saturating_sub(line_left);
         result.push(format!(
             "{}{}{}",

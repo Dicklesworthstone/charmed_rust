@@ -754,14 +754,35 @@ impl Style {
                 .join("\n");
         }
 
-        // Top padding
+        // Calculate content width for blank lines (after horizontal padding applied)
+        let content_width = result.lines().map(|l| visible_width(l)).max().unwrap_or(0);
+
+        // Top padding - create blank lines with proper width
         if self.padding.top > 0 {
-            result = format!("{}\n{}", "\n".repeat(self.padding.top as usize - 1), result);
+            let blank_line = if ws_style.is_empty() {
+                " ".repeat(content_width)
+            } else {
+                format!("{}{}\x1b[0m", ws_style, " ".repeat(content_width))
+            };
+            let top_lines = std::iter::repeat(blank_line.clone())
+                .take(self.padding.top as usize)
+                .collect::<Vec<_>>()
+                .join("\n");
+            result = format!("{}\n{}", top_lines, result);
         }
 
-        // Bottom padding
+        // Bottom padding - create blank lines with proper width
         if self.padding.bottom > 0 {
-            result = format!("{}\n{}", result, "\n".repeat(self.padding.bottom as usize - 1));
+            let blank_line = if ws_style.is_empty() {
+                " ".repeat(content_width)
+            } else {
+                format!("{}{}\x1b[0m", ws_style, " ".repeat(content_width))
+            };
+            let bottom_lines = std::iter::repeat(blank_line.clone())
+                .take(self.padding.bottom as usize)
+                .collect::<Vec<_>>()
+                .join("\n");
+            result = format!("{}\n{}", result, bottom_lines);
         }
 
         result
@@ -776,6 +797,10 @@ impl Style {
             return s.to_string();
         }
 
+        // Calculate content width for blank lines
+        let content_width = lines.iter().map(|l| visible_width(l)).max().unwrap_or(0);
+        let blank_line = " ".repeat(content_width);
+
         let extra = target_height - current_height;
         let factor = self.align_vertical.factor();
         let top_extra = (extra as f64 * factor).round() as usize;
@@ -784,11 +809,11 @@ impl Style {
         let mut result = Vec::with_capacity(target_height);
 
         for _ in 0..top_extra {
-            result.push("");
+            result.push(blank_line.clone());
         }
-        result.extend(lines);
+        result.extend(lines.iter().map(|l| l.to_string()));
         for _ in 0..bottom_extra {
-            result.push("");
+            result.push(blank_line.clone());
         }
 
         result.join("\n")
@@ -947,28 +972,31 @@ impl Style {
                 .join("\n");
         }
 
-        // Top margin
+        // Calculate content width for blank lines (after horizontal margins applied)
+        let content_width = result.lines().map(|l| visible_width(l)).max().unwrap_or(0);
+
+        // Top margin - create blank lines with proper width
         if self.margin.top > 0 {
-            let empty_line = if margin_style.is_empty() {
-                String::new()
+            let blank_line = if margin_style.is_empty() {
+                " ".repeat(content_width)
             } else {
-                format!("{}\x1b[0m", margin_style)
+                format!("{}{}\x1b[0m", margin_style, " ".repeat(content_width))
             };
-            let top = std::iter::repeat(empty_line)
+            let top = std::iter::repeat(blank_line.clone())
                 .take(self.margin.top as usize)
                 .collect::<Vec<_>>()
                 .join("\n");
             result = format!("{}\n{}", top, result);
         }
 
-        // Bottom margin
+        // Bottom margin - create blank lines with proper width
         if self.margin.bottom > 0 {
-            let empty_line = if margin_style.is_empty() {
-                String::new()
+            let blank_line = if margin_style.is_empty() {
+                " ".repeat(content_width)
             } else {
-                format!("{}\x1b[0m", margin_style)
+                format!("{}{}\x1b[0m", margin_style, " ".repeat(content_width))
             };
-            let bottom = std::iter::repeat(empty_line)
+            let bottom = std::iter::repeat(blank_line.clone())
                 .take(self.margin.bottom as usize)
                 .collect::<Vec<_>>()
                 .join("\n");
