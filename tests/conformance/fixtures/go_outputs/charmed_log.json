@@ -1,0 +1,856 @@
+{
+  "metadata": {
+    "crate": "charmed_log",
+    "go_version": "1.24",
+    "library_version": "0.4.0",
+    "captured_at": "2026-01-17T17:15:34Z"
+  },
+  "tests": [
+    {
+      "name": "level_DebugLevel",
+      "category": "unit",
+      "input": {
+        "level": "DebugLevel"
+      },
+      "expected_output": {
+        "string_name": "debug",
+        "value": -4
+      }
+    },
+    {
+      "name": "level_InfoLevel",
+      "category": "unit",
+      "input": {
+        "level": "InfoLevel"
+      },
+      "expected_output": {
+        "string_name": "info",
+        "value": 0
+      }
+    },
+    {
+      "name": "level_WarnLevel",
+      "category": "unit",
+      "input": {
+        "level": "WarnLevel"
+      },
+      "expected_output": {
+        "string_name": "warn",
+        "value": 4
+      }
+    },
+    {
+      "name": "level_ErrorLevel",
+      "category": "unit",
+      "input": {
+        "level": "ErrorLevel"
+      },
+      "expected_output": {
+        "string_name": "error",
+        "value": 8
+      }
+    },
+    {
+      "name": "level_FatalLevel",
+      "category": "unit",
+      "input": {
+        "level": "FatalLevel"
+      },
+      "expected_output": {
+        "string_name": "fatal",
+        "value": 12
+      }
+    },
+    {
+      "name": "parse_level_debug",
+      "category": "unit",
+      "input": {
+        "input": "debug"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": -4
+      }
+    },
+    {
+      "name": "parse_level_info",
+      "category": "unit",
+      "input": {
+        "input": "info"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": 0
+      }
+    },
+    {
+      "name": "parse_level_warn",
+      "category": "unit",
+      "input": {
+        "input": "warn"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": 4
+      }
+    },
+    {
+      "name": "parse_level_error",
+      "category": "unit",
+      "input": {
+        "input": "error"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": 8
+      }
+    },
+    {
+      "name": "parse_level_fatal",
+      "category": "unit",
+      "input": {
+        "input": "fatal"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": 12
+      }
+    },
+    {
+      "name": "parse_level_DEBUG",
+      "category": "unit",
+      "input": {
+        "input": "DEBUG"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": -4
+      }
+    },
+    {
+      "name": "parse_level_INFO",
+      "category": "unit",
+      "input": {
+        "input": "INFO"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": 0
+      }
+    },
+    {
+      "name": "parse_level_WARN",
+      "category": "unit",
+      "input": {
+        "input": "WARN"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": 4
+      }
+    },
+    {
+      "name": "parse_level_ERROR",
+      "category": "unit",
+      "input": {
+        "input": "ERROR"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": 8
+      }
+    },
+    {
+      "name": "parse_level_FATAL",
+      "category": "unit",
+      "input": {
+        "input": "FATAL"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": 12
+      }
+    },
+    {
+      "name": "parse_level_Debug",
+      "category": "unit",
+      "input": {
+        "input": "Debug"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": -4
+      }
+    },
+    {
+      "name": "parse_level_Info",
+      "category": "unit",
+      "input": {
+        "input": "Info"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": 0
+      }
+    },
+    {
+      "name": "parse_level_Warn",
+      "category": "unit",
+      "input": {
+        "input": "Warn"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": 4
+      }
+    },
+    {
+      "name": "parse_level_Error",
+      "category": "unit",
+      "input": {
+        "input": "Error"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": 8
+      }
+    },
+    {
+      "name": "parse_level_Fatal",
+      "category": "unit",
+      "input": {
+        "input": "Fatal"
+      },
+      "expected_output": {
+        "is_valid": true,
+        "level": 12
+      }
+    },
+    {
+      "name": "parse_level_warning",
+      "category": "unit",
+      "input": {
+        "input": "warning"
+      },
+      "expected_output": {
+        "is_valid": false,
+        "level": 0
+      }
+    },
+    {
+      "name": "parse_level_WARNING",
+      "category": "unit",
+      "input": {
+        "input": "WARNING"
+      },
+      "expected_output": {
+        "is_valid": false,
+        "level": 0
+      }
+    },
+    {
+      "name": "parse_level_invalid",
+      "category": "unit",
+      "input": {
+        "input": "invalid"
+      },
+      "expected_output": {
+        "is_valid": false,
+        "level": 0
+      }
+    },
+    {
+      "name": "parse_level_empty",
+      "category": "unit",
+      "input": {
+        "input": ""
+      },
+      "expected_output": {
+        "is_valid": false,
+        "level": 0
+      }
+    },
+    {
+      "name": "parse_level_123",
+      "category": "unit",
+      "input": {
+        "input": "123"
+      },
+      "expected_output": {
+        "is_valid": false,
+        "level": 0
+      }
+    },
+    {
+      "name": "parse_level_trace",
+      "category": "unit",
+      "input": {
+        "input": "trace"
+      },
+      "expected_output": {
+        "is_valid": false,
+        "level": 0
+      }
+    },
+    {
+      "name": "level_string_debug",
+      "category": "unit",
+      "input": {
+        "value": -4
+      },
+      "expected_output": {
+        "string": "debug"
+      }
+    },
+    {
+      "name": "level_string_info",
+      "category": "unit",
+      "input": {
+        "value": 0
+      },
+      "expected_output": {
+        "string": "info"
+      }
+    },
+    {
+      "name": "level_string_warn",
+      "category": "unit",
+      "input": {
+        "value": 4
+      },
+      "expected_output": {
+        "string": "warn"
+      }
+    },
+    {
+      "name": "level_string_error",
+      "category": "unit",
+      "input": {
+        "value": 8
+      },
+      "expected_output": {
+        "string": "error"
+      }
+    },
+    {
+      "name": "level_string_fatal",
+      "category": "unit",
+      "input": {
+        "value": 12
+      },
+      "expected_output": {
+        "string": "fatal"
+      }
+    },
+    {
+      "name": "level_string_custom_-8",
+      "category": "unit",
+      "input": {
+        "value": -8
+      },
+      "expected_output": {
+        "string": ""
+      }
+    },
+    {
+      "name": "level_string_custom_-4",
+      "category": "unit",
+      "input": {
+        "value": -4
+      },
+      "expected_output": {
+        "string": "debug"
+      }
+    },
+    {
+      "name": "level_string_custom_-2",
+      "category": "unit",
+      "input": {
+        "value": -2
+      },
+      "expected_output": {
+        "string": ""
+      }
+    },
+    {
+      "name": "level_string_custom_0",
+      "category": "unit",
+      "input": {
+        "value": 0
+      },
+      "expected_output": {
+        "string": "info"
+      }
+    },
+    {
+      "name": "level_string_custom_2",
+      "category": "unit",
+      "input": {
+        "value": 2
+      },
+      "expected_output": {
+        "string": ""
+      }
+    },
+    {
+      "name": "level_string_custom_4",
+      "category": "unit",
+      "input": {
+        "value": 4
+      },
+      "expected_output": {
+        "string": "warn"
+      }
+    },
+    {
+      "name": "level_string_custom_6",
+      "category": "unit",
+      "input": {
+        "value": 6
+      },
+      "expected_output": {
+        "string": ""
+      }
+    },
+    {
+      "name": "level_string_custom_8",
+      "category": "unit",
+      "input": {
+        "value": 8
+      },
+      "expected_output": {
+        "string": "error"
+      }
+    },
+    {
+      "name": "level_string_custom_10",
+      "category": "unit",
+      "input": {
+        "value": 10
+      },
+      "expected_output": {
+        "string": ""
+      }
+    },
+    {
+      "name": "level_string_custom_12",
+      "category": "unit",
+      "input": {
+        "value": 12
+      },
+      "expected_output": {
+        "string": "fatal"
+      }
+    },
+    {
+      "name": "level_string_custom_16",
+      "category": "unit",
+      "input": {
+        "value": 16
+      },
+      "expected_output": {
+        "string": ""
+      }
+    },
+    {
+      "name": "level_compare_debug_vs_debug",
+      "category": "unit",
+      "input": {
+        "level1": -4,
+        "level1_name": "debug",
+        "level2": -4,
+        "level2_name": "debug"
+      },
+      "expected_output": {
+        "equal": true,
+        "greater_than": false,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_debug_vs_info",
+      "category": "unit",
+      "input": {
+        "level1": -4,
+        "level1_name": "debug",
+        "level2": 0,
+        "level2_name": "info"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": false,
+        "less_than": true,
+        "level1_enabled_at_level2": false
+      }
+    },
+    {
+      "name": "level_compare_debug_vs_warn",
+      "category": "unit",
+      "input": {
+        "level1": -4,
+        "level1_name": "debug",
+        "level2": 4,
+        "level2_name": "warn"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": false,
+        "less_than": true,
+        "level1_enabled_at_level2": false
+      }
+    },
+    {
+      "name": "level_compare_debug_vs_error",
+      "category": "unit",
+      "input": {
+        "level1": -4,
+        "level1_name": "debug",
+        "level2": 8,
+        "level2_name": "error"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": false,
+        "less_than": true,
+        "level1_enabled_at_level2": false
+      }
+    },
+    {
+      "name": "level_compare_debug_vs_fatal",
+      "category": "unit",
+      "input": {
+        "level1": -4,
+        "level1_name": "debug",
+        "level2": 12,
+        "level2_name": "fatal"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": false,
+        "less_than": true,
+        "level1_enabled_at_level2": false
+      }
+    },
+    {
+      "name": "level_compare_info_vs_debug",
+      "category": "unit",
+      "input": {
+        "level1": 0,
+        "level1_name": "info",
+        "level2": -4,
+        "level2_name": "debug"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": true,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_info_vs_info",
+      "category": "unit",
+      "input": {
+        "level1": 0,
+        "level1_name": "info",
+        "level2": 0,
+        "level2_name": "info"
+      },
+      "expected_output": {
+        "equal": true,
+        "greater_than": false,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_info_vs_warn",
+      "category": "unit",
+      "input": {
+        "level1": 0,
+        "level1_name": "info",
+        "level2": 4,
+        "level2_name": "warn"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": false,
+        "less_than": true,
+        "level1_enabled_at_level2": false
+      }
+    },
+    {
+      "name": "level_compare_info_vs_error",
+      "category": "unit",
+      "input": {
+        "level1": 0,
+        "level1_name": "info",
+        "level2": 8,
+        "level2_name": "error"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": false,
+        "less_than": true,
+        "level1_enabled_at_level2": false
+      }
+    },
+    {
+      "name": "level_compare_info_vs_fatal",
+      "category": "unit",
+      "input": {
+        "level1": 0,
+        "level1_name": "info",
+        "level2": 12,
+        "level2_name": "fatal"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": false,
+        "less_than": true,
+        "level1_enabled_at_level2": false
+      }
+    },
+    {
+      "name": "level_compare_warn_vs_debug",
+      "category": "unit",
+      "input": {
+        "level1": 4,
+        "level1_name": "warn",
+        "level2": -4,
+        "level2_name": "debug"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": true,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_warn_vs_info",
+      "category": "unit",
+      "input": {
+        "level1": 4,
+        "level1_name": "warn",
+        "level2": 0,
+        "level2_name": "info"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": true,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_warn_vs_warn",
+      "category": "unit",
+      "input": {
+        "level1": 4,
+        "level1_name": "warn",
+        "level2": 4,
+        "level2_name": "warn"
+      },
+      "expected_output": {
+        "equal": true,
+        "greater_than": false,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_warn_vs_error",
+      "category": "unit",
+      "input": {
+        "level1": 4,
+        "level1_name": "warn",
+        "level2": 8,
+        "level2_name": "error"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": false,
+        "less_than": true,
+        "level1_enabled_at_level2": false
+      }
+    },
+    {
+      "name": "level_compare_warn_vs_fatal",
+      "category": "unit",
+      "input": {
+        "level1": 4,
+        "level1_name": "warn",
+        "level2": 12,
+        "level2_name": "fatal"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": false,
+        "less_than": true,
+        "level1_enabled_at_level2": false
+      }
+    },
+    {
+      "name": "level_compare_error_vs_debug",
+      "category": "unit",
+      "input": {
+        "level1": 8,
+        "level1_name": "error",
+        "level2": -4,
+        "level2_name": "debug"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": true,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_error_vs_info",
+      "category": "unit",
+      "input": {
+        "level1": 8,
+        "level1_name": "error",
+        "level2": 0,
+        "level2_name": "info"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": true,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_error_vs_warn",
+      "category": "unit",
+      "input": {
+        "level1": 8,
+        "level1_name": "error",
+        "level2": 4,
+        "level2_name": "warn"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": true,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_error_vs_error",
+      "category": "unit",
+      "input": {
+        "level1": 8,
+        "level1_name": "error",
+        "level2": 8,
+        "level2_name": "error"
+      },
+      "expected_output": {
+        "equal": true,
+        "greater_than": false,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_error_vs_fatal",
+      "category": "unit",
+      "input": {
+        "level1": 8,
+        "level1_name": "error",
+        "level2": 12,
+        "level2_name": "fatal"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": false,
+        "less_than": true,
+        "level1_enabled_at_level2": false
+      }
+    },
+    {
+      "name": "level_compare_fatal_vs_debug",
+      "category": "unit",
+      "input": {
+        "level1": 12,
+        "level1_name": "fatal",
+        "level2": -4,
+        "level2_name": "debug"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": true,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_fatal_vs_info",
+      "category": "unit",
+      "input": {
+        "level1": 12,
+        "level1_name": "fatal",
+        "level2": 0,
+        "level2_name": "info"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": true,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_fatal_vs_warn",
+      "category": "unit",
+      "input": {
+        "level1": 12,
+        "level1_name": "fatal",
+        "level2": 4,
+        "level2_name": "warn"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": true,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_fatal_vs_error",
+      "category": "unit",
+      "input": {
+        "level1": 12,
+        "level1_name": "fatal",
+        "level2": 8,
+        "level2_name": "error"
+      },
+      "expected_output": {
+        "equal": false,
+        "greater_than": true,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    },
+    {
+      "name": "level_compare_fatal_vs_fatal",
+      "category": "unit",
+      "input": {
+        "level1": 12,
+        "level1_name": "fatal",
+        "level2": 12,
+        "level2_name": "fatal"
+      },
+      "expected_output": {
+        "equal": true,
+        "greater_than": false,
+        "less_than": false,
+        "level1_enabled_at_level2": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,953 @@
+{
+  "metadata": {
+    "crate": "lipgloss",
+    "go_version": "1.24",
+    "library_version": "1.1.0",
+    "captured_at": "2026-01-17T17:10:46Z"
+  },
+  "tests": [
+    {
+      "name": "style_plain",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Hello"
+      },
+      "expected_output": {
+        "rendered": "Hello",
+        "width": 5,
+        "height": 1
+      }
+    },
+    {
+      "name": "style_bold",
+      "category": "unit",
+      "input": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Bold"
+      },
+      "expected_output": {
+        "rendered": "Bold",
+        "width": 4,
+        "height": 1
+      }
+    },
+    {
+      "name": "style_italic",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": true,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Italic"
+      },
+      "expected_output": {
+        "rendered": "Italic",
+        "width": 6,
+        "height": 1
+      }
+    },
+    {
+      "name": "style_underline",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": true,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Underline"
+      },
+      "expected_output": {
+        "rendered": "Underline",
+        "width": 9,
+        "height": 1
+      }
+    },
+    {
+      "name": "style_strikethrough",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": true,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Strike"
+      },
+      "expected_output": {
+        "rendered": "Strike",
+        "width": 6,
+        "height": 1
+      }
+    },
+    {
+      "name": "style_faint",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": true,
+        "blink": false,
+        "reverse": false,
+        "text": "Faint"
+      },
+      "expected_output": {
+        "rendered": "Faint",
+        "width": 5,
+        "height": 1
+      }
+    },
+    {
+      "name": "style_blink",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": true,
+        "reverse": false,
+        "text": "Blink"
+      },
+      "expected_output": {
+        "rendered": "Blink",
+        "width": 5,
+        "height": 1
+      }
+    },
+    {
+      "name": "style_reverse",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": true,
+        "text": "Reverse"
+      },
+      "expected_output": {
+        "rendered": "Reverse",
+        "width": 7,
+        "height": 1
+      }
+    },
+    {
+      "name": "style_combined",
+      "category": "unit",
+      "input": {
+        "bold": true,
+        "italic": true,
+        "underline": true,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Combined"
+      },
+      "expected_output": {
+        "rendered": "Combined",
+        "width": 8,
+        "height": 1
+      }
+    },
+    {
+      "name": "style_multiline",
+      "category": "unit",
+      "input": {
+        "bold": true,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Line1\nLine2\nLine3"
+      },
+      "expected_output": {
+        "rendered": "Line1\nLine2\nLine3",
+        "width": 5,
+        "height": 3
+      }
+    },
+    {
+      "name": "color_ansi_fg",
+      "category": "unit",
+      "input": {
+        "foreground": "1",
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Red"
+      },
+      "expected_output": {
+        "rendered": "Red",
+        "width": 3,
+        "height": 1
+      }
+    },
+    {
+      "name": "color_ansi_bg",
+      "category": "unit",
+      "input": {
+        "background": "4",
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Blue"
+      },
+      "expected_output": {
+        "rendered": "Blue",
+        "width": 4,
+        "height": 1
+      }
+    },
+    {
+      "name": "color_hex_fg",
+      "category": "unit",
+      "input": {
+        "foreground": "#FF0000",
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "HexRed"
+      },
+      "expected_output": {
+        "rendered": "HexRed",
+        "width": 6,
+        "height": 1
+      }
+    },
+    {
+      "name": "color_fg_bg_combined",
+      "category": "unit",
+      "input": {
+        "foreground": "#FFFFFF",
+        "background": "#0000FF",
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Contrast"
+      },
+      "expected_output": {
+        "rendered": "Contrast",
+        "width": 8,
+        "height": 1
+      }
+    },
+    {
+      "name": "color_ansi256",
+      "category": "unit",
+      "input": {
+        "foreground": "202",
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Orange"
+      },
+      "expected_output": {
+        "rendered": "Orange",
+        "width": 6,
+        "height": 1
+      }
+    },
+    {
+      "name": "border_normal",
+      "category": "unit",
+      "input": {
+        "border_type": "normal",
+        "text": "Normal"
+      },
+      "expected_output": {
+        "rendered": "┌──────┐\n│Normal│\n└──────┘"
+      }
+    },
+    {
+      "name": "border_rounded",
+      "category": "unit",
+      "input": {
+        "border_type": "rounded",
+        "text": "Rounded"
+      },
+      "expected_output": {
+        "rendered": "╭───────╮\n│Rounded│\n╰───────╯"
+      }
+    },
+    {
+      "name": "border_double",
+      "category": "unit",
+      "input": {
+        "border_type": "double",
+        "text": "Double"
+      },
+      "expected_output": {
+        "rendered": "╔══════╗\n║Double║\n╚══════╝"
+      }
+    },
+    {
+      "name": "border_thick",
+      "category": "unit",
+      "input": {
+        "border_type": "thick",
+        "text": "Thick"
+      },
+      "expected_output": {
+        "rendered": "┏━━━━━┓\n┃Thick┃\n┗━━━━━┛"
+      }
+    },
+    {
+      "name": "border_block",
+      "category": "unit",
+      "input": {
+        "border_type": "block",
+        "text": "Block"
+      },
+      "expected_output": {
+        "rendered": "███████\n█Block█\n███████"
+      }
+    },
+    {
+      "name": "border_hidden",
+      "category": "unit",
+      "input": {
+        "border_type": "hidden",
+        "text": "Hidden"
+      },
+      "expected_output": {
+        "rendered": "        \n Hidden \n        "
+      }
+    },
+    {
+      "name": "border_ascii",
+      "category": "unit",
+      "input": {
+        "border_type": "ascii",
+        "text": "ASCII"
+      },
+      "expected_output": {
+        "rendered": "+-----+\n|ASCII|\n+-----+"
+      }
+    },
+    {
+      "name": "border_colored",
+      "category": "unit",
+      "input": {
+        "border_type": "normal",
+        "text": "Colored",
+        "foreground": "#FF0000"
+      },
+      "expected_output": {
+        "rendered": "┌───────┐\n│Colored│\n└───────┘"
+      }
+    },
+    {
+      "name": "border_partial_top_bottom",
+      "input": {
+        "border_type": "normal",
+        "text": "TopBot"
+      },
+      "expected_output": {
+        "rendered": "──────\nTopBot\n──────"
+      },
+      "notes": "Border on top and bottom edges only"
+    },
+    {
+      "name": "border_multiline",
+      "category": "unit",
+      "input": {
+        "border_type": "rounded",
+        "text": "Line1\nLine2"
+      },
+      "expected_output": {
+        "rendered": "╭─────╮\n│Line1│\n│Line2│\n╰─────╯"
+      }
+    },
+    {
+      "name": "padding_all",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Pad",
+        "padding": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "expected_output": {
+        "rendered": "     \n Pad \n     ",
+        "width": 5,
+        "height": 3
+      }
+    },
+    {
+      "name": "padding_vh",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Pad",
+        "padding": [
+          1,
+          2,
+          1,
+          2
+        ]
+      },
+      "expected_output": {
+        "rendered": "       \n  Pad  \n       ",
+        "width": 7,
+        "height": 3
+      }
+    },
+    {
+      "name": "padding_individual",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "P",
+        "padding": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "expected_output": {
+        "rendered": "       \n    P  \n       \n       \n       ",
+        "width": 7,
+        "height": 5
+      }
+    },
+    {
+      "name": "margin_all",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Mar",
+        "margin": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "expected_output": {
+        "rendered": "     \n Mar \n     ",
+        "width": 5,
+        "height": 3
+      }
+    },
+    {
+      "name": "margin_individual",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "M",
+        "margin": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "expected_output": {
+        "rendered": "       \n    M  \n       \n       \n       ",
+        "width": 7,
+        "height": 5
+      }
+    },
+    {
+      "name": "padding_margin_combined",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "PM",
+        "padding": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "margin": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "expected_output": {
+        "rendered": "      \n      \n  PM  \n      \n      ",
+        "width": 6,
+        "height": 5
+      }
+    },
+    {
+      "name": "dimension_width",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Hi",
+        "width": 10
+      },
+      "expected_output": {
+        "rendered": "Hi        ",
+        "width": 10,
+        "height": 1
+      }
+    },
+    {
+      "name": "dimension_height",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Hi",
+        "height": 3
+      },
+      "expected_output": {
+        "rendered": "Hi\n  \n  ",
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "name": "dimension_both",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "Box",
+        "width": 10,
+        "height": 3
+      },
+      "expected_output": {
+        "rendered": "Box       \n          \n          ",
+        "width": 10,
+        "height": 3
+      }
+    },
+    {
+      "name": "dimension_maxwidth",
+      "category": "unit",
+      "input": {
+        "max_width": 5,
+        "text": "Hello World"
+      },
+      "expected_output": {
+        "rendered": "Hello",
+        "width": 5,
+        "height": 1
+      }
+    },
+    {
+      "name": "dimension_maxheight",
+      "category": "unit",
+      "input": {
+        "max_height": 2,
+        "text": "L1\nL2\nL3\nL4"
+      },
+      "expected_output": {
+        "rendered": "L1\nL2",
+        "width": 2,
+        "height": 2
+      }
+    },
+    {
+      "name": "align_left",
+      "category": "unit",
+      "input": {
+        "align_horizontal": "left",
+        "text": "Hi",
+        "width": 10
+      },
+      "expected_output": {
+        "rendered": "Hi        ",
+        "width": 10,
+        "height": 1
+      }
+    },
+    {
+      "name": "align_center",
+      "category": "unit",
+      "input": {
+        "align_horizontal": "center",
+        "text": "Hi",
+        "width": 10
+      },
+      "expected_output": {
+        "rendered": "    Hi    ",
+        "width": 10,
+        "height": 1
+      }
+    },
+    {
+      "name": "align_right",
+      "category": "unit",
+      "input": {
+        "align_horizontal": "right",
+        "text": "Hi",
+        "width": 10
+      },
+      "expected_output": {
+        "rendered": "        Hi",
+        "width": 10,
+        "height": 1
+      }
+    },
+    {
+      "name": "align_vertical_top",
+      "category": "unit",
+      "input": {
+        "align_vertical": "top",
+        "height": 3,
+        "text": "Hi"
+      },
+      "expected_output": {
+        "rendered": "Hi\n  \n  ",
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "name": "align_vertical_center",
+      "category": "unit",
+      "input": {
+        "align_vertical": "center",
+        "height": 3,
+        "text": "Hi"
+      },
+      "expected_output": {
+        "rendered": "  \nHi\n  ",
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "name": "align_vertical_bottom",
+      "category": "unit",
+      "input": {
+        "align_vertical": "bottom",
+        "height": 3,
+        "text": "Hi"
+      },
+      "expected_output": {
+        "rendered": "  \n  \nHi",
+        "width": 2,
+        "height": 3
+      }
+    },
+    {
+      "name": "join_horizontal_top",
+      "category": "unit",
+      "input": {
+        "blocks": [
+          "A\nA",
+          "B\nB\nB"
+        ],
+        "position": "top"
+      },
+      "expected_output": {
+        "result": "AB\nAB\n B"
+      }
+    },
+    {
+      "name": "join_horizontal_center",
+      "category": "unit",
+      "input": {
+        "blocks": [
+          "A\nA",
+          "B\nB\nB"
+        ],
+        "position": "center"
+      },
+      "expected_output": {
+        "result": " B\nAB\nAB"
+      }
+    },
+    {
+      "name": "join_horizontal_bottom",
+      "category": "unit",
+      "input": {
+        "blocks": [
+          "A\nA",
+          "B\nB\nB"
+        ],
+        "position": "bottom"
+      },
+      "expected_output": {
+        "result": " B\nAB\nAB"
+      }
+    },
+    {
+      "name": "join_vertical_left",
+      "category": "unit",
+      "input": {
+        "blocks": [
+          "Short",
+          "LongerText"
+        ],
+        "position": "left"
+      },
+      "expected_output": {
+        "result": "Short     \nLongerText"
+      }
+    },
+    {
+      "name": "join_vertical_center",
+      "category": "unit",
+      "input": {
+        "blocks": [
+          "Short",
+          "LongerText"
+        ],
+        "position": "center"
+      },
+      "expected_output": {
+        "result": "   Short  \nLongerText"
+      }
+    },
+    {
+      "name": "join_vertical_right",
+      "category": "unit",
+      "input": {
+        "blocks": [
+          "Short",
+          "LongerText"
+        ],
+        "position": "right"
+      },
+      "expected_output": {
+        "result": "     Short\nLongerText"
+      }
+    },
+    {
+      "name": "join_horizontal_multiple",
+      "category": "unit",
+      "input": {
+        "blocks": [
+          "A",
+          "B",
+          "C",
+          "D"
+        ],
+        "position": "top"
+      },
+      "expected_output": {
+        "result": "ABCD"
+      }
+    },
+    {
+      "name": "join_horizontal_empty",
+      "category": "unit",
+      "input": {
+        "blocks": [
+          "",
+          "B"
+        ],
+        "position": "top"
+      },
+      "expected_output": {
+        "result": "B"
+      }
+    },
+    {
+      "name": "place_horizontal_left",
+      "category": "unit",
+      "input": {
+        "position": "left",
+        "text": "Hi",
+        "width": 10
+      },
+      "expected_output": {
+        "result": "Hi        "
+      }
+    },
+    {
+      "name": "place_horizontal_center",
+      "category": "unit",
+      "input": {
+        "position": "center",
+        "text": "Hi",
+        "width": 10
+      },
+      "expected_output": {
+        "result": "    Hi    "
+      }
+    },
+    {
+      "name": "place_horizontal_right",
+      "category": "unit",
+      "input": {
+        "position": "right",
+        "text": "Hi",
+        "width": 10
+      },
+      "expected_output": {
+        "result": "        Hi"
+      }
+    },
+    {
+      "name": "place_vertical_top",
+      "category": "unit",
+      "input": {
+        "height": 3,
+        "position": "top",
+        "text": "Hi"
+      },
+      "expected_output": {
+        "result": "Hi\n  \n  "
+      }
+    },
+    {
+      "name": "place_vertical_center",
+      "category": "unit",
+      "input": {
+        "height": 3,
+        "position": "center",
+        "text": "Hi"
+      },
+      "expected_output": {
+        "result": "  \nHi\n  "
+      }
+    },
+    {
+      "name": "place_vertical_bottom",
+      "category": "unit",
+      "input": {
+        "height": 3,
+        "position": "bottom",
+        "text": "Hi"
+      },
+      "expected_output": {
+        "result": "  \n  \nHi"
+      }
+    },
+    {
+      "name": "place_both_center",
+      "category": "unit",
+      "input": {
+        "height": 3,
+        "horizontal_pos": "center",
+        "text": "Hi",
+        "vertical_pos": "center",
+        "width": 10
+      },
+      "expected_output": {
+        "result": "          \n    Hi    \n          "
+      }
+    },
+    {
+      "name": "place_multiline",
+      "category": "unit",
+      "input": {
+        "height": 5,
+        "horizontal_pos": "center",
+        "text": "A\nB",
+        "vertical_pos": "center",
+        "width": 10
+      },
+      "expected_output": {
+        "result": "          \n    A     \n    B     \n          \n          "
+      }
+    }
+  ]
+}

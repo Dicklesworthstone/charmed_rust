@@ -1,0 +1,528 @@
+{
+  "metadata": {
+    "crate": "harmonica",
+    "go_version": "1.24",
+    "library_version": "0.2.0",
+    "captured_at": "2026-01-17T17:04:49Z"
+  },
+  "tests": [
+    {
+      "name": "spring_default_step",
+      "category": "unit",
+      "input": {
+        "frequency": 6,
+        "damping": 1,
+        "current_pos": 0,
+        "target_pos": 1,
+        "velocity": 0,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "new_pos": 0.004678839798509582,
+        "new_velocity": 0.5429024312770874
+      }
+    },
+    {
+      "name": "spring_at_target",
+      "category": "unit",
+      "input": {
+        "frequency": 6,
+        "damping": 1,
+        "current_pos": 1,
+        "target_pos": 1,
+        "velocity": 0,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "new_pos": 1,
+        "new_velocity": 0
+      }
+    },
+    {
+      "name": "spring_with_velocity",
+      "category": "unit",
+      "input": {
+        "frequency": 6,
+        "damping": 1,
+        "current_pos": 0,
+        "target_pos": 1,
+        "velocity": 5,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "new_pos": 0.08008195525366057,
+        "new_velocity": 4.614670846822728
+      }
+    },
+    {
+      "name": "spring_underdamped",
+      "input": {
+        "frequency": 6,
+        "damping": 0.3,
+        "current_pos": 0,
+        "target_pos": 1,
+        "velocity": 0,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "new_pos": 0.0048974149946585666,
+        "new_velocity": 0.5813845939323615
+      },
+      "notes": "Under-damped spring will oscillate around target"
+    },
+    {
+      "name": "spring_overdamped",
+      "input": {
+        "frequency": 6,
+        "damping": 2,
+        "current_pos": 0,
+        "target_pos": 1,
+        "velocity": 0,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "new_pos": 0.004391441832238274,
+        "new_velocity": 0.49369831503171113
+      },
+      "notes": "Over-damped spring approaches target slowly without oscillation"
+    },
+    {
+      "name": "spring_critically_damped",
+      "input": {
+        "frequency": 6,
+        "damping": 1,
+        "current_pos": 0,
+        "target_pos": 1,
+        "velocity": 0,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "new_pos": 0.004678839798509582,
+        "new_velocity": 0.5429024312770874
+      },
+      "notes": "Critically damped spring reaches target fastest without overshoot"
+    },
+    {
+      "name": "spring_high_frequency",
+      "category": "unit",
+      "input": {
+        "frequency": 15,
+        "damping": 1,
+        "current_pos": 0,
+        "target_pos": 1,
+        "velocity": 0,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "new_pos": 0.02649901921374198,
+        "new_velocity": 2.920502848902679
+      }
+    },
+    {
+      "name": "spring_low_frequency",
+      "category": "unit",
+      "input": {
+        "frequency": 2,
+        "damping": 1,
+        "current_pos": 0,
+        "target_pos": 1,
+        "velocity": 0,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "new_pos": 0.0005433627922731832,
+        "new_velocity": 0.06448107087219888
+      }
+    },
+    {
+      "name": "spring_convergence_10_steps",
+      "input": {
+        "damping": 1,
+        "frequency": 6,
+        "start_pos": 0,
+        "steps": 10,
+        "target_pos": 1
+      },
+      "expected_output": [
+        {
+          "pos": 0.004678839798509582,
+          "vel": 0.5429024312770874
+        },
+        {
+          "pos": 0.01752309499645266,
+          "vel": 0.9824768722543169
+        },
+        {
+          "pos": 0.03693631044682133,
+          "vel": 1.3334727598898533
+        },
+        {
+          "pos": 0.06155193126005698,
+          "vel": 1.6087680718750987
+        },
+        {
+          "pos": 0.09020400436574372,
+          "vel": 1.8195919427460594
+        },
+        {
+          "pos": 0.1219013743466707,
+          "vel": 1.9757218583269434
+        },
+        {
+          "pos": 0.15580497382153247,
+          "vel": 2.0856582508960186
+        },
+        {
+          "pos": 0.19120785308618027,
+          "vel": 2.156779010508429
+        },
+        {
+          "pos": 0.2275176333200054,
+          "vel": 2.195476153817328
+        },
+        {
+          "pos": 0.2642411029419385,
+          "vel": 2.2072766470286513
+        }
+      ],
+      "notes": "Tracks spring position over 10 simulation steps"
+    },
+    {
+      "name": "spring_negative_target",
+      "category": "unit",
+      "input": {
+        "frequency": 6,
+        "damping": 1,
+        "current_pos": 0,
+        "target_pos": -1,
+        "velocity": 0,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "new_pos": -0.004678839798509582,
+        "new_velocity": -0.5429024312770874
+      }
+    },
+    {
+      "name": "spring_zero_frequency",
+      "input": {
+        "frequency": 0,
+        "damping": 1,
+        "current_pos": 0,
+        "target_pos": 1,
+        "velocity": 0,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "new_pos": 0,
+        "new_velocity": 0
+      },
+      "notes": "Zero frequency spring should not move"
+    },
+    {
+      "name": "spring_large_displacement",
+      "category": "unit",
+      "input": {
+        "frequency": 6,
+        "damping": 1,
+        "current_pos": 0,
+        "target_pos": 1000,
+        "velocity": 0,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "new_pos": 4.678839798509557,
+        "new_velocity": 542.9024312770873
+      }
+    },
+    {
+      "name": "projectile_freefall",
+      "category": "unit",
+      "input": {
+        "x": 0,
+        "y": 10,
+        "z": 0,
+        "vel_x": 0,
+        "vel_y": 0,
+        "vel_z": 0,
+        "gravity": 9.81,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 10,
+        "z": 0,
+        "vel_x": 0,
+        "vel_y": -0.16349999346000002,
+        "vel_z": 0
+      }
+    },
+    {
+      "name": "projectile_horizontal",
+      "category": "unit",
+      "input": {
+        "x": 0,
+        "y": 10,
+        "z": 0,
+        "vel_x": 5,
+        "vel_y": 0,
+        "vel_z": 0,
+        "gravity": 9.81,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "x": 0.08333333,
+        "y": 10,
+        "z": 0,
+        "vel_x": 5,
+        "vel_y": -0.16349999346000002,
+        "vel_z": 0
+      }
+    },
+    {
+      "name": "projectile_upward",
+      "category": "unit",
+      "input": {
+        "x": 0,
+        "y": 0,
+        "z": 0,
+        "vel_x": 0,
+        "vel_y": 10,
+        "vel_z": 0,
+        "gravity": 9.81,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0.16666666,
+        "z": 0,
+        "vel_x": 0,
+        "vel_y": 9.83650000654,
+        "vel_z": 0
+      }
+    },
+    {
+      "name": "projectile_3d",
+      "category": "unit",
+      "input": {
+        "x": 1,
+        "y": 2,
+        "z": 3,
+        "vel_x": 1,
+        "vel_y": 2,
+        "vel_z": 3,
+        "gravity": 9.81,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "x": 1.016666666,
+        "y": 2.033333332,
+        "z": 3.049999998,
+        "vel_x": 1,
+        "vel_y": 1.83650000654,
+        "vel_z": 3
+      }
+    },
+    {
+      "name": "projectile_trajectory_10_steps",
+      "input": {
+        "gravity": 9.81,
+        "start_pos": [
+          0,
+          0,
+          0
+        ],
+        "start_vel": [
+          10,
+          15,
+          0
+        ],
+        "steps": 10
+      },
+      "expected_output": [
+        {
+          "vx": 10,
+          "vy": 14.83650000654,
+          "vz": 0,
+          "x": 0.16666666,
+          "y": 0.24999999,
+          "z": 0
+        },
+        {
+          "vx": 10,
+          "vy": 14.67300001308,
+          "vz": 0,
+          "x": 0.33333332,
+          "y": 0.497274980218,
+          "z": 0
+        },
+        {
+          "vx": 10,
+          "vy": 14.509500019619999,
+          "vz": 0,
+          "x": 0.49999998,
+          "y": 0.741824970654,
+          "z": 0
+        },
+        {
+          "vx": 10,
+          "vy": 14.346000026159999,
+          "vz": 0,
+          "x": 0.66666664,
+          "y": 0.983649961308,
+          "z": 0
+        },
+        {
+          "vx": 10,
+          "vy": 14.182500032699998,
+          "vz": 0,
+          "x": 0.8333332999999999,
+          "y": 1.22274995218,
+          "z": 0
+        },
+        {
+          "vx": 10,
+          "vy": 14.019000039239998,
+          "vz": 0,
+          "x": 0.9999999599999999,
+          "y": 1.45912494327,
+          "z": 0
+        },
+        {
+          "vx": 10,
+          "vy": 13.855500045779998,
+          "vz": 0,
+          "x": 1.16666662,
+          "y": 1.6927749345779999,
+          "z": 0
+        },
+        {
+          "vx": 10,
+          "vy": 13.692000052319997,
+          "vz": 0,
+          "x": 1.33333328,
+          "y": 1.9236999261039998,
+          "z": 0
+        },
+        {
+          "vx": 10,
+          "vy": 13.528500058859997,
+          "vz": 0,
+          "x": 1.49999994,
+          "y": 2.1518999178479996,
+          "z": 0
+        },
+        {
+          "vx": 10,
+          "vy": 13.365000065399997,
+          "vz": 0,
+          "x": 1.6666665999999999,
+          "y": 2.3773749098099994,
+          "z": 0
+        }
+      ],
+      "notes": "Tracks projectile position over 10 simulation steps"
+    },
+    {
+      "name": "projectile_terminal_gravity",
+      "input": {
+        "x": 0,
+        "y": 0,
+        "z": 0,
+        "vel_x": 0,
+        "vel_y": 0,
+        "vel_z": 0,
+        "gravity": -9.81,
+        "delta_time": 0.016666666666666666
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "z": 0,
+        "vel_x": 0,
+        "vel_y": 0.16349999346000002,
+        "vel_z": 0
+      },
+      "notes": "Terminal gravity for top-left origin coordinate systems"
+    },
+    {
+      "name": "projectile_zero_gravity",
+      "input": {
+        "acceleration": [
+          0,
+          0,
+          0
+        ],
+        "start_pos": [
+          0,
+          0,
+          0
+        ],
+        "start_vel": [
+          5,
+          5,
+          5
+        ]
+      },
+      "expected_output": {
+        "x": 0.08333333,
+        "y": 0.08333333,
+        "z": 0.08333333,
+        "vel_x": 5,
+        "vel_y": 5,
+        "vel_z": 5
+      },
+      "notes": "Constant velocity motion with no acceleration"
+    },
+    {
+      "name": "fps_30",
+      "category": "unit",
+      "input": {
+        "fps": 30
+      },
+      "expected_output": {
+        "delta": 0.033333333
+      }
+    },
+    {
+      "name": "fps_60",
+      "category": "unit",
+      "input": {
+        "fps": 60
+      },
+      "expected_output": {
+        "delta": 0.016666666
+      }
+    },
+    {
+      "name": "fps_120",
+      "category": "unit",
+      "input": {
+        "fps": 120
+      },
+      "expected_output": {
+        "delta": 0.008333333
+      }
+    },
+    {
+      "name": "fps_144",
+      "category": "unit",
+      "input": {
+        "fps": 144
+      },
+      "expected_output": {
+        "delta": 0.006944444
+      }
+    },
+    {
+      "name": "fps_240",
+      "category": "unit",
+      "input": {
+        "fps": 240
+      },
+      "expected_output": {
+        "delta": 0.004166666
+      }
+    }
+  ]
+}

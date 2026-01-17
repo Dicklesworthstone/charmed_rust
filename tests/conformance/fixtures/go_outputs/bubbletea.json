@@ -1,0 +1,1597 @@
+{
+  "metadata": {
+    "crate": "bubbletea",
+    "go_version": "1.24",
+    "library_version": "1.3.4",
+    "captured_at": "2026-01-17T17:13:33Z"
+  },
+  "tests": [
+    {
+      "name": "keytype_KeyNull",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyNull"
+      },
+      "expected_output": {
+        "string_name": "ctrl+@",
+        "value": 0
+      }
+    },
+    {
+      "name": "keytype_KeyBreak",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyBreak"
+      },
+      "expected_output": {
+        "string_name": "ctrl+c",
+        "value": 3
+      }
+    },
+    {
+      "name": "keytype_KeyEnter",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyEnter"
+      },
+      "expected_output": {
+        "string_name": "enter",
+        "value": 13
+      }
+    },
+    {
+      "name": "keytype_KeyBackspace",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyBackspace"
+      },
+      "expected_output": {
+        "string_name": "backspace",
+        "value": 127
+      }
+    },
+    {
+      "name": "keytype_KeyTab",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyTab"
+      },
+      "expected_output": {
+        "string_name": "tab",
+        "value": 9
+      }
+    },
+    {
+      "name": "keytype_KeyEsc",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyEsc"
+      },
+      "expected_output": {
+        "string_name": "esc",
+        "value": 27
+      }
+    },
+    {
+      "name": "keytype_KeyEscape",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyEscape"
+      },
+      "expected_output": {
+        "string_name": "esc",
+        "value": 27
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlA",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlA"
+      },
+      "expected_output": {
+        "string_name": "ctrl+a",
+        "value": 1
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlB",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlB"
+      },
+      "expected_output": {
+        "string_name": "ctrl+b",
+        "value": 2
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlC",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlC"
+      },
+      "expected_output": {
+        "string_name": "ctrl+c",
+        "value": 3
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlD",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlD"
+      },
+      "expected_output": {
+        "string_name": "ctrl+d",
+        "value": 4
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlE",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlE"
+      },
+      "expected_output": {
+        "string_name": "ctrl+e",
+        "value": 5
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlF",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlF"
+      },
+      "expected_output": {
+        "string_name": "ctrl+f",
+        "value": 6
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlG",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlG"
+      },
+      "expected_output": {
+        "string_name": "ctrl+g",
+        "value": 7
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlH",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlH"
+      },
+      "expected_output": {
+        "string_name": "ctrl+h",
+        "value": 8
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlI",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlI"
+      },
+      "expected_output": {
+        "string_name": "tab",
+        "value": 9
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlJ",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlJ"
+      },
+      "expected_output": {
+        "string_name": "ctrl+j",
+        "value": 10
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlK",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlK"
+      },
+      "expected_output": {
+        "string_name": "ctrl+k",
+        "value": 11
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlL",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlL"
+      },
+      "expected_output": {
+        "string_name": "ctrl+l",
+        "value": 12
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlM",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlM"
+      },
+      "expected_output": {
+        "string_name": "enter",
+        "value": 13
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlN",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlN"
+      },
+      "expected_output": {
+        "string_name": "ctrl+n",
+        "value": 14
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlO",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlO"
+      },
+      "expected_output": {
+        "string_name": "ctrl+o",
+        "value": 15
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlP",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlP"
+      },
+      "expected_output": {
+        "string_name": "ctrl+p",
+        "value": 16
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlQ",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlQ"
+      },
+      "expected_output": {
+        "string_name": "ctrl+q",
+        "value": 17
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlR",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlR"
+      },
+      "expected_output": {
+        "string_name": "ctrl+r",
+        "value": 18
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlS",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlS"
+      },
+      "expected_output": {
+        "string_name": "ctrl+s",
+        "value": 19
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlT",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlT"
+      },
+      "expected_output": {
+        "string_name": "ctrl+t",
+        "value": 20
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlU",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlU"
+      },
+      "expected_output": {
+        "string_name": "ctrl+u",
+        "value": 21
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlV",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlV"
+      },
+      "expected_output": {
+        "string_name": "ctrl+v",
+        "value": 22
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlW",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlW"
+      },
+      "expected_output": {
+        "string_name": "ctrl+w",
+        "value": 23
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlX",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlX"
+      },
+      "expected_output": {
+        "string_name": "ctrl+x",
+        "value": 24
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlY",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlY"
+      },
+      "expected_output": {
+        "string_name": "ctrl+y",
+        "value": 25
+      }
+    },
+    {
+      "name": "keytype_KeyCtrlZ",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyCtrlZ"
+      },
+      "expected_output": {
+        "string_name": "ctrl+z",
+        "value": 26
+      }
+    },
+    {
+      "name": "keytype_KeyRunes",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyRunes"
+      },
+      "expected_output": {
+        "string_name": "runes",
+        "value": -1
+      }
+    },
+    {
+      "name": "keytype_KeyUp",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyUp"
+      },
+      "expected_output": {
+        "string_name": "up",
+        "value": -2
+      }
+    },
+    {
+      "name": "keytype_KeyDown",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyDown"
+      },
+      "expected_output": {
+        "string_name": "down",
+        "value": -3
+      }
+    },
+    {
+      "name": "keytype_KeyRight",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyRight"
+      },
+      "expected_output": {
+        "string_name": "right",
+        "value": -4
+      }
+    },
+    {
+      "name": "keytype_KeyLeft",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyLeft"
+      },
+      "expected_output": {
+        "string_name": "left",
+        "value": -5
+      }
+    },
+    {
+      "name": "keytype_KeyShiftTab",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyShiftTab"
+      },
+      "expected_output": {
+        "string_name": "shift+tab",
+        "value": -6
+      }
+    },
+    {
+      "name": "keytype_KeyHome",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyHome"
+      },
+      "expected_output": {
+        "string_name": "home",
+        "value": -7
+      }
+    },
+    {
+      "name": "keytype_KeyEnd",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyEnd"
+      },
+      "expected_output": {
+        "string_name": "end",
+        "value": -8
+      }
+    },
+    {
+      "name": "keytype_KeyPgUp",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyPgUp"
+      },
+      "expected_output": {
+        "string_name": "pgup",
+        "value": -9
+      }
+    },
+    {
+      "name": "keytype_KeyPgDown",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyPgDown"
+      },
+      "expected_output": {
+        "string_name": "pgdown",
+        "value": -10
+      }
+    },
+    {
+      "name": "keytype_KeyDelete",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyDelete"
+      },
+      "expected_output": {
+        "string_name": "delete",
+        "value": -13
+      }
+    },
+    {
+      "name": "keytype_KeyInsert",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyInsert"
+      },
+      "expected_output": {
+        "string_name": "insert",
+        "value": -14
+      }
+    },
+    {
+      "name": "keytype_KeySpace",
+      "category": "unit",
+      "input": {
+        "key_type": "KeySpace"
+      },
+      "expected_output": {
+        "string_name": " ",
+        "value": -15
+      }
+    },
+    {
+      "name": "keytype_KeyF1",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyF1"
+      },
+      "expected_output": {
+        "string_name": "f1",
+        "value": -34
+      }
+    },
+    {
+      "name": "keytype_KeyF2",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyF2"
+      },
+      "expected_output": {
+        "string_name": "f2",
+        "value": -35
+      }
+    },
+    {
+      "name": "keytype_KeyF3",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyF3"
+      },
+      "expected_output": {
+        "string_name": "f3",
+        "value": -36
+      }
+    },
+    {
+      "name": "keytype_KeyF4",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyF4"
+      },
+      "expected_output": {
+        "string_name": "f4",
+        "value": -37
+      }
+    },
+    {
+      "name": "keytype_KeyF5",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyF5"
+      },
+      "expected_output": {
+        "string_name": "f5",
+        "value": -38
+      }
+    },
+    {
+      "name": "keytype_KeyF6",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyF6"
+      },
+      "expected_output": {
+        "string_name": "f6",
+        "value": -39
+      }
+    },
+    {
+      "name": "keytype_KeyF7",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyF7"
+      },
+      "expected_output": {
+        "string_name": "f7",
+        "value": -40
+      }
+    },
+    {
+      "name": "keytype_KeyF8",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyF8"
+      },
+      "expected_output": {
+        "string_name": "f8",
+        "value": -41
+      }
+    },
+    {
+      "name": "keytype_KeyF9",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyF9"
+      },
+      "expected_output": {
+        "string_name": "f9",
+        "value": -42
+      }
+    },
+    {
+      "name": "keytype_KeyF10",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyF10"
+      },
+      "expected_output": {
+        "string_name": "f10",
+        "value": -43
+      }
+    },
+    {
+      "name": "keytype_KeyF11",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyF11"
+      },
+      "expected_output": {
+        "string_name": "f11",
+        "value": -44
+      }
+    },
+    {
+      "name": "keytype_KeyF12",
+      "category": "unit",
+      "input": {
+        "key_type": "KeyF12"
+      },
+      "expected_output": {
+        "string_name": "f12",
+        "value": -45
+      }
+    },
+    {
+      "name": "sequence_arrow_up",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[A"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -2
+      }
+    },
+    {
+      "name": "sequence_arrow_down",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[B"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -3
+      }
+    },
+    {
+      "name": "sequence_arrow_right",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[C"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -4
+      }
+    },
+    {
+      "name": "sequence_arrow_left",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[D"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -5
+      }
+    },
+    {
+      "name": "sequence_shift_up",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[1;2A"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -22
+      }
+    },
+    {
+      "name": "sequence_shift_down",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[1;2B"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -23
+      }
+    },
+    {
+      "name": "sequence_shift_right",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[1;2C"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -24
+      }
+    },
+    {
+      "name": "sequence_shift_left",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[1;2D"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -25
+      }
+    },
+    {
+      "name": "sequence_alt_up",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[1;3A"
+      },
+      "expected_output": {
+        "alt": true,
+        "key_type": -2
+      }
+    },
+    {
+      "name": "sequence_alt_down",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[1;3B"
+      },
+      "expected_output": {
+        "alt": true,
+        "key_type": -3
+      }
+    },
+    {
+      "name": "sequence_alt_right",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[1;3C"
+      },
+      "expected_output": {
+        "alt": true,
+        "key_type": -4
+      }
+    },
+    {
+      "name": "sequence_alt_left",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[1;3D"
+      },
+      "expected_output": {
+        "alt": true,
+        "key_type": -5
+      }
+    },
+    {
+      "name": "sequence_ctrl_up",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[1;5A"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -16
+      }
+    },
+    {
+      "name": "sequence_ctrl_down",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[1;5B"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -17
+      }
+    },
+    {
+      "name": "sequence_ctrl_right",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[1;5C"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -18
+      }
+    },
+    {
+      "name": "sequence_ctrl_left",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[1;5D"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -19
+      }
+    },
+    {
+      "name": "sequence_shift_tab",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[Z"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -6
+      }
+    },
+    {
+      "name": "sequence_insert",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[2~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -14
+      }
+    },
+    {
+      "name": "sequence_delete",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[3~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -13
+      }
+    },
+    {
+      "name": "sequence_page_up",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[5~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -9
+      }
+    },
+    {
+      "name": "sequence_page_down",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[6~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -10
+      }
+    },
+    {
+      "name": "sequence_home_1",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[1~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -7
+      }
+    },
+    {
+      "name": "sequence_home_2",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[H"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -7
+      }
+    },
+    {
+      "name": "sequence_end_1",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[4~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -8
+      }
+    },
+    {
+      "name": "sequence_end_2",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[F"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -8
+      }
+    },
+    {
+      "name": "sequence_f1_vt100",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001bOP"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -34
+      }
+    },
+    {
+      "name": "sequence_f2_vt100",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001bOQ"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -35
+      }
+    },
+    {
+      "name": "sequence_f3_vt100",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001bOR"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -36
+      }
+    },
+    {
+      "name": "sequence_f4_vt100",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001bOS"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -37
+      }
+    },
+    {
+      "name": "sequence_f5",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[15~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -38
+      }
+    },
+    {
+      "name": "sequence_f6",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[17~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -39
+      }
+    },
+    {
+      "name": "sequence_f7",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[18~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -40
+      }
+    },
+    {
+      "name": "sequence_f8",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[19~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -41
+      }
+    },
+    {
+      "name": "sequence_f9",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[20~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -42
+      }
+    },
+    {
+      "name": "sequence_f10",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[21~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -43
+      }
+    },
+    {
+      "name": "sequence_f11",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[23~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -44
+      }
+    },
+    {
+      "name": "sequence_f12",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[24~"
+      },
+      "expected_output": {
+        "alt": false,
+        "key_type": -45
+      }
+    },
+    {
+      "name": "mouse_button_MouseButtonNone",
+      "category": "unit",
+      "input": {
+        "button": "MouseButtonNone"
+      },
+      "expected_output": {
+        "value": 0
+      }
+    },
+    {
+      "name": "mouse_button_MouseButtonLeft",
+      "category": "unit",
+      "input": {
+        "button": "MouseButtonLeft"
+      },
+      "expected_output": {
+        "value": 1
+      }
+    },
+    {
+      "name": "mouse_button_MouseButtonMiddle",
+      "category": "unit",
+      "input": {
+        "button": "MouseButtonMiddle"
+      },
+      "expected_output": {
+        "value": 2
+      }
+    },
+    {
+      "name": "mouse_button_MouseButtonRight",
+      "category": "unit",
+      "input": {
+        "button": "MouseButtonRight"
+      },
+      "expected_output": {
+        "value": 3
+      }
+    },
+    {
+      "name": "mouse_button_MouseButtonWheelUp",
+      "category": "unit",
+      "input": {
+        "button": "MouseButtonWheelUp"
+      },
+      "expected_output": {
+        "value": 4
+      }
+    },
+    {
+      "name": "mouse_button_MouseButtonWheelDown",
+      "category": "unit",
+      "input": {
+        "button": "MouseButtonWheelDown"
+      },
+      "expected_output": {
+        "value": 5
+      }
+    },
+    {
+      "name": "mouse_button_MouseButtonWheelLeft",
+      "category": "unit",
+      "input": {
+        "button": "MouseButtonWheelLeft"
+      },
+      "expected_output": {
+        "value": 6
+      }
+    },
+    {
+      "name": "mouse_button_MouseButtonWheelRight",
+      "category": "unit",
+      "input": {
+        "button": "MouseButtonWheelRight"
+      },
+      "expected_output": {
+        "value": 7
+      }
+    },
+    {
+      "name": "mouse_button_MouseButtonBackward",
+      "category": "unit",
+      "input": {
+        "button": "MouseButtonBackward"
+      },
+      "expected_output": {
+        "value": 8
+      }
+    },
+    {
+      "name": "mouse_button_MouseButtonForward",
+      "category": "unit",
+      "input": {
+        "button": "MouseButtonForward"
+      },
+      "expected_output": {
+        "value": 9
+      }
+    },
+    {
+      "name": "mouse_action_MouseActionPress",
+      "category": "unit",
+      "input": {
+        "action": "MouseActionPress"
+      },
+      "expected_output": {
+        "value": 0
+      }
+    },
+    {
+      "name": "mouse_action_MouseActionRelease",
+      "category": "unit",
+      "input": {
+        "action": "MouseActionRelease"
+      },
+      "expected_output": {
+        "value": 1
+      }
+    },
+    {
+      "name": "mouse_action_MouseActionMotion",
+      "category": "unit",
+      "input": {
+        "action": "MouseActionMotion"
+      },
+      "expected_output": {
+        "value": 2
+      }
+    },
+    {
+      "name": "mouse_event_left_click",
+      "category": "unit",
+      "input": {
+        "action": 0,
+        "alt": false,
+        "button": 1,
+        "ctrl": false,
+        "shift": false,
+        "x": 0,
+        "y": 0
+      },
+      "expected_output": {
+        "string": "left press"
+      }
+    },
+    {
+      "name": "mouse_event_left_release",
+      "category": "unit",
+      "input": {
+        "action": 1,
+        "alt": false,
+        "button": 0,
+        "ctrl": false,
+        "shift": false,
+        "x": 0,
+        "y": 0
+      },
+      "expected_output": {
+        "string": "release"
+      }
+    },
+    {
+      "name": "mouse_event_right_click",
+      "category": "unit",
+      "input": {
+        "action": 0,
+        "alt": false,
+        "button": 3,
+        "ctrl": false,
+        "shift": false,
+        "x": 0,
+        "y": 0
+      },
+      "expected_output": {
+        "string": "right press"
+      }
+    },
+    {
+      "name": "mouse_event_middle_click",
+      "category": "unit",
+      "input": {
+        "action": 0,
+        "alt": false,
+        "button": 2,
+        "ctrl": false,
+        "shift": false,
+        "x": 0,
+        "y": 0
+      },
+      "expected_output": {
+        "string": "middle press"
+      }
+    },
+    {
+      "name": "mouse_event_wheel_up",
+      "category": "unit",
+      "input": {
+        "action": 0,
+        "alt": false,
+        "button": 4,
+        "ctrl": false,
+        "shift": false,
+        "x": 0,
+        "y": 0
+      },
+      "expected_output": {
+        "string": "wheel up"
+      }
+    },
+    {
+      "name": "mouse_event_wheel_down",
+      "category": "unit",
+      "input": {
+        "action": 0,
+        "alt": false,
+        "button": 5,
+        "ctrl": false,
+        "shift": false,
+        "x": 0,
+        "y": 0
+      },
+      "expected_output": {
+        "string": "wheel down"
+      }
+    },
+    {
+      "name": "mouse_event_motion",
+      "category": "unit",
+      "input": {
+        "action": 2,
+        "alt": false,
+        "button": 0,
+        "ctrl": false,
+        "shift": false,
+        "x": 10,
+        "y": 20
+      },
+      "expected_output": {
+        "string": "motion"
+      }
+    },
+    {
+      "name": "mouse_event_ctrl_left_click",
+      "category": "unit",
+      "input": {
+        "action": 0,
+        "alt": false,
+        "button": 1,
+        "ctrl": true,
+        "shift": false,
+        "x": 0,
+        "y": 0
+      },
+      "expected_output": {
+        "string": "ctrl+left press"
+      }
+    },
+    {
+      "name": "mouse_event_alt_left_click",
+      "category": "unit",
+      "input": {
+        "action": 0,
+        "alt": true,
+        "button": 1,
+        "ctrl": false,
+        "shift": false,
+        "x": 0,
+        "y": 0
+      },
+      "expected_output": {
+        "string": "alt+left press"
+      }
+    },
+    {
+      "name": "mouse_event_shift_left_click",
+      "category": "unit",
+      "input": {
+        "action": 0,
+        "alt": false,
+        "button": 1,
+        "ctrl": false,
+        "shift": true,
+        "x": 0,
+        "y": 0
+      },
+      "expected_output": {
+        "string": "shift+left press"
+      }
+    },
+    {
+      "name": "mouse_event_ctrl_alt_shift_left_click",
+      "category": "unit",
+      "input": {
+        "action": 0,
+        "alt": true,
+        "button": 1,
+        "ctrl": true,
+        "shift": true,
+        "x": 0,
+        "y": 0
+      },
+      "expected_output": {
+        "string": "ctrl+alt+shift+left press"
+      }
+    },
+    {
+      "name": "key_string_enter",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [],
+        "type": 13
+      },
+      "expected_output": {
+        "string": "enter"
+      }
+    },
+    {
+      "name": "key_string_backspace",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [],
+        "type": 127
+      },
+      "expected_output": {
+        "string": "backspace"
+      }
+    },
+    {
+      "name": "key_string_tab",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [],
+        "type": 9
+      },
+      "expected_output": {
+        "string": "tab"
+      }
+    },
+    {
+      "name": "key_string_escape",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [],
+        "type": 27
+      },
+      "expected_output": {
+        "string": "esc"
+      }
+    },
+    {
+      "name": "key_string_ctrl_c",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [],
+        "type": 3
+      },
+      "expected_output": {
+        "string": "ctrl+c"
+      }
+    },
+    {
+      "name": "key_string_ctrl_d",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [],
+        "type": 4
+      },
+      "expected_output": {
+        "string": "ctrl+d"
+      }
+    },
+    {
+      "name": "key_string_up",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [],
+        "type": -2
+      },
+      "expected_output": {
+        "string": "up"
+      }
+    },
+    {
+      "name": "key_string_down",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [],
+        "type": -3
+      },
+      "expected_output": {
+        "string": "down"
+      }
+    },
+    {
+      "name": "key_string_left",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [],
+        "type": -5
+      },
+      "expected_output": {
+        "string": "left"
+      }
+    },
+    {
+      "name": "key_string_right",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [],
+        "type": -4
+      },
+      "expected_output": {
+        "string": "right"
+      }
+    },
+    {
+      "name": "key_string_f1",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [],
+        "type": -34
+      },
+      "expected_output": {
+        "string": "f1"
+      }
+    },
+    {
+      "name": "key_string_rune_a",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [
+          "a"
+        ],
+        "type": -1
+      },
+      "expected_output": {
+        "string": "a"
+      }
+    },
+    {
+      "name": "key_string_rune_hello",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [
+          "h",
+          "e",
+          "l",
+          "l",
+          "o"
+        ],
+        "type": -1
+      },
+      "expected_output": {
+        "string": "hello"
+      }
+    },
+    {
+      "name": "key_string_alt_a",
+      "category": "unit",
+      "input": {
+        "alt": true,
+        "paste": false,
+        "runes": [
+          "a"
+        ],
+        "type": -1
+      },
+      "expected_output": {
+        "string": "alt+a"
+      }
+    },
+    {
+      "name": "key_string_alt_up",
+      "category": "unit",
+      "input": {
+        "alt": true,
+        "paste": false,
+        "runes": [],
+        "type": -2
+      },
+      "expected_output": {
+        "string": "alt+up"
+      }
+    },
+    {
+      "name": "key_string_space",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": false,
+        "runes": [],
+        "type": -15
+      },
+      "expected_output": {
+        "string": " "
+      }
+    },
+    {
+      "name": "key_string_paste_text",
+      "category": "unit",
+      "input": {
+        "alt": false,
+        "paste": true,
+        "runes": [
+          "t",
+          "e",
+          "s",
+          "t"
+        ],
+        "type": -1
+      },
+      "expected_output": {
+        "string": "[test]"
+      }
+    }
+  ]
+}

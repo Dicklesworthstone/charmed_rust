@@ -35,15 +35,15 @@ func captureSpringTests(fs *capture.FixtureSet) {
 	// Test 1: Default spring from rest to target
 	{
 		spring := harmonica.NewSpring(harmonica.FPS(60), 6.0, 1.0)
-		pos, vel := spring.Update(0.0, 1.0, 1.0/60.0)
+		pos, vel := spring.Update(0.0, 0.0, 1.0)
 		fs.AddTestWithCategory("spring_default_step", "unit",
 			capture.SpringInput{
-				Frequency: 6.0,
-				Damping:   1.0,
+				Frequency:  6.0,
+				Damping:    1.0,
 				CurrentPos: 0.0,
 				TargetPos:  1.0,
 				Velocity:   0.0,
-				DeltaTime:  1.0/60.0,
+				DeltaTime:  1.0 / 60.0,
 			},
 			capture.SpringOutput{
 				NewPos:      pos,
@@ -55,15 +55,15 @@ func captureSpringTests(fs *capture.FixtureSet) {
 	// Test 2: Spring already at target
 	{
 		spring := harmonica.NewSpring(harmonica.FPS(60), 6.0, 1.0)
-		pos, vel := spring.Update(1.0, 1.0, 1.0/60.0)
+		pos, vel := spring.Update(1.0, 0.0, 1.0)
 		fs.AddTestWithCategory("spring_at_target", "unit",
 			capture.SpringInput{
-				Frequency: 6.0,
-				Damping:   1.0,
+				Frequency:  6.0,
+				Damping:    1.0,
 				CurrentPos: 1.0,
 				TargetPos:  1.0,
 				Velocity:   0.0,
-				DeltaTime:  1.0/60.0,
+				DeltaTime:  1.0 / 60.0,
 			},
 			capture.SpringOutput{
 				NewPos:      pos,
@@ -75,16 +75,15 @@ func captureSpringTests(fs *capture.FixtureSet) {
 	// Test 3: Spring with initial velocity
 	{
 		spring := harmonica.NewSpring(harmonica.FPS(60), 6.0, 1.0)
-		spring.SetVelocity(5.0)
-		pos, vel := spring.Update(0.0, 1.0, 1.0/60.0)
+		pos, vel := spring.Update(0.0, 5.0, 1.0)
 		fs.AddTestWithCategory("spring_with_velocity", "unit",
 			capture.SpringInput{
-				Frequency: 6.0,
-				Damping:   1.0,
+				Frequency:  6.0,
+				Damping:    1.0,
 				CurrentPos: 0.0,
 				TargetPos:  1.0,
 				Velocity:   5.0,
-				DeltaTime:  1.0/60.0,
+				DeltaTime:  1.0 / 60.0,
 			},
 			capture.SpringOutput{
 				NewPos:      pos,
@@ -96,15 +95,15 @@ func captureSpringTests(fs *capture.FixtureSet) {
 	// Test 4: Under-damped spring (oscillatory)
 	{
 		spring := harmonica.NewSpring(harmonica.FPS(60), 6.0, 0.3)
-		pos, vel := spring.Update(0.0, 1.0, 1.0/60.0)
+		pos, vel := spring.Update(0.0, 0.0, 1.0)
 		fs.AddTestWithNotes("spring_underdamped",
 			capture.SpringInput{
-				Frequency: 6.0,
-				Damping:   0.3,
+				Frequency:  6.0,
+				Damping:    0.3,
 				CurrentPos: 0.0,
 				TargetPos:  1.0,
 				Velocity:   0.0,
-				DeltaTime:  1.0/60.0,
+				DeltaTime:  1.0 / 60.0,
 			},
 			capture.SpringOutput{
 				NewPos:      pos,
@@ -117,15 +116,15 @@ func captureSpringTests(fs *capture.FixtureSet) {
 	// Test 5: Over-damped spring (sluggish)
 	{
 		spring := harmonica.NewSpring(harmonica.FPS(60), 6.0, 2.0)
-		pos, vel := spring.Update(0.0, 1.0, 1.0/60.0)
+		pos, vel := spring.Update(0.0, 0.0, 1.0)
 		fs.AddTestWithNotes("spring_overdamped",
 			capture.SpringInput{
-				Frequency: 6.0,
-				Damping:   2.0,
+				Frequency:  6.0,
+				Damping:    2.0,
 				CurrentPos: 0.0,
 				TargetPos:  1.0,
 				Velocity:   0.0,
-				DeltaTime:  1.0/60.0,
+				DeltaTime:  1.0 / 60.0,
 			},
 			capture.SpringOutput{
 				NewPos:      pos,
@@ -138,15 +137,15 @@ func captureSpringTests(fs *capture.FixtureSet) {
 	// Test 6: Critically damped spring
 	{
 		spring := harmonica.NewSpring(harmonica.FPS(60), 6.0, 1.0)
-		pos, vel := spring.Update(0.0, 1.0, 1.0/60.0)
+		pos, vel := spring.Update(0.0, 0.0, 1.0)
 		fs.AddTestWithNotes("spring_critically_damped",
 			capture.SpringInput{
-				Frequency: 6.0,
-				Damping:   1.0,
+				Frequency:  6.0,
+				Damping:    1.0,
 				CurrentPos: 0.0,
 				TargetPos:  1.0,
 				Velocity:   0.0,
-				DeltaTime:  1.0/60.0,
+				DeltaTime:  1.0 / 60.0,
 			},
 			capture.SpringOutput{
 				NewPos:      pos,
@@ -159,15 +158,15 @@ func captureSpringTests(fs *capture.FixtureSet) {
 	// Test 7: High frequency spring (snappy)
 	{
 		spring := harmonica.NewSpring(harmonica.FPS(60), 15.0, 1.0)
-		pos, vel := spring.Update(0.0, 1.0, 1.0/60.0)
+		pos, vel := spring.Update(0.0, 0.0, 1.0)
 		fs.AddTestWithCategory("spring_high_frequency", "unit",
 			capture.SpringInput{
-				Frequency: 15.0,
-				Damping:   1.0,
+				Frequency:  15.0,
+				Damping:    1.0,
 				CurrentPos: 0.0,
 				TargetPos:  1.0,
 				Velocity:   0.0,
-				DeltaTime:  1.0/60.0,
+				DeltaTime:  1.0 / 60.0,
 			},
 			capture.SpringOutput{
 				NewPos:      pos,
@@ -179,15 +178,15 @@ func captureSpringTests(fs *capture.FixtureSet) {
 	// Test 8: Low frequency spring (slow)
 	{
 		spring := harmonica.NewSpring(harmonica.FPS(60), 2.0, 1.0)
-		pos, vel := spring.Update(0.0, 1.0, 1.0/60.0)
+		pos, vel := spring.Update(0.0, 0.0, 1.0)
 		fs.AddTestWithCategory("spring_low_frequency", "unit",
 			capture.SpringInput{
-				Frequency: 2.0,
-				Damping:   1.0,
+				Frequency:  2.0,
+				Damping:    1.0,
 				CurrentPos: 0.0,
 				TargetPos:  1.0,
 				Velocity:   0.0,
-				DeltaTime:  1.0/60.0,
+				DeltaTime:  1.0 / 60.0,
 			},
 			capture.SpringOutput{
 				NewPos:      pos,
@@ -203,8 +202,7 @@ func captureSpringTests(fs *capture.FixtureSet) {
 		vel := 0.0
 		steps := make([]map[string]float64, 10)
 		for i := 0; i < 10; i++ {
-			pos, vel = spring.Update(pos, 1.0, 1.0/60.0)
-			spring.SetVelocity(vel)
+			pos, vel = spring.Update(pos, vel, 1.0)
 			steps[i] = map[string]float64{"pos": pos, "vel": vel}
 		}
 		fs.AddTestWithNotes("spring_convergence_10_steps",
@@ -223,15 +221,56 @@ func captureSpringTests(fs *capture.FixtureSet) {
 	// Test 10: Negative target (moving away from origin)
 	{
 		spring := harmonica.NewSpring(harmonica.FPS(60), 6.0, 1.0)
-		pos, vel := spring.Update(0.0, -1.0, 1.0/60.0)
+		pos, vel := spring.Update(0.0, 0.0, -1.0)
 		fs.AddTestWithCategory("spring_negative_target", "unit",
 			capture.SpringInput{
-				Frequency: 6.0,
-				Damping:   1.0,
+				Frequency:  6.0,
+				Damping:    1.0,
 				CurrentPos: 0.0,
 				TargetPos:  -1.0,
 				Velocity:   0.0,
-				DeltaTime:  1.0/60.0,
+				DeltaTime:  1.0 / 60.0,
+			},
+			capture.SpringOutput{
+				NewPos:      pos,
+				NewVelocity: vel,
+			},
+		)
+	}
+
+	// Test 11: Zero frequency (no motion)
+	{
+		spring := harmonica.NewSpring(harmonica.FPS(60), 0.0, 1.0)
+		pos, vel := spring.Update(0.0, 0.0, 1.0)
+		fs.AddTestWithNotes("spring_zero_frequency",
+			capture.SpringInput{
+				Frequency:  0.0,
+				Damping:    1.0,
+				CurrentPos: 0.0,
+				TargetPos:  1.0,
+				Velocity:   0.0,
+				DeltaTime:  1.0 / 60.0,
+			},
+			capture.SpringOutput{
+				NewPos:      pos,
+				NewVelocity: vel,
+			},
+			"Zero frequency spring should not move",
+		)
+	}
+
+	// Test 12: Large displacement
+	{
+		spring := harmonica.NewSpring(harmonica.FPS(60), 6.0, 1.0)
+		pos, vel := spring.Update(0.0, 0.0, 1000.0)
+		fs.AddTestWithCategory("spring_large_displacement", "unit",
+			capture.SpringInput{
+				Frequency:  6.0,
+				Damping:    1.0,
+				CurrentPos: 0.0,
+				TargetPos:  1000.0,
+				Velocity:   0.0,
+				DeltaTime:  1.0 / 60.0,
 			},
 			capture.SpringOutput{
 				NewPos:      pos,
@@ -244,7 +283,12 @@ func captureSpringTests(fs *capture.FixtureSet) {
 func captureProjectileTests(fs *capture.FixtureSet) {
 	// Test 1: Projectile falling straight down
 	{
-		proj := harmonica.NewProjectile(harmonica.FPS(60), harmonica.Point{X: 0, Y: 10, Z: 0})
+		proj := harmonica.NewProjectile(
+			harmonica.FPS(60),
+			harmonica.Point{X: 0, Y: 10, Z: 0},
+			harmonica.Vector{X: 0, Y: 0, Z: 0},
+			harmonica.Gravity,
+		)
 		proj.Update()
 		pos := proj.Position()
 		vel := proj.Velocity()
@@ -253,7 +297,7 @@ func captureProjectileTests(fs *capture.FixtureSet) {
 				X: 0, Y: 10, Z: 0,
 				VelX: 0, VelY: 0, VelZ: 0,
 				Gravity:   9.81,
-				DeltaTime: 1.0/60.0,
+				DeltaTime: 1.0 / 60.0,
 			},
 			capture.ProjectileOutput{
 				X: pos.X, Y: pos.Y, Z: pos.Z,
@@ -264,8 +308,12 @@ func captureProjectileTests(fs *capture.FixtureSet) {
 
 	// Test 2: Projectile with initial horizontal velocity
 	{
-		proj := harmonica.NewProjectile(harmonica.FPS(60), harmonica.Point{X: 0, Y: 10, Z: 0})
-		proj.SetVelocity(harmonica.Vector{X: 5, Y: 0, Z: 0})
+		proj := harmonica.NewProjectile(
+			harmonica.FPS(60),
+			harmonica.Point{X: 0, Y: 10, Z: 0},
+			harmonica.Vector{X: 5, Y: 0, Z: 0},
+			harmonica.Gravity,
+		)
 		proj.Update()
 		pos := proj.Position()
 		vel := proj.Velocity()
@@ -274,7 +322,7 @@ func captureProjectileTests(fs *capture.FixtureSet) {
 				X: 0, Y: 10, Z: 0,
 				VelX: 5, VelY: 0, VelZ: 0,
 				Gravity:   9.81,
-				DeltaTime: 1.0/60.0,
+				DeltaTime: 1.0 / 60.0,
 			},
 			capture.ProjectileOutput{
 				X: pos.X, Y: pos.Y, Z: pos.Z,
@@ -285,8 +333,12 @@ func captureProjectileTests(fs *capture.FixtureSet) {
 
 	// Test 3: Projectile launched upward
 	{
-		proj := harmonica.NewProjectile(harmonica.FPS(60), harmonica.Point{X: 0, Y: 0, Z: 0})
-		proj.SetVelocity(harmonica.Vector{X: 0, Y: 10, Z: 0})
+		proj := harmonica.NewProjectile(
+			harmonica.FPS(60),
+			harmonica.Point{X: 0, Y: 0, Z: 0},
+			harmonica.Vector{X: 0, Y: 10, Z: 0},
+			harmonica.Gravity,
+		)
 		proj.Update()
 		pos := proj.Position()
 		vel := proj.Velocity()
@@ -295,7 +347,7 @@ func captureProjectileTests(fs *capture.FixtureSet) {
 				X: 0, Y: 0, Z: 0,
 				VelX: 0, VelY: 10, VelZ: 0,
 				Gravity:   9.81,
-				DeltaTime: 1.0/60.0,
+				DeltaTime: 1.0 / 60.0,
 			},
 			capture.ProjectileOutput{
 				X: pos.X, Y: pos.Y, Z: pos.Z,
@@ -306,8 +358,12 @@ func captureProjectileTests(fs *capture.FixtureSet) {
 
 	// Test 4: 3D projectile motion
 	{
-		proj := harmonica.NewProjectile(harmonica.FPS(60), harmonica.Point{X: 1, Y: 2, Z: 3})
-		proj.SetVelocity(harmonica.Vector{X: 1, Y: 2, Z: 3})
+		proj := harmonica.NewProjectile(
+			harmonica.FPS(60),
+			harmonica.Point{X: 1, Y: 2, Z: 3},
+			harmonica.Vector{X: 1, Y: 2, Z: 3},
+			harmonica.Gravity,
+		)
 		proj.Update()
 		pos := proj.Position()
 		vel := proj.Velocity()
@@ -316,7 +372,7 @@ func captureProjectileTests(fs *capture.FixtureSet) {
 				X: 1, Y: 2, Z: 3,
 				VelX: 1, VelY: 2, VelZ: 3,
 				Gravity:   9.81,
-				DeltaTime: 1.0/60.0,
+				DeltaTime: 1.0 / 60.0,
 			},
 			capture.ProjectileOutput{
 				X: pos.X, Y: pos.Y, Z: pos.Z,
@@ -327,8 +383,12 @@ func captureProjectileTests(fs *capture.FixtureSet) {
 
 	// Test 5: Multi-step trajectory
 	{
-		proj := harmonica.NewProjectile(harmonica.FPS(60), harmonica.Point{X: 0, Y: 0, Z: 0})
-		proj.SetVelocity(harmonica.Vector{X: 10, Y: 15, Z: 0})
+		proj := harmonica.NewProjectile(
+			harmonica.FPS(60),
+			harmonica.Point{X: 0, Y: 0, Z: 0},
+			harmonica.Vector{X: 10, Y: 15, Z: 0},
+			harmonica.Gravity,
+		)
 		steps := make([]map[string]float64, 10)
 		for i := 0; i < 10; i++ {
 			proj.Update()
@@ -341,13 +401,64 @@ func captureProjectileTests(fs *capture.FixtureSet) {
 		}
 		fs.AddTestWithNotes("projectile_trajectory_10_steps",
 			map[string]interface{}{
-				"start_pos":  []float64{0, 0, 0},
-				"start_vel":  []float64{10, 15, 0},
-				"gravity":    9.81,
-				"steps":      10,
+				"start_pos": []float64{0, 0, 0},
+				"start_vel": []float64{10, 15, 0},
+				"gravity":   9.81,
+				"steps":     10,
 			},
 			steps,
 			"Tracks projectile position over 10 simulation steps",
+		)
+	}
+
+	// Test 6: Terminal gravity (top-left origin)
+	{
+		proj := harmonica.NewProjectile(
+			harmonica.FPS(60),
+			harmonica.Point{X: 0, Y: 0, Z: 0},
+			harmonica.Vector{X: 0, Y: 0, Z: 0},
+			harmonica.TerminalGravity,
+		)
+		proj.Update()
+		pos := proj.Position()
+		vel := proj.Velocity()
+		fs.AddTestWithNotes("projectile_terminal_gravity",
+			capture.ProjectileInput{
+				X: 0, Y: 0, Z: 0,
+				VelX: 0, VelY: 0, VelZ: 0,
+				Gravity:   -9.81, // Negative indicates upward gravity
+				DeltaTime: 1.0 / 60.0,
+			},
+			capture.ProjectileOutput{
+				X: pos.X, Y: pos.Y, Z: pos.Z,
+				VelX: vel.X, VelY: vel.Y, VelZ: vel.Z,
+			},
+			"Terminal gravity for top-left origin coordinate systems",
+		)
+	}
+
+	// Test 7: Zero gravity (space)
+	{
+		proj := harmonica.NewProjectile(
+			harmonica.FPS(60),
+			harmonica.Point{X: 0, Y: 0, Z: 0},
+			harmonica.Vector{X: 5, Y: 5, Z: 5},
+			harmonica.Vector{X: 0, Y: 0, Z: 0}, // No acceleration
+		)
+		proj.Update()
+		pos := proj.Position()
+		vel := proj.Velocity()
+		fs.AddTestWithNotes("projectile_zero_gravity",
+			map[string]interface{}{
+				"start_pos":    []float64{0, 0, 0},
+				"start_vel":    []float64{5, 5, 5},
+				"acceleration": []float64{0, 0, 0},
+			},
+			capture.ProjectileOutput{
+				X: pos.X, Y: pos.Y, Z: pos.Z,
+				VelX: vel.X, VelY: vel.Y, VelZ: vel.Z,
+			},
+			"Constant velocity motion with no acceleration",
 		)
 	}
 }
