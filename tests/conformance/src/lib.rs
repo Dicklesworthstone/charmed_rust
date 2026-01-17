@@ -35,6 +35,10 @@
 
 pub mod harness;
 
+// Crate-specific conformance tests
+#[path = "../crates/mod.rs"]
+pub mod crates;
+
 // Re-export the crates under test for convenience
 pub use bubbles;
 pub use bubbletea;
