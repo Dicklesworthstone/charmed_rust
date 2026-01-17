@@ -1,0 +1,15 @@
+[package]
+name = "glamour"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Stylesheet-based markdown rendering for terminal applications"
+
+[dependencies]
+lipgloss = { path = "../lipgloss" }
+pulldown-cmark = "0.11"
+
+[lints]
+workspace = true

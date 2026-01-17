@@ -1,0 +1,23 @@
+[package]
+name = "harmonica"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Physics-based animation tools: spring oscillator and projectile motion"
+keywords = ["animation", "spring", "physics", "tui", "terminal"]
+categories = ["game-development", "simulation", "no-std"]
+
+[features]
+default = ["std"]
+std = []
+
+[dependencies]
+# For no_std math functions
+libm = { version = "0.2", optional = true }
+
+[dev-dependencies]
+
+[lints]
+workspace = true

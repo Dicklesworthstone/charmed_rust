@@ -1,0 +1,44 @@
+[package]
+name = "charmed_conformance"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+description = "Conformance testing harness for charmed_rust crates"
+
+[dependencies]
+# Internal crates under test
+harmonica = { path = "../../crates/harmonica" }
+lipgloss = { path = "../../crates/lipgloss" }
+bubbletea = { path = "../../crates/bubbletea" }
+bubbles = { path = "../../crates/bubbles" }
+charmed_log = { path = "../../crates/charmed_log" }
+glamour = { path = "../../crates/glamour" }
+huh = { path = "../../crates/huh" }
+wish = { path = "../../crates/wish" }
+
+# Test infrastructure
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+similar = "2"              # Diff generation
+termcolor = "1"            # Colored output
+unicode-normalization = "0.1" # Unicode NFC normalization
+parking_lot = "0.12"       # Thread-safe primitives
+once_cell = "1"            # Lazy statics
+
+[dev-dependencies]
+criterion = "0.5"          # Benchmarking
+proptest = "1"             # Property testing
+tempfile = "3"             # Temp directories
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "run-conformance"
+path = "src/bin/run_conformance.rs"
+
+[[bin]]
+name = "generate-report"
+path = "src/bin/generate_report.rs"

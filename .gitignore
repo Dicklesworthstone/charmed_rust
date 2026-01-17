@@ -1,0 +1,30 @@
+# Legacy Go source (kept as reference, not committed)
+legacy_bubbletea/
+legacy_lipgloss/
+legacy_huh/
+legacy_wish/
+legacy_glamour/
+legacy_bubbles/
+legacy_log/
+legacy_harmonica/
+legacy_glow/
+
+# Rust build artifacts
+/target
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug
+*.log
+
+# bv (beads viewer) local config and caches
+.bv/

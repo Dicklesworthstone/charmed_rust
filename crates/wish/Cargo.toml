@@ -1,0 +1,30 @@
+[package]
+name = "wish"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Build SSH applications with bubbletea TUI interfaces"
+
+[dependencies]
+bubbletea = { path = "../bubbletea" }
+lipgloss = { path = "../lipgloss" }
+charmed_log = { path = "../charmed_log" }
+async-trait = "0.1"
+tokio = { version = "1.35", features = ["full", "sync", "time", "net", "io-util", "macros", "rt-multi-thread"] }
+thiserror = "2"
+tracing = "0.1"
+futures = "0.3"
+parking_lot = "0.12"
+bytes = "1.5"
+
+# SSH support - optional for now since russh-keys is in beta
+# russh = "0.56"
+# russh-keys = { version = "0.50.0-beta.7" }
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[lints]
+workspace = true

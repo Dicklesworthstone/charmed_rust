@@ -1,0 +1,23 @@
+[package]
+name = "bubbles"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Common TUI components for bubbletea applications"
+keywords = ["tui", "terminal", "widgets", "components", "cli"]
+categories = ["command-line-interface"]
+
+[dependencies]
+bubbletea = { path = "../bubbletea" }
+lipgloss = { path = "../lipgloss" }
+harmonica = { path = "../harmonica" }
+unicode-segmentation.workspace = true
+unicode-width.workspace = true
+parking_lot = "0.12"
+
+[dev-dependencies]
+
+[lints]
+workspace = true

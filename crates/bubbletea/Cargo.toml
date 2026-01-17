@@ -1,0 +1,19 @@
+[package]
+name = "bubbletea"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "A powerful TUI framework based on The Elm Architecture"
+keywords = ["tui", "terminal", "elm", "framework", "cli"]
+categories = ["command-line-interface", "asynchronous"]
+
+[dependencies]
+crossterm = "0.27"
+parking_lot = "0.12"
+
+[dev-dependencies]
+
+[lints]
+workspace = true

@@ -1,0 +1,18 @@
+[package]
+name = "glow"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Render markdown on the command line with style"
+
+[dependencies]
+glamour = { path = "../glamour" }
+bubbletea = { path = "../bubbletea" }
+lipgloss = { path = "../lipgloss" }
+bubbles = { path = "../bubbles" }
+clap = { version = "4.4", features = ["derive"] }
+
+[lints]
+workspace = true

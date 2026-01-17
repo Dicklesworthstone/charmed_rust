@@ -1,0 +1,16 @@
+[package]
+name = "huh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Build interactive forms and prompts for terminal applications"
+
+[dependencies]
+bubbletea = { path = "../bubbletea" }
+lipgloss = { path = "../lipgloss" }
+bubbles = { path = "../bubbles" }
+
+[lints]
+workspace = true
