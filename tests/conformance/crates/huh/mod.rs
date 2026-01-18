@@ -7,6 +7,7 @@
 //! Currently implemented conformance areas:
 //! - Input fields (input_*)
 //! - Select fields (select_*)
+//! - MultiSelect fields (multiselect_*)
 //! - Confirm fields (confirm_*)
 //! - Note fields (note_*)
 //! - Themes (theme_*)
@@ -15,7 +16,6 @@
 //!
 //! Tests marked as skipped (pending implementation):
 //! - Text fields (text_*) - multiline textarea not yet implemented
-//! - MultiSelect fields (multiselect_*) - not yet implemented
 //! - theme_catppuccin - catppuccin theme not yet implemented
 //!
 //! Additional direct tests (not from fixtures):
@@ -26,8 +26,8 @@
 use crate::harness::{FixtureLoader, TestFixture};
 use bubbletea::{Message, Model};
 use huh::{
-    Confirm, EchoMode, Form, FormState, Group, Input, NextFieldMsg, NextGroupMsg, Note,
-    PrevFieldMsg, PrevGroupMsg, Select, SelectOption, theme_base, theme_base16, theme_charm,
+    Confirm, EchoMode, Form, FormState, Group, Input, MultiSelect, NextFieldMsg, NextGroupMsg,
+    Note, PrevFieldMsg, PrevGroupMsg, Select, SelectOption, theme_base, theme_base16, theme_charm,
     theme_dracula, validate_email, validate_min_length_8, validate_required_name,
 };
 use serde::Deserialize;
@@ -107,7 +107,6 @@ struct SelectOutput {
 
 // ===== MultiSelect Conformance Structs =====
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct MultiSelectInput {
     #[serde(default)]
@@ -122,7 +121,6 @@ struct MultiSelectInput {
     preselected: Option<Vec<String>>,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct MultiSelectOutput {
     field_type: String,
@@ -431,6 +429,94 @@ fn run_select_test(fixture: &TestFixture) -> Result<(), String> {
                         select.get_selected_value()
                     ));
                 }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Run a single multiselect test
+fn run_multiselect_test(fixture: &TestFixture) -> Result<(), String> {
+    let input: MultiSelectInput = fixture
+        .input_as()
+        .map_err(|e| format!("Failed to parse input: {}", e))?;
+    let expected: MultiSelectOutput = fixture
+        .expected_as()
+        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+
+    // Verify field type
+    if expected.field_type != "multiselect" {
+        return Err(format!(
+            "Field type mismatch: expected 'multiselect', got '{}'",
+            expected.field_type
+        ));
+    }
+
+    // Build options
+    let mut opts: Vec<SelectOption<String>> = Vec::new();
+    if let Some(options) = &input.options {
+        for opt_str in options {
+            let mut opt = SelectOption::new(opt_str.clone(), opt_str.clone());
+            // Mark as selected if in preselected list
+            if let Some(preselected) = &input.preselected {
+                if preselected.contains(opt_str) {
+                    opt = opt.selected(true);
+                }
+            }
+            opts.push(opt);
+        }
+    } else if let Some(preselected) = &input.preselected {
+        // When no options are provided but preselected is given,
+        // use preselected as both options and selections
+        for opt_str in preselected {
+            let opt = SelectOption::new(opt_str.clone(), opt_str.clone()).selected(true);
+            opts.push(opt);
+        }
+    }
+
+    // Build the multiselect field
+    let mut multi: MultiSelect<String> = MultiSelect::new().options(opts);
+
+    if let Some(title) = &input.title {
+        multi = multi.title(title.as_str());
+    }
+    if let Some(description) = &input.description {
+        multi = multi.description(description.as_str());
+    }
+    if let Some(limit) = input.limit {
+        multi = multi.limit(limit);
+    }
+
+    // Verify initial value
+    let selected_values: Vec<String> = multi
+        .get_selected_values()
+        .iter()
+        .map(|s| (*s).clone())
+        .collect();
+
+    match &expected.initial_value {
+        Some(expected_vals) => {
+            // Sort both for comparison (order might differ)
+            let mut selected_sorted = selected_values.clone();
+            selected_sorted.sort();
+            let mut expected_sorted = expected_vals.clone();
+            expected_sorted.sort();
+
+            if selected_sorted != expected_sorted {
+                return Err(format!(
+                    "Initial value mismatch: expected {:?}, got {:?}",
+                    expected_vals, selected_values
+                ));
+            }
+        }
+        None => {
+            // Expected null/empty selection
+            if !selected_values.is_empty() {
+                return Err(format!(
+                    "Initial value mismatch: expected empty/null, got {:?}",
+                    selected_values
+                ));
             }
         }
     }
@@ -759,8 +845,7 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
     } else if fixture.name.starts_with("select_") {
         run_select_test(fixture)
     } else if fixture.name.starts_with("multiselect_") {
-        // MultiSelect is not yet implemented in the Rust huh crate
-        Err("SKIPPED: MultiSelect field not yet implemented in Rust huh crate".to_string())
+        run_multiselect_test(fixture)
     } else if fixture.name.starts_with("confirm_") {
         run_confirm_test(fixture)
     } else if fixture.name.starts_with("note_") {

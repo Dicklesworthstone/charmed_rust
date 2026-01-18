@@ -1708,6 +1708,7 @@ pub struct MultiSelect<T: Clone + PartialEq + Send + Sync + 'static> {
     theme: Option<Theme>,
     keymap: MultiSelectKeyMap,
     _position: FieldPosition,
+    #[allow(dead_code)]
     filtering: bool,
     filter_value: String,
     offset: usize,
@@ -3174,5 +3175,72 @@ mod tests {
 
         let view = note.view();
         assert!(view.contains("Info"));
+    }
+
+    #[test]
+    fn test_multiselect_view() {
+        let multi: MultiSelect<String> = MultiSelect::new().title("Select items").options(vec![
+            SelectOption::new("A", "a".to_string()),
+            SelectOption::new("B", "b".to_string()).selected(true),
+            SelectOption::new("C", "c".to_string()),
+        ]);
+
+        let view = multi.view();
+        assert!(view.contains("Select items"));
+    }
+
+    #[test]
+    fn test_multiselect_initial_selection() {
+        let multi: MultiSelect<String> = MultiSelect::new().options(vec![
+            SelectOption::new("A", "a".to_string()),
+            SelectOption::new("B", "b".to_string()).selected(true),
+            SelectOption::new("C", "c".to_string()).selected(true),
+        ]);
+
+        let selected = multi.get_selected_values();
+        assert_eq!(selected.len(), 2);
+        assert!(selected.contains(&&"b".to_string()));
+        assert!(selected.contains(&&"c".to_string()));
+    }
+
+    #[test]
+    fn test_multiselect_limit() {
+        let mut multi: MultiSelect<String> = MultiSelect::new()
+            .limit(2)
+            .options(vec![
+                SelectOption::new("A", "a".to_string()),
+                SelectOption::new("B", "b".to_string()),
+                SelectOption::new("C", "c".to_string()),
+            ]);
+
+        // Focus the field so it processes updates
+        multi.focus();
+
+        // Toggle first option (select)
+        let toggle_msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: vec![' '],
+            alt: false,
+            paste: false,
+        });
+        multi.update(&toggle_msg);
+        assert_eq!(multi.get_selected_values().len(), 1);
+
+        // Move down and toggle second
+        let down_msg = Message::new(KeyMsg {
+            key_type: KeyType::Down,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        multi.update(&down_msg);
+        multi.update(&toggle_msg);
+        assert_eq!(multi.get_selected_values().len(), 2);
+
+        // Move down and try to toggle third (should be blocked by limit)
+        multi.update(&down_msg);
+        multi.update(&toggle_msg);
+        // Should still be 2 due to limit
+        assert_eq!(multi.get_selected_values().len(), 2);
     }
 }
