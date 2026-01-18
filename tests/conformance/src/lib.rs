@@ -1,3 +1,7 @@
+#![allow(clippy::all)]
+#![allow(clippy::nursery)]
+#![allow(clippy::pedantic)]
+#![allow(clippy::style)]
 //! Conformance Testing Harness for Charmed Rust
 //!
 //! This crate provides a unified testing framework for verifying that the Rust
@@ -39,6 +43,10 @@ pub mod harness;
 #[path = "../crates/mod.rs"]
 pub mod crates;
 
+// Cross-crate integration tests
+#[path = "../integration/mod.rs"]
+pub mod integration;
+
 // Re-export the crates under test for convenience
 pub use bubbles;
 pub use bubbletea;
@@ -54,8 +62,8 @@ pub mod prelude {
     pub use crate::harness::{
         BaselineComparison, BenchBaseline, BenchConfig, BenchContext, BenchResult, CompareOptions,
         CompareResult, ConformanceTest, Diff, DiffType, FixtureError, FixtureLoader,
-        FixtureMetadata, FixtureResult, FixtureSet, FixtureStatus, OutlierRemoval, OutputComparator,
-        StoredBenchResult, TestCategory, TestContext, TestFixture, TestLogger, TestResult,
-        WhitespaceOptions,
+        FixtureMetadata, FixtureResult, FixtureSet, FixtureStatus, OutlierRemoval,
+        OutputComparator, StoredBenchResult, TestCategory, TestContext, TestFixture, TestLogger,
+        TestResult, WhitespaceOptions,
     };
 }
