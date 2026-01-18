@@ -88,15 +88,60 @@ These differences are handled by semantic comparison:
 **Go glamour:** Pads all lines to 80 characters with styled spaces
 **Rust glamour:** No fixed-width padding (output matches content)
 
+## Syntax Highlighting Gap
+
+**Critical conformance gap**: Go glamour implements syntax highlighting via chroma, while Rust glamour does NOT.
+
+### Go Glamour Behavior
+Go glamour uses [chroma](https://github.com/alecthomas/chroma) for syntax highlighting:
+- Keywords (`fn`, `func`, `def`, `if`, `for`) → color 39 (blue)
+- Function names → color 42 (green)
+- Strings → color 173 (orange)
+- Comments → color 246 (gray)
+- Types → color 140 (purple)
+- Regular text → color 251/252 (light gray)
+
+Example Go output for Rust code:
+```
+\u001b[38;5;39mfn\u001b[0m \u001b[38;5;42mmain\u001b[0m() { \u001b[38;5;173m"Hello"\u001b[0m }
+```
+
+### Rust Glamour Behavior
+Rust glamour outputs code blocks with uniform styling (no per-token colors):
+- All code text gets the same color (typically 251/252)
+- No language-specific token classification
+
+### Test Coverage
+
+The following tests verify syntax highlighting conformance:
+- `test_syntax_highlight_rust_text_content` - Text preservation for Rust code
+- `test_syntax_highlight_go_text_content` - Text preservation for Go code
+- `test_syntax_highlight_python_text_content` - Text preservation for Python
+- `test_syntax_highlight_json_text_content` - Text preservation for JSON
+- `test_syntax_highlight_no_language` - Code blocks without language hints
+- `test_syntax_highlight_rust_gap_detection` - Documents the highlighting gap
+- `test_syntax_highlight_go_gap_detection` - Documents the highlighting gap
+- `test_syntax_highlight_conformance` - Fixture-based conformance test
+
+### Languages Tested
+| Language | Text Preserved | Syntax Highlighting |
+|----------|---------------|---------------------|
+| Rust | ✓ | ✗ (gap) |
+| Go | ✓ | ✗ (gap) |
+| Python | ✓ | ✗ (gap) |
+| JSON | ✓ | ✗ (gap) |
+| No lang | ✓ | N/A |
+
 ## Priority Fixes
 
 To improve conformance further:
 
-1. **Nested lists**: Debug first-item handling in nested list rendering
-2. **Links**: Append URL text after link display text (Go behavior)
-3. **Task lists**: Don't add bullet markers to task list items
-4. **Style presets**: Match notty/ascii mode output more closely
-5. **Blockquotes**: Handle multi-paragraph and nested quotes correctly
+1. **Syntax highlighting**: Implement chroma-like token classification and coloring
+2. **Nested lists**: Debug first-item handling in nested list rendering
+3. **Links**: Append URL text after link display text (Go behavior)
+4. **Task lists**: Don't add bullet markers to task list items
+5. **Style presets**: Match notty/ascii mode output more closely
+6. **Blockquotes**: Handle multi-paragraph and nested quotes correctly
 
 ## Files
 
