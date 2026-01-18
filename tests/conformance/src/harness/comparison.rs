@@ -332,11 +332,7 @@ impl OutputComparator {
                 (Some(e), Some(a)) => {
                     format!(
                         "At position {}: expected {:?} (0x{:02x}), got {:?} (0x{:02x})",
-                        pos,
-                        e,
-                        e as u32,
-                        a,
-                        a as u32
+                        pos, e, e as u32, a, a as u32
                     )
                 }
                 (Some(e), None) => {
@@ -346,10 +342,7 @@ impl OutputComparator {
                     )
                 }
                 (None, Some(a)) => {
-                    format!(
-                        "At position {}: expected end, but got {:?}",
-                        pos, a
-                    )
+                    format!("At position {}: expected end, but got {:?}", pos, a)
                 }
                 (None, None) => String::new(),
             }
@@ -598,6 +591,424 @@ fn normalize_sgr(escape: &str) -> String {
     format!("\x1b[{}m", sorted_params.join(";"))
 }
 
+/// Strip all ANSI escape sequences from a string
+///
+/// Returns the plain text content without any ANSI formatting codes.
+pub fn strip_ansi(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Skip the entire escape sequence
+            // Look for '[' which starts CSI sequences
+            if chars.peek() == Some(&'[') {
+                chars.next(); // consume '['
+                // Skip until we hit a letter (the terminator)
+                while let Some(&next) = chars.peek() {
+                    chars.next();
+                    if next.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+            // Also handle other escape sequence types (OSC, etc.)
+            else if chars.peek() == Some(&']') {
+                chars.next(); // consume ']'
+                // Skip until BEL (\x07) or ST (\x1b\\)
+                while let Some(next) = chars.next() {
+                    if next == '\x07' {
+                        break;
+                    }
+                    if next == '\x1b' && chars.peek() == Some(&'\\') {
+                        chars.next();
+                        break;
+                    }
+                }
+            }
+        } else {
+            result.push(c);
+        }
+    }
+
+    result
+}
+
+/// Styled text span with style attributes
+#[derive(Debug, Clone, PartialEq)]
+pub struct StyledSpan {
+    /// The text content
+    pub text: String,
+    /// Whether bold is enabled
+    pub bold: bool,
+    /// Whether italic is enabled
+    pub italic: bool,
+    /// Whether underline is enabled
+    pub underline: bool,
+    /// Whether strikethrough is enabled
+    pub strikethrough: bool,
+    /// Whether faint/dim is enabled
+    pub faint: bool,
+    /// Foreground color (as ANSI parameter, e.g., "31" for red, "38;5;252" for 256-color)
+    pub foreground: Option<String>,
+    /// Background color (as ANSI parameter)
+    pub background: Option<String>,
+}
+
+impl Default for StyledSpan {
+    fn default() -> Self {
+        Self {
+            text: String::new(),
+            bold: false,
+            italic: false,
+            underline: false,
+            strikethrough: false,
+            faint: false,
+            foreground: None,
+            background: None,
+        }
+    }
+}
+
+impl StyledSpan {
+    /// Check if this span has the same style as another (ignoring text)
+    pub fn same_style(&self, other: &StyledSpan) -> bool {
+        self.bold == other.bold
+            && self.italic == other.italic
+            && self.underline == other.underline
+            && self.strikethrough == other.strikethrough
+            && self.faint == other.faint
+            && self.foreground == other.foreground
+            && self.background == other.background
+    }
+}
+
+/// Current style state tracker for parsing ANSI sequences
+#[derive(Debug, Clone, Default)]
+struct StyleState {
+    bold: bool,
+    italic: bool,
+    underline: bool,
+    strikethrough: bool,
+    faint: bool,
+    foreground: Option<String>,
+    background: Option<String>,
+}
+
+impl StyleState {
+    fn to_span(&self, text: String) -> StyledSpan {
+        StyledSpan {
+            text,
+            bold: self.bold,
+            italic: self.italic,
+            underline: self.underline,
+            strikethrough: self.strikethrough,
+            faint: self.faint,
+            foreground: self.foreground.clone(),
+            background: self.background.clone(),
+        }
+    }
+
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    fn apply_sgr(&mut self, params: &[u32]) {
+        let mut i = 0;
+        while i < params.len() {
+            match params[i] {
+                0 => self.reset(),
+                1 => self.bold = true,
+                2 => self.faint = true,
+                3 => self.italic = true,
+                4 => self.underline = true,
+                9 => self.strikethrough = true,
+                22 => {
+                    self.bold = false;
+                    self.faint = false;
+                }
+                23 => self.italic = false,
+                24 => self.underline = false,
+                29 => self.strikethrough = false,
+                // Standard foreground colors (30-37)
+                30..=37 => self.foreground = Some(params[i].to_string()),
+                39 => self.foreground = None, // Default foreground
+                // Standard background colors (40-47)
+                40..=47 => self.background = Some(params[i].to_string()),
+                49 => self.background = None, // Default background
+                // Extended colors (38;5;n or 38;2;r;g;b)
+                38 => {
+                    if i + 1 < params.len() {
+                        match params[i + 1] {
+                            5 => {
+                                // 256 color
+                                if i + 2 < params.len() {
+                                    self.foreground =
+                                        Some(format!("38;5;{}", params[i + 2]));
+                                    i += 2;
+                                }
+                            }
+                            2 => {
+                                // True color
+                                if i + 4 < params.len() {
+                                    self.foreground = Some(format!(
+                                        "38;2;{};{};{}",
+                                        params[i + 2],
+                                        params[i + 3],
+                                        params[i + 4]
+                                    ));
+                                    i += 4;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                // Extended background colors
+                48 => {
+                    if i + 1 < params.len() {
+                        match params[i + 1] {
+                            5 => {
+                                if i + 2 < params.len() {
+                                    self.background =
+                                        Some(format!("48;5;{}", params[i + 2]));
+                                    i += 2;
+                                }
+                            }
+                            2 => {
+                                if i + 4 < params.len() {
+                                    self.background = Some(format!(
+                                        "48;2;{};{};{}",
+                                        params[i + 2],
+                                        params[i + 3],
+                                        params[i + 4]
+                                    ));
+                                    i += 4;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                // Bright foreground colors (90-97)
+                90..=97 => self.foreground = Some(params[i].to_string()),
+                // Bright background colors (100-107)
+                100..=107 => self.background = Some(params[i].to_string()),
+                _ => {}
+            }
+            i += 1;
+        }
+    }
+}
+
+/// Extract styled spans from text with ANSI escape sequences
+///
+/// Returns a vector of StyledSpan with text content and style attributes.
+/// Empty spans (no text) are filtered out.
+pub fn extract_styled_spans(input: &str) -> Vec<StyledSpan> {
+    let mut spans = Vec::new();
+    let mut state = StyleState::default();
+    let mut current_text = String::new();
+    let mut chars = input.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Save current text before processing escape
+            if !current_text.is_empty() {
+                spans.push(state.to_span(std::mem::take(&mut current_text)));
+            }
+
+            // Parse escape sequence
+            if chars.peek() == Some(&'[') {
+                chars.next(); // consume '['
+                let mut params_str = String::new();
+                while let Some(&next) = chars.peek() {
+                    if next.is_ascii_alphabetic() {
+                        let cmd = chars.next().unwrap();
+                        if cmd == 'm' {
+                            // SGR sequence
+                            let params: Vec<u32> = if params_str.is_empty() {
+                                vec![0]
+                            } else {
+                                params_str
+                                    .split(';')
+                                    .filter_map(|p| p.parse().ok())
+                                    .collect()
+                            };
+                            state.apply_sgr(&params);
+                        }
+                        break;
+                    }
+                    params_str.push(chars.next().unwrap());
+                }
+            }
+        } else {
+            current_text.push(c);
+        }
+    }
+
+    // Don't forget the last span
+    if !current_text.is_empty() {
+        spans.push(state.to_span(current_text));
+    }
+
+    spans
+}
+
+/// Semantic comparison result for styled text
+#[derive(Debug, Clone)]
+pub struct SemanticCompareResult {
+    /// Whether the text content matches (ignoring ANSI codes)
+    pub text_matches: bool,
+    /// Whether all style attributes match
+    pub styles_match: bool,
+    /// Plain text from expected
+    pub expected_text: String,
+    /// Plain text from actual
+    pub actual_text: String,
+    /// Style mismatches found
+    pub style_mismatches: Vec<String>,
+}
+
+impl SemanticCompareResult {
+    /// Returns true if both text and styles match
+    pub fn is_match(&self) -> bool {
+        self.text_matches && self.styles_match
+    }
+
+    /// Returns true if at least the text content matches
+    pub fn text_only_match(&self) -> bool {
+        self.text_matches
+    }
+}
+
+/// Compare styled text semantically
+///
+/// This compares:
+/// 1. Plain text content (with ANSI stripped and whitespace normalized)
+/// 2. Style attributes applied to the text
+///
+/// Returns detailed comparison results showing what matches and what doesn't.
+pub fn compare_styled_semantic(expected: &str, actual: &str) -> SemanticCompareResult {
+    // Strip ANSI and normalize whitespace for text comparison
+    let expected_text = strip_ansi(expected)
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let actual_text = strip_ansi(actual)
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let text_matches = expected_text == actual_text;
+
+    // Extract and compare styles
+    let expected_spans = extract_styled_spans(expected);
+    let actual_spans = extract_styled_spans(actual);
+
+    // Merge spans by combining adjacent spans with same style
+    let expected_merged = merge_spans(expected_spans);
+    let actual_merged = merge_spans(actual_spans);
+
+    // Compare styles
+    let mut style_mismatches = Vec::new();
+
+    // Check if key style attributes are present in both
+    let expected_styles: Vec<_> = expected_merged
+        .iter()
+        .filter(|s| !s.text.trim().is_empty())
+        .collect();
+    let actual_styles: Vec<_> = actual_merged
+        .iter()
+        .filter(|s| !s.text.trim().is_empty())
+        .collect();
+
+    // Check bold
+    let expected_has_bold = expected_styles.iter().any(|s| s.bold);
+    let actual_has_bold = actual_styles.iter().any(|s| s.bold);
+    if expected_has_bold != actual_has_bold {
+        style_mismatches.push(format!(
+            "Bold: expected={}, actual={}",
+            expected_has_bold, actual_has_bold
+        ));
+    }
+
+    // Check italic
+    let expected_has_italic = expected_styles.iter().any(|s| s.italic);
+    let actual_has_italic = actual_styles.iter().any(|s| s.italic);
+    if expected_has_italic != actual_has_italic {
+        style_mismatches.push(format!(
+            "Italic: expected={}, actual={}",
+            expected_has_italic, actual_has_italic
+        ));
+    }
+
+    // Check if similar foreground colors are used (comparing the color numbers)
+    let expected_fgs: std::collections::HashSet<_> = expected_styles
+        .iter()
+        .filter_map(|s| s.foreground.as_ref())
+        .filter_map(|f| extract_color_number(f))
+        .collect();
+    let actual_fgs: std::collections::HashSet<_> = actual_styles
+        .iter()
+        .filter_map(|s| s.foreground.as_ref())
+        .filter_map(|f| extract_color_number(f))
+        .collect();
+
+    if expected_fgs != actual_fgs && !expected_fgs.is_empty() {
+        style_mismatches.push(format!(
+            "Foreground colors: expected={:?}, actual={:?}",
+            expected_fgs, actual_fgs
+        ));
+    }
+
+    let styles_match = style_mismatches.is_empty();
+
+    SemanticCompareResult {
+        text_matches,
+        styles_match,
+        expected_text,
+        actual_text,
+        style_mismatches,
+    }
+}
+
+/// Extract the color number from an ANSI color parameter string
+fn extract_color_number(color_param: &str) -> Option<u32> {
+    // Handle "38;5;N" format
+    if color_param.starts_with("38;5;") {
+        return color_param[5..].parse().ok();
+    }
+    // Handle "48;5;N" format
+    if color_param.starts_with("48;5;") {
+        return color_param[5..].parse().ok();
+    }
+    // Handle plain number
+    color_param.parse().ok()
+}
+
+/// Merge adjacent spans with the same style
+fn merge_spans(spans: Vec<StyledSpan>) -> Vec<StyledSpan> {
+    let mut merged: Vec<StyledSpan> = Vec::new();
+
+    for span in spans {
+        if let Some(last) = merged.last_mut() {
+            if last.same_style(&span) {
+                last.text.push_str(&span.text);
+                continue;
+            }
+        }
+        merged.push(span);
+    }
+
+    merged
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -763,6 +1174,7 @@ mod tests {
     #[test]
     fn test_debug_comparison() {
         #[derive(Debug)]
+        #[allow(dead_code)]
         struct Point {
             x: i32,
             y: i32,

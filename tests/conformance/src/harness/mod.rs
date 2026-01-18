@@ -22,7 +22,10 @@ pub use benchmark::{
     BaselineComparison, BenchBaseline, BenchConfig, BenchContext, BenchResult, OutlierRemoval,
     StoredBenchResult,
 };
-pub use comparison::{CompareOptions, CompareResult, Diff, DiffType, OutputComparator, WhitespaceOptions};
+pub use comparison::{
+    CompareOptions, CompareResult, Diff, DiffType, OutputComparator, SemanticCompareResult,
+    StyledSpan, WhitespaceOptions, compare_styled_semantic, extract_styled_spans, strip_ansi,
+};
 pub use context::TestContext;
 pub use fixtures::{
     FixtureError, FixtureLoader, FixtureMetadata, FixtureResult, FixtureSet, FixtureStatus,
