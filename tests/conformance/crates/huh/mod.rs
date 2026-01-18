@@ -11,17 +11,24 @@
 //! - Note fields (note_*)
 //! - Themes (theme_*)
 //! - Form with theme (form_with_theme)
+//! - Validation tests (validation_*) - required, min_length, email
 //!
 //! Tests marked as skipped (pending implementation):
 //! - Text fields (text_*) - multiline textarea not yet implemented
 //! - MultiSelect fields (multiselect_*) - not yet implemented
-//! - Validation tests (validation_*) - validation API differs from Go
 //! - theme_catppuccin - catppuccin theme not yet implemented
+//!
+//! Additional direct tests (not from fixtures):
+//! - Form navigation (group/field navigation via messages)
+//! - Focus management
+//! - Form state machine
 
 use crate::harness::{FixtureLoader, TestFixture};
+use bubbletea::{Message, Model};
 use huh::{
-    Confirm, EchoMode, Form, Group, Input, Note, Select, SelectOption, theme_base, theme_base16,
-    theme_charm, theme_dracula,
+    Confirm, EchoMode, Form, FormState, Group, Input, NextFieldMsg, NextGroupMsg, Note,
+    PrevFieldMsg, PrevGroupMsg, Select, SelectOption, theme_base, theme_base16, theme_charm,
+    theme_dracula, validate_email, validate_min_length_8, validate_required_name,
 };
 use serde::Deserialize;
 
@@ -516,6 +523,156 @@ fn run_note_test(fixture: &TestFixture) -> Result<(), String> {
     Ok(())
 }
 
+/// Run a single validation test
+fn run_validation_test(fixture: &TestFixture) -> Result<(), String> {
+    let input: ValidationInput = fixture
+        .input_as()
+        .map_err(|e| format!("Failed to parse validation input: {}", e))?;
+    let expected: ValidationOutput = fixture
+        .expected_as()
+        .map_err(|e| format!("Failed to parse validation expected: {}", e))?;
+
+    let validation_type = input
+        .validation_type
+        .as_deref()
+        .ok_or("Missing validation_type")?;
+
+    match validation_type {
+        "required" => {
+            let validator = validate_required_name();
+
+            // Test empty value
+            if let Some(test_empty) = &input.test_empty {
+                let result = validator(test_empty);
+                let has_error = result.is_some();
+                if let Some(expected_has_error) = expected.empty_has_error {
+                    if has_error != expected_has_error {
+                        return Err(format!(
+                            "Required validation empty check: expected has_error={}, got has_error={}",
+                            expected_has_error, has_error
+                        ));
+                    }
+                }
+                // Check error message matches
+                if let (Some(result_msg), Some(expected_msg)) = (&result, &expected.empty_error_msg)
+                {
+                    if result_msg != expected_msg {
+                        return Err(format!(
+                            "Required validation error message: expected '{}', got '{}'",
+                            expected_msg, result_msg
+                        ));
+                    }
+                }
+            }
+
+            // Test valid value
+            if let Some(test_valid) = &input.test_valid {
+                let result = validator(test_valid);
+                let has_error = result.is_some();
+                if let Some(expected_has_error) = expected.valid_has_error {
+                    if has_error != expected_has_error {
+                        return Err(format!(
+                            "Required validation valid check: expected has_error={}, got has_error={}",
+                            expected_has_error, has_error
+                        ));
+                    }
+                }
+            }
+        }
+        "min_length" => {
+            let validator = validate_min_length_8();
+
+            // Test short value
+            if let Some(test_short) = &input.test_short {
+                let result = validator(test_short);
+                let has_error = result.is_some();
+                if let Some(expected_has_error) = expected.short_has_error {
+                    if has_error != expected_has_error {
+                        return Err(format!(
+                            "MinLength validation short check: expected has_error={}, got has_error={}",
+                            expected_has_error, has_error
+                        ));
+                    }
+                }
+                // Check error message matches
+                if let (Some(result_msg), Some(expected_msg)) = (&result, &expected.short_error_msg)
+                {
+                    if result_msg != expected_msg {
+                        return Err(format!(
+                            "MinLength validation error message: expected '{}', got '{}'",
+                            expected_msg, result_msg
+                        ));
+                    }
+                }
+            }
+
+            // Test valid value
+            if let Some(test_valid) = &input.test_valid {
+                let result = validator(test_valid);
+                let has_error = result.is_some();
+                if let Some(expected_has_error) = expected.valid_has_error {
+                    if has_error != expected_has_error {
+                        return Err(format!(
+                            "MinLength validation valid check: expected has_error={}, got has_error={}",
+                            expected_has_error, has_error
+                        ));
+                    }
+                }
+            }
+        }
+        "email" => {
+            let validator = validate_email();
+
+            // Test empty value
+            if let Some(test_empty) = &input.test_empty {
+                let result = validator(test_empty);
+                let has_error = result.is_some();
+                if let Some(expected_has_error) = expected.empty_has_error {
+                    if has_error != expected_has_error {
+                        return Err(format!(
+                            "Email validation empty check: expected has_error={}, got has_error={}",
+                            expected_has_error, has_error
+                        ));
+                    }
+                }
+            }
+
+            // Test invalid value
+            if let Some(test_invalid) = &input.test_invalid {
+                let result = validator(test_invalid);
+                let has_error = result.is_some();
+                if let Some(expected_has_error) = expected.invalid_has_error {
+                    if has_error != expected_has_error {
+                        return Err(format!(
+                            "Email validation invalid check: expected has_error={}, got has_error={}",
+                            expected_has_error, has_error
+                        ));
+                    }
+                }
+            }
+
+            // Test valid value
+            if let Some(test_valid) = &input.test_valid {
+                let result = validator(test_valid);
+                let has_error = result.is_some();
+                if let Some(expected_has_error) = expected.valid_has_error {
+                    if has_error != expected_has_error {
+                        return Err(format!(
+                            "Email validation valid check: expected has_error={}, got has_error={}",
+                            expected_has_error, has_error
+                        ));
+                    }
+                }
+            }
+        }
+        _ => {
+            return Err(format!("Unknown validation type: {}", validation_type));
+        }
+    }
+
+    Ok(())
+}
+
 /// Run a single theme test
 fn run_theme_test(fixture: &TestFixture) -> Result<(), String> {
     let input: ThemeInput = fixture
@@ -609,11 +766,7 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
     } else if fixture.name.starts_with("note_") {
         run_note_test(fixture)
     } else if fixture.name.starts_with("validation_") {
-        // Validation API differs from Go - would need custom validation functions
-        Err(
-            "SKIPPED: Validation tests skipped - Rust uses different validation API (closures vs built-in validators)"
-                .to_string(),
-        )
+        run_validation_test(fixture)
     } else if fixture.name.starts_with("theme_") {
         run_theme_test(fixture)
     } else if fixture.name.starts_with("form_") {
@@ -621,6 +774,320 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
     } else {
         Err(format!("SKIPPED: not implemented for {}", fixture.name))
     }
+}
+
+// =============================================================================
+// Form Navigation Conformance Tests (Direct tests, not from fixtures)
+// =============================================================================
+// These tests verify the Form state machine behavior matches Go huh behavior.
+// Reference: https://github.com/charmbracelet/huh/blob/main/form.go
+
+/// Helper to create a test form with multiple groups
+fn create_test_form() -> Form {
+    Form::new(vec![
+        Group::new(vec![
+            Box::new(Input::new().title("Name").key("name")),
+            Box::new(Input::new().title("Email").key("email")),
+        ])
+        .title("Personal Info"),
+        Group::new(vec![
+            Box::new(
+                Select::<String>::new()
+                    .title("Color")
+                    .key("color")
+                    .options(vec![
+                        SelectOption::new("Red", "red".to_string()),
+                        SelectOption::new("Blue", "blue".to_string()),
+                    ]),
+            ),
+        ])
+        .title("Preferences"),
+        Group::new(vec![Box::new(Confirm::new().title("Confirm?").key("confirm"))])
+            .title("Confirmation"),
+    ])
+}
+
+/// Test: Initial form state is Normal
+fn test_form_initial_state() -> Result<(), String> {
+    let form = create_test_form();
+    if form.state() != FormState::Normal {
+        return Err(format!(
+            "Expected initial state Normal, got {:?}",
+            form.state()
+        ));
+    }
+    Ok(())
+}
+
+/// Test: Initial group index is 0
+fn test_form_initial_group() -> Result<(), String> {
+    let form = create_test_form();
+    if form.current_group() != 0 {
+        return Err(format!(
+            "Expected current_group 0, got {}",
+            form.current_group()
+        ));
+    }
+    Ok(())
+}
+
+/// Test: Form.len() returns number of groups
+fn test_form_len() -> Result<(), String> {
+    let form = create_test_form();
+    if form.len() != 3 {
+        return Err(format!("Expected 3 groups, got {}", form.len()));
+    }
+    Ok(())
+}
+
+/// Test: NextGroupMsg advances to next group
+fn test_next_group_navigation() -> Result<(), String> {
+    let mut form = create_test_form();
+
+    // Initialize the form (first update triggers init)
+    form.update(Message::new(()));
+
+    // Send NextGroupMsg to advance to group 1
+    form.update(Message::new(NextGroupMsg));
+
+    if form.current_group() != 1 {
+        return Err(format!(
+            "After NextGroupMsg: expected group 1, got {}",
+            form.current_group()
+        ));
+    }
+    Ok(())
+}
+
+/// Test: PrevGroupMsg goes back to previous group
+fn test_prev_group_navigation() -> Result<(), String> {
+    let mut form = create_test_form();
+
+    // Initialize and advance to group 1
+    form.update(Message::new(()));
+    form.update(Message::new(NextGroupMsg));
+
+    // Now go back
+    form.update(Message::new(PrevGroupMsg));
+
+    if form.current_group() != 0 {
+        return Err(format!(
+            "After PrevGroupMsg: expected group 0, got {}",
+            form.current_group()
+        ));
+    }
+    Ok(())
+}
+
+/// Test: PrevGroupMsg at first group stays at group 0
+fn test_prev_group_at_first() -> Result<(), String> {
+    let mut form = create_test_form();
+
+    // Initialize
+    form.update(Message::new(()));
+
+    // Try to go back from first group
+    form.update(Message::new(PrevGroupMsg));
+
+    if form.current_group() != 0 {
+        return Err(format!(
+            "PrevGroupMsg at group 0: expected group 0, got {}",
+            form.current_group()
+        ));
+    }
+    Ok(())
+}
+
+/// Test: NextGroupMsg at last group completes the form
+fn test_next_group_at_last_completes() -> Result<(), String> {
+    let mut form = create_test_form();
+
+    // Initialize
+    form.update(Message::new(()));
+
+    // Navigate to last group (index 2)
+    form.update(Message::new(NextGroupMsg)); // -> group 1
+    form.update(Message::new(NextGroupMsg)); // -> group 2
+
+    if form.current_group() != 2 {
+        return Err(format!(
+            "Expected group 2 before completion, got {}",
+            form.current_group()
+        ));
+    }
+
+    // Try to go past last group
+    form.update(Message::new(NextGroupMsg));
+
+    // Form should now be completed
+    if form.state() != FormState::Completed {
+        return Err(format!(
+            "Expected Completed state after last group, got {:?}",
+            form.state()
+        ));
+    }
+    Ok(())
+}
+
+/// Test: Navigate through all groups sequentially
+fn test_navigate_all_groups() -> Result<(), String> {
+    let mut form = create_test_form();
+
+    // Initialize
+    form.update(Message::new(()));
+    if form.current_group() != 0 {
+        return Err("Expected to start at group 0".to_string());
+    }
+
+    // Go through all groups
+    form.update(Message::new(NextGroupMsg));
+    if form.current_group() != 1 {
+        return Err(format!("Expected group 1, got {}", form.current_group()));
+    }
+
+    form.update(Message::new(NextGroupMsg));
+    if form.current_group() != 2 {
+        return Err(format!("Expected group 2, got {}", form.current_group()));
+    }
+
+    // Complete the form
+    form.update(Message::new(NextGroupMsg));
+    if form.state() != FormState::Completed {
+        return Err(format!("Expected Completed, got {:?}", form.state()));
+    }
+
+    Ok(())
+}
+
+/// Test: NextFieldMsg at last field of group triggers NextGroupMsg
+fn test_next_field_crosses_group() -> Result<(), String> {
+    let mut form = create_test_form();
+
+    // Initialize
+    form.update(Message::new(()));
+
+    // Group 0 has 2 fields (name, email)
+    // We start at field 0, so send NextFieldMsg to move to field 1
+    form.update(Message::new(NextFieldMsg)); // field 0 -> field 1
+
+    // At last field of group, NextFieldMsg returns a Cmd with NextGroupMsg
+    // We need to execute that Cmd to get the message, then send it
+    let cmd = form.update(Message::new(NextFieldMsg)); // field 1 -> returns Cmd(NextGroupMsg)
+
+    // In real bubbletea, the runtime executes the Cmd and sends the resulting message
+    // For testing, we simulate this by checking if a Cmd was returned and sending NextGroupMsg
+    if cmd.is_some() {
+        // The Cmd should produce NextGroupMsg - simulate by sending it directly
+        form.update(Message::new(NextGroupMsg));
+    }
+
+    if form.current_group() != 1 {
+        return Err(format!(
+            "Expected to cross to group 1, got group {}",
+            form.current_group()
+        ));
+    }
+    Ok(())
+}
+
+/// Test: PrevFieldMsg at first field of group triggers PrevGroupMsg
+fn test_prev_field_crosses_group() -> Result<(), String> {
+    let mut form = create_test_form();
+
+    // Initialize and go to group 1
+    form.update(Message::new(()));
+    form.update(Message::new(NextGroupMsg));
+
+    if form.current_group() != 1 {
+        return Err("Failed to navigate to group 1".to_string());
+    }
+
+    // Now at first field of group 1, go back
+    // PrevFieldMsg at first field returns a Cmd that produces PrevGroupMsg
+    let cmd = form.update(Message::new(PrevFieldMsg));
+
+    // In real bubbletea, the runtime executes the Cmd and sends the resulting message
+    // For testing, we simulate this by checking if a Cmd was returned and sending PrevGroupMsg
+    if cmd.is_some() {
+        // The Cmd should produce PrevGroupMsg - simulate by sending it directly
+        form.update(Message::new(PrevGroupMsg));
+    }
+
+    if form.current_group() != 0 {
+        return Err(format!(
+            "Expected to cross back to group 0, got group {}",
+            form.current_group()
+        ));
+    }
+    Ok(())
+}
+
+/// Test: Form view renders current group
+fn test_form_view_current_group() -> Result<(), String> {
+    let mut form = create_test_form();
+
+    // Initialize
+    form.update(Message::new(()));
+
+    let view0 = form.view();
+    if !view0.contains("Personal Info") && !view0.contains("Name") {
+        return Err(format!(
+            "Expected group 0 content in view, got: {}",
+            view0.chars().take(100).collect::<String>()
+        ));
+    }
+
+    // Advance to group 1
+    form.update(Message::new(NextGroupMsg));
+    let view1 = form.view();
+    if !view1.contains("Preferences") && !view1.contains("Color") {
+        return Err(format!(
+            "Expected group 1 content in view, got: {}",
+            view1.chars().take(100).collect::<String>()
+        ));
+    }
+
+    Ok(())
+}
+
+/// Test: Empty form has len 0 and is_empty true
+fn test_empty_form() -> Result<(), String> {
+    let form = Form::new(vec![]);
+
+    if form.len() != 0 {
+        return Err(format!("Expected len 0, got {}", form.len()));
+    }
+    if !form.is_empty() {
+        return Err("Expected is_empty true".to_string());
+    }
+    Ok(())
+}
+
+/// Test: Single-group form completes after NextGroupMsg
+fn test_single_group_completion() -> Result<(), String> {
+    let mut form = Form::new(vec![Group::new(vec![Box::new(
+        Input::new().title("Name").key("name"),
+    )])]);
+
+    form.update(Message::new(()));
+    form.update(Message::new(NextGroupMsg));
+
+    if form.state() != FormState::Completed {
+        return Err(format!(
+            "Expected Completed after single group, got {:?}",
+            form.state()
+        ));
+    }
+    Ok(())
+}
+
+/// Helper to run a navigation test and collect result
+fn run_nav_test(
+    name: &'static str,
+    test_fn: fn() -> Result<(), String>,
+    results: &mut Vec<(&'static str, Result<(), String>)>,
+) {
+    results.push((name, test_fn()));
 }
 
 /// Run all huh conformance tests
@@ -650,6 +1117,38 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
         let name: &'static str = Box::leak(test.name.clone().into_boxed_str());
         results.push((name, result));
     }
+
+    // Form Navigation Tests (direct tests, not from fixtures)
+    // These test the Form state machine behavior per Go huh reference
+    run_nav_test("nav_form_initial_state", test_form_initial_state, &mut results);
+    run_nav_test("nav_form_initial_group", test_form_initial_group, &mut results);
+    run_nav_test("nav_form_len", test_form_len, &mut results);
+    run_nav_test("nav_next_group", test_next_group_navigation, &mut results);
+    run_nav_test("nav_prev_group", test_prev_group_navigation, &mut results);
+    run_nav_test("nav_prev_group_at_first", test_prev_group_at_first, &mut results);
+    run_nav_test(
+        "nav_next_group_completes",
+        test_next_group_at_last_completes,
+        &mut results,
+    );
+    run_nav_test("nav_all_groups", test_navigate_all_groups, &mut results);
+    run_nav_test(
+        "nav_next_field_crosses_group",
+        test_next_field_crosses_group,
+        &mut results,
+    );
+    run_nav_test(
+        "nav_prev_field_crosses_group",
+        test_prev_field_crosses_group,
+        &mut results,
+    );
+    run_nav_test("nav_form_view_current_group", test_form_view_current_group, &mut results);
+    run_nav_test("nav_empty_form", test_empty_form, &mut results);
+    run_nav_test(
+        "nav_single_group_completion",
+        test_single_group_completion,
+        &mut results,
+    );
 
     results
 }
