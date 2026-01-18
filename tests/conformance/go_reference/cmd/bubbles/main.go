@@ -7,13 +7,18 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/paginator"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/stopwatch"
+	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/timer"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 )
@@ -36,6 +41,12 @@ func main() {
 	// Capture spinner behaviors
 	captureSpinnerTests(fixtures)
 
+	// Capture stopwatch behaviors
+	captureStopwatchTests(fixtures)
+
+	// Capture timer behaviors
+	captureTimerTests(fixtures)
+
 	// Capture paginator behaviors
 	capturePaginatorTests(fixtures)
 
@@ -47,6 +58,12 @@ func main() {
 
 	// Capture key bindings
 	captureKeyBindingTests(fixtures)
+
+	// Capture list behaviors
+	captureListTests(fixtures)
+
+	// Capture table behaviors
+	captureTableTests(fixtures)
 
 	if err := fixtures.WriteToFile(*outputDir); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -516,6 +533,114 @@ func captureSpinnerTests(fs *capture.FixtureSet) {
 	}
 }
 
+func captureStopwatchTests(fs *capture.FixtureSet) {
+	// Test 1: New stopwatch
+	{
+		sw := stopwatch.New()
+		fs.AddTestWithCategory("stopwatch_new", "unit",
+			map[string]interface{}{},
+			map[string]interface{}{
+				"elapsed":     sw.Elapsed().String(),
+				"elapsed_ms":  sw.Elapsed().Milliseconds(),
+				"interval_ms": sw.Interval.Milliseconds(),
+				"running":     sw.Running(),
+				"view":        sw.View(),
+			},
+		)
+	}
+
+	// Test 2: Start + single tick - using TickMsg directly to simulate elapsed time
+	{
+		sw := stopwatch.New()
+		// Simulate a tick (the stopwatch tracks elapsed time via ticks internally)
+		sw, _ = sw.Update(stopwatch.TickMsg{ID: sw.ID()})
+		fs.AddTestWithCategory("stopwatch_tick", "unit",
+			map[string]interface{}{
+				"ticks": 1,
+			},
+			map[string]interface{}{
+				"elapsed":    sw.Elapsed().String(),
+				"elapsed_ms": sw.Elapsed().Milliseconds(),
+				"running":    sw.Running(),
+				"view":       sw.View(),
+			},
+		)
+	}
+
+	// Test 3: Reset after tick
+	{
+		sw := stopwatch.New()
+		sw, _ = sw.Update(stopwatch.TickMsg{ID: sw.ID()})
+		sw, _ = sw.Update(stopwatch.ResetMsg{ID: sw.ID()})
+		fs.AddTestWithCategory("stopwatch_reset", "unit",
+			map[string]interface{}{},
+			map[string]interface{}{
+				"elapsed":    sw.Elapsed().String(),
+				"elapsed_ms": sw.Elapsed().Milliseconds(),
+				"running":    sw.Running(),
+				"view":       sw.View(),
+			},
+		)
+	}
+}
+
+func captureTimerTests(fs *capture.FixtureSet) {
+	// Test 1: New timer
+	{
+		t := timer.New(10 * time.Second)
+		fs.AddTestWithCategory("timer_new", "unit",
+			map[string]interface{}{
+				"timeout_secs": 10,
+			},
+			map[string]interface{}{
+				"remaining":    t.Timeout.String(),
+				"remaining_ms": t.Timeout.Milliseconds(),
+				"interval_ms":  t.Interval.Milliseconds(),
+				"running":      t.Running(),
+				"timed_out":    t.Timedout(),
+				"view":         t.View(),
+			},
+		)
+	}
+
+	// Test 2: Single tick
+	{
+		t := timer.New(3 * time.Second)
+		t, _ = t.Update(timer.TickMsg{ID: t.ID(), Timeout: false})
+		fs.AddTestWithCategory("timer_tick", "unit",
+			map[string]interface{}{
+				"timeout_secs": 3,
+				"tick_count":   1,
+			},
+			map[string]interface{}{
+				"remaining":    t.Timeout.String(),
+				"remaining_ms": t.Timeout.Milliseconds(),
+				"running":      t.Running(),
+				"timed_out":    t.Timedout(),
+				"view":         t.View(),
+			},
+		)
+	}
+
+	// Test 3: Timeout
+	{
+		t := timer.New(1 * time.Second)
+		t, _ = t.Update(timer.TickMsg{ID: t.ID(), Timeout: false})
+		fs.AddTestWithCategory("timer_timeout", "unit",
+			map[string]interface{}{
+				"timeout_secs": 1,
+			},
+			map[string]interface{}{
+				"remaining":    t.Timeout.String(),
+				"remaining_ms": t.Timeout.Milliseconds(),
+				"running":      t.Running(),
+				"timed_out":    t.Timedout(),
+				"view":         t.View(),
+			},
+		)
+	}
+}
+
 func capturePaginatorTests(fs *capture.FixtureSet) {
 	// Test 1: Basic paginator (dot style)
 	{
@@ -825,4 +950,420 @@ func (k emptyKeyMap) ShortHelp() []key.Binding {
 
 func (k emptyKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{}
+}
+
+// List item for testing
+type listItem struct {
+	title       string
+	description string
+}
+
+func (i listItem) Title() string       { return i.title }
+func (i listItem) Description() string { return i.description }
+func (i listItem) FilterValue() string { return i.title }
+
+func captureListTests(fs *capture.FixtureSet) {
+	// Test 1: Empty list
+	{
+		items := []list.Item{}
+		l := list.New(items, list.NewDefaultDelegate(), 80, 24)
+		fs.AddTestWithCategory("list_empty", "unit",
+			map[string]interface{}{
+				"width":  80,
+				"height": 24,
+			},
+			map[string]interface{}{
+				"index":         l.Index(),
+				"cursor":        l.Cursor(),
+				"items_count":   len(l.Items()),
+				"filter_state":  l.FilterState().String(),
+			},
+		)
+	}
+
+	// Test 2: List with items
+	{
+		items := []list.Item{
+			listItem{title: "Apple", description: "A fruit"},
+			listItem{title: "Banana", description: "Another fruit"},
+			listItem{title: "Cherry", description: "A small fruit"},
+		}
+		l := list.New(items, list.NewDefaultDelegate(), 80, 24)
+		fs.AddTestWithCategory("list_with_items", "unit",
+			map[string]interface{}{
+				"width":  80,
+				"height": 24,
+				"items":  []string{"Apple", "Banana", "Cherry"},
+			},
+			map[string]interface{}{
+				"index":         l.Index(),
+				"cursor":        l.Cursor(),
+				"items_count":   len(l.Items()),
+				"visible_items": l.VisibleItems(),
+			},
+		)
+	}
+
+	// Test 3: List cursor movement
+	{
+		items := []list.Item{
+			listItem{title: "Item 1", description: "First"},
+			listItem{title: "Item 2", description: "Second"},
+			listItem{title: "Item 3", description: "Third"},
+			listItem{title: "Item 4", description: "Fourth"},
+			listItem{title: "Item 5", description: "Fifth"},
+		}
+		l := list.New(items, list.NewDefaultDelegate(), 80, 24)
+		initialIndex := l.Index()
+		l.CursorDown()
+		afterDown := l.Index()
+		l.CursorDown()
+		afterSecondDown := l.Index()
+		l.CursorUp()
+		afterUp := l.Index()
+		fs.AddTestWithCategory("list_cursor_movement", "unit",
+			map[string]interface{}{
+				"width":       80,
+				"height":      24,
+				"items_count": 5,
+			},
+			map[string]interface{}{
+				"initial_index":     initialIndex,
+				"after_down":        afterDown,
+				"after_second_down": afterSecondDown,
+				"after_up":          afterUp,
+			},
+		)
+	}
+
+	// Test 4: List go to top/bottom
+	{
+		items := []list.Item{
+			listItem{title: "First", description: "1"},
+			listItem{title: "Second", description: "2"},
+			listItem{title: "Third", description: "3"},
+			listItem{title: "Fourth", description: "4"},
+			listItem{title: "Fifth", description: "5"},
+		}
+		l := list.New(items, list.NewDefaultDelegate(), 80, 24)
+		l.CursorDown()
+		l.CursorDown()
+		middleIndex := l.Index()
+		l.Select(len(items) - 1) // Go to bottom
+		atBottom := l.Index()
+		l.Select(0) // Go to top
+		atTop := l.Index()
+		fs.AddTestWithCategory("list_goto_top_bottom", "unit",
+			map[string]interface{}{
+				"items_count": 5,
+			},
+			map[string]interface{}{
+				"middle_index": middleIndex,
+				"at_bottom":    atBottom,
+				"at_top":       atTop,
+			},
+		)
+	}
+
+	// Test 5: List pagination
+	{
+		// Create more items than can fit on one page
+		items := make([]list.Item, 20)
+		for i := 0; i < 20; i++ {
+			items[i] = listItem{
+				title:       fmt.Sprintf("Item %d", i+1),
+				description: fmt.Sprintf("Description %d", i+1),
+			}
+		}
+		l := list.New(items, list.NewDefaultDelegate(), 80, 10) // Small height to force pagination
+		paginator := l.Paginator
+		fs.AddTestWithCategory("list_pagination", "unit",
+			map[string]interface{}{
+				"width":       80,
+				"height":      10,
+				"items_count": 20,
+			},
+			map[string]interface{}{
+				"total_pages":    paginator.TotalPages,
+				"current_page":   paginator.Page,
+				"items_per_page": paginator.PerPage,
+			},
+		)
+	}
+
+	// Test 6: List title and status
+	{
+		items := []list.Item{
+			listItem{title: "Item 1", description: "Desc 1"},
+		}
+		l := list.New(items, list.NewDefaultDelegate(), 80, 24)
+		l.Title = "My List"
+		fs.AddTestWithCategory("list_title", "unit",
+			map[string]interface{}{
+				"title": "My List",
+			},
+			map[string]interface{}{
+				"title":       l.Title,
+				"show_title":  l.ShowTitle(),
+			},
+		)
+	}
+
+	// Test 7: List selection
+	{
+		items := []list.Item{
+			listItem{title: "A", description: "First"},
+			listItem{title: "B", description: "Second"},
+			listItem{title: "C", description: "Third"},
+		}
+		l := list.New(items, list.NewDefaultDelegate(), 80, 24)
+		l.Select(1)
+		selectedItem := l.SelectedItem().(listItem)
+		fs.AddTestWithCategory("list_selection", "unit",
+			map[string]interface{}{
+				"items": []string{"A", "B", "C"},
+			},
+			map[string]interface{}{
+				"selected_index": l.Index(),
+				"selected_title": selectedItem.title,
+			},
+		)
+	}
+}
+
+func captureTableTests(fs *capture.FixtureSet) {
+	// Test 1: Empty table
+	{
+		t := table.New(
+			table.WithColumns([]table.Column{}),
+			table.WithRows([]table.Row{}),
+		)
+		fs.AddTestWithCategory("table_empty", "unit",
+			map[string]interface{}{},
+			map[string]interface{}{
+				"cursor":       t.Cursor(),
+				"focused":      t.Focused(),
+				"columns_count": 0,
+				"rows_count":   0,
+			},
+		)
+	}
+
+	// Test 2: Table with columns and rows
+	{
+		columns := []table.Column{
+			{Title: "ID", Width: 10},
+			{Title: "Name", Width: 20},
+			{Title: "Status", Width: 15},
+		}
+		rows := []table.Row{
+			{"1", "Alice", "Active"},
+			{"2", "Bob", "Inactive"},
+			{"3", "Charlie", "Active"},
+		}
+		t := table.New(
+			table.WithColumns(columns),
+			table.WithRows(rows),
+		)
+		fs.AddTestWithCategory("table_with_data", "unit",
+			map[string]interface{}{
+				"columns": []map[string]interface{}{
+					{"title": "ID", "width": 10},
+					{"title": "Name", "width": 20},
+					{"title": "Status", "width": 15},
+				},
+				"rows": [][]string{
+					{"1", "Alice", "Active"},
+					{"2", "Bob", "Inactive"},
+					{"3", "Charlie", "Active"},
+				},
+			},
+			map[string]interface{}{
+				"cursor":        t.Cursor(),
+				"columns_count": 3,
+				"rows_count":    3,
+				"selected_row":  t.SelectedRow(),
+			},
+		)
+	}
+
+	// Test 3: Table cursor movement
+	{
+		columns := []table.Column{
+			{Title: "ID", Width: 10},
+			{Title: "Name", Width: 20},
+		}
+		rows := []table.Row{
+			{"1", "First"},
+			{"2", "Second"},
+			{"3", "Third"},
+			{"4", "Fourth"},
+			{"5", "Fifth"},
+		}
+		t := table.New(
+			table.WithColumns(columns),
+			table.WithRows(rows),
+		)
+		initialCursor := t.Cursor()
+		t.MoveDown(1)
+		afterDown := t.Cursor()
+		t.MoveDown(1)
+		afterSecondDown := t.Cursor()
+		t.MoveUp(1)
+		afterUp := t.Cursor()
+		fs.AddTestWithCategory("table_cursor_movement", "unit",
+			map[string]interface{}{
+				"rows_count": 5,
+			},
+			map[string]interface{}{
+				"initial_cursor":    initialCursor,
+				"after_down":        afterDown,
+				"after_second_down": afterSecondDown,
+				"after_up":          afterUp,
+			},
+		)
+	}
+
+	// Test 4: Table goto top/bottom
+	{
+		columns := []table.Column{
+			{Title: "ID", Width: 10},
+		}
+		rows := []table.Row{
+			{"1"}, {"2"}, {"3"}, {"4"}, {"5"},
+		}
+		t := table.New(
+			table.WithColumns(columns),
+			table.WithRows(rows),
+		)
+		t.MoveDown(2)
+		middleCursor := t.Cursor()
+		t.GotoBottom()
+		atBottom := t.Cursor()
+		t.GotoTop()
+		atTop := t.Cursor()
+		fs.AddTestWithCategory("table_goto_top_bottom", "unit",
+			map[string]interface{}{
+				"rows_count": 5,
+			},
+			map[string]interface{}{
+				"middle_cursor": middleCursor,
+				"at_bottom":     atBottom,
+				"at_top":        atTop,
+			},
+		)
+	}
+
+	// Test 5: Table focus
+	{
+		columns := []table.Column{
+			{Title: "Col", Width: 10},
+		}
+		rows := []table.Row{
+			{"Data"},
+		}
+		t := table.New(
+			table.WithColumns(columns),
+			table.WithRows(rows),
+		)
+		initialFocus := t.Focused()
+		t.Focus()
+		afterFocus := t.Focused()
+		t.Blur()
+		afterBlur := t.Focused()
+		fs.AddTestWithCategory("table_focus", "unit",
+			map[string]interface{}{},
+			map[string]interface{}{
+				"initial_focus": initialFocus,
+				"after_focus":   afterFocus,
+				"after_blur":    afterBlur,
+			},
+		)
+	}
+
+	// Test 6: Table set cursor
+	{
+		columns := []table.Column{
+			{Title: "ID", Width: 10},
+		}
+		rows := []table.Row{
+			{"1"}, {"2"}, {"3"}, {"4"}, {"5"},
+		}
+		t := table.New(
+			table.WithColumns(columns),
+			table.WithRows(rows),
+		)
+		t.SetCursor(3)
+		afterSet := t.Cursor()
+		selectedRow := t.SelectedRow()
+		fs.AddTestWithCategory("table_set_cursor", "unit",
+			map[string]interface{}{
+				"rows_count": 5,
+				"set_to":     3,
+			},
+			map[string]interface{}{
+				"cursor":       afterSet,
+				"selected_row": selectedRow,
+			},
+		)
+	}
+
+	// Test 7: Table dimensions
+	{
+		columns := []table.Column{
+			{Title: "A", Width: 10},
+			{Title: "B", Width: 20},
+		}
+		rows := []table.Row{
+			{"1", "Data 1"},
+			{"2", "Data 2"},
+		}
+		t := table.New(
+			table.WithColumns(columns),
+			table.WithRows(rows),
+			table.WithWidth(50),
+			table.WithHeight(10),
+		)
+		fs.AddTestWithCategory("table_dimensions", "unit",
+			map[string]interface{}{
+				"width":  50,
+				"height": 10,
+			},
+			map[string]interface{}{
+				"width":  t.Width(),
+				"height": t.Height(),
+			},
+		)
+	}
+
+	// Test 8: Table cursor bounds
+	{
+		columns := []table.Column{
+			{Title: "ID", Width: 10},
+		}
+		rows := []table.Row{
+			{"1"}, {"2"}, {"3"},
+		}
+		t := table.New(
+			table.WithColumns(columns),
+			table.WithRows(rows),
+		)
+		// Try moving up from top
+		t.MoveUp(1)
+		atTopAfterUp := t.Cursor()
+		// Move to bottom
+		t.GotoBottom()
+		// Try moving down from bottom
+		t.MoveDown(1)
+		atBottomAfterDown := t.Cursor()
+		fs.AddTestWithCategory("table_cursor_bounds", "unit",
+			map[string]interface{}{
+				"rows_count": 3,
+			},
+			map[string]interface{}{
+				"at_top_after_up":     atTopAfterUp,
+				"at_bottom_after_down": atBottomAfterDown,
+			},
+		)
+	}
 }

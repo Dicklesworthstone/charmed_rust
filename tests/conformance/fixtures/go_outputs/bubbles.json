@@ -3,7 +3,7 @@
     "crate": "bubbles",
     "go_version": "1.24",
     "library_version": "0.20.0",
-    "captured_at": "2026-01-17T17:24:53Z"
+    "captured_at": "2026-01-18T05:45:30Z"
   },
   "tests": [
     {
@@ -514,6 +514,86 @@
       }
     },
     {
+      "name": "stopwatch_new",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "elapsed": "0s",
+        "elapsed_ms": 0,
+        "interval_ms": 1000,
+        "running": false,
+        "view": "0s"
+      }
+    },
+    {
+      "name": "stopwatch_tick",
+      "category": "unit",
+      "input": {
+        "ticks": 1
+      },
+      "expected_output": {
+        "elapsed": "0s",
+        "elapsed_ms": 0,
+        "running": false,
+        "view": "0s"
+      }
+    },
+    {
+      "name": "stopwatch_reset",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "elapsed": "0s",
+        "elapsed_ms": 0,
+        "running": false,
+        "view": "0s"
+      }
+    },
+    {
+      "name": "timer_new",
+      "category": "unit",
+      "input": {
+        "timeout_secs": 10
+      },
+      "expected_output": {
+        "interval_ms": 1000,
+        "remaining": "10s",
+        "remaining_ms": 10000,
+        "running": true,
+        "timed_out": false,
+        "view": "10s"
+      }
+    },
+    {
+      "name": "timer_tick",
+      "category": "unit",
+      "input": {
+        "tick_count": 1,
+        "timeout_secs": 3
+      },
+      "expected_output": {
+        "remaining": "2s",
+        "remaining_ms": 2000,
+        "running": true,
+        "timed_out": false,
+        "view": "2s"
+      }
+    },
+    {
+      "name": "timer_timeout",
+      "category": "unit",
+      "input": {
+        "timeout_secs": 1
+      },
+      "expected_output": {
+        "remaining": "0s",
+        "remaining_ms": 0,
+        "running": false,
+        "timed_out": true,
+        "view": "0s"
+      }
+    },
+    {
       "name": "paginator_dots",
       "category": "unit",
       "input": {
@@ -723,6 +803,240 @@
         "after_disable": false,
         "after_enable": true,
         "initial_enabled": true
+      }
+    },
+    {
+      "name": "list_empty",
+      "category": "unit",
+      "input": {
+        "height": 24,
+        "width": 80
+      },
+      "expected_output": {
+        "cursor": 0,
+        "filter_state": "unfiltered",
+        "index": 0,
+        "items_count": 0
+      }
+    },
+    {
+      "name": "list_with_items",
+      "category": "unit",
+      "input": {
+        "height": 24,
+        "items": [
+          "Apple",
+          "Banana",
+          "Cherry"
+        ],
+        "width": 80
+      },
+      "expected_output": {
+        "cursor": 0,
+        "index": 0,
+        "items_count": 3,
+        "visible_items": [
+          {},
+          {},
+          {}
+        ]
+      }
+    },
+    {
+      "name": "list_cursor_movement",
+      "category": "unit",
+      "input": {
+        "height": 24,
+        "items_count": 5,
+        "width": 80
+      },
+      "expected_output": {
+        "after_down": 1,
+        "after_second_down": 2,
+        "after_up": 1,
+        "initial_index": 0
+      }
+    },
+    {
+      "name": "list_goto_top_bottom",
+      "category": "unit",
+      "input": {
+        "items_count": 5
+      },
+      "expected_output": {
+        "at_bottom": 4,
+        "at_top": 0,
+        "middle_index": 2
+      }
+    },
+    {
+      "name": "list_pagination",
+      "category": "unit",
+      "input": {
+        "height": 10,
+        "items_count": 20,
+        "width": 80
+      },
+      "expected_output": {
+        "current_page": 0,
+        "items_per_page": 1,
+        "total_pages": 20
+      }
+    },
+    {
+      "name": "list_title",
+      "category": "unit",
+      "input": {
+        "title": "My List"
+      },
+      "expected_output": {
+        "show_title": true,
+        "title": "My List"
+      }
+    },
+    {
+      "name": "list_selection",
+      "category": "unit",
+      "input": {
+        "items": [
+          "A",
+          "B",
+          "C"
+        ]
+      },
+      "expected_output": {
+        "selected_index": 1,
+        "selected_title": "B"
+      }
+    },
+    {
+      "name": "table_empty",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "columns_count": 0,
+        "cursor": 0,
+        "focused": false,
+        "rows_count": 0
+      }
+    },
+    {
+      "name": "table_with_data",
+      "category": "unit",
+      "input": {
+        "columns": [
+          {
+            "title": "ID",
+            "width": 10
+          },
+          {
+            "title": "Name",
+            "width": 20
+          },
+          {
+            "title": "Status",
+            "width": 15
+          }
+        ],
+        "rows": [
+          [
+            "1",
+            "Alice",
+            "Active"
+          ],
+          [
+            "2",
+            "Bob",
+            "Inactive"
+          ],
+          [
+            "3",
+            "Charlie",
+            "Active"
+          ]
+        ]
+      },
+      "expected_output": {
+        "columns_count": 3,
+        "cursor": 0,
+        "rows_count": 3,
+        "selected_row": [
+          "1",
+          "Alice",
+          "Active"
+        ]
+      }
+    },
+    {
+      "name": "table_cursor_movement",
+      "category": "unit",
+      "input": {
+        "rows_count": 5
+      },
+      "expected_output": {
+        "after_down": 1,
+        "after_second_down": 2,
+        "after_up": 1,
+        "initial_cursor": 0
+      }
+    },
+    {
+      "name": "table_goto_top_bottom",
+      "category": "unit",
+      "input": {
+        "rows_count": 5
+      },
+      "expected_output": {
+        "at_bottom": 4,
+        "at_top": 0,
+        "middle_cursor": 2
+      }
+    },
+    {
+      "name": "table_focus",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "after_blur": false,
+        "after_focus": true,
+        "initial_focus": false
+      }
+    },
+    {
+      "name": "table_set_cursor",
+      "category": "unit",
+      "input": {
+        "rows_count": 5,
+        "set_to": 3
+      },
+      "expected_output": {
+        "cursor": 3,
+        "selected_row": [
+          "4"
+        ]
+      }
+    },
+    {
+      "name": "table_dimensions",
+      "category": "unit",
+      "input": {
+        "height": 10,
+        "width": 50
+      },
+      "expected_output": {
+        "height": 9,
+        "width": 50
+      }
+    },
+    {
+      "name": "table_cursor_bounds",
+      "category": "unit",
+      "input": {
+        "rows_count": 3
+      },
+      "expected_output": {
+        "at_bottom_after_down": 2,
+        "at_top_after_up": 0
       }
     }
   ]
