@@ -1592,6 +1592,512 @@
       "expected_output": {
         "string": "[test]"
       }
+    },
+    {
+      "name": "command_batch_empty",
+      "category": "unit",
+      "input": {
+        "commands": []
+      },
+      "expected_output": {
+        "result": "none",
+        "values": []
+      }
+    },
+    {
+      "name": "command_batch_single",
+      "category": "unit",
+      "input": {
+        "commands": [
+          1
+        ]
+      },
+      "expected_output": {
+        "result": "single",
+        "values": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "command_batch_multi",
+      "category": "unit",
+      "input": {
+        "commands": [
+          1,
+          2,
+          3
+        ]
+      },
+      "expected_output": {
+        "result": "batch",
+        "values": [
+          1,
+          2,
+          3
+        ]
+      }
+    },
+    {
+      "name": "command_batch_with_nones",
+      "category": "unit",
+      "input": {
+        "commands": [
+          1,
+          null,
+          3
+        ]
+      },
+      "expected_output": {
+        "result": "batch",
+        "values": [
+          1,
+          3
+        ]
+      }
+    },
+    {
+      "name": "command_sequence_empty",
+      "category": "unit",
+      "input": {
+        "commands": []
+      },
+      "expected_output": {
+        "result": "none",
+        "values": []
+      }
+    },
+    {
+      "name": "command_sequence_single",
+      "category": "unit",
+      "input": {
+        "commands": [
+          7
+        ]
+      },
+      "expected_output": {
+        "result": "single",
+        "values": [
+          7
+        ]
+      }
+    },
+    {
+      "name": "command_sequence_multi",
+      "category": "unit",
+      "input": {
+        "commands": [
+          4,
+          5
+        ]
+      },
+      "expected_output": {
+        "result": "sequence",
+        "values": [
+          4,
+          5
+        ]
+      }
+    },
+    {
+      "name": "mouse_parse_x10_left_click",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[M !!"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 1,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_x10_left_at_position",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[M +5"
+      },
+      "expected_output": {
+        "x": 10,
+        "y": 20,
+        "button": 1,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_x10_middle_click",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[M!!!"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 2,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_x10_right_click",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[M\"!!"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 3,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_x10_release",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[M#!!"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 0,
+        "action": 1,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_x10_ctrl_left",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[M0!!"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 1,
+        "action": 0,
+        "ctrl": true,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_x10_alt_left",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[M(!!"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 1,
+        "action": 0,
+        "ctrl": false,
+        "alt": true,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_x10_shift_left",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[M$!!"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 1,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": true
+      }
+    },
+    {
+      "name": "mouse_parse_x10_wheel_up",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[M`!!"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 4,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_x10_wheel_down",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[Ma!!"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 5,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_x10_motion_left",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[M@!!"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 1,
+        "action": 2,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_left_press",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<0;1;1M"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 1,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_left_release",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<0;1;1m"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 1,
+        "action": 1,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_right_press",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<2;1;1M"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 3,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_middle_press",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<1;1;1M"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 2,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_ctrl_left",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<16;1;1M"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 1,
+        "action": 0,
+        "ctrl": true,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_alt_left",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<8;1;1M"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 1,
+        "action": 0,
+        "ctrl": false,
+        "alt": true,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_shift_left",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<4;1;1M"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 1,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": true
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_all_modifiers",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<28;1;1M"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 1,
+        "action": 0,
+        "ctrl": true,
+        "alt": true,
+        "shift": true
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_wheel_up",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<64;1;1M"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 4,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_wheel_down",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<65;1;1M"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 5,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_motion",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<32;1;1M"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 1,
+        "action": 2,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_large_coords",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<0;300;400M"
+      },
+      "expected_output": {
+        "x": 299,
+        "y": 399,
+        "button": 1,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_backward_button",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<128;1;1M"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 8,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
+    },
+    {
+      "name": "mouse_parse_sgr_forward_button",
+      "category": "unit",
+      "input": {
+        "sequence": "\u001b[<129;1;1M"
+      },
+      "expected_output": {
+        "x": 0,
+        "y": 0,
+        "button": 9,
+        "action": 0,
+        "ctrl": false,
+        "alt": false,
+        "shift": false
+      }
     }
   ]
 }
