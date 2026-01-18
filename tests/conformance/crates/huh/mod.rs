@@ -23,6 +23,10 @@
 //! - Focus management
 //! - Form state machine
 
+// Allow dead code and unused imports in test fixture structures
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 use crate::harness::{FixtureLoader, TestFixture};
 use bubbletea::{Message, Model};
 use huh::{
@@ -875,20 +879,20 @@ fn create_test_form() -> Form {
             Box::new(Input::new().title("Email").key("email")),
         ])
         .title("Personal Info"),
-        Group::new(vec![
-            Box::new(
-                Select::<String>::new()
-                    .title("Color")
-                    .key("color")
-                    .options(vec![
-                        SelectOption::new("Red", "red".to_string()),
-                        SelectOption::new("Blue", "blue".to_string()),
-                    ]),
-            ),
-        ])
+        Group::new(vec![Box::new(
+            Select::<String>::new()
+                .title("Color")
+                .key("color")
+                .options(vec![
+                    SelectOption::new("Red", "red".to_string()),
+                    SelectOption::new("Blue", "blue".to_string()),
+                ]),
+        )])
         .title("Preferences"),
-        Group::new(vec![Box::new(Confirm::new().title("Confirm?").key("confirm"))])
-            .title("Confirmation"),
+        Group::new(vec![Box::new(
+            Confirm::new().title("Confirm?").key("confirm"),
+        )])
+        .title("Confirmation"),
     ])
 }
 
@@ -1205,12 +1209,24 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
 
     // Form Navigation Tests (direct tests, not from fixtures)
     // These test the Form state machine behavior per Go huh reference
-    run_nav_test("nav_form_initial_state", test_form_initial_state, &mut results);
-    run_nav_test("nav_form_initial_group", test_form_initial_group, &mut results);
+    run_nav_test(
+        "nav_form_initial_state",
+        test_form_initial_state,
+        &mut results,
+    );
+    run_nav_test(
+        "nav_form_initial_group",
+        test_form_initial_group,
+        &mut results,
+    );
     run_nav_test("nav_form_len", test_form_len, &mut results);
     run_nav_test("nav_next_group", test_next_group_navigation, &mut results);
     run_nav_test("nav_prev_group", test_prev_group_navigation, &mut results);
-    run_nav_test("nav_prev_group_at_first", test_prev_group_at_first, &mut results);
+    run_nav_test(
+        "nav_prev_group_at_first",
+        test_prev_group_at_first,
+        &mut results,
+    );
     run_nav_test(
         "nav_next_group_completes",
         test_next_group_at_last_completes,
@@ -1227,7 +1243,11 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
         test_prev_field_crosses_group,
         &mut results,
     );
-    run_nav_test("nav_form_view_current_group", test_form_view_current_group, &mut results);
+    run_nav_test(
+        "nav_form_view_current_group",
+        test_form_view_current_group,
+        &mut results,
+    );
     run_nav_test("nav_empty_form", test_empty_form, &mut results);
     run_nav_test(
         "nav_single_group_completion",

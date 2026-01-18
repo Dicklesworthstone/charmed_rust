@@ -3,7 +3,7 @@
     "crate": "bubbles",
     "go_version": "1.24",
     "library_version": "0.20.0",
-    "captured_at": "2026-01-18T05:45:30Z"
+    "captured_at": "2026-01-18T08:46:16Z"
   },
   "tests": [
     {
@@ -1037,6 +1037,167 @@
       "expected_output": {
         "at_bottom_after_down": 2,
         "at_top_after_up": 0
+      }
+    },
+    {
+      "name": "filepicker_new",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "auto_height": true,
+        "current_directory": ".",
+        "dir_allowed": false,
+        "file_allowed": true,
+        "show_hidden": false,
+        "show_permissions": true,
+        "show_size": true
+      }
+    },
+    {
+      "name": "filepicker_set_directory",
+      "category": "unit",
+      "input": {
+        "directory": "/tmp"
+      },
+      "expected_output": {
+        "current_directory": "/tmp"
+      }
+    },
+    {
+      "name": "filepicker_allowed_types",
+      "category": "unit",
+      "input": {
+        "allowed_types": [
+          ".txt",
+          ".md"
+        ]
+      },
+      "expected_output": {
+        "allowed_types": [
+          ".txt",
+          ".md"
+        ]
+      }
+    },
+    {
+      "name": "filepicker_show_hidden",
+      "category": "unit",
+      "input": {
+        "show_hidden": true
+      },
+      "expected_output": {
+        "show_hidden": true
+      }
+    },
+    {
+      "name": "filepicker_height",
+      "category": "unit",
+      "input": {
+        "auto_height": false,
+        "height": 20
+      },
+      "expected_output": {
+        "auto_height": false,
+        "height": 20
+      }
+    },
+    {
+      "name": "filepicker_dir_allowed",
+      "category": "unit",
+      "input": {
+        "dir_allowed": true,
+        "file_allowed": false
+      },
+      "expected_output": {
+        "dir_allowed": true,
+        "file_allowed": false
+      }
+    },
+    {
+      "name": "filepicker_keybindings",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "back_keys": [
+          "h",
+          "backspace",
+          "left",
+          "esc"
+        ],
+        "down_keys": [
+          "j",
+          "down",
+          "ctrl+n"
+        ],
+        "open_keys": [
+          "l",
+          "right",
+          "enter"
+        ],
+        "select_keys": [
+          "enter"
+        ],
+        "up_keys": [
+          "k",
+          "up",
+          "ctrl+p"
+        ]
+      }
+    },
+    {
+      "name": "filepicker_format_size",
+      "category": "unit",
+      "input": {
+        "sizes": [
+          0,
+          512,
+          1024,
+          1536,
+          1048576,
+          1073741824
+        ]
+      },
+      "expected_output": {
+        "expected_formats": [
+          "0B",
+          "512B",
+          "1.0K",
+          "1.5K",
+          "1.0M",
+          "1.0G"
+        ]
+      }
+    },
+    {
+      "name": "filepicker_cursor",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "cursor": "\u003e"
+      }
+    },
+    {
+      "name": "filepicker_sort_order",
+      "category": "unit",
+      "input": {
+        "show_hidden": false,
+        "test_dir": "temp"
+      },
+      "expected_output": {
+        "sort_order": [
+          "dir_a",
+          "dir_b",
+          "file_a.txt",
+          "file_z.txt"
+        ]
+      }
+    },
+    {
+      "name": "filepicker_empty_view",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "view_contains": "No files"
       }
     }
   ]

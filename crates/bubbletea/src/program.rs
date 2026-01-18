@@ -13,19 +13,19 @@ use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind},
     execute,
     terminal::{
-        self, disable_raw_mode, enable_raw_mode, Clear, ClearType,
-        EnterAlternateScreen, LeaveAlternateScreen,
+        self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
+        enable_raw_mode,
     },
 };
 
+use crate::KeyMsg;
 use crate::command::Cmd;
 use crate::key::from_crossterm_key;
 use crate::message::{
-    BatchMsg, BlurMsg, FocusMsg, InterruptMsg, Message, QuitMsg, RequestWindowSizeMsg,
-    SequenceMsg, SetWindowTitleMsg, WindowSizeMsg,
+    BatchMsg, BlurMsg, FocusMsg, InterruptMsg, Message, QuitMsg, RequestWindowSizeMsg, SequenceMsg,
+    SetWindowTitleMsg, WindowSizeMsg,
 };
 use crate::mouse::from_crossterm_mouse;
-use crate::KeyMsg;
 
 /// Error type for program execution.
 #[derive(Debug)]

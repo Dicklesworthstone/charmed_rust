@@ -245,9 +245,7 @@ mod tests {
 
     #[test]
     fn test_binding_unbind() {
-        let mut binding = Binding::new()
-            .keys(&["q"])
-            .help("q", "quit");
+        let mut binding = Binding::new().keys(&["q"]).help("q", "quit");
         binding.unbind();
         assert!(binding.get_keys().is_empty());
         assert!(binding.get_help().key.is_empty());

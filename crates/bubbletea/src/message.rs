@@ -98,11 +98,15 @@ pub(crate) struct SetWindowTitleMsg(pub String);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RequestWindowSizeMsg;
 
-/// Internal message for batch command execution.
-pub(crate) struct BatchMsg(pub Vec<super::Cmd>);
+/// Message for batch command execution.
+///
+/// This is produced by [`batch`](crate::batch) and handled by the program runtime.
+pub struct BatchMsg(pub Vec<super::Cmd>);
 
-/// Internal message for sequential command execution.
-pub(crate) struct SequenceMsg(pub Vec<super::Cmd>);
+/// Message for sequential command execution.
+///
+/// This is produced by [`sequence`](crate::sequence) and handled by the program runtime.
+pub struct SequenceMsg(pub Vec<super::Cmd>);
 
 #[cfg(test)]
 mod tests {

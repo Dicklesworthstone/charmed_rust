@@ -35,6 +35,14 @@ pub struct TickMsg {
     tag: u64,
 }
 
+impl TickMsg {
+    /// Creates a new tick message.
+    #[must_use]
+    pub fn new(id: u64, tag: u64) -> Self {
+        Self { id, tag }
+    }
+}
+
 /// Message to start or stop the stopwatch.
 #[derive(Debug, Clone, Copy)]
 pub struct StartStopMsg {
@@ -127,7 +135,7 @@ impl Stopwatch {
         let tag = self.tag;
         let interval = self.interval;
 
-        Some(bubbletea::sequence(vec![
+        bubbletea::sequence(vec![
             Some(Cmd::new(move || {
                 Message::new(StartStopMsg { id, running: true })
             })),
@@ -135,7 +143,7 @@ impl Stopwatch {
                 std::thread::sleep(interval);
                 Message::new(TickMsg { id, tag })
             })),
-        ])?)
+        ])
     }
 
     /// Creates a command to start the stopwatch.

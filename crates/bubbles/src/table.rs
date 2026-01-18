@@ -24,7 +24,7 @@
 //!     .rows(rows);
 //! ```
 
-use crate::key::{matches, Binding};
+use crate::key::{Binding, matches};
 use crate::viewport::Viewport;
 use bubbletea::{Cmd, KeyMsg, Message};
 use lipgloss::{Color, Style};
@@ -76,21 +76,15 @@ pub struct KeyMap {
 impl Default for KeyMap {
     fn default() -> Self {
         Self {
-            line_up: Binding::new()
-                .keys(&["up", "k"])
-                .help("↑/k", "up"),
-            line_down: Binding::new()
-                .keys(&["down", "j"])
-                .help("↓/j", "down"),
+            line_up: Binding::new().keys(&["up", "k"]).help("↑/k", "up"),
+            line_down: Binding::new().keys(&["down", "j"]).help("↓/j", "down"),
             page_up: Binding::new()
                 .keys(&["b", "pgup"])
                 .help("b/pgup", "page up"),
             page_down: Binding::new()
                 .keys(&["f", "pgdown", " "])
                 .help("f/pgdn", "page down"),
-            half_page_up: Binding::new()
-                .keys(&["u", "ctrl+u"])
-                .help("u", "½ page up"),
+            half_page_up: Binding::new().keys(&["u", "ctrl+u"]).help("u", "½ page up"),
             half_page_down: Binding::new()
                 .keys(&["d", "ctrl+d"])
                 .help("d", "½ page down"),
@@ -375,9 +369,7 @@ impl Table {
         self.end = (self.cursor + height).min(self.rows.len());
 
         // Render rows
-        let rendered: Vec<String> = (self.start..self.end)
-            .map(|i| self.render_row(i))
-            .collect();
+        let rendered: Vec<String> = (self.start..self.end).map(|i| self.render_row(i)).collect();
 
         self.viewport.set_content(&rendered.join("\n"));
     }
@@ -552,7 +544,10 @@ mod tests {
 
         let mut table = Table::new().rows(rows);
 
-        assert_eq!(table.selected_row(), Some(&vec!["1".into(), "Alice".into()]));
+        assert_eq!(
+            table.selected_row(),
+            Some(&vec!["1".into(), "Alice".into()])
+        );
 
         table.move_down(1);
         assert_eq!(table.selected_row(), Some(&vec!["2".into(), "Bob".into()]));

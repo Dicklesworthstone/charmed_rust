@@ -9,7 +9,7 @@ description = "Stylesheet-based markdown rendering for terminal applications"
 
 [dependencies]
 lipgloss = { path = "../lipgloss" }
-pulldown-cmark = "0.11"
+pulldown-cmark = "0.13"
 
 [lints]
 workspace = true

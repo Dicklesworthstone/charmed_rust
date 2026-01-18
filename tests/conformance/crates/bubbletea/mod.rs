@@ -905,7 +905,7 @@ mod tests {
             alt: false,
             shift: false,
         };
-        assert_eq!(mouse.to_string(), "left");
+        assert_eq!(mouse.to_string(), "left press");
 
         let mouse = MouseMsg {
             x: 0,
@@ -916,7 +916,7 @@ mod tests {
             alt: false,
             shift: false,
         };
-        assert_eq!(mouse.to_string(), "ctrl+left");
+        assert_eq!(mouse.to_string(), "ctrl+left press");
     }
 }
 

@@ -4,12 +4,12 @@
 //! requiring a real terminal, enabling unit tests for the Elm Architecture.
 
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::Model;
 use crate::command::Cmd;
 use crate::message::{Message, QuitMsg};
-use crate::Model;
 
 /// Statistics tracked during simulation.
 #[derive(Debug, Clone, Default)]

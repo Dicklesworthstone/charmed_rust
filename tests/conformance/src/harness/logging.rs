@@ -325,7 +325,9 @@ impl TestLogger {
         }
 
         // Message with indentation
-        let _ = self.output.write_plain(&format!(" {}{}", indent_str, message));
+        let _ = self
+            .output
+            .write_plain(&format!(" {}{}", indent_str, message));
         let _ = self.output.newline();
         let _ = self.output.flush();
     }
@@ -446,34 +448,32 @@ impl TestLogger {
             let codes: Vec<&str> = codes_str.split(';').collect();
             let descriptions: Vec<String> = codes
                 .iter()
-                .map(|code| {
-                    match *code {
-                        "0" => "reset".to_string(),
-                        "1" => "bold".to_string(),
-                        "2" => "dim".to_string(),
-                        "3" => "italic".to_string(),
-                        "4" => "underline".to_string(),
-                        "5" => "blink".to_string(),
-                        "7" => "reverse".to_string(),
-                        "9" => "strikethrough".to_string(),
-                        "30" => "black".to_string(),
-                        "31" => "red".to_string(),
-                        "32" => "green".to_string(),
-                        "33" => "yellow".to_string(),
-                        "34" => "blue".to_string(),
-                        "35" => "magenta".to_string(),
-                        "36" => "cyan".to_string(),
-                        "37" => "white".to_string(),
-                        "40" => "bg-black".to_string(),
-                        "41" => "bg-red".to_string(),
-                        "42" => "bg-green".to_string(),
-                        "43" => "bg-yellow".to_string(),
-                        "44" => "bg-blue".to_string(),
-                        "45" => "bg-magenta".to_string(),
-                        "46" => "bg-cyan".to_string(),
-                        "47" => "bg-white".to_string(),
-                        _ => format!("SGR {}", code),
-                    }
+                .map(|code| match *code {
+                    "0" => "reset".to_string(),
+                    "1" => "bold".to_string(),
+                    "2" => "dim".to_string(),
+                    "3" => "italic".to_string(),
+                    "4" => "underline".to_string(),
+                    "5" => "blink".to_string(),
+                    "7" => "reverse".to_string(),
+                    "9" => "strikethrough".to_string(),
+                    "30" => "black".to_string(),
+                    "31" => "red".to_string(),
+                    "32" => "green".to_string(),
+                    "33" => "yellow".to_string(),
+                    "34" => "blue".to_string(),
+                    "35" => "magenta".to_string(),
+                    "36" => "cyan".to_string(),
+                    "37" => "white".to_string(),
+                    "40" => "bg-black".to_string(),
+                    "41" => "bg-red".to_string(),
+                    "42" => "bg-green".to_string(),
+                    "43" => "bg-yellow".to_string(),
+                    "44" => "bg-blue".to_string(),
+                    "45" => "bg-magenta".to_string(),
+                    "46" => "bg-cyan".to_string(),
+                    "47" => "bg-white".to_string(),
+                    _ => format!("SGR {}", code),
                 })
                 .collect();
             format!("SGR {}", descriptions.join("+"))
@@ -605,10 +605,12 @@ impl TestLogger {
 
 /// Thread-safe logger wrapper for parallel tests
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct SharedLogger {
     inner: Arc<Mutex<TestLogger>>,
 }
 
+#[allow(dead_code)]
 impl SharedLogger {
     /// Create a new shared logger wrapping the given logger
     pub fn new(logger: TestLogger) -> Self {

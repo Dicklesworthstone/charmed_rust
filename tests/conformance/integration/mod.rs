@@ -29,9 +29,7 @@ use lipgloss::{Border, Position, Style};
 /// Test that lipgloss styles can be used in view output
 fn test_lipgloss_style_in_view() -> Result<(), String> {
     // Create a styled string using lipgloss
-    let style = Style::new()
-        .bold()
-        .foreground("#ff0000");
+    let style = Style::new().bold().foreground("#ff0000");
 
     let styled = style.render("Hello World");
 
@@ -100,7 +98,10 @@ fn test_lipgloss_join_functions() -> Result<(), String> {
 /// Test viewport component renders correctly
 fn test_viewport_rendering() -> Result<(), String> {
     let mut viewport = Viewport::new(40, 10);
-    let content = (1..20).map(|i| format!("Line {}", i)).collect::<Vec<_>>().join("\n");
+    let content = (1..20)
+        .map(|i| format!("Line {}", i))
+        .collect::<Vec<_>>()
+        .join("\n");
     viewport.set_content(&content);
 
     let view = viewport.view();
@@ -125,7 +126,10 @@ fn test_viewport_rendering() -> Result<(), String> {
 /// Test viewport scrolling
 fn test_viewport_scrolling() -> Result<(), String> {
     let mut viewport = Viewport::new(40, 5);
-    let content = (1..20).map(|i| format!("Line {}", i)).collect::<Vec<_>>().join("\n");
+    let content = (1..20)
+        .map(|i| format!("Line {}", i))
+        .collect::<Vec<_>>()
+        .join("\n");
     viewport.set_content(&content);
 
     // Initially at top
@@ -227,7 +231,12 @@ fn test_glamour_style_variants() -> Result<(), String> {
     let markdown = "# Test\n\nParagraph.";
 
     // Test each style variant renders without error
-    for style in [GlamourStyle::Dark, GlamourStyle::Light, GlamourStyle::Ascii, GlamourStyle::Pink] {
+    for style in [
+        GlamourStyle::Dark,
+        GlamourStyle::Light,
+        GlamourStyle::Ascii,
+        GlamourStyle::Pink,
+    ] {
         let renderer = Renderer::new().with_style(style);
         let output = renderer.render(markdown);
 
@@ -308,18 +317,15 @@ fn test_huh_form_creation() -> Result<(), String> {
             Box::new(Input::new().title("Username").key("username")),
             Box::new(Input::new().title("Email").key("email")),
         ]),
-        Group::new(vec![
-            Box::new(Select::new()
-                .title("Role")
-                .key("role")
-                .options(vec![
-                    SelectOption::new("admin", "Administrator"),
-                    SelectOption::new("user", "Regular User"),
-                ])),
-        ]),
-        Group::new(vec![
-            Box::new(Confirm::new().title("Accept Terms").key("terms")),
-        ]),
+        Group::new(vec![Box::new(
+            Select::new().title("Role").key("role").options(vec![
+                SelectOption::new("admin", "Administrator"),
+                SelectOption::new("user", "Regular User"),
+            ]),
+        )]),
+        Group::new(vec![Box::new(
+            Confirm::new().title("Accept Terms").key("terms"),
+        )]),
     ]);
 
     // Form should render without error
@@ -370,9 +376,7 @@ fn test_huh_select_rendering() -> Result<(), String> {
 
 /// Test huh confirm component
 fn test_huh_confirm_rendering() -> Result<(), String> {
-    let confirm = Confirm::new()
-        .title("Are you sure?")
-        .key("confirm");
+    let confirm = Confirm::new().title("Are you sure?").key("confirm");
 
     let view = confirm.view();
 
@@ -403,9 +407,7 @@ fn test_huh_note_rendering() -> Result<(), String> {
 /// Test huh theming
 fn test_huh_theming() -> Result<(), String> {
     // Test that themed input renders
-    let mut input = Input::new()
-        .title("Test")
-        .key("test");
+    let mut input = Input::new().title("Test").key("test");
     input.with_theme(&huh::theme_charm());
 
     let view = input.view();
@@ -502,18 +504,18 @@ fn test_e2e_loading_indicator() -> Result<(), String> {
 fn test_e2e_styled_form() -> Result<(), String> {
     // Create a complete form - Form shows current group only
     let form = Form::new(vec![
-        Group::new(vec![
-            Box::new(Note::new()
+        Group::new(vec![Box::new(
+            Note::new()
                 .title("Registration")
-                .description("Please fill out the form below.")),
-        ]),
+                .description("Please fill out the form below."),
+        )]),
         Group::new(vec![
             Box::new(Input::new().title("Username").key("username")),
             Box::new(Input::new().title("Password").key("password")),
         ]),
-        Group::new(vec![
-            Box::new(Confirm::new().title("Remember me?").key("remember")),
-        ]),
+        Group::new(vec![Box::new(
+            Confirm::new().title("Remember me?").key("remember"),
+        )]),
     ]);
 
     let view = form.view();
@@ -550,9 +552,7 @@ fn test_e2e_layout_composition() -> Result<(), String> {
         .width(40)
         .align(Position::Center);
 
-    let body_style = Style::new()
-        .padding((1, 2))
-        .width(40);
+    let body_style = Style::new().padding((1, 2)).width(40);
 
     let footer_style = Style::new()
         .foreground("#888888")
@@ -564,10 +564,7 @@ fn test_e2e_layout_composition() -> Result<(), String> {
     let footer = footer_style.render("Press q to quit");
 
     // Compose vertically
-    let composed = lipgloss::join_vertical(
-        Position::Left,
-        &[&header, &body, &footer],
-    );
+    let composed = lipgloss::join_vertical(Position::Left, &[&header, &body, &footer]);
 
     // Should contain all sections
     if !composed.contains("My Application") {
@@ -588,8 +585,11 @@ fn test_e2e_layout_composition() -> Result<(), String> {
 // ============================================================================
 
 /// Run a single test and collect result
-fn run_test<F>(name: &'static str, test_fn: F, results: &mut Vec<(&'static str, Result<(), String>)>)
-where
+fn run_test<F>(
+    name: &'static str,
+    test_fn: F,
+    results: &mut Vec<(&'static str, Result<(), String>)>,
+) where
     F: FnOnce() -> Result<(), String>,
 {
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(test_fn));
@@ -605,40 +605,104 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let mut results = Vec::new();
 
     // Lipgloss + Bubbletea
-    run_test("lipgloss_style_in_view", test_lipgloss_style_in_view, &mut results);
-    run_test("lipgloss_border_and_padding", test_lipgloss_border_and_padding, &mut results);
-    run_test("lipgloss_join_functions", test_lipgloss_join_functions, &mut results);
+    run_test(
+        "lipgloss_style_in_view",
+        test_lipgloss_style_in_view,
+        &mut results,
+    );
+    run_test(
+        "lipgloss_border_and_padding",
+        test_lipgloss_border_and_padding,
+        &mut results,
+    );
+    run_test(
+        "lipgloss_join_functions",
+        test_lipgloss_join_functions,
+        &mut results,
+    );
 
     // Bubbles + Bubbletea
     run_test("viewport_rendering", test_viewport_rendering, &mut results);
     run_test("viewport_scrolling", test_viewport_scrolling, &mut results);
-    run_test("textinput_value_handling", test_textinput_value_handling, &mut results);
+    run_test(
+        "textinput_value_handling",
+        test_textinput_value_handling,
+        &mut results,
+    );
     run_test("progress_rendering", test_progress_rendering, &mut results);
     run_test("spinner_rendering", test_spinner_rendering, &mut results);
 
     // Glamour + Lipgloss
-    run_test("glamour_markdown_rendering", test_glamour_markdown_rendering, &mut results);
-    run_test("glamour_style_variants", test_glamour_style_variants, &mut results);
-    run_test("glamour_code_blocks", test_glamour_code_blocks, &mut results);
+    run_test(
+        "glamour_markdown_rendering",
+        test_glamour_markdown_rendering,
+        &mut results,
+    );
+    run_test(
+        "glamour_style_variants",
+        test_glamour_style_variants,
+        &mut results,
+    );
+    run_test(
+        "glamour_code_blocks",
+        test_glamour_code_blocks,
+        &mut results,
+    );
 
     // Harmonica + Bubbles
-    run_test("harmonica_spring_animation", test_harmonica_spring_animation, &mut results);
-    run_test("harmonica_fps_values", test_harmonica_fps_values, &mut results);
+    run_test(
+        "harmonica_spring_animation",
+        test_harmonica_spring_animation,
+        &mut results,
+    );
+    run_test(
+        "harmonica_fps_values",
+        test_harmonica_fps_values,
+        &mut results,
+    );
 
     // Huh Forms
     run_test("huh_form_creation", test_huh_form_creation, &mut results);
-    run_test("huh_input_rendering", test_huh_input_rendering, &mut results);
-    run_test("huh_select_rendering", test_huh_select_rendering, &mut results);
-    run_test("huh_confirm_rendering", test_huh_confirm_rendering, &mut results);
+    run_test(
+        "huh_input_rendering",
+        test_huh_input_rendering,
+        &mut results,
+    );
+    run_test(
+        "huh_select_rendering",
+        test_huh_select_rendering,
+        &mut results,
+    );
+    run_test(
+        "huh_confirm_rendering",
+        test_huh_confirm_rendering,
+        &mut results,
+    );
     run_test("huh_note_rendering", test_huh_note_rendering, &mut results);
     run_test("huh_theming", test_huh_theming, &mut results);
 
     // E2E Scenarios
-    run_test("e2e_markdown_viewer", test_e2e_markdown_viewer, &mut results);
-    run_test("e2e_styled_progress", test_e2e_styled_progress, &mut results);
-    run_test("e2e_loading_indicator", test_e2e_loading_indicator, &mut results);
+    run_test(
+        "e2e_markdown_viewer",
+        test_e2e_markdown_viewer,
+        &mut results,
+    );
+    run_test(
+        "e2e_styled_progress",
+        test_e2e_styled_progress,
+        &mut results,
+    );
+    run_test(
+        "e2e_loading_indicator",
+        test_e2e_loading_indicator,
+        &mut results,
+    );
     run_test("e2e_styled_form", test_e2e_styled_form, &mut results);
-    run_test("e2e_layout_composition", test_e2e_layout_composition, &mut results);
+    run_test(
+        "e2e_layout_composition",
+        test_e2e_layout_composition,
+        &mut results,
+    );
 
     results
 }

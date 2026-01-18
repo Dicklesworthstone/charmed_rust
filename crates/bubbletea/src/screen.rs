@@ -3,7 +3,6 @@
 //! These commands control terminal display features like alternate screen,
 //! cursor visibility, mouse tracking, and more.
 
-
 use crate::command::Cmd;
 use crate::message::Message;
 

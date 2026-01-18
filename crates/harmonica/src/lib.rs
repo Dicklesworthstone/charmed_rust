@@ -73,11 +73,11 @@
 mod projectile;
 mod spring;
 
-pub use projectile::{Point, Projectile, Vector, GRAVITY, TERMINAL_GRAVITY};
-pub use spring::{fps, Spring};
+pub use projectile::{GRAVITY, Point, Projectile, TERMINAL_GRAVITY, Vector};
+pub use spring::{Spring, fps};
 
 /// Prelude module for convenient imports.
 pub mod prelude {
-    pub use crate::projectile::{Point, Projectile, Vector, GRAVITY, TERMINAL_GRAVITY};
-    pub use crate::spring::{fps, Spring};
+    pub use crate::projectile::{GRAVITY, Point, Projectile, TERMINAL_GRAVITY, Vector};
+    pub use crate::spring::{Spring, fps};
 }

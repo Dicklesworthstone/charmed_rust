@@ -1,0 +1,1204 @@
+{
+  "metadata": {
+    "crate": "bubbles",
+    "go_version": "1.24",
+    "library_version": "0.20.0",
+    "captured_at": "2026-01-18T08:46:16Z"
+  },
+  "tests": [
+    {
+      "name": "viewport_new",
+      "category": "unit",
+      "input": {
+        "height": 24,
+        "width": 80
+      },
+      "expected_output": {
+        "at_bottom": true,
+        "at_top": true,
+        "height": 24,
+        "scroll_percent": 1,
+        "width": 80,
+        "y_offset": 0,
+        "y_position": 0
+      }
+    },
+    {
+      "name": "viewport_with_content",
+      "category": "unit",
+      "input": {
+        "content": "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10",
+        "height": 5,
+        "width": 80
+      },
+      "expected_output": {
+        "at_bottom": false,
+        "at_top": true,
+        "scroll_percent": 0,
+        "total_lines": 10,
+        "view": "Line 1                                                                          \nLine 2                                                                          \nLine 3                                                                          \nLine 4                                                                          \nLine 5                                                                          ",
+        "visible_lines": 5
+      }
+    },
+    {
+      "name": "viewport_scroll_down",
+      "category": "unit",
+      "input": {
+        "content": "Line 1\nLine 2\nLine 3\nLine 4\nLine 5",
+        "height": 3,
+        "scroll_by": 1,
+        "width": 80
+      },
+      "expected_output": {
+        "at_bottom": false,
+        "at_top": false,
+        "scroll_percent": 0.5,
+        "view": "Line 2                                                                          \nLine 3                                                                          \nLine 4                                                                          ",
+        "y_offset": 1
+      }
+    },
+    {
+      "name": "viewport_goto_bottom",
+      "category": "unit",
+      "input": {
+        "content": "Line 1\nLine 2\nLine 3\nLine 4\nLine 5",
+        "height": 3,
+        "width": 80
+      },
+      "expected_output": {
+        "at_bottom": true,
+        "at_top": false,
+        "scroll_percent": 1,
+        "view": "Line 3                                                                          \nLine 4                                                                          \nLine 5                                                                          ",
+        "y_offset": 2
+      }
+    },
+    {
+      "name": "viewport_goto_top",
+      "category": "unit",
+      "input": {
+        "content": "Line 1\nLine 2\nLine 3\nLine 4\nLine 5",
+        "height": 3,
+        "width": 80
+      },
+      "expected_output": {
+        "at_bottom": false,
+        "at_top": true,
+        "scroll_percent": 0,
+        "view": "Line 1                                                                          \nLine 2                                                                          \nLine 3                                                                          ",
+        "y_offset": 0
+      }
+    },
+    {
+      "name": "viewport_half_page_down",
+      "category": "unit",
+      "input": {
+        "content": "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8",
+        "height": 4,
+        "width": 80
+      },
+      "expected_output": {
+        "scroll_percent": 0.5,
+        "y_offset": 2
+      }
+    },
+    {
+      "name": "viewport_page_navigation",
+      "category": "unit",
+      "input": {
+        "content": "L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9",
+        "height": 3,
+        "width": 80
+      },
+      "expected_output": {
+        "after_view_down": 3,
+        "after_view_up": 0
+      }
+    },
+    {
+      "name": "textinput_new",
+      "category": "unit",
+      "input": {
+        "placeholder": "Enter text..."
+      },
+      "expected_output": {
+        "cursor_pos": 0,
+        "focused": false,
+        "placeholder": "Enter text...",
+        "value": ""
+      }
+    },
+    {
+      "name": "textinput_with_value",
+      "category": "unit",
+      "input": {
+        "value": "Hello World"
+      },
+      "expected_output": {
+        "cursor_pos": 11,
+        "length": 11,
+        "value": "Hello World"
+      }
+    },
+    {
+      "name": "textinput_char_limit",
+      "category": "unit",
+      "input": {
+        "char_limit": 10,
+        "input": "Hello World Extra"
+      },
+      "expected_output": {
+        "char_limit": 10,
+        "length": 10,
+        "value": "Hello Worl"
+      }
+    },
+    {
+      "name": "textinput_width",
+      "category": "unit",
+      "input": {
+        "value": "Test",
+        "width": 20
+      },
+      "expected_output": {
+        "value": "Test",
+        "width": 20
+      }
+    },
+    {
+      "name": "textinput_cursor_set",
+      "category": "unit",
+      "input": {
+        "cursor_pos": 5,
+        "value": "Hello World"
+      },
+      "expected_output": {
+        "cursor_pos": 5,
+        "value": "Hello World"
+      }
+    },
+    {
+      "name": "textinput_cursor_start",
+      "category": "unit",
+      "input": {
+        "value": "Hello"
+      },
+      "expected_output": {
+        "cursor_pos": 0
+      }
+    },
+    {
+      "name": "textinput_cursor_end",
+      "category": "unit",
+      "input": {
+        "value": "Hello"
+      },
+      "expected_output": {
+        "cursor_pos": 5
+      }
+    },
+    {
+      "name": "textinput_password",
+      "category": "unit",
+      "input": {
+        "echo_mode": "password",
+        "value": "secret"
+      },
+      "expected_output": {
+        "echo_char": "*",
+        "echo_mode": 1,
+        "value": "secret"
+      }
+    },
+    {
+      "name": "textinput_echo_none",
+      "category": "unit",
+      "input": {
+        "echo_mode": "none",
+        "value": "hidden"
+      },
+      "expected_output": {
+        "echo_mode": 2,
+        "value": "hidden"
+      }
+    },
+    {
+      "name": "textinput_focus_blur",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "after_blur": false,
+        "after_focus": true
+      }
+    },
+    {
+      "name": "progress_basic",
+      "category": "unit",
+      "input": {
+        "percent": 0.5
+      },
+      "expected_output": {
+        "is_animated": false,
+        "percent": 0.5,
+        "view_length": 110
+      }
+    },
+    {
+      "name": "progress_zero",
+      "category": "unit",
+      "input": {
+        "percent": 0
+      },
+      "expected_output": {
+        "view_length": 110
+      }
+    },
+    {
+      "name": "progress_full",
+      "category": "unit",
+      "input": {
+        "percent": 1
+      },
+      "expected_output": {
+        "view_length": 110
+      }
+    },
+    {
+      "name": "progress_custom_width",
+      "category": "unit",
+      "input": {
+        "percent": 0.75,
+        "width": 50
+      },
+      "expected_output": {
+        "view_length": 140
+      }
+    },
+    {
+      "name": "progress_no_percent",
+      "category": "unit",
+      "input": {
+        "percent": 0.5,
+        "show_percentage": false
+      },
+      "expected_output": {
+        "view": "████████████████████░░░░░░░░░░░░░░░░░░░░",
+        "view_length": 120
+      }
+    },
+    {
+      "name": "progress_solid_fill",
+      "category": "unit",
+      "input": {
+        "fill_color": "blue",
+        "percent": 0.6
+      },
+      "expected_output": {
+        "view_length": 110
+      }
+    },
+    {
+      "name": "spinner_line",
+      "category": "unit",
+      "input": {
+        "spinner_type": "Line"
+      },
+      "expected_output": {
+        "fps": 100,
+        "frame_count": 4,
+        "frames": [
+          "|",
+          "/",
+          "-",
+          "\\"
+        ]
+      }
+    },
+    {
+      "name": "spinner_dot",
+      "category": "unit",
+      "input": {
+        "spinner_type": "Dot"
+      },
+      "expected_output": {
+        "fps": 100,
+        "frame_count": 8,
+        "frames": [
+          "⣾ ",
+          "⣽ ",
+          "⣻ ",
+          "⢿ ",
+          "⡿ ",
+          "⣟ ",
+          "⣯ ",
+          "⣷ "
+        ]
+      }
+    },
+    {
+      "name": "spinner_minidot",
+      "category": "unit",
+      "input": {
+        "spinner_type": "MiniDot"
+      },
+      "expected_output": {
+        "fps": 83,
+        "frame_count": 10,
+        "frames": [
+          "⠋",
+          "⠙",
+          "⠹",
+          "⠸",
+          "⠼",
+          "⠴",
+          "⠦",
+          "⠧",
+          "⠇",
+          "⠏"
+        ]
+      }
+    },
+    {
+      "name": "spinner_jump",
+      "category": "unit",
+      "input": {
+        "spinner_type": "Jump"
+      },
+      "expected_output": {
+        "fps": 100,
+        "frame_count": 7,
+        "frames": [
+          "⢄",
+          "⢂",
+          "⢁",
+          "⡁",
+          "⡈",
+          "⡐",
+          "⡠"
+        ]
+      }
+    },
+    {
+      "name": "spinner_pulse",
+      "category": "unit",
+      "input": {
+        "spinner_type": "Pulse"
+      },
+      "expected_output": {
+        "fps": 125,
+        "frame_count": 4,
+        "frames": [
+          "█",
+          "▓",
+          "▒",
+          "░"
+        ]
+      }
+    },
+    {
+      "name": "spinner_points",
+      "category": "unit",
+      "input": {
+        "spinner_type": "Points"
+      },
+      "expected_output": {
+        "fps": 142,
+        "frame_count": 4,
+        "frames": [
+          "∙∙∙",
+          "●∙∙",
+          "∙●∙",
+          "∙∙●"
+        ]
+      }
+    },
+    {
+      "name": "spinner_globe",
+      "category": "unit",
+      "input": {
+        "spinner_type": "Globe"
+      },
+      "expected_output": {
+        "fps": 250,
+        "frame_count": 3,
+        "frames": [
+          "🌍",
+          "🌎",
+          "🌏"
+        ]
+      }
+    },
+    {
+      "name": "spinner_moon",
+      "category": "unit",
+      "input": {
+        "spinner_type": "Moon"
+      },
+      "expected_output": {
+        "fps": 125,
+        "frame_count": 8,
+        "frames": [
+          "🌑",
+          "🌒",
+          "🌓",
+          "🌔",
+          "🌕",
+          "🌖",
+          "🌗",
+          "🌘"
+        ]
+      }
+    },
+    {
+      "name": "spinner_monkey",
+      "category": "unit",
+      "input": {
+        "spinner_type": "Monkey"
+      },
+      "expected_output": {
+        "fps": 333,
+        "frame_count": 3,
+        "frames": [
+          "🙈",
+          "🙉",
+          "🙊"
+        ]
+      }
+    },
+    {
+      "name": "spinner_meter",
+      "category": "unit",
+      "input": {
+        "spinner_type": "Meter"
+      },
+      "expected_output": {
+        "fps": 142,
+        "frame_count": 7,
+        "frames": [
+          "▱▱▱",
+          "▰▱▱",
+          "▰▰▱",
+          "▰▰▰",
+          "▰▰▱",
+          "▰▱▱",
+          "▱▱▱"
+        ]
+      }
+    },
+    {
+      "name": "spinner_hamburger",
+      "category": "unit",
+      "input": {
+        "spinner_type": "Hamburger"
+      },
+      "expected_output": {
+        "fps": 333,
+        "frame_count": 4,
+        "frames": [
+          "☱",
+          "☲",
+          "☴",
+          "☲"
+        ]
+      }
+    },
+    {
+      "name": "spinner_model_view",
+      "category": "unit",
+      "input": {
+        "spinner_type": "Dot"
+      },
+      "expected_output": {
+        "view": "⣾ ",
+        "view_bytes": 4
+      }
+    },
+    {
+      "name": "stopwatch_new",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "elapsed": "0s",
+        "elapsed_ms": 0,
+        "interval_ms": 1000,
+        "running": false,
+        "view": "0s"
+      }
+    },
+    {
+      "name": "stopwatch_tick",
+      "category": "unit",
+      "input": {
+        "ticks": 1
+      },
+      "expected_output": {
+        "elapsed": "0s",
+        "elapsed_ms": 0,
+        "running": false,
+        "view": "0s"
+      }
+    },
+    {
+      "name": "stopwatch_reset",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "elapsed": "0s",
+        "elapsed_ms": 0,
+        "running": false,
+        "view": "0s"
+      }
+    },
+    {
+      "name": "timer_new",
+      "category": "unit",
+      "input": {
+        "timeout_secs": 10
+      },
+      "expected_output": {
+        "interval_ms": 1000,
+        "remaining": "10s",
+        "remaining_ms": 10000,
+        "running": true,
+        "timed_out": false,
+        "view": "10s"
+      }
+    },
+    {
+      "name": "timer_tick",
+      "category": "unit",
+      "input": {
+        "tick_count": 1,
+        "timeout_secs": 3
+      },
+      "expected_output": {
+        "remaining": "2s",
+        "remaining_ms": 2000,
+        "running": true,
+        "timed_out": false,
+        "view": "2s"
+      }
+    },
+    {
+      "name": "timer_timeout",
+      "category": "unit",
+      "input": {
+        "timeout_secs": 1
+      },
+      "expected_output": {
+        "remaining": "0s",
+        "remaining_ms": 0,
+        "running": false,
+        "timed_out": true,
+        "view": "0s"
+      }
+    },
+    {
+      "name": "paginator_dots",
+      "category": "unit",
+      "input": {
+        "total_pages": 5,
+        "type": "dots"
+      },
+      "expected_output": {
+        "on_first": true,
+        "on_last": false,
+        "page": 0,
+        "total_pages": 5,
+        "view": "•○○○○"
+      }
+    },
+    {
+      "name": "paginator_arabic",
+      "category": "unit",
+      "input": {
+        "total_pages": 10,
+        "type": "arabic"
+      },
+      "expected_output": {
+        "page": 0,
+        "total_pages": 10,
+        "view": "1/10"
+      }
+    },
+    {
+      "name": "paginator_navigation",
+      "category": "unit",
+      "input": {
+        "start_page": 0,
+        "total_pages": 5
+      },
+      "expected_output": {
+        "after_next": 1,
+        "after_prev": 0
+      }
+    },
+    {
+      "name": "paginator_boundaries",
+      "category": "unit",
+      "input": {
+        "total_pages": 3
+      },
+      "expected_output": {
+        "at_end_after_next": 2,
+        "at_start_after_prev": 0,
+        "on_first": false,
+        "on_last": true
+      }
+    },
+    {
+      "name": "paginator_items_per_page",
+      "category": "unit",
+      "input": {
+        "per_page": 10,
+        "total_items": 25
+      },
+      "expected_output": {
+        "per_page": 10,
+        "total_pages": 1
+      }
+    },
+    {
+      "name": "help_basic",
+      "category": "unit",
+      "input": {
+        "keys": [
+          "up",
+          "down",
+          "enter",
+          "quit"
+        ]
+      },
+      "expected_output": {
+        "full_view": "up/k   up      enter select\ndown/j down    q     quit  ",
+        "full_view_length": 55,
+        "short_view": "up/k up • down/j down",
+        "short_view_length": 23
+      }
+    },
+    {
+      "name": "help_custom_width",
+      "category": "unit",
+      "input": {
+        "width": 40
+      },
+      "expected_output": {
+        "short_view": "up/k up • down/j down",
+        "width": 40
+      }
+    },
+    {
+      "name": "help_empty",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "short_view": "",
+        "short_view_length": 0
+      }
+    },
+    {
+      "name": "cursor_mode_cursorblink",
+      "category": "unit",
+      "input": {
+        "mode": "CursorBlink"
+      },
+      "expected_output": {
+        "mode_string": "blink",
+        "mode_value": 0
+      }
+    },
+    {
+      "name": "cursor_mode_cursorstatic",
+      "category": "unit",
+      "input": {
+        "mode": "CursorStatic"
+      },
+      "expected_output": {
+        "mode_string": "static",
+        "mode_value": 1
+      }
+    },
+    {
+      "name": "cursor_mode_cursorhide",
+      "category": "unit",
+      "input": {
+        "mode": "CursorHide"
+      },
+      "expected_output": {
+        "mode_string": "hidden",
+        "mode_value": 2
+      }
+    },
+    {
+      "name": "cursor_model",
+      "category": "unit",
+      "input": {
+        "mode": "CursorBlink"
+      },
+      "expected_output": {
+        "mode": 0
+      }
+    },
+    {
+      "name": "keybinding_simple",
+      "category": "unit",
+      "input": {
+        "help": "quit",
+        "keys": [
+          "q"
+        ]
+      },
+      "expected_output": {
+        "enabled": true,
+        "help": "q",
+        "keys": [
+          "q"
+        ]
+      }
+    },
+    {
+      "name": "keybinding_multi",
+      "category": "unit",
+      "input": {
+        "help": "move up",
+        "keys": [
+          "up",
+          "k"
+        ]
+      },
+      "expected_output": {
+        "enabled": true,
+        "help": "up/k",
+        "keys": [
+          "up",
+          "k"
+        ]
+      }
+    },
+    {
+      "name": "keybinding_disabled",
+      "category": "unit",
+      "input": {
+        "disabled": true,
+        "keys": [
+          "x"
+        ]
+      },
+      "expected_output": {
+        "enabled": false,
+        "keys": [
+          "x"
+        ]
+      }
+    },
+    {
+      "name": "keybinding_toggle",
+      "category": "unit",
+      "input": {
+        "keys": [
+          "y"
+        ]
+      },
+      "expected_output": {
+        "after_disable": false,
+        "after_enable": true,
+        "initial_enabled": true
+      }
+    },
+    {
+      "name": "list_empty",
+      "category": "unit",
+      "input": {
+        "height": 24,
+        "width": 80
+      },
+      "expected_output": {
+        "cursor": 0,
+        "filter_state": "unfiltered",
+        "index": 0,
+        "items_count": 0
+      }
+    },
+    {
+      "name": "list_with_items",
+      "category": "unit",
+      "input": {
+        "height": 24,
+        "items": [
+          "Apple",
+          "Banana",
+          "Cherry"
+        ],
+        "width": 80
+      },
+      "expected_output": {
+        "cursor": 0,
+        "index": 0,
+        "items_count": 3,
+        "visible_items": [
+          {},
+          {},
+          {}
+        ]
+      }
+    },
+    {
+      "name": "list_cursor_movement",
+      "category": "unit",
+      "input": {
+        "height": 24,
+        "items_count": 5,
+        "width": 80
+      },
+      "expected_output": {
+        "after_down": 1,
+        "after_second_down": 2,
+        "after_up": 1,
+        "initial_index": 0
+      }
+    },
+    {
+      "name": "list_goto_top_bottom",
+      "category": "unit",
+      "input": {
+        "items_count": 5
+      },
+      "expected_output": {
+        "at_bottom": 4,
+        "at_top": 0,
+        "middle_index": 2
+      }
+    },
+    {
+      "name": "list_pagination",
+      "category": "unit",
+      "input": {
+        "height": 10,
+        "items_count": 20,
+        "width": 80
+      },
+      "expected_output": {
+        "current_page": 0,
+        "items_per_page": 1,
+        "total_pages": 20
+      }
+    },
+    {
+      "name": "list_title",
+      "category": "unit",
+      "input": {
+        "title": "My List"
+      },
+      "expected_output": {
+        "show_title": true,
+        "title": "My List"
+      }
+    },
+    {
+      "name": "list_selection",
+      "category": "unit",
+      "input": {
+        "items": [
+          "A",
+          "B",
+          "C"
+        ]
+      },
+      "expected_output": {
+        "selected_index": 1,
+        "selected_title": "B"
+      }
+    },
+    {
+      "name": "table_empty",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "columns_count": 0,
+        "cursor": 0,
+        "focused": false,
+        "rows_count": 0
+      }
+    },
+    {
+      "name": "table_with_data",
+      "category": "unit",
+      "input": {
+        "columns": [
+          {
+            "title": "ID",
+            "width": 10
+          },
+          {
+            "title": "Name",
+            "width": 20
+          },
+          {
+            "title": "Status",
+            "width": 15
+          }
+        ],
+        "rows": [
+          [
+            "1",
+            "Alice",
+            "Active"
+          ],
+          [
+            "2",
+            "Bob",
+            "Inactive"
+          ],
+          [
+            "3",
+            "Charlie",
+            "Active"
+          ]
+        ]
+      },
+      "expected_output": {
+        "columns_count": 3,
+        "cursor": 0,
+        "rows_count": 3,
+        "selected_row": [
+          "1",
+          "Alice",
+          "Active"
+        ]
+      }
+    },
+    {
+      "name": "table_cursor_movement",
+      "category": "unit",
+      "input": {
+        "rows_count": 5
+      },
+      "expected_output": {
+        "after_down": 1,
+        "after_second_down": 2,
+        "after_up": 1,
+        "initial_cursor": 0
+      }
+    },
+    {
+      "name": "table_goto_top_bottom",
+      "category": "unit",
+      "input": {
+        "rows_count": 5
+      },
+      "expected_output": {
+        "at_bottom": 4,
+        "at_top": 0,
+        "middle_cursor": 2
+      }
+    },
+    {
+      "name": "table_focus",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "after_blur": false,
+        "after_focus": true,
+        "initial_focus": false
+      }
+    },
+    {
+      "name": "table_set_cursor",
+      "category": "unit",
+      "input": {
+        "rows_count": 5,
+        "set_to": 3
+      },
+      "expected_output": {
+        "cursor": 3,
+        "selected_row": [
+          "4"
+        ]
+      }
+    },
+    {
+      "name": "table_dimensions",
+      "category": "unit",
+      "input": {
+        "height": 10,
+        "width": 50
+      },
+      "expected_output": {
+        "height": 9,
+        "width": 50
+      }
+    },
+    {
+      "name": "table_cursor_bounds",
+      "category": "unit",
+      "input": {
+        "rows_count": 3
+      },
+      "expected_output": {
+        "at_bottom_after_down": 2,
+        "at_top_after_up": 0
+      }
+    },
+    {
+      "name": "filepicker_new",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "auto_height": true,
+        "current_directory": ".",
+        "dir_allowed": false,
+        "file_allowed": true,
+        "show_hidden": false,
+        "show_permissions": true,
+        "show_size": true
+      }
+    },
+    {
+      "name": "filepicker_set_directory",
+      "category": "unit",
+      "input": {
+        "directory": "/tmp"
+      },
+      "expected_output": {
+        "current_directory": "/tmp"
+      }
+    },
+    {
+      "name": "filepicker_allowed_types",
+      "category": "unit",
+      "input": {
+        "allowed_types": [
+          ".txt",
+          ".md"
+        ]
+      },
+      "expected_output": {
+        "allowed_types": [
+          ".txt",
+          ".md"
+        ]
+      }
+    },
+    {
+      "name": "filepicker_show_hidden",
+      "category": "unit",
+      "input": {
+        "show_hidden": true
+      },
+      "expected_output": {
+        "show_hidden": true
+      }
+    },
+    {
+      "name": "filepicker_height",
+      "category": "unit",
+      "input": {
+        "auto_height": false,
+        "height": 20
+      },
+      "expected_output": {
+        "auto_height": false,
+        "height": 20
+      }
+    },
+    {
+      "name": "filepicker_dir_allowed",
+      "category": "unit",
+      "input": {
+        "dir_allowed": true,
+        "file_allowed": false
+      },
+      "expected_output": {
+        "dir_allowed": true,
+        "file_allowed": false
+      }
+    },
+    {
+      "name": "filepicker_keybindings",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "back_keys": [
+          "h",
+          "backspace",
+          "left",
+          "esc"
+        ],
+        "down_keys": [
+          "j",
+          "down",
+          "ctrl+n"
+        ],
+        "open_keys": [
+          "l",
+          "right",
+          "enter"
+        ],
+        "select_keys": [
+          "enter"
+        ],
+        "up_keys": [
+          "k",
+          "up",
+          "ctrl+p"
+        ]
+      }
+    },
+    {
+      "name": "filepicker_format_size",
+      "category": "unit",
+      "input": {
+        "sizes": [
+          0,
+          512,
+          1024,
+          1536,
+          1048576,
+          1073741824
+        ]
+      },
+      "expected_output": {
+        "expected_formats": [
+          "0B",
+          "512B",
+          "1.0K",
+          "1.5K",
+          "1.0M",
+          "1.0G"
+        ]
+      }
+    },
+    {
+      "name": "filepicker_cursor",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "cursor": "\u003e"
+      }
+    },
+    {
+      "name": "filepicker_sort_order",
+      "category": "unit",
+      "input": {
+        "show_hidden": false,
+        "test_dir": "temp"
+      },
+      "expected_output": {
+        "sort_order": [
+          "dir_a",
+          "dir_b",
+          "file_a.txt",
+          "file_z.txt"
+        ]
+      }
+    },
+    {
+      "name": "filepicker_empty_view",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "view_contains": "No files"
+      }
+    }
+  ]
+}

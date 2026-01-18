@@ -142,6 +142,7 @@ enum CachedFixture {
     /// Fully loaded fixture set
     Loaded(FixtureSet),
     /// Path for lazy loading
+    #[allow(dead_code)]
     LazyPath(PathBuf),
 }
 
@@ -438,9 +439,7 @@ impl FixtureLoader {
                     .filter_map(|e| {
                         let path = e.path();
                         if path.is_file() && path.extension().is_some_and(|ext| ext == "json") {
-                            path.file_stem()
-                                .and_then(|s| s.to_str())
-                                .map(String::from)
+                            path.file_stem().and_then(|s| s.to_str()).map(String::from)
                         } else {
                             None
                         }

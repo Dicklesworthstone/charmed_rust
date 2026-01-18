@@ -1,3 +1,13 @@
+#![allow(clippy::type_complexity)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::explicit_iter_loop)]
+#![allow(clippy::stable_sort_primitive)]
+#![allow(clippy::map_unwrap_or)]
+#![allow(clippy::wildcard_in_or_patterns)]
+#![allow(clippy::if_same_then_else)]
+#![allow(clippy::match_same_arms)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::format_push_string)]
 //! Generate Conformance Report
 //!
 //! Binary for generating conformance test reports in various formats.
@@ -34,14 +44,35 @@ fn collect_results() -> Vec<TestResult> {
     let mut all_results = Vec::new();
 
     let crates: Vec<(&str, fn() -> Vec<(&'static str, Result<(), String>)>)> = vec![
-        ("harmonica", charmed_conformance::crates::harmonica::run_all_tests),
-        ("lipgloss", charmed_conformance::crates::lipgloss::run_all_tests),
-        ("bubbletea", charmed_conformance::crates::bubbletea::run_all_tests),
-        ("bubbles", charmed_conformance::crates::bubbles::run_all_tests),
-        ("charmed_log", charmed_conformance::crates::charmed_log::run_all_tests),
-        ("glamour", charmed_conformance::crates::glamour::run_all_tests),
+        (
+            "harmonica",
+            charmed_conformance::crates::harmonica::run_all_tests,
+        ),
+        (
+            "lipgloss",
+            charmed_conformance::crates::lipgloss::run_all_tests,
+        ),
+        (
+            "bubbletea",
+            charmed_conformance::crates::bubbletea::run_all_tests,
+        ),
+        (
+            "bubbles",
+            charmed_conformance::crates::bubbles::run_all_tests,
+        ),
+        (
+            "charmed_log",
+            charmed_conformance::crates::charmed_log::run_all_tests,
+        ),
+        (
+            "glamour",
+            charmed_conformance::crates::glamour::run_all_tests,
+        ),
         ("huh", charmed_conformance::crates::huh::run_all_tests),
-        ("integration", charmed_conformance::integration::run_all_tests),
+        (
+            "integration",
+            charmed_conformance::integration::run_all_tests,
+        ),
     ];
 
     for (crate_name, run_fn) in crates {
@@ -75,10 +106,7 @@ fn generate_summary(results: &[TestResult]) -> String {
         std::collections::HashMap::new();
 
     for result in results {
-        by_crate
-            .entry(result.crate_name)
-            .or_default()
-            .push(result);
+        by_crate.entry(result.crate_name).or_default().push(result);
     }
 
     // Sort crates
@@ -96,9 +124,18 @@ fn generate_summary(results: &[TestResult]) -> String {
 
     for crate_name in &crate_names {
         let crate_results = &by_crate[crate_name];
-        let pass = crate_results.iter().filter(|r| r.status == TestStatus::Pass).count();
-        let fail = crate_results.iter().filter(|r| r.status == TestStatus::Fail).count();
-        let skip = crate_results.iter().filter(|r| r.status == TestStatus::Skipped).count();
+        let pass = crate_results
+            .iter()
+            .filter(|r| r.status == TestStatus::Pass)
+            .count();
+        let fail = crate_results
+            .iter()
+            .filter(|r| r.status == TestStatus::Fail)
+            .count();
+        let skip = crate_results
+            .iter()
+            .filter(|r| r.status == TestStatus::Skipped)
+            .count();
         let total = pass + fail + skip;
 
         total_tests += total;
@@ -138,10 +175,7 @@ fn generate_markdown(results: &[TestResult], include_passed: bool) -> String {
         std::collections::HashMap::new();
 
     for result in results {
-        by_crate
-            .entry(result.crate_name)
-            .or_default()
-            .push(result);
+        by_crate.entry(result.crate_name).or_default().push(result);
     }
 
     // Sort crates
@@ -160,9 +194,18 @@ fn generate_markdown(results: &[TestResult], include_passed: bool) -> String {
 
     for crate_name in &crate_names {
         let crate_results = &by_crate[crate_name];
-        let pass = crate_results.iter().filter(|r| r.status == TestStatus::Pass).count();
-        let fail = crate_results.iter().filter(|r| r.status == TestStatus::Fail).count();
-        let skip = crate_results.iter().filter(|r| r.status == TestStatus::Skipped).count();
+        let pass = crate_results
+            .iter()
+            .filter(|r| r.status == TestStatus::Pass)
+            .count();
+        let fail = crate_results
+            .iter()
+            .filter(|r| r.status == TestStatus::Fail)
+            .count();
+        let skip = crate_results
+            .iter()
+            .filter(|r| r.status == TestStatus::Skipped)
+            .count();
         let total = pass + fail + skip;
 
         total_tests += total;
@@ -187,8 +230,14 @@ fn generate_markdown(results: &[TestResult], include_passed: bool) -> String {
 
     for crate_name in &crate_names {
         let crate_results = &by_crate[crate_name];
-        let fail_count = crate_results.iter().filter(|r| r.status == TestStatus::Fail).count();
-        let skip_count = crate_results.iter().filter(|r| r.status == TestStatus::Skipped).count();
+        let fail_count = crate_results
+            .iter()
+            .filter(|r| r.status == TestStatus::Fail)
+            .count();
+        let skip_count = crate_results
+            .iter()
+            .filter(|r| r.status == TestStatus::Skipped)
+            .count();
 
         if fail_count > 0 || skip_count > 0 || include_passed {
             output.push_str(&format!("### {}\n\n", crate_name));
@@ -247,10 +296,7 @@ fn generate_json(results: &[TestResult]) -> String {
         std::collections::HashMap::new();
 
     for result in results {
-        by_crate
-            .entry(result.crate_name)
-            .or_default()
-            .push(result);
+        by_crate.entry(result.crate_name).or_default().push(result);
     }
 
     output.push_str("{\n");
@@ -260,9 +306,18 @@ fn generate_json(results: &[TestResult]) -> String {
     let crate_names: Vec<_> = by_crate.keys().copied().collect();
     for (i, crate_name) in crate_names.iter().enumerate() {
         let crate_results = &by_crate[crate_name];
-        let pass = crate_results.iter().filter(|r| r.status == TestStatus::Pass).count();
-        let fail = crate_results.iter().filter(|r| r.status == TestStatus::Fail).count();
-        let skip = crate_results.iter().filter(|r| r.status == TestStatus::Skipped).count();
+        let pass = crate_results
+            .iter()
+            .filter(|r| r.status == TestStatus::Pass)
+            .count();
+        let fail = crate_results
+            .iter()
+            .filter(|r| r.status == TestStatus::Fail)
+            .count();
+        let skip = crate_results
+            .iter()
+            .filter(|r| r.status == TestStatus::Skipped)
+            .count();
 
         output.push_str(&format!("    \"{}\": {{\n", crate_name));
         output.push_str("      \"tests\": [\n");
@@ -292,13 +347,25 @@ fn generate_json(results: &[TestResult]) -> String {
         output.push_str(&format!("    }}{}\n", comma));
     }
 
-    let total_pass: usize = results.iter().filter(|r| r.status == TestStatus::Pass).count();
-    let total_fail: usize = results.iter().filter(|r| r.status == TestStatus::Fail).count();
-    let total_skip: usize = results.iter().filter(|r| r.status == TestStatus::Skipped).count();
+    let total_pass: usize = results
+        .iter()
+        .filter(|r| r.status == TestStatus::Pass)
+        .count();
+    let total_fail: usize = results
+        .iter()
+        .filter(|r| r.status == TestStatus::Fail)
+        .count();
+    let total_skip: usize = results
+        .iter()
+        .filter(|r| r.status == TestStatus::Skipped)
+        .count();
 
     output.push_str("  },\n");
     output.push_str("  \"summary\": {\n");
-    output.push_str(&format!("    \"total\": {},\n", total_pass + total_fail + total_skip));
+    output.push_str(&format!(
+        "    \"total\": {},\n",
+        total_pass + total_fail + total_skip
+    ));
     output.push_str(&format!("    \"passed\": {},\n", total_pass));
     output.push_str(&format!("    \"failed\": {},\n", total_fail));
     output.push_str(&format!("    \"skipped\": {}\n", total_skip));
@@ -343,7 +410,8 @@ fn main() {
     // Output
     if let Some(path) = output_file {
         let mut file = fs::File::create(&path).expect("Failed to create output file");
-        file.write_all(report.as_bytes()).expect("Failed to write report");
+        file.write_all(report.as_bytes())
+            .expect("Failed to write report");
         eprintln!("Report written to: {}", path);
     } else {
         print!("{}", report);

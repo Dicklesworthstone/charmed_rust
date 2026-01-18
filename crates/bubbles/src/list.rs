@@ -29,7 +29,7 @@
 //! ```
 
 use crate::help::Help;
-use crate::key::{matches, Binding};
+use crate::key::{Binding, matches};
 use crate::paginator::Paginator;
 use crate::spinner::{SpinnerModel, TickMsg};
 use crate::textinput::TextInput;
@@ -220,45 +220,27 @@ pub struct KeyMap {
 impl Default for KeyMap {
     fn default() -> Self {
         Self {
-            cursor_up: Binding::new()
-                .keys(&["up", "k"])
-                .help("↑/k", "up"),
-            cursor_down: Binding::new()
-                .keys(&["down", "j"])
-                .help("↓/j", "down"),
+            cursor_up: Binding::new().keys(&["up", "k"]).help("↑/k", "up"),
+            cursor_down: Binding::new().keys(&["down", "j"]).help("↓/j", "down"),
             next_page: Binding::new()
                 .keys(&["right", "l", "pgdown"])
                 .help("→/l", "next page"),
             prev_page: Binding::new()
                 .keys(&["left", "h", "pgup"])
                 .help("←/h", "prev page"),
-            goto_start: Binding::new()
-                .keys(&["home", "g"])
-                .help("g/home", "start"),
-            goto_end: Binding::new()
-                .keys(&["end", "G"])
-                .help("G/end", "end"),
-            filter: Binding::new()
-                .keys(&["/"])
-                .help("/", "filter"),
-            clear_filter: Binding::new()
-                .keys(&["esc"])
-                .help("esc", "clear filter"),
-            cancel_while_filtering: Binding::new()
-                .keys(&["esc"])
-                .help("esc", "cancel"),
+            goto_start: Binding::new().keys(&["home", "g"]).help("g/home", "start"),
+            goto_end: Binding::new().keys(&["end", "G"]).help("G/end", "end"),
+            filter: Binding::new().keys(&["/"]).help("/", "filter"),
+            clear_filter: Binding::new().keys(&["esc"]).help("esc", "clear filter"),
+            cancel_while_filtering: Binding::new().keys(&["esc"]).help("esc", "cancel"),
             accept_while_filtering: Binding::new()
                 .keys(&["enter"])
                 .help("enter", "apply filter"),
-            show_full_help: Binding::new()
-                .keys(&["?"])
-                .help("?", "help"),
+            show_full_help: Binding::new().keys(&["?"]).help("?", "help"),
             close_full_help: Binding::new()
                 .keys(&["esc", "?"])
                 .help("?/esc", "close help"),
-            quit: Binding::new()
-                .keys(&["q"])
-                .help("q", "quit"),
+            quit: Binding::new().keys(&["q"]).help("q", "quit"),
             force_quit: Binding::new()
                 .keys(&["ctrl+c"])
                 .help("ctrl+c", "force quit"),
@@ -530,11 +512,16 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
             return;
         }
 
-        let targets: Vec<String> = self.items.iter().map(|i| i.filter_value().to_string()).collect();
+        let targets: Vec<String> = self
+            .items
+            .iter()
+            .map(|i| i.filter_value().to_string())
+            .collect();
         let ranks = default_filter(&term, &targets);
 
         self.filtered_indices = ranks.iter().map(|r| r.index).collect();
-        self.paginator.set_total_pages_from_items(self.filtered_indices.len());
+        self.paginator
+            .set_total_pages_from_items(self.filtered_indices.len());
         self.cursor = 0;
         self.filter_state = FilterState::FilterApplied;
     }
@@ -604,7 +591,8 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         let per_page = available / item_height.max(1);
         // Rebuild paginator with new per_page
         self.paginator = Paginator::new().per_page(per_page);
-        self.paginator.set_total_pages_from_items(self.filtered_indices.len());
+        self.paginator
+            .set_total_pages_from_items(self.filtered_indices.len());
     }
 
     /// Updates the list based on messages.
@@ -662,7 +650,8 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
                 self.paginator.set_page(0);
             } else if matches(&key_str, &[&self.key_map.goto_end]) {
                 self.cursor = self.filtered_indices.len().saturating_sub(1);
-                self.paginator.set_page(self.paginator.get_total_pages().saturating_sub(1));
+                self.paginator
+                    .set_page(self.paginator.get_total_pages().saturating_sub(1));
             } else if matches(&key_str, &[&self.key_map.filter]) && self.filtering_enabled {
                 self.filter_state = FilterState::Filtering;
                 self.filter_input.focus();
@@ -730,7 +719,11 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
 
             if status.is_empty() {
                 let count = self.filtered_indices.len();
-                sections.push(self.styles.status_bar.render(&format!("{} {}", count, self.item_name_plural)));
+                sections.push(
+                    self.styles
+                        .status_bar
+                        .render(&format!("{} {}", count, self.item_name_plural)),
+                );
             } else {
                 sections.push(self.styles.status_bar.render(status));
             }
@@ -749,7 +742,11 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
                 &self.key_map.filter,
                 &self.key_map.quit,
             ];
-            sections.push(self.styles.help.render(&self.help.short_help_view(&bindings)));
+            sections.push(
+                self.styles
+                    .help
+                    .render(&self.help.short_help_view(&bindings)),
+            );
         }
 
         sections.join("\n")
@@ -757,7 +754,9 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
 }
 
 // Implement Debug manually since FilterFn doesn't implement Debug
-impl<I: Item + std::fmt::Debug, D: ItemDelegate<I> + std::fmt::Debug> std::fmt::Debug for List<I, D> {
+impl<I: Item + std::fmt::Debug, D: ItemDelegate<I> + std::fmt::Debug> std::fmt::Debug
+    for List<I, D>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("List")
             .field("title", &self.title)
@@ -785,10 +784,18 @@ mod tests {
 
     fn test_items() -> Vec<TestItem> {
         vec![
-            TestItem { name: "Apple".into() },
-            TestItem { name: "Banana".into() },
-            TestItem { name: "Cherry".into() },
-            TestItem { name: "Date".into() },
+            TestItem {
+                name: "Apple".into(),
+            },
+            TestItem {
+                name: "Banana".into(),
+            },
+            TestItem {
+                name: "Cherry".into(),
+            },
+            TestItem {
+                name: "Date".into(),
+            },
         ]
     }
 
@@ -822,7 +829,10 @@ mod tests {
         assert_eq!(list.selected_item().map(|i| i.name.as_str()), Some("Apple"));
 
         list.cursor_down();
-        assert_eq!(list.selected_item().map(|i| i.name.as_str()), Some("Banana"));
+        assert_eq!(
+            list.selected_item().map(|i| i.name.as_str()),
+            Some("Banana")
+        );
     }
 
     #[test]
@@ -892,8 +902,7 @@ mod tests {
 
     #[test]
     fn test_list_view() {
-        let list = List::new(test_items(), DefaultDelegate::new(), 80, 24)
-            .title("Fruits");
+        let list = List::new(test_items(), DefaultDelegate::new(), 80, 24).title("Fruits");
 
         let view = list.view();
         assert!(view.contains("Fruits"));

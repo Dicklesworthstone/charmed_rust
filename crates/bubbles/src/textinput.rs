@@ -16,8 +16,8 @@
 //! let view = input.view();
 //! ```
 
-use crate::cursor::{blink_cmd, Cursor};
-use crate::key::{matches, Binding};
+use crate::cursor::{Cursor, blink_cmd};
+use crate::key::{Binding, matches};
 use crate::runeutil::Sanitizer;
 use bubbletea::{Cmd, KeyMsg, Message};
 use lipgloss::{Color, Style};
@@ -355,7 +355,10 @@ impl TextInput {
     /// Returns available suggestions as strings.
     #[must_use]
     pub fn available_suggestions(&self) -> Vec<String> {
-        self.suggestions.iter().map(|s| s.iter().collect()).collect()
+        self.suggestions
+            .iter()
+            .map(|s| s.iter().collect())
+            .collect()
     }
 
     /// Returns matched suggestions as strings.
@@ -383,7 +386,9 @@ impl TextInput {
     }
 
     fn do_validate(&self, v: &[char]) -> Option<String> {
-        self.validate.as_ref().and_then(|f| f(&v.iter().collect::<String>()))
+        self.validate
+            .as_ref()
+            .and_then(|f| f(&v.iter().collect::<String>()))
     }
 
     fn insert_runes_from_user_input(&mut self, v: &[char]) {
@@ -458,7 +463,9 @@ impl TextInput {
                     i = i.saturating_sub(1);
                 }
             }
-            self.offset = self.offset_right.saturating_sub(runes.len().saturating_sub(i));
+            self.offset = self
+                .offset_right
+                .saturating_sub(runes.len().saturating_sub(i));
         }
     }
 
@@ -489,13 +496,13 @@ impl TextInput {
         self.set_cursor(self.pos.saturating_sub(1));
 
         // Skip whitespace
-        while self.pos > 0 && self.value.get(self.pos).map_or(false, |c| c.is_whitespace()) {
+        while self.pos > 0 && self.value.get(self.pos).is_some_and(|c| c.is_whitespace()) {
             self.set_cursor(self.pos.saturating_sub(1));
         }
 
         // Skip non-whitespace
         while self.pos > 0 {
-            if !self.value.get(self.pos).map_or(false, |c| c.is_whitespace()) {
+            if !self.value.get(self.pos).is_some_and(|c| c.is_whitespace()) {
                 self.set_cursor(self.pos.saturating_sub(1));
             } else {
                 if self.pos > 0 {
@@ -530,14 +537,14 @@ impl TextInput {
 
         // Skip whitespace
         while self.pos < self.value.len()
-            && self.value.get(self.pos).map_or(false, |c| c.is_whitespace())
+            && self.value.get(self.pos).is_some_and(|c| c.is_whitespace())
         {
             self.set_cursor(self.pos + 1);
         }
 
         // Skip non-whitespace
         while self.pos < self.value.len() {
-            if !self.value.get(self.pos).map_or(false, |c| c.is_whitespace()) {
+            if !self.value.get(self.pos).is_some_and(|c| c.is_whitespace()) {
                 self.set_cursor(self.pos + 1);
             } else {
                 break;
@@ -568,14 +575,14 @@ impl TextInput {
         let mut i = self.pos.saturating_sub(1);
 
         // Skip whitespace
-        while i > 0 && self.value.get(i).map_or(false, |c| c.is_whitespace()) {
+        while i > 0 && self.value.get(i).is_some_and(|c| c.is_whitespace()) {
             self.set_cursor(self.pos.saturating_sub(1));
             i = i.saturating_sub(1);
         }
 
         // Skip non-whitespace
         while i > 0 {
-            if !self.value.get(i).map_or(false, |c| c.is_whitespace()) {
+            if !self.value.get(i).is_some_and(|c| c.is_whitespace()) {
                 self.set_cursor(self.pos.saturating_sub(1));
                 i = i.saturating_sub(1);
             } else {
@@ -597,14 +604,14 @@ impl TextInput {
         let mut i = self.pos;
 
         // Skip whitespace
-        while i < self.value.len() && self.value.get(i).map_or(false, |c| c.is_whitespace()) {
+        while i < self.value.len() && self.value.get(i).is_some_and(|c| c.is_whitespace()) {
             self.set_cursor(self.pos + 1);
             i += 1;
         }
 
         // Skip non-whitespace
         while i < self.value.len() {
-            if !self.value.get(i).map_or(false, |c| c.is_whitespace()) {
+            if !self.value.get(i).is_some_and(|c| c.is_whitespace()) {
                 self.set_cursor(self.pos + 1);
                 i += 1;
             } else {
@@ -659,7 +666,8 @@ impl TextInput {
         if self.matched_suggestions.is_empty() {
             return;
         }
-        self.current_suggestion_index = (self.current_suggestion_index + 1) % self.matched_suggestions.len();
+        self.current_suggestion_index =
+            (self.current_suggestion_index + 1) % self.matched_suggestions.len();
     }
 
     fn previous_suggestion(&mut self) {
@@ -696,15 +704,15 @@ impl TextInput {
             let key_str = key.to_string();
 
             // Check for suggestion acceptance first
-            if matches(&key_str, &[&self.key_map.accept_suggestion]) && self.can_accept_suggestion()
+            if matches(&key_str, &[&self.key_map.accept_suggestion])
+                && self.can_accept_suggestion()
+                && let Some(suggestion) =
+                    self.matched_suggestions.get(self.current_suggestion_index)
+                && self.value.len() < suggestion.len()
             {
-                if let Some(suggestion) = self.matched_suggestions.get(self.current_suggestion_index)
-                {
-                    if self.value.len() < suggestion.len() {
-                        self.value.extend_from_slice(&suggestion[self.value.len()..]);
-                        self.cursor_end();
-                    }
-                }
+                self.value
+                    .extend_from_slice(&suggestion[self.value.len()..]);
+                self.cursor_end();
             }
 
             if matches(&key_str, &[&self.key_map.delete_word_backward]) {
@@ -747,7 +755,10 @@ impl TextInput {
                 self.next_suggestion();
             } else if matches(&key_str, &[&self.key_map.prev_suggestion]) {
                 self.previous_suggestion();
-            } else if !matches(&key_str, &[&self.key_map.paste, &self.key_map.accept_suggestion]) {
+            } else if !matches(
+                &key_str,
+                &[&self.key_map.paste, &self.key_map.accept_suggestion],
+            ) {
                 // Input regular characters
                 let runes: Vec<char> = key.runes.clone();
                 if !runes.is_empty() {
@@ -785,7 +796,11 @@ impl TextInput {
         let pos = self.pos.saturating_sub(self.offset);
 
         let before: String = value[..pos.min(value.len())].iter().collect();
-        let mut v = self.text_style.clone().inline().render(&self.echo_transform(&before));
+        let mut v = self
+            .text_style
+            .clone()
+            .inline()
+            .render(&self.echo_transform(&before));
 
         if pos < value.len() {
             let char_at_cursor: String = value[pos..pos + 1].iter().collect();
@@ -796,7 +811,13 @@ impl TextInput {
             v.push_str(&cursor.view());
 
             let after: String = value[pos + 1..].iter().collect();
-            v.push_str(&self.text_style.clone().inline().render(&self.echo_transform(&after)));
+            v.push_str(
+                &self
+                    .text_style
+                    .clone()
+                    .inline()
+                    .render(&self.echo_transform(&after)),
+            );
             v.push_str(&self.completion_view(0));
         } else if self.focus && self.can_accept_suggestion() {
             if let Some(suggestion) = self.matched_suggestions.get(self.current_suggestion_index) {
@@ -834,11 +855,7 @@ impl TextInput {
             }
         }
 
-        format!(
-            "{}{}",
-            self.prompt_style.render(&self.prompt),
-            v
-        )
+        format!("{}{}", self.prompt_style.render(&self.prompt), v)
     }
 
     fn placeholder_view(&self) -> String {
@@ -859,14 +876,12 @@ impl TextInput {
     }
 
     fn completion_view(&self, offset: usize) -> String {
-        if self.can_accept_suggestion() {
-            if let Some(suggestion) = self.matched_suggestions.get(self.current_suggestion_index) {
-                if self.value.len() < suggestion.len() {
-                    let completion: String =
-                        suggestion[self.value.len() + offset..].iter().collect();
-                    return self.placeholder_style.clone().inline().render(&completion);
-                }
-            }
+        if self.can_accept_suggestion()
+            && let Some(suggestion) = self.matched_suggestions.get(self.current_suggestion_index)
+            && self.value.len() < suggestion.len()
+        {
+            let completion: String = suggestion[self.value.len() + offset..].iter().collect();
+            return self.placeholder_style.clone().inline().render(&completion);
         }
         String::new()
     }

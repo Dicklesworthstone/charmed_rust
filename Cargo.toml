@@ -34,7 +34,7 @@ wish = { path = "crates/wish" }
 glow = { path = "crates/glow" }
 
 # Terminal & TUI
-crossterm = "0.28"
+crossterm = "0.29"
 unicode-width = "0.2"
 unicode-segmentation = "1.10"
 textwrap = "0.16"
@@ -59,7 +59,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"]
 tokio = { version = "1.40", features = ["full"] }
 
 # Markdown parsing (for glamour/glow)
-pulldown-cmark = "0.12"
+pulldown-cmark = "0.13"
 
 # SSH (for wish)
 russh = "0.46"

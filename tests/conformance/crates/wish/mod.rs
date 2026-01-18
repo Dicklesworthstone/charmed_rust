@@ -14,16 +14,22 @@
 //! Note: Middleware composition tests require async runtime and are
 //! tested separately in the wish crate's unit tests.
 
+// Allow dead code and unused imports in test fixture structures
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 use crate::harness::{FixtureLoader, TestFixture};
 use serde::Deserialize;
 use std::time::Duration;
 use wish::{
-    middleware, with_address, with_banner, with_host_key_path, with_idle_timeout, with_max_timeout,
-    with_version, Context, Error, Pty, PublicKey, ServerBuilder, ServerOptions, Session, Window,
+    Context, Error, Pty, PublicKey, ServerBuilder, ServerOptions, Session, Window, middleware,
+    with_address, with_banner, with_host_key_path, with_idle_timeout, with_max_timeout,
+    with_version,
 };
 
 // ===== Input/Output Structures for Fixtures =====
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct ServerOptionInput {
     #[serde(default)]
@@ -44,6 +50,7 @@ struct ServerOptionInput {
     description: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct ServerOptionOutput {
     #[serde(default)]
@@ -62,6 +69,7 @@ struct ServerOptionOutput {
     note: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct MiddlewareInput {
     #[serde(default)]
@@ -78,6 +86,7 @@ struct MiddlewareInput {
     middleware: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct MiddlewareOutput {
     #[serde(default)]
@@ -90,6 +99,7 @@ struct MiddlewareOutput {
     configurable: Option<bool>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct ErrorInput {
     #[serde(default)]
@@ -100,6 +110,7 @@ struct ErrorInput {
     description: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct ErrorOutput {
     #[serde(default)]
@@ -337,8 +348,7 @@ fn test_error_auth_failed() {
 
 #[test]
 fn test_error_io() {
-    let io_err =
-        std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "connection refused");
+    let io_err = std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "connection refused");
     let err = Error::Io(io_err);
     assert!(
         err.to_string().contains("io error"),
@@ -442,8 +452,7 @@ fn test_session_with_command() {
     let addr: std::net::SocketAddr = "127.0.0.1:2222".parse().unwrap();
     let ctx = Context::new("testuser", addr, addr);
 
-    let session =
-        Session::new(ctx).with_command(vec!["git".to_string(), "clone".to_string()]);
+    let session = Session::new(ctx).with_command(vec!["git".to_string(), "clone".to_string()]);
 
     assert_eq!(session.command(), &["git", "clone"]);
 }
@@ -627,10 +636,7 @@ fn test_server_option_fixture(fixture: &TestFixture) {
     let input: ServerOptionInput = match fixture.input_as() {
         Ok(i) => i,
         Err(e) => {
-            eprintln!(
-                "Warning: Could not parse input for {}: {}",
-                fixture.name, e
-            );
+            eprintln!("Warning: Could not parse input for {}: {}", fixture.name, e);
             return;
         }
     };

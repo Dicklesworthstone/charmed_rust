@@ -180,9 +180,7 @@ impl BenchResult {
 
     /// Check if this result represents a regression
     pub fn is_regression(&self) -> bool {
-        self.vs_baseline
-            .as_ref()
-            .is_some_and(|c| c.is_regression)
+        self.vs_baseline.as_ref().is_some_and(|c| c.is_regression)
     }
 
     /// Convert to JSON string
@@ -894,8 +892,17 @@ mod tests {
             Duration::from_millis(5),
         ];
 
-        assert_eq!(BenchContext::percentile(&sorted, 0.0), Duration::from_millis(1));
-        assert_eq!(BenchContext::percentile(&sorted, 50.0), Duration::from_millis(3));
-        assert_eq!(BenchContext::percentile(&sorted, 100.0), Duration::from_millis(5));
+        assert_eq!(
+            BenchContext::percentile(&sorted, 0.0),
+            Duration::from_millis(1)
+        );
+        assert_eq!(
+            BenchContext::percentile(&sorted, 50.0),
+            Duration::from_millis(3)
+        );
+        assert_eq!(
+            BenchContext::percentile(&sorted, 100.0),
+            Duration::from_millis(5)
+        );
     }
 }

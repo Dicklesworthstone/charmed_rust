@@ -20,20 +20,17 @@ fn main() {
     let config = Config::new();
     let reader = Reader::new(config);
 
-    match args.get(1) {
-        Some(path) => {
-            match reader.read_file(path) {
-                Ok(output) => println!("{}", output),
-                Err(e) => eprintln!("Error reading file: {}", e),
-            }
+    if let Some(path) = args.get(1) {
+        match reader.read_file(path) {
+            Ok(output) => println!("{output}"),
+            Err(e) => eprintln!("Error reading file: {e}"),
         }
-        None => {
-            println!("Glow - Terminal Markdown Reader");
-            println!();
-            println!("Usage: glow [file]");
-            println!();
-            println!("Arguments:");
-            println!("  [file]  Markdown file to render");
-        }
+    } else {
+        println!("Glow - Terminal Markdown Reader");
+        println!();
+        println!("Usage: glow [file]");
+        println!();
+        println!("Arguments:");
+        println!("  [file]  Markdown file to render");
     }
 }

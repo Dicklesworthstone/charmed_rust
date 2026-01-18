@@ -305,8 +305,7 @@ impl Progress {
             }
         } else {
             // Solid fill
-            let colored_char =
-                format_colored_char(self.full_char, &self.full_color).repeat(fw);
+            let colored_char = format_colored_char(self.full_char, &self.full_color).repeat(fw);
             buf.push_str(&colored_char);
         }
 

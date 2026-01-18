@@ -149,7 +149,8 @@ impl Help {
             let key_str = self.styles.short_key.render(&help.key);
             let desc_str = self.styles.short_desc.render(&help.desc);
             let item = format!("{}{} {}", sep, key_str, desc_str);
-            let item_width = sep.chars().count() + help.key.chars().count() + 1 + help.desc.chars().count();
+            let item_width =
+                sep.chars().count() + help.key.chars().count() + 1 + help.desc.chars().count();
 
             // Check width limit
             if self.width > 0 {
@@ -210,15 +211,20 @@ impl Help {
                 String::new()
             };
 
-            // Build column
+            // Build column using join_horizontal to properly align multi-line strings
             let keys_col = self.styles.full_key.render(&keys.join("\n"));
             let descs_col = self.styles.full_desc.render(&descs.join("\n"));
-            let column = format!("{}{} {}", sep, keys_col, descs_col);
+            // Use lipgloss::join_horizontal to properly align columns like Go does
+            let column = lipgloss::join_horizontal(
+                lipgloss::Position::Top,
+                &[&sep, &keys_col, " ", &descs_col],
+            );
 
             // Approximate width
             let max_key_width = keys.iter().map(|k| k.chars().count()).max().unwrap_or(0);
             let max_desc_width = descs.iter().map(|d| d.chars().count()).max().unwrap_or(0);
-            let col_width = self.full_separator.chars().count() + max_key_width + 1 + max_desc_width;
+            let col_width =
+                self.full_separator.chars().count() + max_key_width + 1 + max_desc_width;
 
             // Check width limit
             if self.width > 0 && total_width + col_width > self.width {
@@ -229,7 +235,13 @@ impl Help {
             columns.push(column);
         }
 
-        columns.join("")
+        // Join all columns horizontally
+        if columns.len() <= 1 {
+            columns.join("")
+        } else {
+            let refs: Vec<&str> = columns.iter().map(|s| s.as_str()).collect();
+            lipgloss::join_horizontal(lipgloss::Position::Top, &refs)
+        }
     }
 }
 
@@ -305,7 +317,10 @@ mod tests {
     #[test]
     fn test_help_disabled_bindings() {
         let help = Help::new();
-        let disabled = Binding::new().keys(&["q"]).help("q", "quit").set_enabled(false);
+        let disabled = Binding::new()
+            .keys(&["q"])
+            .help("q", "quit")
+            .set_enabled(false);
 
         let view = help.short_help_view(&[&disabled]);
         assert!(!view.contains("quit"));
@@ -321,7 +336,10 @@ mod tests {
     #[test]
     fn test_should_render_column() {
         let enabled = Binding::new().keys(&["q"]).help("q", "quit");
-        let disabled = Binding::new().keys(&["x"]).help("x", "exit").set_enabled(false);
+        let disabled = Binding::new()
+            .keys(&["x"])
+            .help("x", "exit")
+            .set_enabled(false);
 
         assert!(should_render_column(&[&enabled]));
         assert!(!should_render_column(&[&disabled]));

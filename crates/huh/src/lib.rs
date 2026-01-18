@@ -1701,6 +1701,7 @@ pub struct MultiSelect<T: Clone + PartialEq + Send + Sync + 'static> {
     description: String,
     focused: bool,
     error: Option<String>,
+    #[allow(clippy::type_complexity)]
     validate: Option<fn(&[T]) -> Option<String>>,
     width: usize,
     height: usize,
@@ -3205,13 +3206,11 @@ mod tests {
 
     #[test]
     fn test_multiselect_limit() {
-        let mut multi: MultiSelect<String> = MultiSelect::new()
-            .limit(2)
-            .options(vec![
-                SelectOption::new("A", "a".to_string()),
-                SelectOption::new("B", "b".to_string()),
-                SelectOption::new("C", "c".to_string()),
-            ]);
+        let mut multi: MultiSelect<String> = MultiSelect::new().limit(2).options(vec![
+            SelectOption::new("A", "a".to_string()),
+            SelectOption::new("B", "b".to_string()),
+            SelectOption::new("C", "c".to_string()),
+        ]);
 
         // Focus the field so it processes updates
         multi.focus();

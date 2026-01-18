@@ -8,7 +8,7 @@ authors.workspace = true
 description = "Style definitions for terminal applications with support for colors, borders, and layout"
 
 [dependencies]
-crossterm = "0.27"
+crossterm = "0.29"
 unicode-width = "0.1"
 colored = "2.1"
 bitflags = "2.4"

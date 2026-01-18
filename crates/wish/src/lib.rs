@@ -1,4 +1,8 @@
 #![forbid(unsafe_code)]
+// Allow pedantic lints for early-stage API ergonomics.
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::nursery)]
+#![allow(clippy::pedantic)]
 
 //! # Wish
 //!
@@ -208,11 +212,7 @@ pub struct Context {
 
 impl Context {
     /// Creates a new context.
-    pub fn new(
-        user: impl Into<String>,
-        remote_addr: SocketAddr,
-        local_addr: SocketAddr,
-    ) -> Self {
+    pub fn new(user: impl Into<String>, remote_addr: SocketAddr, local_addr: SocketAddr) -> Self {
         Self {
             user: user.into(),
             remote_addr,
@@ -391,10 +391,7 @@ impl Session {
 
     /// Returns the current window size.
     pub fn window(&self) -> Window {
-        self.pty
-            .as_ref()
-            .map(|p| p.window)
-            .unwrap_or_default()
+        self.pty.as_ref().map(|p| p.window).unwrap_or_default()
     }
 
     // Builder methods for constructing sessions
@@ -968,10 +965,9 @@ impl ServerBuilder {
         F: Fn(Session) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        self.options.subsystem_handlers.insert(
-            name.into(),
-            Arc::new(move |s| Box::pin(handler(s))),
-        );
+        self.options
+            .subsystem_handlers
+            .insert(name.into(), Arc::new(move |s| Box::pin(handler(s))));
         self
     }
 
@@ -1308,7 +1304,9 @@ pub mod middleware {
                 Arc::new(move |session| {
                     let next = next.clone();
                     let start = Instant::now();
-                    session.context().set_value("elapsed_start", format!("{:?}", start));
+                    session
+                        .context()
+                        .set_value("elapsed_start", format!("{:?}", start));
                     Box::pin(async move {
                         next(session).await;
                     })
@@ -1420,14 +1418,12 @@ pub mod tea {
 /// Prelude module for convenient imports.
 pub mod prelude {
     pub use crate::{
-        compose_middleware, error, errorln, errorf, fatal, fatalln, fatalf,
-        handler, new_server, noop_handler, print, printf, println, with_address,
-        with_banner, with_banner_handler, with_host_key_path, with_host_key_pem,
-        with_idle_timeout, with_keyboard_interactive_auth, with_max_timeout,
-        with_middleware, with_password_auth, with_public_key_auth, with_subsystem,
-        with_version, write_string, Context, Error, Handler, Middleware, Pty,
-        PublicKey, Result, Server, ServerBuilder, ServerOption, ServerOptions,
-        Session, Window,
+        Context, Error, Handler, Middleware, Pty, PublicKey, Result, Server, ServerBuilder,
+        ServerOption, ServerOptions, Session, Window, compose_middleware, error, errorf, errorln,
+        fatal, fatalf, fatalln, handler, new_server, noop_handler, print, printf, println,
+        with_address, with_banner, with_banner_handler, with_host_key_path, with_host_key_pem,
+        with_idle_timeout, with_keyboard_interactive_auth, with_max_timeout, with_middleware,
+        with_password_auth, with_public_key_auth, with_subsystem, with_version, write_string,
     };
 
     pub use crate::middleware::{
@@ -1582,7 +1578,10 @@ mod tests {
         assert_eq!(server.address(), "0.0.0.0:2222");
         assert_eq!(server.options().version, "SSH-2.0-MyApp");
         assert_eq!(server.options().banner, Some("Welcome!".to_string()));
-        assert_eq!(server.options().idle_timeout, Some(Duration::from_secs(300)));
+        assert_eq!(
+            server.options().idle_timeout,
+            Some(Duration::from_secs(300))
+        );
     }
 
     #[test]
@@ -1607,11 +1606,8 @@ mod tests {
 
     #[test]
     fn test_new_server() {
-        let server = new_server([
-            with_address("0.0.0.0:2222"),
-            with_version("SSH-2.0-Test"),
-        ])
-        .unwrap();
+        let server =
+            new_server([with_address("0.0.0.0:2222"), with_version("SSH-2.0-Test")]).unwrap();
 
         assert_eq!(server.address(), "0.0.0.0:2222");
         assert_eq!(server.options().version, "SSH-2.0-Test");
@@ -1624,7 +1620,7 @@ mod tests {
         let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
         let ctx = Context::new("test", addr, addr);
         let session = Session::new(ctx);
-        let _ = h(session);
+        drop(h(session));
     }
 
     #[tokio::test]
@@ -1690,7 +1686,7 @@ mod tests {
 
     #[test]
     fn test_error_display() {
-        let err = Error::Io(io::Error::new(io::ErrorKind::Other, "test"));
+        let err = Error::Io(io::Error::other("test"));
         assert!(err.to_string().contains("io error"));
 
         let err = Error::AuthenticationFailed;

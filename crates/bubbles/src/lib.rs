@@ -1,4 +1,10 @@
 #![forbid(unsafe_code)]
+// Allow pedantic lints for early-stage API ergonomics.
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::missing_fields_in_debug)]
+#![allow(clippy::nursery)]
+#![allow(clippy::pedantic)]
+#![allow(clippy::suspicious_operation_groupings)]
 
 //! # Bubbles
 //!
@@ -50,13 +56,13 @@ pub mod table;
 
 /// Prelude module for convenient imports.
 pub mod prelude {
-    pub use crate::cursor::{blink_cmd, Cursor, Mode as CursorMode};
+    pub use crate::cursor::{Cursor, Mode as CursorMode, blink_cmd};
     pub use crate::help::Help;
-    pub use crate::key::{matches, Binding, Help as KeyHelp};
+    pub use crate::key::{Binding, Help as KeyHelp, matches};
     pub use crate::paginator::{Paginator, Type as PaginatorType};
     pub use crate::progress::Progress;
     pub use crate::runeutil::Sanitizer;
-    pub use crate::spinner::{spinners, Spinner, SpinnerModel};
+    pub use crate::spinner::{Spinner, SpinnerModel, spinners};
     pub use crate::stopwatch::Stopwatch;
     pub use crate::textarea::TextArea;
     pub use crate::textinput::TextInput;

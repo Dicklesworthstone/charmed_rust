@@ -147,9 +147,10 @@ mod tests {
 
     #[test]
     fn test_position_factor() {
-        assert_eq!(Position::Top.factor(), 0.0);
-        assert_eq!(Position::Center.factor(), 0.5);
-        assert_eq!(Position::Bottom.factor(), 1.0);
+        let eps = f64::EPSILON;
+        assert!((Position::Top.factor() - 0.0).abs() < eps);
+        assert!((Position::Center.factor() - 0.5).abs() < eps);
+        assert!((Position::Bottom.factor() - 1.0).abs() < eps);
     }
 
     #[test]

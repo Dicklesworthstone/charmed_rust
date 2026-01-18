@@ -46,6 +46,14 @@ pub struct TickMsg {
     tag: u64,
 }
 
+impl TickMsg {
+    /// Creates a new tick message.
+    #[must_use]
+    pub fn new(id: u64, timeout: bool, tag: u64) -> Self {
+        Self { id, timeout, tag }
+    }
+}
+
 /// Message sent once when the timer times out.
 #[derive(Debug, Clone, Copy)]
 pub struct TimeoutMsg {
@@ -198,10 +206,10 @@ impl Timer {
             if self.timed_out() {
                 let id = self.id;
                 let tick_cmd = self.tick_cmd();
-                return Some(bubbletea::batch(vec![
+                return bubbletea::batch(vec![
                     Some(tick_cmd),
                     Some(Cmd::new(move || Message::new(TimeoutMsg { id }))),
-                ])?);
+                ]);
             }
 
             return Some(self.tick_cmd());

@@ -10,7 +10,7 @@ keywords = ["tui", "terminal", "elm", "framework", "cli"]
 categories = ["command-line-interface", "asynchronous"]
 
 [dependencies]
-crossterm = "0.27"
+crossterm = "0.29"
 parking_lot = "0.12"
 
 [dev-dependencies]

@@ -367,7 +367,8 @@ impl Style {
     /// Set padding on all sides (CSS shorthand).
     pub fn padding(mut self, sides: impl Into<Sides<u16>>) -> Self {
         let s = sides.into();
-        self.props |= Props::PADDING_TOP | Props::PADDING_RIGHT | Props::PADDING_BOTTOM | Props::PADDING_LEFT;
+        self.props |=
+            Props::PADDING_TOP | Props::PADDING_RIGHT | Props::PADDING_BOTTOM | Props::PADDING_LEFT;
         self.padding = s;
         self
     }
@@ -405,7 +406,8 @@ impl Style {
     /// Set margin on all sides (CSS shorthand).
     pub fn margin(mut self, sides: impl Into<Sides<u16>>) -> Self {
         let s = sides.into();
-        self.props |= Props::MARGIN_TOP | Props::MARGIN_RIGHT | Props::MARGIN_BOTTOM | Props::MARGIN_LEFT;
+        self.props |=
+            Props::MARGIN_TOP | Props::MARGIN_RIGHT | Props::MARGIN_BOTTOM | Props::MARGIN_LEFT;
         self.margin = s;
         self
     }
@@ -492,7 +494,10 @@ impl Style {
     /// Set border foreground color for all sides.
     pub fn border_foreground(mut self, color: impl Into<String>) -> Self {
         let c = Color::new(color);
-        self.props |= Props::BORDER_TOP_FG | Props::BORDER_RIGHT_FG | Props::BORDER_BOTTOM_FG | Props::BORDER_LEFT_FG;
+        self.props |= Props::BORDER_TOP_FG
+            | Props::BORDER_RIGHT_FG
+            | Props::BORDER_BOTTOM_FG
+            | Props::BORDER_LEFT_FG;
         self.border_fg = [
             Some(c.clone_box()),
             Some(c.clone_box()),
@@ -505,7 +510,10 @@ impl Style {
     /// Set border background color for all sides.
     pub fn border_background(mut self, color: impl Into<String>) -> Self {
         let c = Color::new(color);
-        self.props |= Props::BORDER_TOP_BG | Props::BORDER_RIGHT_BG | Props::BORDER_BOTTOM_BG | Props::BORDER_LEFT_BG;
+        self.props |= Props::BORDER_TOP_BG
+            | Props::BORDER_RIGHT_BG
+            | Props::BORDER_BOTTOM_BG
+            | Props::BORDER_LEFT_BG;
         self.border_bg = [
             Some(c.clone_box()),
             Some(c.clone_box()),
@@ -562,7 +570,7 @@ impl Style {
 
         // If border style is set but no edges are explicitly set, enable all
         let has_explicit_edges = self.props.intersects(
-            Props::BORDER_TOP | Props::BORDER_RIGHT | Props::BORDER_BOTTOM | Props::BORDER_LEFT
+            Props::BORDER_TOP | Props::BORDER_RIGHT | Props::BORDER_BOTTOM | Props::BORDER_LEFT,
         );
 
         if has_explicit_edges {
@@ -581,7 +589,11 @@ impl Style {
 
     /// Internal render implementation.
     fn render_internal(&self, text: &str) -> String {
-        let renderer = self.renderer.as_ref().map(|r| r.as_ref()).unwrap_or(&Renderer::DEFAULT);
+        let renderer = self
+            .renderer
+            .as_ref()
+            .map(|r| r.as_ref())
+            .unwrap_or(&Renderer::DEFAULT);
         let profile = renderer.color_profile();
         let dark_bg = renderer.has_dark_background();
 
@@ -616,9 +628,8 @@ impl Style {
 
         // Word wrap if width is set
         if !is_inline && self.props.contains(Props::WIDTH) && self.width > 0 {
-            let wrap_at = self.width as usize
-                - self.padding.left as usize
-                - self.padding.right as usize;
+            let wrap_at =
+                self.width as usize - self.padding.left as usize - self.padding.right as usize;
             str = wrap_text(&str, wrap_at);
         }
 
@@ -731,7 +742,11 @@ impl Style {
             let pad = if ws_style.is_empty() {
                 " ".repeat(self.padding.left as usize)
             } else {
-                format!("{}{}\x1b[0m", ws_style, " ".repeat(self.padding.left as usize))
+                format!(
+                    "{}{}\x1b[0m",
+                    ws_style,
+                    " ".repeat(self.padding.left as usize)
+                )
             };
             result = result
                 .lines()
@@ -745,7 +760,11 @@ impl Style {
             let pad = if ws_style.is_empty() {
                 " ".repeat(self.padding.right as usize)
             } else {
-                format!("{}{}\x1b[0m", ws_style, " ".repeat(self.padding.right as usize))
+                format!(
+                    "{}{}\x1b[0m",
+                    ws_style,
+                    " ".repeat(self.padding.right as usize)
+                )
             };
             result = result
                 .lines()
@@ -764,7 +783,7 @@ impl Style {
             } else {
                 format!("{}{}\x1b[0m", ws_style, " ".repeat(content_width))
             };
-            let top_lines = std::iter::repeat(blank_line.clone())
+            let top_lines = std::iter::repeat(blank_line)
                 .take(self.padding.top as usize)
                 .collect::<Vec<_>>()
                 .join("\n");
@@ -778,7 +797,7 @@ impl Style {
             } else {
                 format!("{}{}\x1b[0m", ws_style, " ".repeat(content_width))
             };
-            let bottom_lines = std::iter::repeat(blank_line.clone())
+            let bottom_lines = std::iter::repeat(blank_line)
                 .take(self.padding.bottom as usize)
                 .collect::<Vec<_>>()
                 .join("\n");
@@ -870,35 +889,55 @@ impl Style {
         let content_width = lines.iter().map(|l| visible_width(l)).max().unwrap_or(0);
 
         // Helper to style border characters
-        let style_border = |s: &str, fg: &Option<Box<dyn TerminalColor>>, bg: &Option<Box<dyn TerminalColor>>| {
-            let mut result = String::new();
-            if let Some(c) = fg {
-                result.push_str(&c.to_ansi_fg(profile, dark_bg));
-            }
-            if let Some(c) = bg {
-                result.push_str(&c.to_ansi_bg(profile, dark_bg));
-            }
-            result.push_str(s);
-            if fg.is_some() || bg.is_some() {
-                result.push_str("\x1b[0m");
-            }
-            result
-        };
+        let style_border =
+            |s: &str, fg: &Option<Box<dyn TerminalColor>>, bg: &Option<Box<dyn TerminalColor>>| {
+                let mut result = String::new();
+                if let Some(c) = fg {
+                    result.push_str(&c.to_ansi_fg(profile, dark_bg));
+                }
+                if let Some(c) = bg {
+                    result.push_str(&c.to_ansi_bg(profile, dark_bg));
+                }
+                result.push_str(s);
+                if fg.is_some() || bg.is_some() {
+                    result.push_str("\x1b[0m");
+                }
+                result
+            };
 
         let mut result = Vec::new();
 
         // Top border
         if edges.top {
-            let _top_width = content_width + if edges.left { 1 } else { 0 } + if edges.right { 1 } else { 0 };
+            let _top_width =
+                content_width + if edges.left { 1 } else { 0 } + if edges.right { 1 } else { 0 };
             let mut top_line = String::new();
             if edges.left {
-                top_line.push_str(&style_border(&border.top_left, &self.border_fg[0], &self.border_bg[0]));
+                top_line.push_str(&style_border(
+                    &border.top_left,
+                    &self.border_fg[0],
+                    &self.border_bg[0],
+                ));
             }
-            let horizontal = if border.top.is_empty() { " " } else { &border.top };
-            let repeat_count = content_width.saturating_sub(if edges.left { 0 } else { 0 }).saturating_sub(if edges.right { 0 } else { 0 });
-            top_line.push_str(&style_border(&horizontal.repeat(repeat_count.max(1)), &self.border_fg[0], &self.border_bg[0]));
+            let horizontal = if border.top.is_empty() {
+                " "
+            } else {
+                &border.top
+            };
+            let repeat_count = content_width
+                .saturating_sub(if edges.left { 0 } else { 0 })
+                .saturating_sub(if edges.right { 0 } else { 0 });
+            top_line.push_str(&style_border(
+                &horizontal.repeat(repeat_count.max(1)),
+                &self.border_fg[0],
+                &self.border_bg[0],
+            ));
             if edges.right {
-                top_line.push_str(&style_border(&border.top_right, &self.border_fg[1], &self.border_bg[1]));
+                top_line.push_str(&style_border(
+                    &border.top_right,
+                    &self.border_fg[1],
+                    &self.border_bg[1],
+                ));
             }
             result.push(top_line);
         }
@@ -907,11 +946,19 @@ impl Style {
         for line in &lines {
             let mut row = String::new();
             if edges.left {
-                row.push_str(&style_border(&border.left, &self.border_fg[3], &self.border_bg[3]));
+                row.push_str(&style_border(
+                    &border.left,
+                    &self.border_fg[3],
+                    &self.border_bg[3],
+                ));
             }
             row.push_str(line);
             if edges.right {
-                row.push_str(&style_border(&border.right, &self.border_fg[1], &self.border_bg[1]));
+                row.push_str(&style_border(
+                    &border.right,
+                    &self.border_fg[1],
+                    &self.border_bg[1],
+                ));
             }
             result.push(row);
         }
@@ -920,13 +967,31 @@ impl Style {
         if edges.bottom {
             let mut bottom_line = String::new();
             if edges.left {
-                bottom_line.push_str(&style_border(&border.bottom_left, &self.border_fg[2], &self.border_bg[2]));
+                bottom_line.push_str(&style_border(
+                    &border.bottom_left,
+                    &self.border_fg[2],
+                    &self.border_bg[2],
+                ));
             }
-            let horizontal = if border.bottom.is_empty() { " " } else { &border.bottom };
-            let repeat_count = content_width.saturating_sub(if edges.left { 0 } else { 0 }).saturating_sub(if edges.right { 0 } else { 0 });
-            bottom_line.push_str(&style_border(&horizontal.repeat(repeat_count.max(1)), &self.border_fg[2], &self.border_bg[2]));
+            let horizontal = if border.bottom.is_empty() {
+                " "
+            } else {
+                &border.bottom
+            };
+            let repeat_count = content_width
+                .saturating_sub(if edges.left { 0 } else { 0 })
+                .saturating_sub(if edges.right { 0 } else { 0 });
+            bottom_line.push_str(&style_border(
+                &horizontal.repeat(repeat_count.max(1)),
+                &self.border_fg[2],
+                &self.border_bg[2],
+            ));
             if edges.right {
-                bottom_line.push_str(&style_border(&border.bottom_right, &self.border_fg[1], &self.border_bg[1]));
+                bottom_line.push_str(&style_border(
+                    &border.bottom_right,
+                    &self.border_fg[1],
+                    &self.border_bg[1],
+                ));
             }
             result.push(bottom_line);
         }
@@ -949,7 +1014,11 @@ impl Style {
             let pad = if margin_style.is_empty() {
                 " ".repeat(self.margin.left as usize)
             } else {
-                format!("{}{}\x1b[0m", margin_style, " ".repeat(self.margin.left as usize))
+                format!(
+                    "{}{}\x1b[0m",
+                    margin_style,
+                    " ".repeat(self.margin.left as usize)
+                )
             };
             result = result
                 .lines()
@@ -963,7 +1032,11 @@ impl Style {
             let pad = if margin_style.is_empty() {
                 " ".repeat(self.margin.right as usize)
             } else {
-                format!("{}{}\x1b[0m", margin_style, " ".repeat(self.margin.right as usize))
+                format!(
+                    "{}{}\x1b[0m",
+                    margin_style,
+                    " ".repeat(self.margin.right as usize)
+                )
             };
             result = result
                 .lines()
@@ -982,7 +1055,7 @@ impl Style {
             } else {
                 format!("{}{}\x1b[0m", margin_style, " ".repeat(content_width))
             };
-            let top = std::iter::repeat(blank_line.clone())
+            let top = std::iter::repeat(blank_line)
                 .take(self.margin.top as usize)
                 .collect::<Vec<_>>()
                 .join("\n");
@@ -996,7 +1069,7 @@ impl Style {
             } else {
                 format!("{}{}\x1b[0m", margin_style, " ".repeat(content_width))
             };
-            let bottom = std::iter::repeat(blank_line.clone())
+            let bottom = std::iter::repeat(blank_line)
                 .take(self.margin.bottom as usize)
                 .collect::<Vec<_>>()
                 .join("\n");

@@ -346,10 +346,7 @@ fn max_rune_width(s: &str) -> usize {
     if s.is_empty() {
         return 0;
     }
-    s.chars()
-        .map(|c| c.to_string().width())
-        .max()
-        .unwrap_or(0)
+    s.chars().map(|c| c.to_string().width()).max().unwrap_or(0)
 }
 
 /// Which border edges should be rendered.

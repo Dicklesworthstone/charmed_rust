@@ -22,7 +22,7 @@
 //! let visible = &items[start..end];
 //! ```
 
-use crate::key::{matches, Binding};
+use crate::key::{Binding, matches};
 use bubbletea::{KeyMsg, Message};
 
 /// Pagination display type.
@@ -153,7 +153,7 @@ impl Paginator {
         }
 
         let mut n = items / self.per_page;
-        if items % self.per_page > 0 {
+        if !items.is_multiple_of(self.per_page) {
             n += 1;
         }
         self.total_pages = n;

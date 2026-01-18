@@ -1,4 +1,7 @@
 #![forbid(unsafe_code)]
+// Allow pedantic lints for early-stage API ergonomics.
+#![allow(clippy::nursery)]
+#![allow(clippy::pedantic)]
 
 //! # Charmed Log
 //!
@@ -99,7 +102,7 @@ impl std::str::FromStr for Level {
         match s.to_lowercase().as_str() {
             "debug" => Ok(Self::Debug),
             "info" => Ok(Self::Info),
-            "warn" | "warning" => Ok(Self::Warn),
+            "warn" => Ok(Self::Warn),
             "error" => Ok(Self::Error),
             "fatal" => Ok(Self::Fatal),
             _ => Err(ParseLevelError(s.to_string())),
@@ -859,8 +862,8 @@ fn escape_logfmt(s: &str) -> String {
 /// Prelude module for convenient imports.
 pub mod prelude {
     pub use crate::{
-        keys, long_caller_formatter, now_utc, short_caller_formatter, Formatter, Level, Logger,
-        Options, ParseLevelError, Styles, DEFAULT_TIME_FORMAT,
+        DEFAULT_TIME_FORMAT, Formatter, Level, Logger, Options, ParseLevelError, Styles, keys,
+        long_caller_formatter, now_utc, short_caller_formatter,
     };
 }
 
@@ -890,7 +893,7 @@ mod tests {
         assert_eq!("debug".parse::<Level>().unwrap(), Level::Debug);
         assert_eq!("INFO".parse::<Level>().unwrap(), Level::Info);
         assert_eq!("WARN".parse::<Level>().unwrap(), Level::Warn);
-        assert_eq!("warning".parse::<Level>().unwrap(), Level::Warn);
+        assert!("warning".parse::<Level>().is_err());
         assert!("invalid".parse::<Level>().is_err());
     }
 

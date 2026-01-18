@@ -1,4 +1,9 @@
 #![forbid(unsafe_code)]
+// Allow pedantic lints for early-stage API ergonomics.
+#![allow(clippy::nursery)]
+#![allow(clippy::pedantic)]
+#![allow(clippy::len_zero)]
+#![allow(clippy::single_char_pattern)]
 
 //! # Glamour
 //!
@@ -29,7 +34,6 @@
 use lipgloss::Style as LipglossStyle;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use std::collections::HashMap;
-use std::fmt::Write as FmtWrite;
 
 /// Default width for word wrapping.
 const DEFAULT_WIDTH: usize = 80;
@@ -515,7 +519,12 @@ pub fn dark_style() -> StyleConfig {
         h3: StyleBlock::new().style(StylePrimitive::new().prefix("### ")),
         h4: StyleBlock::new().style(StylePrimitive::new().prefix("#### ")),
         h5: StyleBlock::new().style(StylePrimitive::new().prefix("##### ")),
-        h6: StyleBlock::new().style(StylePrimitive::new().prefix("###### ").color("35").bold(false)),
+        h6: StyleBlock::new().style(
+            StylePrimitive::new()
+                .prefix("###### ")
+                .color("35")
+                .bold(false),
+        ),
         strikethrough: StylePrimitive::new().crossed_out(true),
         emph: StylePrimitive::new().italic(true),
         strong: StylePrimitive::new().bold(true),
@@ -526,7 +535,9 @@ pub fn dark_style() -> StyleConfig {
         link: StylePrimitive::new().color("30").underline(true),
         link_text: StylePrimitive::new().color("35").bold(true),
         image: StylePrimitive::new().color("212").underline(true),
-        image_text: StylePrimitive::new().color("243").format("Image: {{.text}} ->"),
+        image_text: StylePrimitive::new()
+            .color("243")
+            .format("Image: {{.text}} ->"),
         code: StyleBlock::new().style(
             StylePrimitive::new()
                 .prefix(" ")
@@ -586,7 +597,9 @@ pub fn light_style() -> StyleConfig {
         link: StylePrimitive::new().color("36").underline(true),
         link_text: StylePrimitive::new().color("29").bold(true),
         image: StylePrimitive::new().color("205").underline(true),
-        image_text: StylePrimitive::new().color("243").format("Image: {{.text}} ->"),
+        image_text: StylePrimitive::new()
+            .color("243")
+            .format("Image: {{.text}} ->"),
         code: StyleBlock::new().style(
             StylePrimitive::new()
                 .prefix(" ")
@@ -756,6 +769,8 @@ struct RenderContext<'a> {
     in_table: bool,
     table_alignments: Vec<pulldown_cmark::Alignment>,
     table_row: Vec<String>,
+    table_rows: Vec<Vec<String>>,
+    table_header_row: Option<Vec<String>>,
     table_header: bool,
     current_cell: String,
     // Buffering
@@ -788,6 +803,8 @@ impl<'a> RenderContext<'a> {
             in_table: false,
             table_alignments: Vec::new(),
             table_row: Vec::new(),
+            table_rows: Vec::new(),
+            table_header_row: None,
             table_header: false,
             current_cell: String::new(),
             text_buffer: String::new(),
@@ -810,7 +827,8 @@ impl<'a> RenderContext<'a> {
         let parser = Parser::new_ext(markdown, opts);
 
         // Document prefix
-        self.output.push_str(&self.options.styles.document.style.block_prefix);
+        self.output
+            .push_str(&self.options.styles.document.style.block_prefix);
 
         // Add margin
         let margin = self.options.styles.document.margin.unwrap_or(0);
@@ -820,7 +838,8 @@ impl<'a> RenderContext<'a> {
         }
 
         // Document suffix
-        self.output.push_str(&self.options.styles.document.style.block_suffix);
+        self.output
+            .push_str(&self.options.styles.document.style.block_suffix);
 
         // Apply margin
         if margin > 0 {
@@ -863,7 +882,7 @@ impl<'a> RenderContext<'a> {
                 self.in_block_quote = true;
                 self.output.push('\n');
             }
-            Event::End(TagEnd::BlockQuote) => {
+            Event::End(TagEnd::BlockQuote(_)) => {
                 self.in_block_quote = false;
             }
 
@@ -914,11 +933,15 @@ impl<'a> RenderContext<'a> {
             Event::Start(Tag::Table(alignments)) => {
                 self.in_table = true;
                 self.table_alignments = alignments;
-                self.output.push('\n');
+                self.table_rows.clear();
+                self.table_header_row = None;
             }
             Event::End(TagEnd::Table) => {
+                self.flush_table();
                 self.in_table = false;
                 self.table_alignments.clear();
+                self.table_rows.clear();
+                self.table_header_row = None;
             }
 
             Event::Start(Tag::TableHead) => {
@@ -926,7 +949,8 @@ impl<'a> RenderContext<'a> {
                 self.table_row.clear();
             }
             Event::End(TagEnd::TableHead) => {
-                self.flush_table_row(true);
+                // Store header row for later
+                self.table_header_row = Some(std::mem::take(&mut self.table_row));
                 self.table_header = false;
             }
 
@@ -934,7 +958,8 @@ impl<'a> RenderContext<'a> {
                 self.table_row.clear();
             }
             Event::End(TagEnd::TableRow) => {
-                self.flush_table_row(false);
+                // Store row for later
+                self.table_rows.push(std::mem::take(&mut self.table_row));
             }
 
             Event::Start(Tag::TableCell) => {
@@ -948,34 +973,42 @@ impl<'a> RenderContext<'a> {
             Event::Start(Tag::Emphasis) => {
                 self.in_emphasis = true;
                 if !self.in_table {
-                    self.text_buffer.push_str(&self.options.styles.emph.block_prefix);
+                    self.text_buffer
+                        .push_str(&self.options.styles.emph.block_prefix);
                 } else {
-                    self.current_cell.push_str(&self.options.styles.emph.block_prefix);
+                    self.current_cell
+                        .push_str(&self.options.styles.emph.block_prefix);
                 }
             }
             Event::End(TagEnd::Emphasis) => {
                 self.in_emphasis = false;
                 if !self.in_table {
-                    self.text_buffer.push_str(&self.options.styles.emph.block_suffix);
+                    self.text_buffer
+                        .push_str(&self.options.styles.emph.block_suffix);
                 } else {
-                    self.current_cell.push_str(&self.options.styles.emph.block_suffix);
+                    self.current_cell
+                        .push_str(&self.options.styles.emph.block_suffix);
                 }
             }
 
             Event::Start(Tag::Strong) => {
                 self.in_strong = true;
                 if !self.in_table {
-                    self.text_buffer.push_str(&self.options.styles.strong.block_prefix);
+                    self.text_buffer
+                        .push_str(&self.options.styles.strong.block_prefix);
                 } else {
-                    self.current_cell.push_str(&self.options.styles.strong.block_prefix);
+                    self.current_cell
+                        .push_str(&self.options.styles.strong.block_prefix);
                 }
             }
             Event::End(TagEnd::Strong) => {
                 self.in_strong = false;
                 if !self.in_table {
-                    self.text_buffer.push_str(&self.options.styles.strong.block_suffix);
+                    self.text_buffer
+                        .push_str(&self.options.styles.strong.block_suffix);
                 } else {
-                    self.current_cell.push_str(&self.options.styles.strong.block_suffix);
+                    self.current_cell
+                        .push_str(&self.options.styles.strong.block_suffix);
                 }
             }
 
@@ -1000,7 +1033,9 @@ impl<'a> RenderContext<'a> {
                 }
             }
 
-            Event::Start(Tag::Link { dest_url, title, .. }) => {
+            Event::Start(Tag::Link {
+                dest_url, title, ..
+            }) => {
                 self.in_link = true;
                 self.link_url = dest_url.to_string();
                 self.link_title = title.to_string();
@@ -1009,7 +1044,9 @@ impl<'a> RenderContext<'a> {
                 self.in_link = false;
             }
 
-            Event::Start(Tag::Image { dest_url, title, .. }) => {
+            Event::Start(Tag::Image {
+                dest_url, title, ..
+            }) => {
                 self.in_image = true;
                 self.image_url = dest_url.to_string();
                 self.image_title = title.to_string();
@@ -1065,14 +1102,16 @@ impl<'a> RenderContext<'a> {
             }
 
             Event::Rule => {
-                self.output.push_str(&self.options.styles.horizontal_rule.format);
+                self.output
+                    .push_str(&self.options.styles.horizontal_rule.format);
             }
 
             Event::TaskListMarker(checked) => {
                 if checked {
                     self.text_buffer.push_str(&self.options.styles.task.ticked);
                 } else {
-                    self.text_buffer.push_str(&self.options.styles.task.unticked);
+                    self.text_buffer
+                        .push_str(&self.options.styles.task.unticked);
                 }
             }
 
@@ -1197,45 +1236,199 @@ impl<'a> RenderContext<'a> {
         self.output.push('\n');
     }
 
-    fn flush_table_row(&mut self, is_header: bool) {
-        let sep = self
+    fn flush_table(&mut self) {
+        let col_sep = self
             .options
             .styles
             .table
             .column_separator
             .as_deref()
-            .unwrap_or("|");
+            .unwrap_or("│");
+        let row_sep = self
+            .options
+            .styles
+            .table
+            .row_separator
+            .as_deref()
+            .unwrap_or("─");
+        let center_sep = self
+            .options
+            .styles
+            .table
+            .center_separator
+            .as_deref()
+            .unwrap_or("┼");
 
-        let mut line = String::new();
-        line.push_str(sep);
-        for cell in &self.table_row {
-            let _ = write!(line, " {} {}", cell, sep);
+        // Collect all rows (header + body)
+        let mut all_rows: Vec<&Vec<String>> = Vec::new();
+        if let Some(header) = &self.table_header_row {
+            all_rows.push(header);
         }
-        self.output.push_str(&line);
+        for row in &self.table_rows {
+            all_rows.push(row);
+        }
+
+        if all_rows.is_empty() {
+            return;
+        }
+
+        // Calculate number of columns
+        let num_cols = all_rows.iter().map(|r| r.len()).max().unwrap_or(0);
+        if num_cols == 0 {
+            return;
+        }
+
+        // Calculate column widths to fill available space
+        // Total width is DEFAULT_WIDTH (80) minus margin on each side (2*margin)
+        let margin = self
+            .options
+            .styles
+            .document
+            .margin
+            .unwrap_or(DEFAULT_MARGIN);
+        let table_width = DEFAULT_WIDTH.saturating_sub(2 * margin);
+
+        // Account for separator space between columns
+        // We need space for (num_cols - 1) separators, each taking 3 chars: " │ "
+        let separator_space = if num_cols > 1 {
+            (num_cols - 1) * 3 // " │ " is 3 chars
+        } else {
+            0
+        };
+        let available_width = table_width.saturating_sub(separator_space);
+        let col_width = if num_cols > 0 {
+            available_width / num_cols
+        } else {
+            0
+        };
+
+        // Helper function to strip ANSI codes and count visible characters
+        let visible_len = |s: &str| -> usize {
+            let mut len = 0;
+            let mut in_escape = false;
+            for c in s.chars() {
+                if c == '\x1b' {
+                    in_escape = true;
+                } else if in_escape {
+                    if c == 'm' {
+                        in_escape = false;
+                    }
+                } else {
+                    len += 1;
+                }
+            }
+            len
+        };
+
+        // Helper to pad/align cell content
+        let format_cell =
+            |content: &str, width: usize, alignment: pulldown_cmark::Alignment| -> String {
+                let visible = visible_len(content);
+                if visible >= width {
+                    return content.to_string();
+                }
+                let padding = width - visible;
+                match alignment {
+                    pulldown_cmark::Alignment::Left | pulldown_cmark::Alignment::None => {
+                        format!("{}{}", content, " ".repeat(padding))
+                    }
+                    pulldown_cmark::Alignment::Right => {
+                        format!("{}{}", " ".repeat(padding), content)
+                    }
+                    pulldown_cmark::Alignment::Center => {
+                        let left_pad = padding / 2;
+                        let right_pad = padding - left_pad;
+                        format!(
+                            "{}{}{}",
+                            " ".repeat(left_pad),
+                            content,
+                            " ".repeat(right_pad)
+                        )
+                    }
+                }
+            };
+
+        // Output a blank styled line first (matching Go behavior)
+        let doc_style = &self.options.styles.document.style;
+        let lipgloss = doc_style.to_lipgloss();
+        self.output.push_str("  ");
+        let blank_line = lipgloss.render(&" ".repeat(table_width));
+        self.output.push_str(&blank_line);
         self.output.push('\n');
 
-        // Add separator row after header
-        if is_header {
-            let row_sep = self
-                .options
-                .styles
-                .table
-                .row_separator
-                .as_deref()
-                .unwrap_or("-");
-
-            let mut sep_line = String::new();
-            sep_line.push_str(sep);
-            for cell in &self.table_row {
-                let width = cell.chars().count() + 2; // +2 for padding
-                sep_line.push_str(&row_sep.repeat(width));
-                sep_line.push_str(sep);
+        // Output header row if present
+        if let Some(header) = &self.table_header_row {
+            self.output.push(' '); // 1 space before content (margin adds 2 more)
+            for (i, cell) in header.iter().enumerate() {
+                let alignment = self
+                    .table_alignments
+                    .get(i)
+                    .copied()
+                    .unwrap_or(pulldown_cmark::Alignment::None);
+                let formatted = format_cell(cell, col_width, alignment);
+                let styled = lipgloss.render(&formatted);
+                self.output.push_str(&styled);
+                if i < num_cols - 1 {
+                    self.output.push_str(&format!(" {} ", col_sep));
+                }
             }
-            self.output.push_str(&sep_line);
+            // Pad with styled spaces if row has fewer cells
+            for i in header.len()..num_cols {
+                let formatted = format_cell("", col_width, pulldown_cmark::Alignment::None);
+                let styled = lipgloss.render(&formatted);
+                if i > 0 || !header.is_empty() {
+                    self.output.push_str(&format!(" {} ", col_sep));
+                }
+                self.output.push_str(&styled);
+            }
+            self.output.push_str(&lipgloss.render(" "));
+            self.output.push_str(&lipgloss.render(" "));
+            self.output.push('\n');
+
+            // Output separator row
+            for i in 0..num_cols {
+                let sep_segment = row_sep.repeat(col_width + 1); // +1 for the leading space
+                self.output.push_str(&sep_segment);
+                if i < num_cols - 1 {
+                    self.output.push_str(center_sep);
+                }
+            }
+            self.output.push_str(&lipgloss.render(" "));
+            self.output.push_str(&lipgloss.render(" "));
             self.output.push('\n');
         }
 
-        self.table_row.clear();
+        // Output body rows
+        for row in &self.table_rows {
+            self.output.push(' '); // 1 space before content (margin adds 2 more)
+            for (i, cell) in row.iter().enumerate() {
+                let alignment = self
+                    .table_alignments
+                    .get(i)
+                    .copied()
+                    .unwrap_or(pulldown_cmark::Alignment::None);
+                let formatted = format_cell(cell, col_width, alignment);
+                let styled = lipgloss.render(&formatted);
+                self.output.push_str(&styled);
+                if i < num_cols - 1 {
+                    self.output.push_str(&format!(" {} ", col_sep));
+                }
+            }
+            // Pad with styled spaces if row has fewer cells
+            for i in row.len()..num_cols {
+                let formatted = format_cell("", col_width, pulldown_cmark::Alignment::None);
+                let styled = lipgloss.render(&formatted);
+                if i > 0 || !row.is_empty() {
+                    self.output.push_str(&format!(" {} ", col_sep));
+                }
+                self.output.push_str(&styled);
+            }
+            self.output.push_str(&lipgloss.render(" "));
+            self.output.push_str(&lipgloss.render(" "));
+            self.output.push('\n');
+        }
+
+        self.output.push('\n');
     }
 
     fn flush_image(&mut self) {
@@ -1343,9 +1536,9 @@ pub fn available_styles() -> HashMap<&'static str, Style> {
 /// Prelude module for convenient imports.
 pub mod prelude {
     pub use crate::{
-        ascii_style, available_styles, dark_style, light_style, pink_style, render,
-        render_with_environment_config, Renderer, RendererOptions, Style, StyleBlock,
-        StyleCodeBlock, StyleConfig, StyleList, StylePrimitive, StyleTable, StyleTask,
+        Renderer, RendererOptions, Style, StyleBlock, StyleCodeBlock, StyleConfig, StyleList,
+        StylePrimitive, StyleTable, StyleTask, ascii_style, available_styles, dark_style,
+        light_style, pink_style, render, render_with_environment_config,
     };
 }
 
@@ -1445,6 +1638,44 @@ mod tests {
     }
 
     #[test]
+    fn test_render_table_dark_debug() {
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render("| A | B |\n|---|---|\n| 1 | 2 |");
+
+        // Print each line with visible markers
+        eprintln!("=== RUST TABLE OUTPUT (2x2, dark) ===");
+        for (i, line) in output.lines().enumerate() {
+            eprintln!("Line {}: len={} chars", i, line.chars().count());
+            // Print escaped version
+            let escaped: String = line
+                .chars()
+                .map(|c| {
+                    if c == '\x1b' {
+                        "\\x1b".to_string()
+                    } else if c == '│' {
+                        "│".to_string()
+                    } else if c == '─' {
+                        "─".to_string()
+                    } else if c == '┼' {
+                        "┼".to_string()
+                    } else {
+                        c.to_string()
+                    }
+                })
+                .collect();
+            eprintln!("  {:?}", escaped);
+        }
+        eprintln!("=== END OUTPUT ===");
+
+        // Verify basic structure
+        assert!(
+            output.contains("│") || output.contains("|"),
+            "Should contain column separator"
+        );
+        assert!(output.contains("A"), "Should contain header A");
+    }
+
+    #[test]
     fn test_style_primitive_builder() {
         let style = StylePrimitive::new()
             .color("red")
@@ -1460,10 +1691,7 @@ mod tests {
 
     #[test]
     fn test_style_block_builder() {
-        let block = StyleBlock::new()
-            .margin(4)
-            .indent(2)
-            .indent_token("  ");
+        let block = StyleBlock::new().margin(4).indent(2).indent_token("  ");
 
         assert_eq!(block.margin, Some(4));
         assert_eq!(block.indent, Some(2));
@@ -1474,7 +1702,9 @@ mod tests {
     fn test_style_config_heading() {
         let config = dark_style();
         let h1 = config.heading_style(HeadingLevel::H1);
-        assert!(!h1.style.prefix.is_empty() || h1.style.suffix.len() > 0 || h1.style.color.is_some());
+        assert!(
+            !h1.style.prefix.is_empty() || h1.style.suffix.len() > 0 || h1.style.color.is_some()
+        );
     }
 
     #[test]

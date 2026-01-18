@@ -1,4 +1,7 @@
 #![forbid(unsafe_code)]
+// Allow pedantic lints for early-stage API ergonomics.
+#![allow(clippy::nursery)]
+#![allow(clippy::pedantic)]
 
 //! # Glow
 //!

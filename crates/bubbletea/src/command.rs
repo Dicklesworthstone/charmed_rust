@@ -5,7 +5,9 @@
 
 use std::time::{Duration, Instant};
 
-use crate::message::{BatchMsg, Message, QuitMsg, SequenceMsg, SetWindowTitleMsg, RequestWindowSizeMsg};
+use crate::message::{
+    BatchMsg, Message, QuitMsg, RequestWindowSizeMsg, SequenceMsg, SetWindowTitleMsg,
+};
 
 /// A command that produces a message when executed.
 ///
@@ -52,7 +54,7 @@ impl Cmd {
     }
 
     /// Execute the command and return the resulting message.
-    pub(crate) fn execute(self) -> Option<Message> {
+    pub fn execute(self) -> Option<Message> {
         (self.0)()
     }
 }
@@ -78,7 +80,9 @@ pub fn batch(cmds: Vec<Option<Cmd>>) -> Option<Cmd> {
     match valid_cmds.len() {
         0 => None,
         1 => valid_cmds.into_iter().next(),
-        _ => Some(Cmd::new_optional(move || Some(Message::new(BatchMsg(valid_cmds))))),
+        _ => Some(Cmd::new_optional(move || {
+            Some(Message::new(BatchMsg(valid_cmds)))
+        })),
     }
 }
 

@@ -73,19 +73,13 @@ pub mod spinners {
     /// Braille dot spinner.
     #[must_use]
     pub fn dot() -> Spinner {
-        Spinner::new(
-            vec!["⣾ ", "⣽ ", "⣻ ", "⢿ ", "⡿ ", "⣟ ", "⣯ ", "⣷ "],
-            10,
-        )
+        Spinner::new(vec!["⣾ ", "⣽ ", "⣻ ", "⢿ ", "⡿ ", "⣟ ", "⣯ ", "⣷ "], 10)
     }
 
     /// Mini braille dot spinner.
     #[must_use]
     pub fn mini_dot() -> Spinner {
-        Spinner::new(
-            vec!["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
-            12,
-        )
+        Spinner::new(vec!["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], 12)
     }
 
     /// Jump spinner.
@@ -115,10 +109,7 @@ pub mod spinners {
     /// Moon phases spinner.
     #[must_use]
     pub fn moon() -> Spinner {
-        Spinner::new(
-            vec!["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"],
-            8,
-        )
+        Spinner::new(vec!["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"], 8)
     }
 
     /// Monkey spinner.
@@ -130,10 +121,7 @@ pub mod spinners {
     /// Meter spinner.
     #[must_use]
     pub fn meter() -> Spinner {
-        Spinner::new(
-            vec!["▱▱▱", "▰▱▱", "▰▰▱", "▰▰▰", "▰▰▱", "▰▱▱", "▱▱▱"],
-            7,
-        )
+        Spinner::new(vec!["▱▱▱", "▰▱▱", "▰▰▱", "▰▰▰", "▰▰▱", "▰▱▱", "▱▱▱"], 7)
     }
 
     /// Hamburger spinner.

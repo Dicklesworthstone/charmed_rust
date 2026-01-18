@@ -448,7 +448,10 @@ impl KeyType {
 }
 
 /// Convert a crossterm KeyCode to our KeyType.
-pub fn from_crossterm_key(code: crossterm::event::KeyCode, modifiers: crossterm::event::KeyModifiers) -> KeyMsg {
+pub fn from_crossterm_key(
+    code: crossterm::event::KeyCode,
+    modifiers: crossterm::event::KeyModifiers,
+) -> KeyMsg {
     use crossterm::event::{KeyCode, KeyModifiers};
 
     let ctrl = modifiers.contains(KeyModifiers::CONTROL);
@@ -489,12 +492,14 @@ pub fn from_crossterm_key(code: crossterm::event::KeyCode, modifiers: crossterm:
                 ']' => KeyType::CtrlCloseBracket,
                 '^' => KeyType::CtrlCaret,
                 '_' => KeyType::CtrlUnderscore,
-                _ => return KeyMsg {
-                    key_type: KeyType::Runes,
-                    runes: vec![c],
-                    alt,
-                    paste: false,
-                },
+                _ => {
+                    return KeyMsg {
+                        key_type: KeyType::Runes,
+                        runes: vec![c],
+                        alt,
+                        paste: false,
+                    };
+                }
             };
             (kt, Vec::new())
         }
@@ -566,9 +571,394 @@ pub fn from_crossterm_key(code: crossterm::event::KeyCode, modifiers: crossterm:
     }
 }
 
+/// Parse a raw ANSI escape sequence into a KeyMsg.
+///
+/// This function parses terminal escape sequences (like arrow keys, function keys,
+/// etc.) into their corresponding KeyMsg values. It matches the behavior of the
+/// Go bubbletea library's sequence parsing.
+///
+/// # Arguments
+///
+/// * `input` - A byte slice containing an ANSI escape sequence
+///
+/// # Returns
+///
+/// Returns `Some(KeyMsg)` if the sequence was recognized, `None` otherwise.
+///
+/// # Example
+///
+/// ```rust
+/// use bubbletea::{parse_sequence, KeyType};
+///
+/// // Parse arrow up sequence
+/// let key = parse_sequence(b"\x1b[A").unwrap();
+/// assert_eq!(key.key_type, KeyType::Up);
+/// assert!(!key.alt);
+///
+/// // Parse Alt+arrow up sequence
+/// let key = parse_sequence(b"\x1b[1;3A").unwrap();
+/// assert_eq!(key.key_type, KeyType::Up);
+/// assert!(key.alt);
+/// ```
+pub fn parse_sequence(input: &[u8]) -> Option<KeyMsg> {
+    // Convert to string for easier matching
+    let seq = std::str::from_utf8(input).ok()?;
+
+    // Try to match known sequences (longest match first approach like Go)
+    SEQUENCES.get(seq).cloned()
+}
+
+use std::collections::HashMap;
+use std::sync::LazyLock;
+
+/// Mapping of ANSI escape sequences to KeyMsg values.
+/// This matches the Go bubbletea library's `sequences` map.
+static SEQUENCES: LazyLock<HashMap<&'static str, KeyMsg>> = LazyLock::new(|| {
+    let mut m = HashMap::new();
+
+    // Arrow keys
+    m.insert("\x1b[A", KeyMsg::from_type(KeyType::Up));
+    m.insert("\x1b[B", KeyMsg::from_type(KeyType::Down));
+    m.insert("\x1b[C", KeyMsg::from_type(KeyType::Right));
+    m.insert("\x1b[D", KeyMsg::from_type(KeyType::Left));
+
+    // Shift + Arrow keys
+    m.insert("\x1b[1;2A", KeyMsg::from_type(KeyType::ShiftUp));
+    m.insert("\x1b[1;2B", KeyMsg::from_type(KeyType::ShiftDown));
+    m.insert("\x1b[1;2C", KeyMsg::from_type(KeyType::ShiftRight));
+    m.insert("\x1b[1;2D", KeyMsg::from_type(KeyType::ShiftLeft));
+    // DECCKM variants
+    m.insert("\x1b[OA", KeyMsg::from_type(KeyType::ShiftUp));
+    m.insert("\x1b[OB", KeyMsg::from_type(KeyType::ShiftDown));
+    m.insert("\x1b[OC", KeyMsg::from_type(KeyType::ShiftRight));
+    m.insert("\x1b[OD", KeyMsg::from_type(KeyType::ShiftLeft));
+    // urxvt variants
+    m.insert("\x1b[a", KeyMsg::from_type(KeyType::ShiftUp));
+    m.insert("\x1b[b", KeyMsg::from_type(KeyType::ShiftDown));
+    m.insert("\x1b[c", KeyMsg::from_type(KeyType::ShiftRight));
+    m.insert("\x1b[d", KeyMsg::from_type(KeyType::ShiftLeft));
+
+    // Alt + Arrow keys
+    m.insert("\x1b[1;3A", KeyMsg::from_type(KeyType::Up).with_alt());
+    m.insert("\x1b[1;3B", KeyMsg::from_type(KeyType::Down).with_alt());
+    m.insert("\x1b[1;3C", KeyMsg::from_type(KeyType::Right).with_alt());
+    m.insert("\x1b[1;3D", KeyMsg::from_type(KeyType::Left).with_alt());
+
+    // Alt + Shift + Arrow keys
+    m.insert("\x1b[1;4A", KeyMsg::from_type(KeyType::ShiftUp).with_alt());
+    m.insert(
+        "\x1b[1;4B",
+        KeyMsg::from_type(KeyType::ShiftDown).with_alt(),
+    );
+    m.insert(
+        "\x1b[1;4C",
+        KeyMsg::from_type(KeyType::ShiftRight).with_alt(),
+    );
+    m.insert(
+        "\x1b[1;4D",
+        KeyMsg::from_type(KeyType::ShiftLeft).with_alt(),
+    );
+
+    // Ctrl + Arrow keys
+    m.insert("\x1b[1;5A", KeyMsg::from_type(KeyType::CtrlUp));
+    m.insert("\x1b[1;5B", KeyMsg::from_type(KeyType::CtrlDown));
+    m.insert("\x1b[1;5C", KeyMsg::from_type(KeyType::CtrlRight));
+    m.insert("\x1b[1;5D", KeyMsg::from_type(KeyType::CtrlLeft));
+    // urxvt Ctrl+Arrow variants (with Alt)
+    m.insert("\x1b[Oa", KeyMsg::from_type(KeyType::CtrlUp).with_alt());
+    m.insert("\x1b[Ob", KeyMsg::from_type(KeyType::CtrlDown).with_alt());
+    m.insert("\x1b[Oc", KeyMsg::from_type(KeyType::CtrlRight).with_alt());
+    m.insert("\x1b[Od", KeyMsg::from_type(KeyType::CtrlLeft).with_alt());
+
+    // Ctrl + Shift + Arrow keys
+    m.insert("\x1b[1;6A", KeyMsg::from_type(KeyType::CtrlShiftUp));
+    m.insert("\x1b[1;6B", KeyMsg::from_type(KeyType::CtrlShiftDown));
+    m.insert("\x1b[1;6C", KeyMsg::from_type(KeyType::CtrlShiftRight));
+    m.insert("\x1b[1;6D", KeyMsg::from_type(KeyType::CtrlShiftLeft));
+
+    // Ctrl + Alt + Arrow keys
+    m.insert("\x1b[1;7A", KeyMsg::from_type(KeyType::CtrlUp).with_alt());
+    m.insert("\x1b[1;7B", KeyMsg::from_type(KeyType::CtrlDown).with_alt());
+    m.insert(
+        "\x1b[1;7C",
+        KeyMsg::from_type(KeyType::CtrlRight).with_alt(),
+    );
+    m.insert("\x1b[1;7D", KeyMsg::from_type(KeyType::CtrlLeft).with_alt());
+
+    // Ctrl + Shift + Alt + Arrow keys
+    m.insert(
+        "\x1b[1;8A",
+        KeyMsg::from_type(KeyType::CtrlShiftUp).with_alt(),
+    );
+    m.insert(
+        "\x1b[1;8B",
+        KeyMsg::from_type(KeyType::CtrlShiftDown).with_alt(),
+    );
+    m.insert(
+        "\x1b[1;8C",
+        KeyMsg::from_type(KeyType::CtrlShiftRight).with_alt(),
+    );
+    m.insert(
+        "\x1b[1;8D",
+        KeyMsg::from_type(KeyType::CtrlShiftLeft).with_alt(),
+    );
+
+    // Shift+Tab
+    m.insert("\x1b[Z", KeyMsg::from_type(KeyType::ShiftTab));
+
+    // Insert
+    m.insert("\x1b[2~", KeyMsg::from_type(KeyType::Insert));
+    m.insert("\x1b[3;2~", KeyMsg::from_type(KeyType::Insert).with_alt());
+
+    // Delete
+    m.insert("\x1b[3~", KeyMsg::from_type(KeyType::Delete));
+    m.insert("\x1b[3;3~", KeyMsg::from_type(KeyType::Delete).with_alt());
+
+    // Page Up
+    m.insert("\x1b[5~", KeyMsg::from_type(KeyType::PgUp));
+    m.insert("\x1b[5;3~", KeyMsg::from_type(KeyType::PgUp).with_alt());
+    m.insert("\x1b[5;5~", KeyMsg::from_type(KeyType::CtrlPgUp));
+    m.insert("\x1b[5^", KeyMsg::from_type(KeyType::CtrlPgUp)); // urxvt
+    m.insert("\x1b[5;7~", KeyMsg::from_type(KeyType::CtrlPgUp).with_alt());
+
+    // Page Down
+    m.insert("\x1b[6~", KeyMsg::from_type(KeyType::PgDown));
+    m.insert("\x1b[6;3~", KeyMsg::from_type(KeyType::PgDown).with_alt());
+    m.insert("\x1b[6;5~", KeyMsg::from_type(KeyType::CtrlPgDown));
+    m.insert("\x1b[6^", KeyMsg::from_type(KeyType::CtrlPgDown)); // urxvt
+    m.insert(
+        "\x1b[6;7~",
+        KeyMsg::from_type(KeyType::CtrlPgDown).with_alt(),
+    );
+
+    // Home
+    m.insert("\x1b[1~", KeyMsg::from_type(KeyType::Home));
+    m.insert("\x1b[H", KeyMsg::from_type(KeyType::Home)); // xterm, lxterm
+    m.insert("\x1b[1;3H", KeyMsg::from_type(KeyType::Home).with_alt());
+    m.insert("\x1b[1;5H", KeyMsg::from_type(KeyType::CtrlHome));
+    m.insert("\x1b[1;7H", KeyMsg::from_type(KeyType::CtrlHome).with_alt());
+    m.insert("\x1b[1;2H", KeyMsg::from_type(KeyType::ShiftHome));
+    m.insert(
+        "\x1b[1;4H",
+        KeyMsg::from_type(KeyType::ShiftHome).with_alt(),
+    );
+    m.insert("\x1b[1;6H", KeyMsg::from_type(KeyType::CtrlShiftHome));
+    m.insert(
+        "\x1b[1;8H",
+        KeyMsg::from_type(KeyType::CtrlShiftHome).with_alt(),
+    );
+    m.insert("\x1b[7~", KeyMsg::from_type(KeyType::Home)); // urxvt
+    m.insert("\x1b[7^", KeyMsg::from_type(KeyType::CtrlHome)); // urxvt
+    m.insert("\x1b[7$", KeyMsg::from_type(KeyType::ShiftHome)); // urxvt
+    m.insert("\x1b[7@", KeyMsg::from_type(KeyType::CtrlShiftHome)); // urxvt
+
+    // End
+    m.insert("\x1b[4~", KeyMsg::from_type(KeyType::End));
+    m.insert("\x1b[F", KeyMsg::from_type(KeyType::End)); // xterm, lxterm
+    m.insert("\x1b[1;3F", KeyMsg::from_type(KeyType::End).with_alt());
+    m.insert("\x1b[1;5F", KeyMsg::from_type(KeyType::CtrlEnd));
+    m.insert("\x1b[1;7F", KeyMsg::from_type(KeyType::CtrlEnd).with_alt());
+    m.insert("\x1b[1;2F", KeyMsg::from_type(KeyType::ShiftEnd));
+    m.insert("\x1b[1;4F", KeyMsg::from_type(KeyType::ShiftEnd).with_alt());
+    m.insert("\x1b[1;6F", KeyMsg::from_type(KeyType::CtrlShiftEnd));
+    m.insert(
+        "\x1b[1;8F",
+        KeyMsg::from_type(KeyType::CtrlShiftEnd).with_alt(),
+    );
+    m.insert("\x1b[8~", KeyMsg::from_type(KeyType::End)); // urxvt
+    m.insert("\x1b[8^", KeyMsg::from_type(KeyType::CtrlEnd)); // urxvt
+    m.insert("\x1b[8$", KeyMsg::from_type(KeyType::ShiftEnd)); // urxvt
+    m.insert("\x1b[8@", KeyMsg::from_type(KeyType::CtrlShiftEnd)); // urxvt
+
+    // Function keys - Linux console
+    m.insert("\x1b[[A", KeyMsg::from_type(KeyType::F1));
+    m.insert("\x1b[[B", KeyMsg::from_type(KeyType::F2));
+    m.insert("\x1b[[C", KeyMsg::from_type(KeyType::F3));
+    m.insert("\x1b[[D", KeyMsg::from_type(KeyType::F4));
+    m.insert("\x1b[[E", KeyMsg::from_type(KeyType::F5));
+
+    // Function keys - VT100/xterm F1-F4
+    m.insert("\x1bOP", KeyMsg::from_type(KeyType::F1));
+    m.insert("\x1bOQ", KeyMsg::from_type(KeyType::F2));
+    m.insert("\x1bOR", KeyMsg::from_type(KeyType::F3));
+    m.insert("\x1bOS", KeyMsg::from_type(KeyType::F4));
+
+    // Function keys - VT100/xterm F1-F4 with Alt
+    m.insert("\x1b[1;3P", KeyMsg::from_type(KeyType::F1).with_alt());
+    m.insert("\x1b[1;3Q", KeyMsg::from_type(KeyType::F2).with_alt());
+    m.insert("\x1b[1;3R", KeyMsg::from_type(KeyType::F3).with_alt());
+    m.insert("\x1b[1;3S", KeyMsg::from_type(KeyType::F4).with_alt());
+
+    // Function keys - urxvt F1-F4
+    m.insert("\x1b[11~", KeyMsg::from_type(KeyType::F1));
+    m.insert("\x1b[12~", KeyMsg::from_type(KeyType::F2));
+    m.insert("\x1b[13~", KeyMsg::from_type(KeyType::F3));
+    m.insert("\x1b[14~", KeyMsg::from_type(KeyType::F4));
+
+    // Function keys F5-F12
+    m.insert("\x1b[15~", KeyMsg::from_type(KeyType::F5));
+    m.insert("\x1b[15;3~", KeyMsg::from_type(KeyType::F5).with_alt());
+    m.insert("\x1b[17~", KeyMsg::from_type(KeyType::F6));
+    m.insert("\x1b[17;3~", KeyMsg::from_type(KeyType::F6).with_alt());
+    m.insert("\x1b[18~", KeyMsg::from_type(KeyType::F7));
+    m.insert("\x1b[18;3~", KeyMsg::from_type(KeyType::F7).with_alt());
+    m.insert("\x1b[19~", KeyMsg::from_type(KeyType::F8));
+    m.insert("\x1b[19;3~", KeyMsg::from_type(KeyType::F8).with_alt());
+    m.insert("\x1b[20~", KeyMsg::from_type(KeyType::F9));
+    m.insert("\x1b[20;3~", KeyMsg::from_type(KeyType::F9).with_alt());
+    m.insert("\x1b[21~", KeyMsg::from_type(KeyType::F10));
+    m.insert("\x1b[21;3~", KeyMsg::from_type(KeyType::F10).with_alt());
+    m.insert("\x1b[23~", KeyMsg::from_type(KeyType::F11));
+    m.insert("\x1b[23;3~", KeyMsg::from_type(KeyType::F11).with_alt());
+    m.insert("\x1b[24~", KeyMsg::from_type(KeyType::F12));
+    m.insert("\x1b[24;3~", KeyMsg::from_type(KeyType::F12).with_alt());
+
+    // Function keys F13-F16
+    m.insert("\x1b[1;2P", KeyMsg::from_type(KeyType::F13));
+    m.insert("\x1b[1;2Q", KeyMsg::from_type(KeyType::F14));
+    m.insert("\x1b[25~", KeyMsg::from_type(KeyType::F13));
+    m.insert("\x1b[26~", KeyMsg::from_type(KeyType::F14));
+    m.insert("\x1b[25;3~", KeyMsg::from_type(KeyType::F13).with_alt());
+    m.insert("\x1b[26;3~", KeyMsg::from_type(KeyType::F14).with_alt());
+    m.insert("\x1b[1;2R", KeyMsg::from_type(KeyType::F15));
+    m.insert("\x1b[1;2S", KeyMsg::from_type(KeyType::F16));
+    m.insert("\x1b[28~", KeyMsg::from_type(KeyType::F15));
+    m.insert("\x1b[29~", KeyMsg::from_type(KeyType::F16));
+    m.insert("\x1b[28;3~", KeyMsg::from_type(KeyType::F15).with_alt());
+    m.insert("\x1b[29;3~", KeyMsg::from_type(KeyType::F16).with_alt());
+
+    // Function keys F17-F20
+    m.insert("\x1b[15;2~", KeyMsg::from_type(KeyType::F17));
+    m.insert("\x1b[17;2~", KeyMsg::from_type(KeyType::F18));
+    m.insert("\x1b[18;2~", KeyMsg::from_type(KeyType::F19));
+    m.insert("\x1b[19;2~", KeyMsg::from_type(KeyType::F20));
+    m.insert("\x1b[31~", KeyMsg::from_type(KeyType::F17));
+    m.insert("\x1b[32~", KeyMsg::from_type(KeyType::F18));
+    m.insert("\x1b[33~", KeyMsg::from_type(KeyType::F19));
+    m.insert("\x1b[34~", KeyMsg::from_type(KeyType::F20));
+
+    // PowerShell sequences
+    m.insert("\x1bOA", KeyMsg::from_type(KeyType::Up));
+    m.insert("\x1bOB", KeyMsg::from_type(KeyType::Down));
+    m.insert("\x1bOC", KeyMsg::from_type(KeyType::Right));
+    m.insert("\x1bOD", KeyMsg::from_type(KeyType::Left));
+
+    m
+});
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_sequence_arrows() {
+        assert_eq!(
+            parse_sequence(b"\x1b[A"),
+            Some(KeyMsg::from_type(KeyType::Up))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[B"),
+            Some(KeyMsg::from_type(KeyType::Down))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[C"),
+            Some(KeyMsg::from_type(KeyType::Right))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[D"),
+            Some(KeyMsg::from_type(KeyType::Left))
+        );
+    }
+
+    #[test]
+    fn test_parse_sequence_alt_arrows() {
+        assert_eq!(
+            parse_sequence(b"\x1b[1;3A"),
+            Some(KeyMsg::from_type(KeyType::Up).with_alt())
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[1;3B"),
+            Some(KeyMsg::from_type(KeyType::Down).with_alt())
+        );
+    }
+
+    #[test]
+    fn test_parse_sequence_ctrl_arrows() {
+        assert_eq!(
+            parse_sequence(b"\x1b[1;5A"),
+            Some(KeyMsg::from_type(KeyType::CtrlUp))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[1;5B"),
+            Some(KeyMsg::from_type(KeyType::CtrlDown))
+        );
+    }
+
+    #[test]
+    fn test_parse_sequence_function_keys() {
+        assert_eq!(
+            parse_sequence(b"\x1bOP"),
+            Some(KeyMsg::from_type(KeyType::F1))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[15~"),
+            Some(KeyMsg::from_type(KeyType::F5))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[24~"),
+            Some(KeyMsg::from_type(KeyType::F12))
+        );
+    }
+
+    #[test]
+    fn test_parse_sequence_special_keys() {
+        assert_eq!(
+            parse_sequence(b"\x1b[Z"),
+            Some(KeyMsg::from_type(KeyType::ShiftTab))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[2~"),
+            Some(KeyMsg::from_type(KeyType::Insert))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[3~"),
+            Some(KeyMsg::from_type(KeyType::Delete))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[5~"),
+            Some(KeyMsg::from_type(KeyType::PgUp))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[6~"),
+            Some(KeyMsg::from_type(KeyType::PgDown))
+        );
+    }
+
+    #[test]
+    fn test_parse_sequence_home_end() {
+        assert_eq!(
+            parse_sequence(b"\x1b[H"),
+            Some(KeyMsg::from_type(KeyType::Home))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[1~"),
+            Some(KeyMsg::from_type(KeyType::Home))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[F"),
+            Some(KeyMsg::from_type(KeyType::End))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[4~"),
+            Some(KeyMsg::from_type(KeyType::End))
+        );
+    }
+
+    #[test]
+    fn test_parse_sequence_unknown() {
+        assert_eq!(parse_sequence(b"unknown"), None);
+        assert_eq!(parse_sequence(b"\x1b[999~"), None);
+    }
 
     #[test]
     fn test_key_msg_display() {

@@ -34,6 +34,7 @@
 #![allow(clippy::bool_to_int_with_if)]
 #![allow(clippy::if_same_then_else)]
 #![allow(clippy::branches_sharing_code)]
+#![allow(clippy::items_after_test_module)]
 
 //! # Lipgloss
 //!
@@ -148,7 +149,7 @@ pub use color::{
     RgbColor, TerminalColor,
 };
 pub use position::{Position, Sides};
-pub use renderer::{color_profile, default_renderer, has_dark_background, Renderer};
+pub use renderer::{Renderer, color_profile, default_renderer, has_dark_background};
 pub use style::Style;
 
 /// Prelude module for convenient imports.
@@ -218,11 +219,7 @@ pub fn join_horizontal(pos: Position, strs: &[&str]) -> String {
             // Determine which line from this block to use
             let block_row = row.checked_sub(top_offset);
             let content = if let Some(br) = block_row {
-                if br < block_height {
-                    block[br]
-                } else {
-                    ""
-                }
+                if br < block_height { block[br] } else { "" }
             } else {
                 ""
             };
@@ -233,7 +230,8 @@ pub fn join_horizontal(pos: Position, strs: &[&str]) -> String {
             line.push_str(content);
             line.push_str(&" ".repeat(padding));
         }
-        result.push(line.trim_end().to_string());
+        // Preserve trailing spaces to maintain column alignment (like Go)
+        result.push(line);
     }
 
     result.join("\n")
@@ -283,12 +281,7 @@ pub fn join_vertical(pos: Position, strs: &[&str]) -> String {
             // For left alignment (pos=0), keep trailing spaces to maintain width
             // For right alignment (pos=1), we can trim trailing (no right_pad)
             // For center alignment, keep trailing spaces to maintain width
-            let padded = format!(
-                "{}{}{}",
-                " ".repeat(left_pad),
-                line,
-                " ".repeat(right_pad)
-            );
+            let padded = format!("{}{}{}", " ".repeat(left_pad), line, " ".repeat(right_pad));
             // Only trim trailing for right alignment where right_pad would be 0
             if pos.factor() >= 1.0 {
                 result.push(padded.trim_end().to_string());
@@ -333,6 +326,32 @@ pub fn height(s: &str) -> usize {
     s.lines().count().max(1)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_join_vertical_left_alignment() {
+        let result = join_vertical(Position::Left, &["Short", "LongerText"]);
+        println!("Result bytes: {:?}", result.as_bytes());
+        println!("Result repr: {:?}", result);
+        // Expected: "Short     \nLongerText" (Short with 5 trailing spaces)
+        assert_eq!(result, "Short     \nLongerText");
+    }
+
+    #[test]
+    fn test_join_vertical_center_alignment() {
+        let result = join_vertical(Position::Center, &["Short", "LongerText"]);
+        println!("Result bytes: {:?}", result.as_bytes());
+        println!("Result repr: {:?}", result);
+        // Expected: "   Short  \nLongerText" (3 left, 2 right for center)
+        // Note: Go uses int truncation which gives left=2, but fixture shows left=3
+        // This suggests Go might use rounding, let's check both
+        let expected_go = "   Short  \nLongerText"; // 3 left, 2 right
+        assert_eq!(result, expected_go);
+    }
+}
+
 /// Place a string at a position within a given width and height.
 ///
 /// # Example
@@ -343,13 +362,7 @@ pub fn height(s: &str) -> usize {
 /// let text = "Hello";
 /// let placed = place(20, 5, Position::Center, Position::Center, text);
 /// ```
-pub fn place(
-    width: usize,
-    height: usize,
-    h_pos: Position,
-    v_pos: Position,
-    s: &str,
-) -> String {
+pub fn place(width: usize, height: usize, h_pos: Position, v_pos: Position, s: &str) -> String {
     let content_width = self::width(s);
     let content_height = self::height(s);
 

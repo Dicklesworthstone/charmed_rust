@@ -15,7 +15,7 @@
 //! viewport.scroll_down(1);
 //! ```
 
-use crate::key::{matches, Binding};
+use crate::key::{Binding, matches};
 use bubbletea::{KeyMsg, Message, MouseMsg};
 use lipgloss::Style;
 
@@ -49,21 +49,13 @@ impl Default for KeyMap {
             page_up: Binding::new()
                 .keys(&["pgup", "b"])
                 .help("b/pgup", "page up"),
-            half_page_up: Binding::new()
-                .keys(&["u", "ctrl+u"])
-                .help("u", "½ page up"),
+            half_page_up: Binding::new().keys(&["u", "ctrl+u"]).help("u", "½ page up"),
             half_page_down: Binding::new()
                 .keys(&["d", "ctrl+d"])
                 .help("d", "½ page down"),
-            up: Binding::new()
-                .keys(&["up", "k"])
-                .help("↑/k", "up"),
-            down: Binding::new()
-                .keys(&["down", "j"])
-                .help("↓/j", "down"),
-            left: Binding::new()
-                .keys(&["left", "h"])
-                .help("←/h", "move left"),
+            up: Binding::new().keys(&["up", "k"]).help("↑/k", "up"),
+            down: Binding::new().keys(&["down", "j"]).help("↓/j", "down"),
+            left: Binding::new().keys(&["left", "h"]).help("←/h", "move left"),
             right: Binding::new()
                 .keys(&["right", "l"])
                 .help("→/l", "move right"),
@@ -121,7 +113,12 @@ impl Viewport {
     pub fn set_content(&mut self, content: &str) {
         let normalized = content.replace("\r\n", "\n");
         self.lines = normalized.split('\n').map(String::from).collect();
-        self.longest_line_width = self.lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
+        self.longest_line_width = self
+            .lines
+            .iter()
+            .map(|l| l.chars().count())
+            .max()
+            .unwrap_or(0);
 
         if self.y_offset > self.lines.len().saturating_sub(1) {
             self.goto_bottom();

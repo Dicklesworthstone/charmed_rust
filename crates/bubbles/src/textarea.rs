@@ -15,8 +15,8 @@
 //! let view = textarea.view();
 //! ```
 
-use crate::cursor::{blink_cmd, Cursor, Mode as CursorMode};
-use crate::key::{matches, Binding};
+use crate::cursor::{Cursor, Mode as CursorMode, blink_cmd};
+use crate::key::{Binding, matches};
 use crate::runeutil::Sanitizer;
 use crate::viewport::Viewport;
 use bubbletea::{Cmd, KeyMsg, Message};
@@ -500,10 +500,9 @@ impl TextArea {
 
         // Skip whitespace
         while self.col > 0
-            && self
-                .value[self.row]
+            && self.value[self.row]
                 .get(self.col)
-                .map_or(false, |c| c.is_whitespace())
+                .is_some_and(|c| c.is_whitespace())
         {
             self.set_cursor_col(self.col.saturating_sub(1));
         }
@@ -512,7 +511,7 @@ impl TextArea {
         while self.col > 0 {
             if !self.value[self.row]
                 .get(self.col)
-                .map_or(false, |c| c.is_whitespace())
+                .is_some_and(|c| c.is_whitespace())
             {
                 self.set_cursor_col(self.col.saturating_sub(1));
             } else {
@@ -541,7 +540,7 @@ impl TextArea {
         while self.col < self.value[self.row].len()
             && self.value[self.row]
                 .get(self.col)
-                .map_or(false, |c| c.is_whitespace())
+                .is_some_and(|c| c.is_whitespace())
         {
             self.set_cursor_col(self.col + 1);
         }
@@ -550,7 +549,7 @@ impl TextArea {
         while self.col < self.value[self.row].len() {
             if !self.value[self.row]
                 .get(self.col)
-                .map_or(false, |c| c.is_whitespace())
+                .is_some_and(|c| c.is_whitespace())
             {
                 self.set_cursor_col(self.col + 1);
             } else {
@@ -594,7 +593,7 @@ impl TextArea {
             if self.col < self.value[self.row].len()
                 && !self.value[self.row]
                     .get(self.col)
-                    .map_or(false, |c| c.is_whitespace())
+                    .is_some_and(|c| c.is_whitespace())
             {
                 break;
             }
@@ -606,7 +605,7 @@ impl TextArea {
         while self.col > 0 {
             if self.value[self.row]
                 .get(self.col - 1)
-                .map_or(false, |c| c.is_whitespace())
+                .is_some_and(|c| c.is_whitespace())
             {
                 break;
             }
@@ -619,7 +618,7 @@ impl TextArea {
         while self.col >= self.value[self.row].len()
             || self.value[self.row]
                 .get(self.col)
-                .map_or(false, |c| c.is_whitespace())
+                .is_some_and(|c| c.is_whitespace())
         {
             if self.row == self.value.len() - 1 && self.col == self.value[self.row].len() {
                 break;
@@ -631,7 +630,7 @@ impl TextArea {
         while self.col < self.value[self.row].len() {
             if self.value[self.row]
                 .get(self.col)
-                .map_or(false, |c| c.is_whitespace())
+                .is_some_and(|c| c.is_whitespace())
             {
                 break;
             }
@@ -669,7 +668,7 @@ impl TextArea {
         while self.col >= self.value[self.row].len()
             || self.value[self.row]
                 .get(self.col)
-                .map_or(false, |c| c.is_whitespace())
+                .is_some_and(|c| c.is_whitespace())
         {
             if self.row == self.value.len() - 1 && self.col == self.value[self.row].len() {
                 break;
@@ -680,7 +679,7 @@ impl TextArea {
         while self.col < self.value[self.row].len() {
             if self.value[self.row]
                 .get(self.col)
-                .map_or(false, |c| c.is_whitespace())
+                .is_some_and(|c| c.is_whitespace())
             {
                 break;
             }
@@ -1173,7 +1172,10 @@ mod tests {
         // The placeholder is split by cursor rendering: "E" (cursor) + "nter text..." (styled)
         // So check for both parts - the cursor char and the rest
         assert!(view.contains("E"), "View should contain cursor char 'E'");
-        assert!(view.contains("nter text..."), "View should contain rest of placeholder");
+        assert!(
+            view.contains("nter text..."),
+            "View should contain rest of placeholder"
+        );
     }
 
     #[test]

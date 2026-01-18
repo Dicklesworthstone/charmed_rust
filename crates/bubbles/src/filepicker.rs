@@ -15,7 +15,7 @@
 //! let cmd = picker.init();
 //! ```
 
-use crate::key::{matches, Binding};
+use crate::key::{Binding, matches};
 use bubbletea::{Cmd, KeyMsg, Message, WindowSizeMsg};
 use lipgloss::{Color, Style};
 use std::path::{Path, PathBuf};
@@ -89,21 +89,13 @@ pub struct KeyMap {
 impl Default for KeyMap {
     fn default() -> Self {
         Self {
-            goto_top: Binding::new()
-                .keys(&["g"])
-                .help("g", "first"),
-            goto_last: Binding::new()
-                .keys(&["G"])
-                .help("G", "last"),
+            goto_top: Binding::new().keys(&["g"]).help("g", "first"),
+            goto_last: Binding::new().keys(&["G"]).help("G", "last"),
             down: Binding::new()
                 .keys(&["j", "down", "ctrl+n"])
                 .help("j", "down"),
-            up: Binding::new()
-                .keys(&["k", "up", "ctrl+p"])
-                .help("k", "up"),
-            page_up: Binding::new()
-                .keys(&["K", "pgup"])
-                .help("pgup", "page up"),
+            up: Binding::new().keys(&["k", "up", "ctrl+p"]).help("k", "up"),
+            page_up: Binding::new().keys(&["K", "pgup"]).help("pgup", "page up"),
             page_down: Binding::new()
                 .keys(&["J", "pgdown"])
                 .help("pgdown", "page down"),
@@ -113,9 +105,7 @@ impl Default for KeyMap {
             open: Binding::new()
                 .keys(&["l", "right", "enter"])
                 .help("l", "open"),
-            select: Binding::new()
-                .keys(&["enter"])
-                .help("enter", "select"),
+            select: Binding::new().keys(&["enter"]).help("enter", "select"),
         }
     }
 }
@@ -301,14 +291,12 @@ impl FilePicker {
         let path = self.current_directory.clone();
         let show_hidden = self.show_hidden;
 
-        Cmd::new(move || {
-            match read_directory(&path, show_hidden) {
-                Ok(entries) => Message::new(ReadDirMsg { id, entries }),
-                Err(e) => Message::new(ReadDirErrMsg {
-                    id,
-                    error: e.to_string(),
-                }),
-            }
+        Cmd::new(move || match read_directory(&path, show_hidden) {
+            Ok(entries) => Message::new(ReadDirMsg { id, entries }),
+            Err(e) => Message::new(ReadDirErrMsg {
+                id,
+                error: e.to_string(),
+            }),
         })
     }
 
@@ -344,12 +332,11 @@ impl FilePicker {
     pub fn did_select_file(&self, msg: &Message) -> Option<PathBuf> {
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
             let key_str = key.to_string();
-            if matches(&key_str, &[&self.key_map.select]) {
-                if let Some(path) = &self.path {
-                    if self.can_select(path.to_str().unwrap_or("")) {
-                        return Some(path.clone());
-                    }
-                }
+            if matches(&key_str, &[&self.key_map.select])
+                && let Some(path) = &self.path
+                && self.can_select(path.to_str().unwrap_or(""))
+            {
+                return Some(path.clone());
             }
         }
         None
@@ -359,12 +346,11 @@ impl FilePicker {
     pub fn did_select_disabled_file(&self, msg: &Message) -> Option<PathBuf> {
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
             let key_str = key.to_string();
-            if matches(&key_str, &[&self.key_map.select]) {
-                if let Some(path) = &self.path {
-                    if !self.can_select(path.to_str().unwrap_or("")) {
-                        return Some(path.clone());
-                    }
-                }
+            if matches(&key_str, &[&self.key_map.select])
+                && let Some(path) = &self.path
+                && !self.can_select(path.to_str().unwrap_or(""))
+            {
+                return Some(path.clone());
             }
         }
         None
@@ -420,7 +406,8 @@ impl FilePicker {
                     }
                 }
             } else if matches(&key_str, &[&self.key_map.page_down]) {
-                self.selected = (self.selected + self.height).min(self.files.len().saturating_sub(1));
+                self.selected =
+                    (self.selected + self.height).min(self.files.len().saturating_sub(1));
                 self.min += self.height;
                 self.max += self.height;
                 if self.max >= self.files.len() {
@@ -432,7 +419,10 @@ impl FilePicker {
                 self.min = self.min.saturating_sub(self.height);
                 self.max = self.max.saturating_sub(self.height);
                 if self.min == 0 {
-                    self.max = self.height.saturating_sub(1).min(self.files.len().saturating_sub(1));
+                    self.max = self
+                        .height
+                        .saturating_sub(1)
+                        .min(self.files.len().saturating_sub(1));
                 }
             } else if matches(&key_str, &[&self.key_map.back]) {
                 // Go to parent directory
@@ -458,10 +448,10 @@ impl FilePicker {
                 let is_dir = entry.is_dir;
 
                 // Check if we can select this
-                if (!is_dir && self.file_allowed) || (is_dir && self.dir_allowed) {
-                    if matches(&key_str, &[&self.key_map.select]) {
-                        self.path = Some(entry.path.clone());
-                    }
+                if matches(&key_str, &[&self.key_map.select])
+                    && ((!is_dir && self.file_allowed) || (is_dir && self.dir_allowed))
+                {
+                    self.path = Some(entry.path.clone());
                 }
 
                 // If it's a directory, navigate into it
@@ -543,7 +533,11 @@ impl FilePicker {
                     parts.push(format!(" {}", self.styles.permission.render(&entry.mode)));
                 }
                 if self.show_size {
-                    parts.push(self.styles.file_size.render(&format!("{:>7}", format_size(entry.size))));
+                    parts.push(
+                        self.styles
+                            .file_size
+                            .render(&format!("{:>7}", format_size(entry.size))),
+                    );
                 }
                 parts.push(format!(" {}", style.render(&entry.name)));
                 if entry.is_symlink {
@@ -592,12 +586,10 @@ fn read_directory(path: &Path, show_hidden: bool) -> std::io::Result<Vec<DirEntr
     }
 
     // Sort: directories first, then alphabetically
-    entries.sort_by(|a, b| {
-        match (a.is_dir, b.is_dir) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-        }
+    entries.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
     });
 
     Ok(entries)
@@ -642,7 +634,11 @@ fn format_mode(metadata: &std::fs::Metadata) -> String {
 #[cfg(not(unix))]
 fn format_mode(metadata: &std::fs::Metadata) -> String {
     let file_type = if metadata.is_dir() { 'd' } else { '-' };
-    let readonly = if metadata.permissions().readonly() { "r--" } else { "rw-" };
+    let readonly = if metadata.permissions().readonly() {
+        "r--"
+    } else {
+        "rw-"
+    };
     format!("{}{}{}{}", file_type, readonly, readonly, readonly)
 }
 

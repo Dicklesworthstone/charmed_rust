@@ -9,8 +9,10 @@
 //! - Projectile motion: 3D physics with gravity
 //! - FPS utility: frame rate to delta time conversion
 
+#![allow(clippy::unreadable_literal)]
+
 use crate::harness::{FixtureLoader, TestFixture};
-use harmonica::{fps, Point, Projectile, Spring, Vector, GRAVITY};
+use harmonica::{Point, Projectile, Spring, Vector, fps};
 use serde::Deserialize;
 
 /// Epsilon for floating point comparisons
@@ -69,6 +71,7 @@ struct SpringConvergenceInput {
     damping: f64,
     start_pos: f64,
     target_pos: f64,
+    #[allow(dead_code)]
     steps: usize,
 }
 
@@ -109,6 +112,7 @@ struct TrajectoryInput {
     gravity: f64,
     start_pos: Vec<f64>,
     start_vel: Vec<f64>,
+    #[allow(dead_code)]
     steps: usize,
 }
 
@@ -117,9 +121,11 @@ struct TrajectoryInput {
 struct TrajectoryStep {
     x: f64,
     y: f64,
+    #[allow(dead_code)]
     z: f64,
     vx: f64,
     vy: f64,
+    #[allow(dead_code)]
     vz: f64,
 }
 
@@ -374,7 +380,10 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let fixtures = match loader.load_crate("harmonica") {
         Ok(f) => f,
         Err(e) => {
-            results.push(("load_fixtures", Err(format!("Failed to load fixtures: {}", e))));
+            results.push((
+                "load_fixtures",
+                Err(format!("Failed to load fixtures: {}", e)),
+            ));
             return results;
         }
     };
@@ -444,7 +453,11 @@ fn run_zero_gravity_test(fixture: &TestFixture) -> Result<(), String> {
         .map_err(|e| format!("Failed to parse expected output: {}", e))?;
 
     let delta_time = fps(60);
-    let acceleration = Vector::new(input.acceleration[0], input.acceleration[1], input.acceleration[2]);
+    let acceleration = Vector::new(
+        input.acceleration[0],
+        input.acceleration[1],
+        input.acceleration[2],
+    );
 
     let mut projectile = Projectile::new(
         delta_time,
@@ -559,7 +572,11 @@ mod tests {
         let (pos, vel) = spring.update(0.0, 0.0, 1.0);
 
         // Expected from Go reference
-        assert!(approx_eq(pos, 0.004678839798509582, EPSILON), "pos = {}", pos);
+        assert!(
+            approx_eq(pos, 0.004678839798509582, EPSILON),
+            "pos = {}",
+            pos
+        );
         assert!(approx_eq(vel, 0.5429024312770874, EPSILON), "vel = {}", vel);
     }
 
@@ -580,7 +597,11 @@ mod tests {
         let (pos, vel) = spring.update(0.0, 0.0, 1.0);
 
         // Expected from Go reference
-        assert!(approx_eq(pos, 0.0048974149946585666, EPSILON), "pos = {}", pos);
+        assert!(
+            approx_eq(pos, 0.0048974149946585666, EPSILON),
+            "pos = {}",
+            pos
+        );
         assert!(approx_eq(vel, 0.5813845939323615, EPSILON), "vel = {}", vel);
     }
 
@@ -591,8 +612,16 @@ mod tests {
         let (pos, vel) = spring.update(0.0, 0.0, 1.0);
 
         // Expected from Go reference
-        assert!(approx_eq(pos, 0.004391441832238274, EPSILON), "pos = {}", pos);
-        assert!(approx_eq(vel, 0.49369831503171113, EPSILON), "vel = {}", vel);
+        assert!(
+            approx_eq(pos, 0.004391441832238274, EPSILON),
+            "pos = {}",
+            pos
+        );
+        assert!(
+            approx_eq(vel, 0.49369831503171113, EPSILON),
+            "vel = {}",
+            vel
+        );
     }
 
     /// Verify FPS utility function
@@ -637,7 +666,7 @@ pub mod integration {
             TestCategory::Unit
         }
 
-        fn run(&self, ctx: &mut TestContext) -> TestResult {
+        fn run(&self, _ctx: &mut TestContext) -> TestResult {
             let mut loader = FixtureLoader::new();
 
             let fixture = match loader.get_test("harmonica", &self.name) {

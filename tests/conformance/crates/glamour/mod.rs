@@ -18,9 +18,9 @@
 #![allow(clippy::unreadable_literal)]
 
 use crate::harness::{
-    compare_styled_semantic, extract_styled_spans, strip_ansi, FixtureLoader, TestFixture,
+    FixtureLoader, TestFixture, compare_styled_semantic, extract_styled_spans, strip_ansi,
 };
-use glamour::{render, Style};
+use glamour::{Style, render};
 use serde::Deserialize;
 use std::collections::HashSet;
 
@@ -120,7 +120,11 @@ fn extract_foreground_colors(text: &str) -> HashSet<u32> {
 ///
 /// Rust glamour currently does NOT implement syntax highlighting.
 /// This function detects and documents the gap.
-fn compare_syntax_highlighting(expected: &str, actual: &str, _input: &str) -> SyntaxHighlightResult {
+fn compare_syntax_highlighting(
+    expected: &str,
+    actual: &str,
+    _input: &str,
+) -> SyntaxHighlightResult {
     // Strip ANSI and normalize for text comparison
     let expected_text = strip_ansi(expected)
         .lines()
@@ -456,7 +460,10 @@ mod tests {
 
         // Verify text content is preserved
         assert!(plain.contains("fn"), "Should contain 'fn' keyword");
-        assert!(plain.contains("main"), "Should contain 'main' function name");
+        assert!(
+            plain.contains("main"),
+            "Should contain 'main' function name"
+        );
         assert!(
             plain.contains("println!"),
             "Should contain 'println!' macro"
@@ -475,7 +482,10 @@ mod tests {
 
         // Verify text content is preserved
         assert!(plain.contains("func"), "Should contain 'func' keyword");
-        assert!(plain.contains("main"), "Should contain 'main' function name");
+        assert!(
+            plain.contains("main"),
+            "Should contain 'main' function name"
+        );
         assert!(plain.contains("fmt"), "Should contain 'fmt' package");
         assert!(
             plain.contains("Println"),
@@ -637,7 +647,10 @@ mod tests {
                     }
                     Err(msg) if msg.starts_with("SYNTAX_HIGHLIGHT_GAP") => {
                         gaps.push(*test_name);
-                        println!("  GAP:  {} (text matches, syntax highlighting differs)", test_name);
+                        println!(
+                            "  GAP:  {} (text matches, syntax highlighting differs)",
+                            test_name
+                        );
                     }
                     Err(msg) => {
                         text_failures.push((*test_name, msg));
@@ -670,7 +683,10 @@ mod tests {
 
         // Syntax highlighting gap is expected until implemented
         // This documents the gap rather than failing
-        println!("\nNote: {} syntax highlighting gaps detected (expected until implementation)", gaps.len());
+        println!(
+            "\nNote: {} syntax highlighting gaps detected (expected until implementation)",
+            gaps.len()
+        );
     }
 }
 

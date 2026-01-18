@@ -40,6 +40,9 @@ func main() {
 	// Capture horizontal rule tests
 	captureHorizontalRuleTests(fixtures)
 
+	// Capture table tests
+	captureTableTests(fixtures)
+
 	// Capture style preset tests
 	captureStylePresetTests(fixtures)
 
@@ -289,6 +292,80 @@ func captureHorizontalRuleTests(fs *capture.FixtureSet) {
 			map[string]string{
 				"input": r.input,
 				"style": "dark",
+			},
+			result,
+		)
+	}
+}
+
+func captureTableTests(fs *capture.FixtureSet) {
+	tables := []struct {
+		name  string
+		input string
+	}{
+		// Basic tables
+		{"simple_2x2", "| A | B |\n|---|---|\n| 1 | 2 |"},
+		{"simple_3x3", "| A | B | C |\n|---|---|---|\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |"},
+		{"headers_only", "| Header 1 | Header 2 |\n|----------|----------|"},
+
+		// Alignment tests
+		{"align_left", "| Left |\n|:-----|\n| text |"},
+		{"align_center", "| Center |\n|:------:|\n| text |"},
+		{"align_right", "| Right |\n|------:|\n| text |"},
+		{"align_mixed", "| Left | Center | Right |\n|:-----|:------:|------:|\n| L | C | R |"},
+
+		// Column width tests
+		{"wide_content", "| Short | Very Long Column Content |\n|-------|-------------------------|\n| A | B |"},
+		{"varying_widths", "| X | Medium | Very Very Long Content Here |\n|---|--------|----------------------------|\n| 1 | 2 | 3 |"},
+
+		// Formatting in cells
+		{"bold_in_cell", "| Normal | **Bold** |\n|--------|----------|\n| A | B |"},
+		{"italic_in_cell", "| Normal | *Italic* |\n|--------|----------|\n| A | B |"},
+		{"code_in_cell", "| Normal | `code` |\n|--------|--------|\n| A | B |"},
+		{"mixed_formatting", "| **Bold** | *Italic* | `code` |\n|----------|----------|--------|\n| 1 | 2 | 3 |"},
+
+		// Edge cases
+		{"empty_cells", "| A | | C |\n|---|---|---|\n| | B | |"},
+		{"single_column", "| Single |\n|--------|\n| Value |"},
+		{"many_columns", "| A | B | C | D | E | F |\n|---|---|---|---|---|---|\n| 1 | 2 | 3 | 4 | 5 | 6 |"},
+		{"many_rows", "| A |\n|---|\n| 1 |\n| 2 |\n| 3 |\n| 4 |\n| 5 |"},
+
+		// Unicode content
+		{"unicode_content", "| Emoji | CJK | Symbols |\n|-------|-----|----------|\n| 🎉 | 中文 | ★ |"},
+
+		// Tables with surrounding content
+		{"with_paragraph", "Some text before.\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nSome text after."},
+		{"with_heading", "# Heading\n\n| A | B |\n|---|---|\n| 1 | 2 |"},
+	}
+
+	for _, t := range tables {
+		out, err := glamour.Render(t.input, "dark")
+		result := map[string]interface{}{
+			"output": out,
+			"error":  err != nil,
+		}
+		fs.AddTestWithCategory(fmt.Sprintf("table_%s", t.name), "unit",
+			map[string]string{
+				"input": t.input,
+				"style": "dark",
+			},
+			result,
+		)
+	}
+
+	// Also test tables with different style presets
+	tableMarkdown := "| Header 1 | Header 2 |\n|:---------|:---------|\n| Cell 1 | Cell 2 |"
+	stylePresets := []string{"ascii", "light", "notty"}
+	for _, preset := range stylePresets {
+		out, err := glamour.Render(tableMarkdown, preset)
+		result := map[string]interface{}{
+			"output": out,
+			"error":  err != nil,
+		}
+		fs.AddTestWithCategory(fmt.Sprintf("table_style_%s", preset), "unit",
+			map[string]string{
+				"input": tableMarkdown,
+				"style": preset,
 			},
 			result,
 		)

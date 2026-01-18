@@ -10,6 +10,10 @@
 //!
 //! Other fixture tests are marked as skipped until implemented.
 
+// Allow dead code and unused imports in test fixture structures
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
 use crate::harness::{FixtureLoader, TestFixture};
 use bubbles::filepicker::FilePicker;
 use bubbles::help::Help;
@@ -1039,10 +1043,7 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
                 }
             }
             if let Some(ref expected_title) = expected.selected_title {
-                let actual_title = list
-                    .selected_item()
-                    .map(|i| i.filter_value())
-                    .unwrap_or("");
+                let actual_title = list.selected_item().map(|i| i.filter_value()).unwrap_or("");
                 if actual_title != expected_title {
                     return Err(format!(
                         "Selected title mismatch: expected {:?}, got {:?}",
@@ -2047,7 +2048,9 @@ fn run_keybinding_test(fixture: &TestFixture) -> Result<(), String> {
             let help_desc = input.help.unwrap_or_default();
 
             // Create binding with keys and help
-            let binding = Binding::new().keys(&keys_refs).help(keys_refs[0], &help_desc);
+            let binding = Binding::new()
+                .keys(&keys_refs)
+                .help(keys_refs[0], &help_desc);
 
             // Test enabled state
             if let Some(expected_enabled) = expected.enabled {

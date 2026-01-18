@@ -743,8 +743,7 @@ impl StyleState {
                             5 => {
                                 // 256 color
                                 if i + 2 < params.len() {
-                                    self.foreground =
-                                        Some(format!("38;5;{}", params[i + 2]));
+                                    self.foreground = Some(format!("38;5;{}", params[i + 2]));
                                     i += 2;
                                 }
                             }
@@ -770,8 +769,7 @@ impl StyleState {
                         match params[i + 1] {
                             5 => {
                                 if i + 2 < params.len() {
-                                    self.background =
-                                        Some(format!("48;5;{}", params[i + 2]));
+                                    self.background = Some(format!("48;5;{}", params[i + 2]));
                                     i += 2;
                                 }
                             }

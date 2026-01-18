@@ -574,7 +574,7 @@ mod tests {
     fn test_rgb_to_ansi256() {
         // Pure red should map to 196
         let n = rgb_to_ansi256(255, 0, 0);
-        assert!(n >= 196 && n <= 197);
+        assert!((196..=197).contains(&n));
 
         // Gray should map to grayscale range
         let n = rgb_to_ansi256(128, 128, 128);

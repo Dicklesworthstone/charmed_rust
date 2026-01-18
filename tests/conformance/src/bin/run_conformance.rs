@@ -1,4 +1,9 @@
 #![allow(clippy::doc_markdown)]
+#![allow(clippy::stable_sort_primitive)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::explicit_iter_loop)]
+#![allow(clippy::branches_sharing_code)]
+#![allow(clippy::type_complexity)]
 //! Run Conformance Tests
 //!
 //! Binary for executing all conformance tests and generating reports.
@@ -61,10 +66,7 @@ fn print_standard(results: &[TestResult], verbose: bool, summary_only: bool) {
         std::collections::HashMap::new();
 
     for result in results {
-        by_crate
-            .entry(result.crate_name)
-            .or_default()
-            .push(result);
+        by_crate.entry(result.crate_name).or_default().push(result);
     }
 
     println!("═══════════════════════════════════════════════════════════════");
@@ -144,18 +146,12 @@ fn print_json(results: &[TestResult]) {
         std::collections::HashMap::new();
 
     for result in results {
-        by_crate
-            .entry(result.crate_name)
-            .or_default()
-            .push(result);
+        by_crate.entry(result.crate_name).or_default().push(result);
     }
 
     println!("{{");
     println!("  \"report_version\": \"1.0\",");
-    println!(
-        "  \"generated_at\": \"{}\",",
-        chrono_lite_timestamp()
-    );
+    println!("  \"generated_at\": \"{}\",", chrono_lite_timestamp());
     println!("  \"crates\": {{");
 
     let crate_names: Vec<_> = by_crate.keys().copied().collect();
@@ -290,14 +286,35 @@ fn main() {
 
     // Run tests for each crate that has run_all_tests()
     let crates_to_run: Vec<(&str, fn() -> Vec<(&'static str, Result<(), String>)>)> = vec![
-        ("harmonica", charmed_conformance::crates::harmonica::run_all_tests),
-        ("lipgloss", charmed_conformance::crates::lipgloss::run_all_tests),
-        ("bubbletea", charmed_conformance::crates::bubbletea::run_all_tests),
-        ("bubbles", charmed_conformance::crates::bubbles::run_all_tests),
-        ("charmed_log", charmed_conformance::crates::charmed_log::run_all_tests),
-        ("glamour", charmed_conformance::crates::glamour::run_all_tests),
+        (
+            "harmonica",
+            charmed_conformance::crates::harmonica::run_all_tests,
+        ),
+        (
+            "lipgloss",
+            charmed_conformance::crates::lipgloss::run_all_tests,
+        ),
+        (
+            "bubbletea",
+            charmed_conformance::crates::bubbletea::run_all_tests,
+        ),
+        (
+            "bubbles",
+            charmed_conformance::crates::bubbles::run_all_tests,
+        ),
+        (
+            "charmed_log",
+            charmed_conformance::crates::charmed_log::run_all_tests,
+        ),
+        (
+            "glamour",
+            charmed_conformance::crates::glamour::run_all_tests,
+        ),
         ("huh", charmed_conformance::crates::huh::run_all_tests),
-        ("integration", charmed_conformance::integration::run_all_tests),
+        (
+            "integration",
+            charmed_conformance::integration::run_all_tests,
+        ),
     ];
 
     for (crate_name, run_fn) in crates_to_run {
