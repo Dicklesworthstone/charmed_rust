@@ -11,6 +11,7 @@ use directories::ProjectDirs;
 use reqwest::blocking::Client;
 use reqwest::header::{ACCEPT, AUTHORIZATION, USER_AGENT};
 use serde::Deserialize;
+use thiserror::Error;
 
 /// Represents a GitHub repository reference.
 #[derive(Debug, Clone, PartialEq)]
@@ -104,25 +105,41 @@ impl RepoRef {
     }
 }
 
-/// Error parsing a repository reference.
-#[derive(Debug, Clone, PartialEq)]
+/// Error parsing a repository reference string.
+///
+/// Occurs when parsing strings like `owner/repo` or GitHub URLs
+/// into structured repository references.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use glow::github::{RepoRef, ParseError};
+///
+/// match "invalid".parse::<RepoRef>() {
+///     Ok(repo) => println!("Parsed: {}", repo),
+///     Err(ParseError::MissingOwnerOrRepo) => {
+///         eprintln!("Please provide owner/repo format");
+///     }
+///     Err(e) => eprintln!("Parse error: {}", e),
+/// }
+/// ```
+#[derive(Error, Debug, Clone, PartialEq)]
 pub enum ParseError {
     /// Invalid repository format.
+    ///
+    /// The input doesn't match any recognized format
+    /// (owner/repo, GitHub URL, etc.).
+    #[error("invalid repository format")]
     InvalidFormat,
     /// Missing owner or repository name.
+    ///
+    /// The input was partially valid but missing required parts.
+    #[error("missing owner or repository name")]
     MissingOwnerOrRepo,
 }
 
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidFormat => write!(f, "invalid repository format"),
-            Self::MissingOwnerOrRepo => write!(f, "missing owner or repository name"),
-        }
-    }
-}
-
-impl std::error::Error for ParseError {}
+/// A specialized [`Result`] type for repository parsing operations.
+pub type ParseResult<T> = std::result::Result<T, ParseError>;
 
 /// GitHub API response for README content.
 #[derive(Debug, Deserialize)]
@@ -134,48 +151,69 @@ struct ReadmeResponse {
 }
 
 /// Error fetching README from GitHub.
-#[derive(Debug)]
+///
+/// Represents all possible failure modes when fetching repository
+/// content from the GitHub API.
+///
+/// # Recovery Strategies
+///
+/// | Error Variant | Recovery Strategy |
+/// |--------------|-------------------|
+/// | [`Request`](FetchError::Request) | Check network, retry with backoff |
+/// | [`ApiError`](FetchError::ApiError) | Check status code, may be permanent |
+/// | [`DecodeError`](FetchError::DecodeError) | Content encoding issue |
+/// | [`RateLimited`](FetchError::RateLimited) | Wait until reset time |
+/// | [`CacheError`](FetchError::CacheError) | Check disk permissions |
+///
+/// # Example
+///
+/// ```rust,ignore
+/// match fetcher.fetch(&repo).await {
+///     Ok(content) => render(content),
+///     Err(FetchError::RateLimited { reset_at: Some(ts) }) => {
+///         eprintln!("Rate limited, try again at {}", ts);
+///     }
+///     Err(FetchError::ApiError { status: 404, .. }) => {
+///         eprintln!("Repository not found");
+///     }
+///     Err(e) => eprintln!("Fetch error: {}", e),
+/// }
+/// ```
+#[derive(Error, Debug)]
 pub enum FetchError {
     /// HTTP request failed.
-    Request(reqwest::Error),
+    ///
+    /// Network-level failure. Check connectivity and retry.
+    #[error("request failed: {0}")]
+    Request(#[from] reqwest::Error),
     /// API returned an error status.
+    ///
+    /// Common status codes:
+    /// - 404: Repository or README not found
+    /// - 403: Access denied (private repo)
+    /// - 500+: GitHub server error
+    #[error("API error ({status}): {message}")]
     ApiError { status: u16, message: String },
     /// Failed to decode content.
+    ///
+    /// The README content couldn't be decoded (usually base64).
+    #[error("decode error: {0}")]
     DecodeError(String),
     /// Rate limit exceeded.
+    ///
+    /// GitHub API rate limit reached. If `reset_at` is provided,
+    /// wait until that Unix timestamp before retrying.
+    #[error("rate limited{}", .reset_at.map(|ts| format!(", resets at timestamp {ts}")).unwrap_or_default())]
     RateLimited { reset_at: Option<u64> },
     /// Cache I/O error.
-    CacheError(io::Error),
+    ///
+    /// Error reading from or writing to the local cache.
+    #[error("cache error: {0}")]
+    CacheError(#[from] io::Error),
 }
 
-impl std::fmt::Display for FetchError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Request(e) => write!(f, "request failed: {e}"),
-            Self::ApiError { status, message } => write!(f, "API error ({status}): {message}"),
-            Self::DecodeError(msg) => write!(f, "decode error: {msg}"),
-            Self::RateLimited { reset_at: Some(ts) } => {
-                write!(f, "rate limited, resets at timestamp {ts}")
-            }
-            Self::RateLimited { reset_at: None } => write!(f, "rate limited"),
-            Self::CacheError(e) => write!(f, "cache error: {e}"),
-        }
-    }
-}
-
-impl std::error::Error for FetchError {}
-
-impl From<reqwest::Error> for FetchError {
-    fn from(e: reqwest::Error) -> Self {
-        Self::Request(e)
-    }
-}
-
-impl From<io::Error> for FetchError {
-    fn from(e: io::Error) -> Self {
-        Self::CacheError(e)
-    }
-}
+/// A specialized [`Result`] type for GitHub fetch operations.
+pub type FetchResult<T> = std::result::Result<T, FetchError>;
 
 /// Configuration for the GitHub fetcher.
 #[derive(Debug, Clone)]
@@ -260,7 +298,8 @@ impl GitHubFetcher {
         let status = response.status();
 
         // Handle rate limiting
-        if status == reqwest::StatusCode::FORBIDDEN || status == reqwest::StatusCode::TOO_MANY_REQUESTS
+        if status == reqwest::StatusCode::FORBIDDEN
+            || status == reqwest::StatusCode::TOO_MANY_REQUESTS
         {
             let reset_at = response
                 .headers()
@@ -284,7 +323,11 @@ impl GitHubFetcher {
 
         // Decode content (GitHub returns base64-encoded content)
         let content = if readme.encoding == "base64" {
-            let cleaned: String = readme.content.chars().filter(|c| !c.is_whitespace()).collect();
+            let cleaned: String = readme
+                .content
+                .chars()
+                .filter(|c| !c.is_whitespace())
+                .collect();
             let decoded = base64_decode(&cleaned)
                 .map_err(|e| FetchError::DecodeError(format!("base64 decode failed: {e}")))?;
             String::from_utf8(decoded)

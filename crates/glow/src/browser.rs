@@ -259,10 +259,7 @@ impl FileBrowser {
 
         for entry in read_dir.flatten() {
             let path = entry.path();
-            let name = path
-                .file_name()
-                .and_then(OsStr::to_str)
-                .unwrap_or("");
+            let name = path.file_name().and_then(OsStr::to_str).unwrap_or("");
 
             // Skip hidden files unless configured
             if !self.config.show_hidden && name.starts_with('.') {
@@ -445,7 +442,9 @@ impl Model for FileBrowser {
     fn init(&self) -> Option<Cmd> {
         // Return a command to scan the directory
         let dir = self.current_dir.clone();
-        Some(Cmd::new(move || Message::new(ScanCompleteMsg { path: dir })))
+        Some(Cmd::new(move || {
+            Message::new(ScanCompleteMsg { path: dir })
+        }))
     }
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
@@ -504,19 +503,17 @@ impl Model for FileBrowser {
                 KeyType::Backspace => {
                     let _ = self.go_parent();
                 }
-                KeyType::Runes if !key.runes.is_empty() => {
-                    match key.runes[0] {
-                        'j' => self.move_down(),
-                        'k' => self.move_up(),
-                        'g' => self.move_to_top(),
-                        'G' => self.move_to_bottom(),
-                        '/' => self.enter_filter_mode(),
-                        '.' => {
-                            let _ = self.toggle_hidden();
-                        }
-                        _ => {}
+                KeyType::Runes if !key.runes.is_empty() => match key.runes[0] {
+                    'j' => self.move_down(),
+                    'k' => self.move_up(),
+                    'g' => self.move_to_top(),
+                    'G' => self.move_to_bottom(),
+                    '/' => self.enter_filter_mode(),
+                    '.' => {
+                        let _ = self.toggle_hidden();
                     }
-                }
+                    _ => {}
+                },
                 _ => {}
             }
         }
@@ -592,7 +589,8 @@ impl Model for FileBrowser {
 
         // Footer with help
         lines.push(String::new());
-        let help = "↑/k up • ↓/j down • enter open • backspace parent • / filter • . hidden • q quit";
+        let help =
+            "↑/k up • ↓/j down • enter open • backspace parent • / filter • . hidden • q quit";
         let help_style = Style::new().foreground("#666666");
         lines.push(help_style.render(help));
 
@@ -618,7 +616,12 @@ pub struct FileSelectedMsg {
 fn is_markdown_file(path: &Path) -> bool {
     path.extension()
         .and_then(OsStr::to_str)
-        .map(|ext| matches!(ext.to_lowercase().as_str(), "md" | "markdown" | "mdown" | "mkd"))
+        .map(|ext| {
+            matches!(
+                ext.to_lowercase().as_str(),
+                "md" | "markdown" | "mdown" | "mkd"
+            )
+        })
         .unwrap_or(false)
 }
 
@@ -770,7 +773,10 @@ mod tests {
     #[test]
     fn test_truncate_string() {
         assert_eq!(truncate_string("short", 10), "short");
-        assert_eq!(truncate_string("this is a very long string", 10), "this is a…");
+        assert_eq!(
+            truncate_string("this is a very long string", 10),
+            "this is a…"
+        );
     }
 
     #[test]
