@@ -60,16 +60,15 @@ use thiserror::Error;
 use tokio::net::TcpListener;
 use tracing::{debug, error, info, warn};
 
-mod handler;
 pub mod auth;
+mod handler;
 
-pub use handler::{RusshConfig, ServerState, WishHandler, WishHandlerFactory, run_stream};
 pub use auth::{
-    AuthContext, AuthHandler, AuthMethod, AuthResult, AuthorizedKey, AuthorizedKeysAuth,
-    AcceptAllAuth, AsyncCallbackAuth, AsyncPublicKeyAuth, CallbackAuth, CompositeAuth,
-    PasswordAuth, PublicKeyAuth, PublicKeyCallbackAuth, RateLimitedAuth, SessionId,
-    parse_authorized_keys,
+    AcceptAllAuth, AsyncCallbackAuth, AsyncPublicKeyAuth, AuthContext, AuthHandler, AuthMethod,
+    AuthResult, AuthorizedKey, AuthorizedKeysAuth, CallbackAuth, CompositeAuth, PasswordAuth,
+    PublicKeyAuth, PublicKeyCallbackAuth, RateLimitedAuth, SessionId, parse_authorized_keys,
 };
+pub use handler::{RusshConfig, ServerState, WishHandler, WishHandlerFactory, run_stream};
 
 // Re-export dependencies for convenience
 pub use bubbletea;
@@ -79,47 +78,104 @@ pub use lipgloss;
 // Error Types
 // -----------------------------------------------------------------------------
 
-/// Errors that can occur in the wish library.
+/// Errors that can occur in the wish SSH server library.
+///
+/// This enum represents all possible error conditions when running
+/// an SSH server with wish.
+///
+/// # Error Handling
+///
+/// SSH server errors range from configuration issues to runtime
+/// authentication failures. Use the `?` operator for propagation:
+///
+/// ```rust,ignore
+/// use wish::Result;
+///
+/// async fn run_server() -> Result<()> {
+///     let server = Server::new(handler).await?;
+///     server.listen("0.0.0.0:2222").await?;
+///     Ok(())
+/// }
+/// ```
+///
+/// # Recovery Strategies
+///
+/// | Error Variant | Recovery Strategy |
+/// |--------------|-------------------|
+/// | [`Io`](Error::Io) | Check permissions, port availability |
+/// | [`Ssh`](Error::Ssh) | Log and continue for recoverable errors |
+/// | [`Russh`](Error::Russh) | Check SSH protocol compatibility |
+/// | [`Key`](Error::Key) | Regenerate keys or check permissions |
+/// | [`KeyLoad`](Error::KeyLoad) | Verify key file format |
+/// | [`AuthenticationFailed`](Error::AuthenticationFailed) | Expected for invalid credentials |
+/// | [`Configuration`](Error::Configuration) | Fix server configuration |
+/// | [`Session`](Error::Session) | Close session gracefully |
+/// | [`AddrParse`](Error::AddrParse) | Validate address format |
 #[derive(Error, Debug)]
 pub enum Error {
-    /// I/O error.
+    /// I/O error during server operations.
+    ///
+    /// Commonly occurs when:
+    /// - The bind address is already in use
+    /// - Permission denied on privileged ports
+    /// - Network interface is unavailable
     #[error("io error: {0}")]
     Io(#[from] io::Error),
 
     /// SSH protocol error.
+    ///
+    /// General SSH protocol-level errors. Contains a descriptive message.
     #[error("ssh error: {0}")]
     Ssh(String),
 
-    /// russh error.
+    /// Underlying russh library error.
+    ///
+    /// Wraps errors from the russh SSH implementation.
     #[error("russh error: {0}")]
     Russh(#[from] russh::Error),
 
-    /// Key generation or loading error.
+    /// Key generation or management error.
+    ///
+    /// Occurs when generating or manipulating SSH keys fails.
     #[error("key error: {0}")]
     Key(String),
 
     /// Key loading error from russh-keys.
+    ///
+    /// Occurs when loading SSH keys from files fails.
+    /// Common causes: file not found, invalid format, permission denied.
     #[error("key loading error: {0}")]
     KeyLoad(#[from] russh_keys::Error),
 
     /// Authentication failed.
+    ///
+    /// Occurs when a client's credentials are rejected.
+    /// This is expected in normal operation - not all attempts succeed.
     #[error("authentication failed")]
     AuthenticationFailed,
 
     /// Server configuration error.
+    ///
+    /// Occurs when the server configuration is invalid.
     #[error("configuration error: {0}")]
     Configuration(String),
 
     /// Session error.
+    ///
+    /// Occurs during an active SSH session.
     #[error("session error: {0}")]
     Session(String),
 
     /// Address parse error.
+    ///
+    /// Occurs when parsing a socket address fails.
     #[error("address parse error: {0}")]
     AddrParse(#[from] std::net::AddrParseError),
 }
 
-/// Result type for wish operations.
+/// A specialized [`Result`] type for wish operations.
+///
+/// This type alias defaults to [`Error`] as the error type.
 pub type Result<T> = std::result::Result<T, Error>;
 
 // -----------------------------------------------------------------------------

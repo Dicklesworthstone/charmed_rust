@@ -110,10 +110,7 @@ impl PublicKeyAuth {
 
     /// Adds a key that can only authenticate a specific user.
     pub fn add_user_key(mut self, username: impl Into<String>, key: PublicKey) -> Self {
-        self.user_keys
-            .entry(username.into())
-            .or_default()
-            .push(key);
+        self.user_keys.entry(username.into()).or_default().push(key);
         self
     }
 
@@ -237,9 +234,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::SessionId;
     use super::*;
     use std::net::SocketAddr;
-    use super::super::SessionId;
 
     fn make_context(username: &str) -> AuthContext {
         let addr: SocketAddr = "127.0.0.1:22".parse().unwrap();
@@ -258,14 +255,23 @@ mod tests {
 
         let ctx = make_context("alice");
         let key = make_key("ssh-ed25519", b"keydata");
-        assert!(matches!(auth.auth_publickey(&ctx, &key).await, AuthResult::Accept));
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &key).await,
+            AuthResult::Accept
+        ));
 
         let key = make_key("ssh-rsa", b"keydata");
-        assert!(matches!(auth.auth_publickey(&ctx, &key).await, AuthResult::Reject));
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &key).await,
+            AuthResult::Reject
+        ));
 
         let ctx = make_context("bob");
         let key = make_key("ssh-ed25519", b"keydata");
-        assert!(matches!(auth.auth_publickey(&ctx, &key).await, AuthResult::Reject));
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &key).await,
+            AuthResult::Reject
+        ));
     }
 
     #[tokio::test]
@@ -281,9 +287,18 @@ mod tests {
         assert_eq!(auth.global_key_count(), 2);
 
         let ctx = make_context("anyone");
-        assert!(matches!(auth.auth_publickey(&ctx, &key1).await, AuthResult::Accept));
-        assert!(matches!(auth.auth_publickey(&ctx, &key2).await, AuthResult::Accept));
-        assert!(matches!(auth.auth_publickey(&ctx, &key3).await, AuthResult::Reject));
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &key1).await,
+            AuthResult::Accept
+        ));
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &key2).await,
+            AuthResult::Accept
+        ));
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &key3).await,
+            AuthResult::Reject
+        ));
     }
 
     #[tokio::test]
@@ -300,12 +315,24 @@ mod tests {
         assert_eq!(auth.user_key_count("charlie"), 0);
 
         let ctx = make_context("alice");
-        assert!(matches!(auth.auth_publickey(&ctx, &alice_key).await, AuthResult::Accept));
-        assert!(matches!(auth.auth_publickey(&ctx, &bob_key).await, AuthResult::Reject));
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &alice_key).await,
+            AuthResult::Accept
+        ));
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &bob_key).await,
+            AuthResult::Reject
+        ));
 
         let ctx = make_context("bob");
-        assert!(matches!(auth.auth_publickey(&ctx, &bob_key).await, AuthResult::Accept));
-        assert!(matches!(auth.auth_publickey(&ctx, &alice_key).await, AuthResult::Reject));
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &bob_key).await,
+            AuthResult::Accept
+        ));
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &alice_key).await,
+            AuthResult::Reject
+        ));
     }
 
     #[tokio::test]

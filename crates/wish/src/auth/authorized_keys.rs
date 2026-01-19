@@ -318,10 +318,7 @@ impl AuthorizedKeysAuth {
             }
 
             // Load user-specific file
-            let path = self
-                .keys_path
-                .to_string_lossy()
-                .replace("%u", username);
+            let path = self.keys_path.to_string_lossy().replace("%u", username);
             let path = expand_tilde(Path::new(&path));
 
             match std::fs::read_to_string(&path) {
@@ -333,7 +330,9 @@ impl AuthorizedKeysAuth {
                         count = keys.len(),
                         "Loaded user authorized keys"
                     );
-                    self.cache.write().insert(username.to_string(), keys.clone());
+                    self.cache
+                        .write()
+                        .insert(username.to_string(), keys.clone());
                     keys
                 }
                 Err(e) => {
@@ -348,11 +347,7 @@ impl AuthorizedKeysAuth {
             }
         } else {
             // Global mode: return cached keys
-            self.cache
-                .read()
-                .get("")
-                .cloned()
-                .unwrap_or_default()
+            self.cache.read().get("").cloned().unwrap_or_default()
         }
     }
 
@@ -516,27 +511,18 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHUFrQ== user3@example.com
         let home = Path::new("/home/testuser");
 
         // Test with tilde and home set
-        let expanded = expand_tilde_with_home(
-            Path::new("~/.ssh/authorized_keys"),
-            Some(home),
-        );
+        let expanded = expand_tilde_with_home(Path::new("~/.ssh/authorized_keys"), Some(home));
         assert_eq!(
             expanded,
             PathBuf::from("/home/testuser/.ssh/authorized_keys")
         );
 
         // Test without tilde
-        let expanded = expand_tilde_with_home(
-            Path::new("/etc/ssh/keys"),
-            Some(home),
-        );
+        let expanded = expand_tilde_with_home(Path::new("/etc/ssh/keys"), Some(home));
         assert_eq!(expanded, PathBuf::from("/etc/ssh/keys"));
 
         // Test with tilde but no home
-        let expanded = expand_tilde_with_home(
-            Path::new("~/.ssh/authorized_keys"),
-            None,
-        );
+        let expanded = expand_tilde_with_home(Path::new("~/.ssh/authorized_keys"), None);
         assert_eq!(expanded, PathBuf::from("~/.ssh/authorized_keys"));
     }
 }

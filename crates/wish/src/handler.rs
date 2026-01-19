@@ -15,8 +15,8 @@ use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info, trace, warn};
 
 use crate::{
-    Context, Error, Handler, Pty, PublicKey, ServerOptions, Session, Window,
-    compose_middleware, noop_handler,
+    Context, Error, Handler, Pty, PublicKey, ServerOptions, Session, Window, compose_middleware,
+    noop_handler,
 };
 
 // Re-export russh server types for use by Server
@@ -238,7 +238,11 @@ impl RusshHandler for WishHandler {
         // Accept if no auth handlers are configured
         let has_auth = self.server_state.options.public_key_handler.is_some()
             || self.server_state.options.password_handler.is_some()
-            || self.server_state.options.keyboard_interactive_handler.is_some();
+            || self
+                .server_state
+                .options
+                .keyboard_interactive_handler
+                .is_some();
 
         if !has_auth {
             info!(
@@ -605,11 +609,7 @@ impl WishHandlerFactory {
     }
 
     /// Creates a handler for a new connection.
-    pub fn create_handler(
-        &self,
-        remote_addr: SocketAddr,
-        local_addr: SocketAddr,
-    ) -> WishHandler {
+    pub fn create_handler(&self, remote_addr: SocketAddr, local_addr: SocketAddr) -> WishHandler {
         WishHandler::new(
             remote_addr,
             local_addr,

@@ -25,7 +25,11 @@ pub struct AuthContext {
 
 impl AuthContext {
     /// Creates a new authentication context.
-    pub fn new(username: impl Into<String>, remote_addr: SocketAddr, session_id: SessionId) -> Self {
+    pub fn new(
+        username: impl Into<String>,
+        remote_addr: SocketAddr,
+        session_id: SessionId,
+    ) -> Self {
         Self {
             username: username.into(),
             remote_addr,
@@ -185,11 +189,7 @@ pub trait AuthHandler: Send + Sync {
     /// # Returns
     ///
     /// The authentication result.
-    async fn auth_keyboard_interactive(
-        &self,
-        ctx: &AuthContext,
-        response: &str,
-    ) -> AuthResult {
+    async fn auth_keyboard_interactive(&self, ctx: &AuthContext, response: &str) -> AuthResult {
         let _ = (ctx, response);
         AuthResult::Reject
     }
@@ -231,7 +231,10 @@ mod tests {
         assert_eq!(format!("{}", AuthMethod::None), "none");
         assert_eq!(format!("{}", AuthMethod::Password), "password");
         assert_eq!(format!("{}", AuthMethod::PublicKey), "publickey");
-        assert_eq!(format!("{}", AuthMethod::KeyboardInteractive), "keyboard-interactive");
+        assert_eq!(
+            format!("{}", AuthMethod::KeyboardInteractive),
+            "keyboard-interactive"
+        );
         assert_eq!(format!("{}", AuthMethod::HostBased), "hostbased");
     }
 
@@ -268,7 +271,10 @@ mod tests {
         let addr: SocketAddr = "127.0.0.1:22".parse().unwrap();
         let ctx = AuthContext::new("user", addr, SessionId(1));
 
-        assert!(matches!(handler.auth_password(&ctx, "pass").await, AuthResult::Reject));
+        assert!(matches!(
+            handler.auth_password(&ctx, "pass").await,
+            AuthResult::Reject
+        ));
         assert!(matches!(handler.auth_none(&ctx).await, AuthResult::Reject));
     }
 }

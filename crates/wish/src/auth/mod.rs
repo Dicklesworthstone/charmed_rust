@@ -16,15 +16,15 @@
 //!     .expect("Failed to load authorized_keys");
 //! ```
 
+mod authorized_keys;
 mod handler;
 mod password;
 mod publickey;
-mod authorized_keys;
 
+pub use authorized_keys::{AuthorizedKey, AuthorizedKeysAuth, parse_authorized_keys};
 pub use handler::{AuthContext, AuthHandler, AuthMethod, AuthResult};
 pub use password::{AcceptAllAuth, AsyncCallbackAuth, CallbackAuth, PasswordAuth};
 pub use publickey::{AsyncPublicKeyAuth, PublicKeyAuth, PublicKeyCallbackAuth};
-pub use authorized_keys::{AuthorizedKeysAuth, AuthorizedKey, parse_authorized_keys};
 
 use std::sync::Arc;
 
@@ -102,11 +102,7 @@ impl AuthHandler for CompositeAuth {
         AuthResult::Reject
     }
 
-    async fn auth_keyboard_interactive(
-        &self,
-        ctx: &AuthContext,
-        response: &str,
-    ) -> AuthResult {
+    async fn auth_keyboard_interactive(&self, ctx: &AuthContext, response: &str) -> AuthResult {
         for handler in &self.handlers {
             match handler.auth_keyboard_interactive(ctx, response).await {
                 AuthResult::Accept => return AuthResult::Accept,
@@ -182,11 +178,7 @@ impl<H: AuthHandler + Send + Sync> AuthHandler for RateLimitedAuth<H> {
         result
     }
 
-    async fn auth_keyboard_interactive(
-        &self,
-        ctx: &AuthContext,
-        response: &str,
-    ) -> AuthResult {
+    async fn auth_keyboard_interactive(&self, ctx: &AuthContext, response: &str) -> AuthResult {
         let result = self.inner.auth_keyboard_interactive(ctx, response).await;
         if matches!(result, AuthResult::Reject) {
             self.apply_rejection_delay().await;
@@ -215,8 +207,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_composite_auth_accepts_first() {
-        let auth = CompositeAuth::new()
-            .add(AcceptAllAuth::new());
+        let auth = CompositeAuth::new().add(AcceptAllAuth::new());
 
         let addr: SocketAddr = "127.0.0.1:22".parse().unwrap();
         let ctx = AuthContext::new("testuser", addr, SessionId(1));

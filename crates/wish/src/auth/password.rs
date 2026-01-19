@@ -53,11 +53,7 @@ impl AuthHandler for AcceptAllAuth {
         AuthResult::Accept
     }
 
-    async fn auth_keyboard_interactive(
-        &self,
-        ctx: &AuthContext,
-        _response: &str,
-    ) -> AuthResult {
+    async fn auth_keyboard_interactive(&self, ctx: &AuthContext, _response: &str) -> AuthResult {
         warn!(
             username = %ctx.username(),
             remote_addr = %ctx.remote_addr(),
@@ -304,9 +300,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::SessionId;
     use super::*;
     use std::net::SocketAddr;
-    use super::super::SessionId;
 
     fn make_context(username: &str) -> AuthContext {
         let addr: SocketAddr = "127.0.0.1:22".parse().unwrap();
@@ -318,22 +314,33 @@ mod tests {
         let auth = AcceptAllAuth::new();
         let ctx = make_context("anyone");
 
-        assert!(matches!(auth.auth_password(&ctx, "anything").await, AuthResult::Accept));
+        assert!(matches!(
+            auth.auth_password(&ctx, "anything").await,
+            AuthResult::Accept
+        ));
         assert!(matches!(auth.auth_none(&ctx).await, AuthResult::Accept));
     }
 
     #[tokio::test]
     async fn test_callback_auth() {
-        let auth = CallbackAuth::new(|ctx, password| {
-            ctx.username() == "admin" && password == "secret"
-        });
+        let auth =
+            CallbackAuth::new(|ctx, password| ctx.username() == "admin" && password == "secret");
 
         let ctx = make_context("admin");
-        assert!(matches!(auth.auth_password(&ctx, "secret").await, AuthResult::Accept));
-        assert!(matches!(auth.auth_password(&ctx, "wrong").await, AuthResult::Reject));
+        assert!(matches!(
+            auth.auth_password(&ctx, "secret").await,
+            AuthResult::Accept
+        ));
+        assert!(matches!(
+            auth.auth_password(&ctx, "wrong").await,
+            AuthResult::Reject
+        ));
 
         let ctx = make_context("user");
-        assert!(matches!(auth.auth_password(&ctx, "secret").await, AuthResult::Reject));
+        assert!(matches!(
+            auth.auth_password(&ctx, "secret").await,
+            AuthResult::Reject
+        ));
     }
 
     #[tokio::test]
@@ -347,19 +354,25 @@ mod tests {
         assert!(!auth.has_user("charlie"));
 
         let ctx = make_context("alice");
-        assert!(matches!(auth.auth_password(&ctx, "password123").await, AuthResult::Accept));
-        assert!(matches!(auth.auth_password(&ctx, "wrong").await, AuthResult::Reject));
+        assert!(matches!(
+            auth.auth_password(&ctx, "password123").await,
+            AuthResult::Accept
+        ));
+        assert!(matches!(
+            auth.auth_password(&ctx, "wrong").await,
+            AuthResult::Reject
+        ));
 
         let ctx = make_context("charlie");
-        assert!(matches!(auth.auth_password(&ctx, "any").await, AuthResult::Reject));
+        assert!(matches!(
+            auth.auth_password(&ctx, "any").await,
+            AuthResult::Reject
+        ));
     }
 
     #[test]
     fn test_password_auth_add_users() {
-        let users = vec![
-            ("user1", "pass1"),
-            ("user2", "pass2"),
-        ];
+        let users = vec![("user1", "pass1"), ("user2", "pass2")];
         let auth = PasswordAuth::new().add_users(users);
         assert_eq!(auth.user_count(), 2);
         assert!(auth.has_user("user1"));
