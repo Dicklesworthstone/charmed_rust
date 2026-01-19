@@ -52,6 +52,8 @@ fn main() {
     #[cfg(not(feature = "syntax-highlighting"))]
     {
         println!("This example requires the syntax-highlighting feature.");
-        println!("Run with: cargo run -p glamour --features syntax-highlighting --example theme_gallery");
+        println!(
+            "Run with: cargo run -p glamour --features syntax-highlighting --example theme_gallery"
+        );
     }
 }

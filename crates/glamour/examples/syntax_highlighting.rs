@@ -2,7 +2,7 @@
 //!
 //! Run with: cargo run -p glamour --features syntax-highlighting --example syntax_highlighting
 
-use glamour::{render, Renderer, Style, StyleConfig};
+use glamour::{Renderer, Style, StyleConfig, render};
 
 fn main() {
     println!("=== Glamour Syntax Highlighting Demo ===\n");

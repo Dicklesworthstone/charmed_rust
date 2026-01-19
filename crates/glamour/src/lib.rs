@@ -52,6 +52,9 @@
 #[cfg(feature = "syntax-highlighting")]
 pub mod syntax;
 
+// Table parsing module for markdown tables
+pub mod table;
+
 use lipgloss::Style as LipglossStyle;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use std::collections::HashMap;
@@ -2355,6 +2358,493 @@ mod tests {
                 Some(&"rust".to_string())
             );
         }
+    }
+}
+
+// ============================================================================
+// E2E Syntax Highlighting Tests
+// ============================================================================
+
+#[cfg(test)]
+#[cfg(feature = "syntax-highlighting")]
+mod e2e_highlighting_tests {
+    use super::*;
+
+    // ========================================================================
+    // Full Document Rendering Tests
+    // ========================================================================
+
+    #[test]
+    fn test_document_with_mixed_code_blocks() {
+        let markdown = r#"
+# My Document
+
+Here's some Rust:
+
+```rust
+fn main() {
+    println!("Hello");
+}
+```
+
+And some Python:
+
+```python
+def main():
+    print("Hello")
+```
+
+And some JSON:
+
+```json
+{"key": "value"}
+```
+"#;
+
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render(markdown);
+
+        // All code blocks should be highlighted (have ANSI codes)
+        assert!(output.contains("\x1b["), "Should have color codes");
+
+        // All content should be present (check tokens separately as ANSI codes may split them)
+        assert!(output.contains("fn"), "Should contain Rust fn keyword");
+        assert!(output.contains("main"), "Should contain main function");
+        assert!(output.contains("def"), "Should contain Python def keyword");
+        assert!(output.contains("key"), "Should contain JSON key");
+    }
+
+    #[test]
+    fn test_document_with_inline_code_not_syntax_highlighted() {
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let markdown = "Here is `inline code` in a sentence.";
+        let output = renderer.render(markdown);
+
+        // Inline code should be styled (with background) but NOT syntax highlighted
+        assert!(
+            output.contains("inline code"),
+            "Should contain inline code text"
+        );
+        // Inline code uses lipgloss styling, not syntect highlighting
+    }
+
+    #[test]
+    fn test_real_readme_rendering() {
+        // Use a small synthetic README since we can't use include_str! on project README
+        let readme = r#"
+# My Project
+
+A library for doing things.
+
+## Installation
+
+```bash
+cargo add my-project
+```
+
+## Usage
+
+```rust
+use my_project::do_thing;
+
+fn main() {
+    do_thing();
+}
+```
+
+## Features
+
+- Feature 1
+- Feature 2
+- Feature 3
+
+| Column A | Column B |
+|----------|----------|
+| Value 1  | Value 2  |
+
+## License
+
+MIT
+"#;
+
+        let config = StyleConfig::default().syntax_theme("base16-ocean.dark");
+        let renderer = Renderer::new().with_style_config(config);
+
+        // Should not panic
+        let output = renderer.render(readme);
+
+        // Should produce substantial output
+        assert!(
+            output.len() > readme.len() / 2,
+            "Output should be substantial, got {} chars from {} input chars",
+            output.len(),
+            readme.len()
+        );
+
+        // Should contain key content (check tokens separately as ANSI codes may split them)
+        assert!(output.contains("My Project"), "Should contain title");
+        assert!(output.contains("cargo"), "Should contain cargo command");
+        assert!(output.contains("do_thing"), "Should contain Rust code");
+    }
+
+    // ========================================================================
+    // Theme Consistency Tests
+    // ========================================================================
+
+    #[test]
+    fn test_theme_consistency_across_blocks() {
+        let markdown = r#"
+```rust
+fn a() {}
+```
+
+Some text in between.
+
+```rust
+fn b() {}
+```
+"#;
+
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render(markdown);
+
+        // Both `fn` keywords should have the same color
+        let fn_indices: Vec<_> = output.match_indices("fn").collect();
+        assert!(
+            fn_indices.len() >= 2,
+            "Should have at least 2 'fn' keywords, found {}",
+            fn_indices.len()
+        );
+
+        // Extract the ANSI escape sequence before each `fn`
+        let get_escape_before = |idx: usize| -> Option<&str> {
+            let prefix = &output[..idx];
+            // Find the last escape sequence before the keyword
+            if let Some(esc_start) = prefix.rfind("\x1b[") {
+                // Find the 'm' that ends the escape sequence
+                let search_area = &prefix[esc_start..];
+                if let Some(m_pos) = search_area.find('m') {
+                    return Some(&prefix[esc_start..esc_start + m_pos + 1]);
+                }
+            }
+            None
+        };
+
+        let color1 = get_escape_before(fn_indices[0].0);
+        let color2 = get_escape_before(fn_indices[1].0);
+
+        assert_eq!(
+            color1, color2,
+            "Same tokens should have same colors: {:?} vs {:?}",
+            color1, color2
+        );
+    }
+
+    // ========================================================================
+    // Error Resilience Tests
+    // ========================================================================
+
+    #[test]
+    fn test_malformed_language_tag() {
+        // Language tag with extra whitespace/content
+        let markdown = "```rust with extra stuff\nfn main() {}\n```";
+
+        let renderer = Renderer::new().with_style(Style::Dark);
+        // Should not panic
+        let output = renderer.render(markdown);
+
+        // Content should still be rendered (even if not highlighted)
+        assert!(
+            output.contains("fn main"),
+            "Should contain code content even with malformed tag"
+        );
+    }
+
+    #[test]
+    fn test_very_long_code_block() {
+        let code = "let x = 1;\n".repeat(1000); // 1000 lines
+        let markdown = format!("```rust\n{}```", code);
+
+        // Should complete without timeout or crash
+        let start = std::time::Instant::now();
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render(&markdown);
+        let duration = start.elapsed();
+
+        assert!(
+            duration.as_secs() < 5,
+            "Should complete in <5s, took {:?}",
+            duration
+        );
+        // Check tokens separately as ANSI codes may split them
+        assert!(output.contains("let"), "Should contain let keyword");
+        assert!(output.contains("x"), "Should contain variable x");
+    }
+
+    #[test]
+    fn test_code_block_with_unicode() {
+        let markdown = r#"
+```rust
+fn main() {
+    let emoji = "🦀";
+    let chinese = "你好";
+    let japanese = "こんにちは";
+    let arabic = "مرحبا";
+}
+```
+"#;
+
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render(markdown);
+
+        assert!(output.contains("🦀"), "Should preserve crab emoji");
+        assert!(
+            output.contains("你好"),
+            "Should preserve Chinese characters"
+        );
+        assert!(
+            output.contains("こんにちは"),
+            "Should preserve Japanese characters"
+        );
+        assert!(
+            output.contains("مرحبا"),
+            "Should preserve Arabic characters"
+        );
+    }
+
+    #[test]
+    fn test_empty_code_block() {
+        let markdown = "```rust\n```";
+
+        let renderer = Renderer::new().with_style(Style::Dark);
+        // Should not panic on empty code block
+        let output = renderer.render(markdown);
+
+        // Output should exist (may just be whitespace/margins)
+        assert!(output.len() > 0, "Should produce some output");
+    }
+
+    #[test]
+    fn test_code_block_with_only_whitespace() {
+        let markdown = "```rust\n   \n\t\n   \n```";
+
+        let renderer = Renderer::new().with_style(Style::Dark);
+        // Should not panic
+        let output = renderer.render(markdown);
+
+        // Should handle gracefully
+        assert!(output.len() > 0, "Should produce some output");
+    }
+
+    #[test]
+    fn test_unknown_language_graceful_fallback() {
+        let markdown = "```notareallanguage123\nsome code here\n```";
+
+        let renderer = Renderer::new().with_style(Style::Dark);
+        // Should not panic, should render as plain text
+        let output = renderer.render(markdown);
+
+        assert!(
+            output.contains("some code here"),
+            "Should render unknown language code as plain text"
+        );
+    }
+
+    #[test]
+    fn test_special_characters_in_code() {
+        let markdown = r#"
+```rust
+fn main() {
+    let s = "<script>alert('xss')</script>";
+    let regex = r"[a-z]+\d*";
+    let backslash = "\\";
+    let null_byte = "\0";
+}
+```
+"#;
+
+        let renderer = Renderer::new().with_style(Style::Dark);
+        // Should not panic or produce invalid output
+        let output = renderer.render(markdown);
+
+        assert!(
+            output.contains("script"),
+            "Should handle HTML-like content in code"
+        );
+        assert!(output.contains("regex"), "Should handle regex patterns");
+    }
+
+    // ========================================================================
+    // Multiple Theme Tests
+    // ========================================================================
+
+    #[test]
+    fn test_different_themes_produce_different_output() {
+        let markdown = "```rust\nfn main() {}\n```";
+
+        let theme1 = StyleConfig::default().syntax_theme("base16-ocean.dark");
+        let theme2 = StyleConfig::default().syntax_theme("Solarized (dark)");
+
+        let renderer1 = Renderer::new().with_style_config(theme1);
+        let renderer2 = Renderer::new().with_style_config(theme2);
+
+        let output1 = renderer1.render(markdown);
+        let output2 = renderer2.render(markdown);
+
+        // Different themes should produce different ANSI escape sequences
+        assert_ne!(
+            output1, output2,
+            "Different themes should produce different output"
+        );
+
+        // But both should contain the code
+        assert!(output1.contains("fn"), "Theme 1 should contain code");
+        assert!(output2.contains("fn"), "Theme 2 should contain code");
+    }
+
+    #[test]
+    fn test_all_available_themes_render_without_panic() {
+        use crate::syntax::SyntaxTheme;
+
+        let markdown = "```rust\nfn main() { println!(\"hello\"); }\n```";
+
+        for theme_name in SyntaxTheme::available_themes() {
+            let config = StyleConfig::default().syntax_theme(theme_name);
+            let renderer = Renderer::new().with_style_config(config);
+
+            // Should not panic for any theme
+            let output = renderer.render(markdown);
+            assert!(
+                output.contains("fn"),
+                "Theme '{}' should render code content",
+                theme_name
+            );
+        }
+    }
+
+    // ========================================================================
+    // Line Numbers Tests
+    // ========================================================================
+
+    #[test]
+    fn test_line_numbers_correct_count() {
+        let markdown = "```rust\nline1\nline2\nline3\nline4\nline5\n```";
+
+        let config = StyleConfig::default().with_line_numbers(true);
+        let renderer = Renderer::new().with_style_config(config);
+        let output = renderer.render(markdown);
+
+        // Should have line numbers 1 through 5
+        assert!(output.contains("1 │"), "Should have line 1");
+        assert!(output.contains("2 │"), "Should have line 2");
+        assert!(output.contains("3 │"), "Should have line 3");
+        assert!(output.contains("4 │"), "Should have line 4");
+        assert!(output.contains("5 │"), "Should have line 5");
+    }
+
+    #[test]
+    fn test_line_numbers_disabled_by_default() {
+        let markdown = "```rust\nfn main() {}\n```";
+
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render(markdown);
+
+        // Should NOT have line number markers
+        assert!(
+            !output.contains("1 │"),
+            "Line numbers should be disabled by default"
+        );
+    }
+
+    // ========================================================================
+    // Language Alias Tests
+    // ========================================================================
+
+    #[test]
+    fn test_custom_language_alias_applied() {
+        let markdown = "```myrust\nfn main() {}\n```";
+
+        let config = StyleConfig::default().language_alias("myrust", "rust");
+        let renderer = Renderer::new().with_style_config(config);
+        let output = renderer.render(markdown);
+
+        // Should be highlighted as Rust (contains ANSI escape codes)
+        assert!(
+            output.contains('\x1b'),
+            "Custom alias 'myrust' should be highlighted as Rust"
+        );
+    }
+
+    // ========================================================================
+    // Performance Tests
+    // ========================================================================
+
+    #[test]
+    fn test_many_small_code_blocks_performance() {
+        // Document with many small code blocks
+        let mut markdown = String::new();
+        for i in 0..100 {
+            markdown.push_str(&format!("\n```rust\nfn func_{}() {{ }}\n```\n", i));
+        }
+
+        let start = std::time::Instant::now();
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render(&markdown);
+        let duration = start.elapsed();
+
+        assert!(
+            duration.as_secs() < 5,
+            "100 code blocks should render in <5s, took {:?}",
+            duration
+        );
+        assert!(output.contains("func_0"), "Should contain first function");
+        assert!(output.contains("func_99"), "Should contain last function");
+    }
+
+    // ========================================================================
+    // Integration with Other Markdown Elements
+    // ========================================================================
+
+    #[test]
+    fn test_code_blocks_with_surrounding_elements() {
+        let markdown = r#"
+# Header
+
+Some **bold** and *italic* text.
+
+> A blockquote with `inline code`.
+
+```rust
+fn main() {}
+```
+
+| Table | Header |
+|-------|--------|
+| cell  | cell   |
+
+1. List item 1
+2. List item 2
+
+```python
+def hello():
+    pass
+```
+
+---
+
+The end.
+"#;
+
+        let renderer = Renderer::new().with_style(Style::Dark);
+        // Should handle all elements without issues
+        let output = renderer.render(markdown);
+
+        // Verify key elements are present (check tokens separately as ANSI codes may split them)
+        assert!(output.contains("Header"), "Should contain heading");
+        assert!(output.contains("fn"), "Should contain Rust fn keyword");
+        assert!(output.contains("def"), "Should contain Python def keyword");
+        assert!(output.contains("Table"), "Should contain table");
+        assert!(output.contains("List item"), "Should contain list");
     }
 }
 

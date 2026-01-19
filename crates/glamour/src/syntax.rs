@@ -25,8 +25,7 @@ use syntect::util::LinesWithEndings;
 ///
 /// This is loaded on first use to avoid startup overhead when syntax
 /// highlighting is not used.
-pub static SYNTAX_SET: LazyLock<SyntaxSet> =
-    LazyLock::new(SyntaxSet::load_defaults_newlines);
+pub static SYNTAX_SET: LazyLock<SyntaxSet> = LazyLock::new(SyntaxSet::load_defaults_newlines);
 
 /// Lazily loaded theme set containing all default syntax themes.
 ///
@@ -498,8 +497,7 @@ impl SyntaxTheme {
     /// Returns the default dark theme (base16-ocean.dark).
     #[must_use]
     pub fn default_dark() -> Self {
-        Self::from_name("base16-ocean.dark")
-            .expect("base16-ocean.dark should be a built-in theme")
+        Self::from_name("base16-ocean.dark").expect("base16-ocean.dark should be a built-in theme")
     }
 
     /// Returns the default light theme (InspiredGitHub).
@@ -593,7 +591,10 @@ impl StyleCache {
     /// A reference to the cached lipgloss style.
     pub fn get_or_convert(&mut self, syn_style: SynStyle) -> &LipglossStyle {
         // Check if we already have this style cached
-        let pos = self.cache.iter().position(|(s, _)| styles_equal(s, &syn_style));
+        let pos = self
+            .cache
+            .iter()
+            .position(|(s, _)| styles_equal(s, &syn_style));
 
         if let Some(idx) = pos {
             &self.cache[idx].1
@@ -1525,5 +1526,324 @@ mod tests {
     fn test_theme_set_lazy_loading() {
         let theme_count = THEME_SET.themes.len();
         assert!(theme_count >= 5);
+    }
+
+    // ========================================================================
+    // Additional Tests for charmed_rust-417
+    // ========================================================================
+
+    #[test]
+    fn test_all_builtin_themes_load() {
+        for theme_name in SyntaxTheme::available_themes() {
+            let theme = SyntaxTheme::from_name(theme_name);
+            assert!(
+                theme.is_some(),
+                "Theme '{}' should load successfully",
+                theme_name
+            );
+        }
+    }
+
+    #[test]
+    fn test_themes_produce_different_output() {
+        let code = "fn main() { let x = 42; }";
+        let output_ocean = highlight_code(
+            code,
+            "rust",
+            &SyntaxTheme::from_name("base16-ocean.dark").unwrap(),
+        );
+        let output_solarized = highlight_code(
+            code,
+            "rust",
+            &SyntaxTheme::from_name("Solarized (dark)").unwrap(),
+        );
+
+        // Different themes should produce different ANSI sequences
+        assert_ne!(
+            output_ocean, output_solarized,
+            "Different themes should produce different output"
+        );
+
+        // Both should still contain the code content
+        assert!(output_ocean.contains("fn"));
+        assert!(output_solarized.contains("fn"));
+    }
+
+    #[test]
+    fn test_highlight_empty_code() {
+        let theme = SyntaxTheme::default_dark();
+        let highlighted = highlight_code("", "rust", &theme);
+        assert_eq!(highlighted, "");
+    }
+
+    #[test]
+    fn test_highlight_whitespace_only() {
+        let theme = SyntaxTheme::default_dark();
+
+        // Test single space
+        let single_space = highlight_code(" ", "rust", &theme);
+        assert!(single_space.contains(' ') || single_space.is_empty());
+
+        // Test multiple newlines
+        let newlines = highlight_code("\n\n\n", "rust", &theme);
+        // Should preserve newlines
+        let newline_count = newlines.matches('\n').count();
+        assert!(
+            newline_count >= 2,
+            "Expected at least 2 newlines, got {}",
+            newline_count
+        );
+    }
+
+    #[test]
+    fn test_highlight_preserves_trailing_newline() {
+        let theme = SyntaxTheme::default_dark();
+        let code = "fn main() {}\n";
+        let highlighted = highlight_code(code, "rust", &theme);
+        assert!(
+            highlighted.ends_with('\n'),
+            "Highlighted code should preserve trailing newline"
+        );
+    }
+
+    /// Helper to strip ANSI escape codes from a string for content verification.
+    fn strip_ansi(s: &str) -> String {
+        // Matches ANSI escape sequences: ESC [ ... m (SGR sequences)
+        let mut result = String::with_capacity(s.len());
+        let mut chars = s.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '\x1b' {
+                // Skip the escape sequence
+                if chars.peek() == Some(&'[') {
+                    chars.next(); // consume '['
+                    // Skip until we hit 'm'
+                    while let Some(&next) = chars.peek() {
+                        chars.next();
+                        if next == 'm' {
+                            break;
+                        }
+                    }
+                } else {
+                    result.push(c);
+                }
+            } else {
+                result.push(c);
+            }
+        }
+        result
+    }
+
+    #[test]
+    fn test_highlight_handles_tabs() {
+        // Note: Lipgloss normalizes tabs to spaces (4 spaces per tab) for
+        // consistent terminal rendering. This test verifies that tab-indented
+        // code is correctly processed and the indentation is preserved as spaces.
+        let theme = SyntaxTheme::default_dark();
+        let code = "fn main() {\n\tlet x = 1;\n}";
+        let highlighted = highlight_code(code, "rust", &theme);
+        // Strip ANSI codes to verify content
+        let stripped = strip_ansi(&highlighted);
+
+        // Tabs are normalized to 4 spaces by lipgloss
+        assert!(
+            stripped.contains("    let x"),
+            "Tab indentation should be converted to spaces"
+        );
+        // Content should still be present
+        assert!(stripped.contains("fn main()"));
+        assert!(stripped.contains("let x = 1"));
+    }
+
+    #[test]
+    fn test_highlight_unicode_in_strings() {
+        let theme = SyntaxTheme::default_dark();
+        let code = r#"let emoji = "🦀";"#;
+        let highlighted = highlight_code(code, "rust", &theme);
+        assert!(highlighted.contains("🦀"), "Unicode should be preserved");
+    }
+
+    // ========================================================================
+    // Performance Tests
+    // ========================================================================
+
+    #[test]
+    fn test_large_file_highlighting_completes() {
+        let theme = SyntaxTheme::default_dark();
+
+        // Generate 100 lines of code (not 1000 to keep test fast)
+        let code: String = (0..100)
+            .map(|i| format!("fn func_{}() {{ let x = {}; }}\n", i, i))
+            .collect();
+
+        let start = std::time::Instant::now();
+        let highlighted = highlight_code(&code, "rust", &theme);
+        let duration = start.elapsed();
+
+        // Should complete in under 5 seconds (generous for CI)
+        assert!(
+            duration.as_secs() < 5,
+            "Highlighting took too long: {:?}",
+            duration
+        );
+
+        // Output should contain all function names
+        assert!(highlighted.contains("func_0"));
+        assert!(highlighted.contains("func_99"));
+    }
+
+    #[test]
+    fn test_style_cache_reduces_allocations() {
+        use syntect::highlighting::Color as SynColor;
+
+        let mut cache = StyleCache::new();
+
+        // Create the same style 100 times
+        let style = SynStyle {
+            foreground: SynColor {
+                r: 255,
+                g: 128,
+                b: 64,
+                a: 255,
+            },
+            background: SynColor {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            font_style: SynFontStyle::BOLD,
+        };
+
+        // First call adds to cache
+        let _ = cache.get_or_convert(style);
+        assert_eq!(cache.len(), 1);
+
+        // Subsequent calls should reuse cache
+        for _ in 0..99 {
+            let _ = cache.get_or_convert(style);
+        }
+        assert_eq!(
+            cache.len(),
+            1,
+            "Cache should have only 1 entry for identical styles"
+        );
+    }
+
+    #[test]
+    fn test_multiple_language_detection_performance() {
+        let detector = LanguageDetector::new();
+
+        let start = std::time::Instant::now();
+        // Detect 1000 languages (mix of known and unknown)
+        for _ in 0..100 {
+            let _ = detector.detect("rust");
+            let _ = detector.detect("python");
+            let _ = detector.detect("javascript");
+            let _ = detector.detect("unknown-lang");
+            let _ = detector.detect("go");
+            let _ = detector.detect("ts");
+            let _ = detector.detect("cpp");
+            let _ = detector.detect("rb");
+            let _ = detector.detect("yaml");
+            let _ = detector.detect("json");
+        }
+        let duration = start.elapsed();
+
+        // 1000 detections should complete in under 1 second
+        assert!(
+            duration.as_millis() < 1000,
+            "Language detection took too long: {:?}",
+            duration
+        );
+    }
+
+    // ========================================================================
+    // Edge Case Tests
+    // ========================================================================
+
+    #[test]
+    fn test_highlight_very_long_line() {
+        let theme = SyntaxTheme::default_dark();
+        let long_line = format!("let x = \"{}\";", "a".repeat(1000));
+        let highlighted = highlight_code(&long_line, "rust", &theme);
+        assert!(
+            highlighted.len() > long_line.len(),
+            "Output should have ANSI codes"
+        );
+    }
+
+    #[test]
+    fn test_highlight_mixed_indentation() {
+        // Note: Lipgloss normalizes tabs to 4 spaces. Mixed indentation
+        // (spaces + tabs) will all be rendered as spaces.
+        let theme = SyntaxTheme::default_dark();
+        let code = "fn main() {\n  let a = 1;\n\tlet b = 2;\n    let c = 3;\n}";
+        let highlighted = highlight_code(code, "rust", &theme);
+        // Strip ANSI codes to verify content
+        let stripped = strip_ansi(&highlighted);
+
+        // 2-space indent preserved
+        assert!(
+            stripped.contains("  let a"),
+            "Two-space indentation should be preserved"
+        );
+        // Tab converted to 4 spaces
+        assert!(
+            stripped.contains("    let b"),
+            "Tab should be converted to 4-space indentation"
+        );
+        // 4-space indent preserved
+        assert!(
+            stripped.contains("    let c"),
+            "Four-space indentation should be preserved"
+        );
+        // All content present
+        assert!(stripped.contains("let a = 1"));
+        assert!(stripped.contains("let b = 2"));
+        assert!(stripped.contains("let c = 3"));
+    }
+
+    #[test]
+    fn test_highlight_code_with_errors() {
+        // Code that's syntactically incomplete but should still highlight
+        let theme = SyntaxTheme::default_dark();
+        let code = "fn main( { let x =";
+        let highlighted = highlight_code(code, "rust", &theme);
+        // Should not panic and should contain the tokens
+        assert!(highlighted.contains("fn"));
+        assert!(highlighted.contains("main"));
+    }
+
+    #[test]
+    fn test_canonical_language_names_match_expected() {
+        let detector = LanguageDetector::new();
+
+        // Verify canonical names for common languages
+        assert_eq!(detector.detect("rust").name, "Rust");
+        assert_eq!(detector.detect("python").name, "Python");
+        assert_eq!(detector.detect("javascript").name, "JavaScript");
+        assert_eq!(detector.detect("go").name, "Go");
+        assert_eq!(detector.detect("html").name, "HTML");
+        assert_eq!(detector.detect("css").name, "CSS");
+        assert_eq!(detector.detect("json").name, "JSON");
+    }
+
+    #[test]
+    fn test_supported_languages_complete() {
+        let supported = LanguageDetector::supported_languages();
+
+        // Must support at least 30 languages (as per requirements)
+        assert!(
+            supported.len() >= 30,
+            "Expected at least 30 languages, got {}",
+            supported.len()
+        );
+
+        // Must include common languages
+        assert!(supported.contains(&"rust"), "Must support rust");
+        assert!(supported.contains(&"python"), "Must support python");
+        assert!(supported.contains(&"javascript"), "Must support javascript");
+        assert!(supported.contains(&"go"), "Must support go");
+        assert!(supported.contains(&"java"), "Must support java");
     }
 }

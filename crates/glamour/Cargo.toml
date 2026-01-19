@@ -10,6 +10,7 @@ description = "Stylesheet-based markdown rendering for terminal applications"
 [dependencies]
 lipgloss = { path = "../lipgloss" }
 pulldown-cmark = "0.13"
+unicode-width = "0.1"
 
 # Optional: syntax highlighting
 # Uses fancy-regex (pure Rust) instead of onig for WASM compatibility
@@ -36,6 +37,14 @@ stats_alloc = "0.1.10"
 [[bench]]
 name = "glamour_benchmarks"
 harness = false
+
+[[example]]
+name = "syntax_highlighting"
+required-features = ["syntax-highlighting"]
+
+[[example]]
+name = "theme_gallery"
+required-features = ["syntax-highlighting"]
 
 [lints]
 workspace = true
