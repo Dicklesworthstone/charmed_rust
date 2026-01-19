@@ -444,6 +444,7 @@ impl RusshHandler for WishHandler {
                     "Keyboard-interactive auth accepted"
                 );
                 self.user = Some(user.to_string());
+                self.keyboard_interactive = None;
                 return Ok(Auth::Accept);
             }
         }
