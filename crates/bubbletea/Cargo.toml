@@ -32,6 +32,7 @@ criterion.workspace = true
 bubbles = { path = "../bubbles" }
 lipgloss = { path = "../lipgloss" }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+proptest.workspace = true
 
 [[example]]
 name = "async_fetch"

@@ -87,6 +87,7 @@ tempfile = "3.10"
 assert_cmd = "2.0"
 predicates = "3.1"
 insta = { version = "1.38", features = ["json", "yaml"] }
+proptest = "1.6.0"
 
 [profile.release]
 opt-level = "z"

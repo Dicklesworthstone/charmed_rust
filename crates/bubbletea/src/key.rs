@@ -849,6 +849,12 @@ static SEQUENCES: LazyLock<HashMap<&'static str, KeyMsg>> = LazyLock::new(|| {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    fn sequence_strategy() -> impl Strategy<Value = &'static str> {
+        let sequences: Vec<&'static str> = SEQUENCES.keys().copied().collect();
+        prop::sample::select(sequences)
+    }
 
     #[test]
     fn test_parse_sequence_arrows() {
@@ -1001,5 +1007,13 @@ mod tests {
         assert!(KeyType::Up.is_cursor());
         assert!(KeyType::CtrlLeft.is_cursor());
         assert!(!KeyType::Enter.is_cursor());
+    }
+
+    proptest! {
+        #[test]
+        fn prop_parse_sequence_matches_table(seq in sequence_strategy()) {
+            let expected = SEQUENCES.get(seq).cloned();
+            prop_assert_eq!(parse_sequence(seq.as_bytes()), expected);
+        }
     }
 }

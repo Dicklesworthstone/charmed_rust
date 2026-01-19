@@ -414,6 +414,47 @@ pub fn parse_mouse_event_sequence(buf: &[u8]) -> Result<MouseMsg, MouseParseErro
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    fn sgr_sequence_bytes(encoded: u16, x: u16, y: u16, release: bool) -> Vec<u8> {
+        let suffix = if release { 'm' } else { 'M' };
+        format!("\x1b[<{};{};{}{}", encoded, x, y, suffix).into_bytes()
+    }
+
+    fn expected_sgr_mouse(encoded: u16, x: u16, y: u16, release: bool) -> MouseMsg {
+        let mut parsed = parse_mouse_button(encoded, true);
+        if release && parsed.action != MouseAction::Motion && !is_wheel_button(parsed.button) {
+            parsed.action = MouseAction::Release;
+        }
+        MouseMsg {
+            x: x - 1,
+            y: y - 1,
+            shift: parsed.shift,
+            alt: parsed.alt,
+            ctrl: parsed.ctrl,
+            action: parsed.action,
+            button: parsed.button,
+        }
+    }
+
+    fn x10_sequence_bytes(encoded: u8, x: u16, y: u16) -> [u8; 6] {
+        let x_byte = (x + 33) as u8;
+        let y_byte = (y + 33) as u8;
+        [0x1b, b'[', b'M', encoded, x_byte, y_byte]
+    }
+
+    fn expected_x10_mouse(encoded: u8, x: u16, y: u16) -> MouseMsg {
+        let parsed = parse_mouse_button(u16::from(encoded), false);
+        MouseMsg {
+            x,
+            y,
+            shift: parsed.shift,
+            alt: parsed.alt,
+            ctrl: parsed.ctrl,
+            action: parsed.action,
+            button: parsed.button,
+        }
+    }
 
     #[test]
     fn test_mouse_msg_display() {
@@ -466,5 +507,32 @@ mod tests {
         assert_eq!(MouseAction::Press.to_string(), "press");
         assert_eq!(MouseAction::Release.to_string(), "release");
         assert_eq!(MouseAction::Motion.to_string(), "motion");
+    }
+
+    proptest! {
+        #[test]
+        fn prop_parse_sgr_mouse_roundtrip(
+            encoded in 0u16..=255,
+            x in 1u16..=2000,
+            y in 1u16..=2000,
+            release in any::<bool>(),
+        ) {
+            let buf = sgr_sequence_bytes(encoded, x, y, release);
+            let msg = parse_mouse_event_sequence(&buf).unwrap();
+            let expected = expected_sgr_mouse(encoded, x, y, release);
+            prop_assert_eq!(msg, expected);
+        }
+
+        #[test]
+        fn prop_parse_x10_mouse_roundtrip(
+            encoded in 32u8..=255,
+            x in 0u16..=222,
+            y in 0u16..=222,
+        ) {
+            let buf = x10_sequence_bytes(encoded, x, y);
+            let msg = parse_mouse_event_sequence(&buf).unwrap();
+            let expected = expected_x10_mouse(encoded, x, y);
+            prop_assert_eq!(msg, expected);
+        }
     }
 }
