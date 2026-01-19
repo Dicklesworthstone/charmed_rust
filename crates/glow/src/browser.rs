@@ -81,15 +81,24 @@ impl Entry {
     pub fn from_path(path: &Path) -> io::Result<Self> {
         // Use symlink_metadata to detect symlinks without following them
         let symlink_metadata = fs::symlink_metadata(path)?;
+        let file_type = symlink_metadata.file_type();
+        let (size, modified) = if file_type.is_symlink() {
+            match fs::metadata(path) {
+                Ok(target) => (target.len(), target.modified().ok()),
+                Err(_) => (symlink_metadata.len(), symlink_metadata.modified().ok()),
+            }
+        } else {
+            (symlink_metadata.len(), symlink_metadata.modified().ok())
+        };
         let name = path
             .file_name()
             .and_then(OsStr::to_str)
             .unwrap_or("")
             .to_string();
 
-        let entry_type = if symlink_metadata.is_symlink() {
+        let entry_type = if file_type.is_symlink() {
             EntryType::Symlink
-        } else if symlink_metadata.is_dir() {
+        } else if file_type.is_dir() {
             EntryType::Directory
         } else {
             let is_markdown = is_markdown_file(path);
@@ -100,19 +109,21 @@ impl Entry {
             name,
             path: path.to_path_buf(),
             entry_type,
-            size: symlink_metadata.len(),
-            modified: symlink_metadata.modified().ok(),
+            size,
+            modified,
         })
     }
 
     /// Returns true if this entry is a directory.
     pub fn is_directory(&self) -> bool {
         matches!(self.entry_type, EntryType::Directory)
+            || (matches!(self.entry_type, EntryType::Symlink) && self.path.is_dir())
     }
 
     /// Returns true if this entry is a markdown file.
     pub fn is_markdown(&self) -> bool {
         matches!(self.entry_type, EntryType::File { is_markdown: true })
+            || (matches!(self.entry_type, EntryType::Symlink) && is_markdown_file(&self.path))
     }
 
     /// Returns a display string for the file size.
@@ -247,6 +258,10 @@ impl FileBrowser {
         Ok(())
     }
 
+    fn is_markdown_path(&self, path: &Path) -> bool {
+        is_markdown_with_extensions(path, &self.config.extensions)
+    }
+
     fn scan_directory(&mut self, dir: &Path, depth: usize) -> io::Result<()> {
         if depth > self.config.max_depth {
             return Ok(());
@@ -267,17 +282,22 @@ impl FileBrowser {
                 continue;
             }
 
-            if let Ok(file_entry) = Entry::from_path(&path) {
+            if let Ok(mut file_entry) = Entry::from_path(&path) {
+                let is_symlink = matches!(file_entry.entry_type, EntryType::Symlink);
+                let is_markdown = self.is_markdown_path(&path);
+                if let EntryType::File { is_markdown: flag } = &mut file_entry.entry_type {
+                    *flag = is_markdown;
+                }
                 // For non-recursive mode, add directories and markdown files
                 if !self.config.recursive {
-                    if file_entry.is_directory() || file_entry.is_markdown() {
+                    if file_entry.is_directory() || is_markdown {
                         self.entries.push(file_entry);
                     }
                 } else {
                     // For recursive mode, only show markdown files
-                    if file_entry.is_markdown() {
+                    if is_markdown {
                         self.entries.push(file_entry);
-                    } else if file_entry.is_directory() {
+                    } else if file_entry.is_directory() && !is_symlink {
                         self.scan_directory(&path, depth + 1)?;
                     }
                 }
@@ -559,10 +579,12 @@ impl Model for FileBrowser {
             {
                 if let Some(entry) = self.entries.get(entry_idx) {
                     let is_selected = self.scroll_offset + view_idx == self.selected;
+                    let is_dir = entry.is_directory();
+                    let is_markdown = self.is_markdown_path(&entry.path);
 
-                    let prefix = if entry.is_directory() {
+                    let prefix = if is_dir {
                         "📁 "
-                    } else if entry.is_markdown() {
+                    } else if is_markdown {
                         "📄 "
                     } else {
                         "   "
@@ -577,7 +599,7 @@ impl Model for FileBrowser {
 
                     let styled = if is_selected {
                         self.selected_style.render(&line)
-                    } else if entry.is_directory() {
+                    } else if is_dir {
                         self.dir_style.render(&line)
                     } else {
                         self.file_style.render(&line)
@@ -615,15 +637,28 @@ pub struct FileSelectedMsg {
 
 /// Checks if a path is a markdown file.
 fn is_markdown_file(path: &Path) -> bool {
-    path.extension()
-        .and_then(OsStr::to_str)
-        .map(|ext| {
-            matches!(
-                ext.to_lowercase().as_str(),
-                "md" | "markdown" | "mdown" | "mkd"
-            )
-        })
-        .unwrap_or(false)
+    is_markdown_with_extensions(path, &[])
+}
+
+const DEFAULT_MARKDOWN_EXTENSIONS: [&str; 4] = ["md", "markdown", "mdown", "mkd"];
+
+fn is_markdown_with_extensions(path: &Path, extensions: &[String]) -> bool {
+    let ext = match path.extension().and_then(OsStr::to_str) {
+        Some(ext) => ext,
+        None => return false,
+    };
+    let ext = ext.to_ascii_lowercase();
+
+    if extensions.is_empty() {
+        return DEFAULT_MARKDOWN_EXTENSIONS
+            .iter()
+            .any(|candidate| ext == *candidate);
+    }
+
+    extensions.iter().any(|candidate| {
+        let candidate = candidate.trim_start_matches('.').to_ascii_lowercase();
+        !candidate.is_empty() && ext == candidate
+    })
 }
 
 /// Formats a file size in human-readable form.
@@ -703,6 +738,21 @@ mod tests {
 
         let names: Vec<_> = browser.entries.iter().map(|e| &e.name).collect();
         assert!(names.contains(&&".hidden.md".to_string()));
+    }
+
+    #[test]
+    fn test_browser_scan_with_custom_extensions() {
+        let dir = setup_test_dir();
+        let config = BrowserConfig {
+            extensions: vec!["txt".to_string()],
+            ..Default::default()
+        };
+        let mut browser = FileBrowser::with_directory(dir.path(), config).unwrap();
+        browser.scan().unwrap();
+
+        let names: Vec<_> = browser.entries.iter().map(|e| &e.name).collect();
+        assert!(names.contains(&&"notes.txt".to_string()));
+        assert!(!names.contains(&&"README.md".to_string()));
     }
 
     #[test]
