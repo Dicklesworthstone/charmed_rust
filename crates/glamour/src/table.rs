@@ -1,29 +1,4 @@
-//! Table structure parsing from pulldown-cmark events.
-//!
-//! This module provides data structures and a state machine for parsing markdown tables
-//! into a structured format suitable for rendering with lipgloss styling.
-//!
-//! # Example
-//!
-//! ```rust
-//! use glamour::table::{ParsedTable, TableParser};
-//! use pulldown_cmark::{Parser, Options};
-//!
-//! let markdown = r#"
-//! | Name | Age |
-//! |------|-----|
-//! | Alice | 30 |
-//! | Bob | 25 |
-//! "#;
-//!
-//! let mut opts = Options::empty();
-//! opts.insert(Options::ENABLE_TABLES);
-//! let parser = Parser::new_ext(markdown, opts);
-//!
-//! let tables = TableParser::parse_all(parser);
-//! assert_eq!(tables.len(), 1);
-//! assert_eq!(tables[0].header.len(), 2);
-//! ```
+#![doc = include_str!("../docs/tables/README.md")]
 
 use pulldown_cmark::{Alignment, Event, Tag, TagEnd};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
@@ -362,6 +337,7 @@ impl TableParser {
 }
 
 /// Convert pulldown-cmark alignment to a position string for lipgloss.
+/// Convert pulldown-cmark alignment into a lipgloss position string.
 #[must_use]
 pub fn alignment_to_position(alignment: Alignment) -> &'static str {
     match alignment {

@@ -33,6 +33,14 @@ let renderer = Renderer::new()
 let output = renderer.render("# Heading\n\nParagraph text.");
 ```
 
+## Table Rendering
+
+Glamour supports Markdown tables out of the box. For advanced table rendering
+APIs (parsing, low-level rendering, and styling), see:
+
+- `crates/glamour/docs/tables/README.md`
+- `crates/glamour/src/table.rs` (API docs)
+
 ## Syntax Highlighting
 
 Glamour supports syntax highlighting for code blocks using [syntect](https://crates.io/crates/syntect).
