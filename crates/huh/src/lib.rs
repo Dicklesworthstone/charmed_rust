@@ -72,22 +72,129 @@ fn next_id() -> usize {
 // -----------------------------------------------------------------------------
 
 /// Errors that can occur during form execution.
+///
+/// This enum represents all possible error conditions when running
+/// an interactive form with huh.
+///
+/// # Error Handling
+///
+/// Forms can fail for several reasons, but many are recoverable
+/// or expected user actions (like cancellation):
+///
+/// ```rust,ignore
+/// use huh::{Form, FormError, Result};
+///
+/// fn get_user_input() -> Result<String> {
+///     let mut name = String::new();
+///     Form::new(fields)
+///         .run()?;
+///     Ok(name)
+/// }
+/// ```
+///
+/// # Recovery Strategies
+///
+/// | Error Variant | Recovery Strategy |
+/// |--------------|-------------------|
+/// | [`UserAborted`](FormError::UserAborted) | Normal exit, not an error condition |
+/// | [`Timeout`](FormError::Timeout) | Retry with longer timeout or prompt user |
+/// | [`Validation`](FormError::Validation) | Show error message, allow retry |
+/// | [`Io`](FormError::Io) | Check terminal, fall back to non-interactive |
+///
+/// # Example: Handling User Abort
+///
+/// User abort (Ctrl+C) is a normal exit path, not an error:
+///
+/// ```rust,ignore
+/// match form.run() {
+///     Ok(()) => println!("Form completed!"),
+///     Err(FormError::UserAborted) => {
+///         println!("Cancelled by user");
+///         return Ok(()); // Not an error condition
+///     }
+///     Err(e) => return Err(e.into()),
+/// }
+/// ```
+///
+/// # Note on Clone and PartialEq
+///
+/// This error type implements `Clone` and `PartialEq` to support
+/// testing and comparison. As a result, the `Io` variant stores
+/// a `String` message rather than the underlying `io::Error`.
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum FormError {
-    /// User aborted the form with Ctrl+C.
+    /// User aborted the form with Ctrl+C or Escape.
+    ///
+    /// This is not an error condition but a normal exit path.
+    /// Users may cancel forms for valid reasons, and applications
+    /// should handle this gracefully.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// match form.run() {
+    ///     Err(FormError::UserAborted) => {
+    ///         println!("No changes made");
+    ///         return Ok(());
+    ///     }
+    ///     // ...
+    /// }
+    /// ```
     #[error("user aborted")]
     UserAborted,
 
     /// Form execution timed out.
+    ///
+    /// Occurs when a form has a timeout configured and the user
+    /// does not complete it in time.
+    ///
+    /// # Recovery
+    ///
+    /// - Increase the timeout duration
+    /// - Prompt user to try again
+    /// - Use a default value
     #[error("timeout")]
     Timeout,
 
     /// Custom validation error.
+    ///
+    /// Occurs when a field's validation function returns an error.
+    /// The contained string describes what validation failed.
+    ///
+    /// # Recovery
+    ///
+    /// Validation errors are recoverable - show the error message
+    /// to the user and allow them to correct their input.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let input = Input::new()
+    ///     .title("Email")
+    ///     .validate(|s| {
+    ///         if s.contains('@') {
+    ///             Ok(())
+    ///         } else {
+    ///             Err(FormError::Validation("must contain @".into()))
+    ///         }
+    ///     });
+    /// ```
     #[error("validation error: {0}")]
     Validation(String),
 
-    /// IO error during accessible mode.
-    /// Note: Stores String instead of io::Error to maintain Clone + PartialEq + Eq.
+    /// IO error during form operations.
+    ///
+    /// Occurs during terminal I/O operations, particularly in
+    /// accessible mode where stdin/stdout are used directly.
+    ///
+    /// Note: Stores the error message as a `String` rather than
+    /// `io::Error` to maintain `Clone` and `PartialEq` derives.
+    ///
+    /// # Recovery
+    ///
+    /// - Check if the terminal is available
+    /// - Fall back to non-interactive input
+    /// - Log the error and exit gracefully
     #[error("io error: {0}")]
     Io(String),
 }
@@ -120,6 +227,23 @@ impl FormError {
 }
 
 /// A specialized [`Result`] type for huh form operations.
+///
+/// This type alias defaults to [`FormError`] as the error type.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use huh::Result;
+///
+/// fn collect_user_info() -> Result<UserInfo> {
+///     let mut name = String::new();
+///     let mut email = String::new();
+///
+///     Form::new(vec![/* fields */]).run()?;
+///
+///     Ok(UserInfo { name, email })
+/// }
+/// ```
 pub type Result<T> = std::result::Result<T, FormError>;
 
 // -----------------------------------------------------------------------------

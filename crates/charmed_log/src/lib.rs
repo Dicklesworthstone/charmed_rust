@@ -31,6 +31,7 @@
 use lipgloss::{Color, Style};
 use std::collections::HashMap;
 use std::fmt;
+use thiserror::Error;
 use std::io::{self, Write};
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -110,17 +111,36 @@ impl std::str::FromStr for Level {
     }
 }
 
-/// Error returned when parsing an invalid level string.
-#[derive(Debug, Clone)]
+/// Error returned when parsing an invalid log level string.
+///
+/// This error occurs when calling [`Level::from_str`] with a string
+/// that doesn't match any known log level.
+///
+/// # Valid Level Strings
+///
+/// The following strings are accepted (case-insensitive):
+/// - `"debug"`
+/// - `"info"`
+/// - `"warn"`
+/// - `"error"`
+/// - `"fatal"`
+///
+/// # Example
+///
+/// ```rust
+/// use charmed_log::Level;
+/// use std::str::FromStr;
+///
+/// assert!(Level::from_str("info").is_ok());
+/// assert!(Level::from_str("INFO").is_ok());
+/// assert!(Level::from_str("invalid").is_err());
+/// ```
+#[derive(Error, Debug, Clone)]
+#[error("invalid level: {0:?}")]
 pub struct ParseLevelError(String);
 
-impl fmt::Display for ParseLevelError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid level: {:?}", self.0)
-    }
-}
-
-impl std::error::Error for ParseLevelError {}
+/// A specialized [`Result`] type for level parsing operations.
+pub type ParseResult<T> = std::result::Result<T, ParseLevelError>;
 
 /// Output formatter type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -862,8 +882,8 @@ fn escape_logfmt(s: &str) -> String {
 /// Prelude module for convenient imports.
 pub mod prelude {
     pub use crate::{
-        DEFAULT_TIME_FORMAT, Formatter, Level, Logger, Options, ParseLevelError, Styles, keys,
-        long_caller_formatter, now_utc, short_caller_formatter,
+        DEFAULT_TIME_FORMAT, Formatter, Level, Logger, Options, ParseLevelError, ParseResult,
+        Styles, keys, long_caller_formatter, now_utc, short_caller_formatter,
     };
 }
 

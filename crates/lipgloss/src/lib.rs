@@ -141,6 +141,7 @@ pub mod color;
 pub mod position;
 pub mod renderer;
 pub mod style;
+pub mod theme;
 
 // Re-exports
 pub use border::{Border, BorderEdges};
@@ -151,6 +152,7 @@ pub use color::{
 pub use position::{Position, Sides};
 pub use renderer::{Renderer, color_profile, default_renderer, has_dark_background};
 pub use style::Style;
+pub use theme::{Theme, ThemeColors};
 
 /// Prelude module for convenient imports.
 pub mod prelude {
@@ -159,6 +161,7 @@ pub mod prelude {
     pub use crate::position::{Position, Sides};
     pub use crate::renderer::Renderer;
     pub use crate::style::Style;
+    pub use crate::theme::{Theme, ThemeColors};
 }
 
 // Convenience constructors
