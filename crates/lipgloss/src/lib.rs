@@ -152,7 +152,7 @@ pub use color::{
 pub use position::{Position, Sides};
 pub use renderer::{Renderer, color_profile, default_renderer, has_dark_background};
 pub use style::Style;
-pub use theme::{Theme, ThemeColors};
+pub use theme::{ColorSlot, Theme, ThemeColors, ThemeRole};
 
 /// Prelude module for convenient imports.
 pub mod prelude {
@@ -161,7 +161,7 @@ pub mod prelude {
     pub use crate::position::{Position, Sides};
     pub use crate::renderer::Renderer;
     pub use crate::style::Style;
-    pub use crate::theme::{Theme, ThemeColors};
+    pub use crate::theme::{ColorSlot, Theme, ThemeColors, ThemeRole};
 }
 
 // Convenience constructors
