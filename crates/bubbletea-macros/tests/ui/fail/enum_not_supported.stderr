@@ -1,0 +1,7 @@
+error: #[derive(Model)] can only be applied to a struct, found enum
+
+       help: Apply #[derive(Model)] to a struct instead.
+ --> tests/ui/fail/enum_not_supported.rs:6:6
+  |
+6 | enum NotAStruct {
+  |      ^^^^^^^^^^

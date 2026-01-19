@@ -1,0 +1,7 @@
+error: #[derive(Model)] can only be applied to a named struct with fields, found tuple struct
+
+       help: Apply #[derive(Model)] to a named struct with fields instead.
+ --> tests/ui/fail/tuple_struct_not_supported.rs:6:8
+  |
+6 | struct TupleStruct(i32, String);
+  |        ^^^^^^^^^^^

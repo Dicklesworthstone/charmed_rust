@@ -19,6 +19,7 @@ proc-macro-error2 = "2.0"
 
 [dev-dependencies]
 trybuild = "1.0"
+bubbletea = { path = "../bubbletea", features = ["macros"] }
 
 [lints]
 workspace = true

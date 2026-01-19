@@ -1,0 +1,7 @@
+error: #[derive(Model)] can only be applied to a struct, found union
+
+       help: Apply #[derive(Model)] to a struct instead.
+ --> tests/ui/fail/union_not_supported.rs:6:7
+  |
+6 | union NotAStruct {
+  |       ^^^^^^^^^^
