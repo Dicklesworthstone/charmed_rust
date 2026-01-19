@@ -1,0 +1,17 @@
+[package]
+name = "example-todo-list"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "todo-list"
+path = "src/main.rs"
+
+[dependencies]
+bubbletea.workspace = true
+bubbles.workspace = true
+lipgloss.workspace = true
+anyhow.workspace = true

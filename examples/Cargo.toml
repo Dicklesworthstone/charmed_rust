@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = [
+    "basic/counter",
+    "basic/spinner",
+    "basic/textinput",
+    "basic/error-handling",
+    "intermediate/todo-list",
+    "intermediate/viewport",
+    "intermediate/progress",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+# Internal crates from parent project
+bubbletea = { path = "../crates/bubbletea" }
+bubbles = { path = "../crates/bubbles" }
+lipgloss = { path = "../crates/lipgloss" }
+glamour = { path = "../crates/glamour" }
+huh = { path = "../crates/huh" }
+wish = { path = "../crates/wish" }
+harmonica = { path = "../crates/harmonica" }
+
+# Common dependencies
+anyhow = "1.0"
+thiserror = "2.0"

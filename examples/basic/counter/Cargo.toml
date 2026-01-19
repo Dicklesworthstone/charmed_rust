@@ -1,0 +1,15 @@
+[package]
+name = "example-counter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "counter"
+path = "src/main.rs"
+
+[dependencies]
+bubbletea.workspace = true
+anyhow.workspace = true

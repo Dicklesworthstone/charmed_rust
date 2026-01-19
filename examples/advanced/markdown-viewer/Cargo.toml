@@ -1,0 +1,18 @@
+[package]
+name = "example-markdown-viewer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "markdown-viewer"
+path = "src/main.rs"
+
+[dependencies]
+bubbletea.workspace = true
+bubbles.workspace = true
+lipgloss.workspace = true
+glamour.workspace = true
+anyhow.workspace = true

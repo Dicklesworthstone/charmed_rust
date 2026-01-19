@@ -1,0 +1,18 @@
+[package]
+name = "example-form"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "form"
+path = "src/main.rs"
+
+[dependencies]
+bubbletea.workspace = true
+bubbles.workspace = true
+lipgloss.workspace = true
+huh.workspace = true
+anyhow.workspace = true
