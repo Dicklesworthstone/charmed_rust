@@ -30,6 +30,27 @@
 //!     .with_word_wrap(80);
 //! let output = renderer.render("# Heading\n\nParagraph text.");
 //! ```
+//!
+//! ## Feature Flags
+//!
+//! - `syntax-highlighting`: Enable syntax highlighting for code blocks using
+//!   [syntect](https://crates.io/crates/syntect). This adds ~2MB to binary size
+//!   due to embedded syntax definitions for ~60 languages.
+//!
+//! ### Example with syntax highlighting
+//!
+//! ```toml
+//! [dependencies]
+//! glamour = { version = "0.1", features = ["syntax-highlighting"] }
+//! ```
+//!
+//! When enabled, code blocks with language annotations (e.g., ` ```rust `)
+//! will be rendered with syntax highlighting using the configured theme.
+//! See `docs/SYNTAX_HIGHLIGHTING_RESEARCH.md` for implementation details.
+
+// Syntax highlighting module (optional feature)
+#[cfg(feature = "syntax-highlighting")]
+pub mod syntax;
 
 use lipgloss::Style as LipglossStyle;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};

@@ -411,4 +411,32 @@ mod tests {
         let spinner = Spinner::new(vec!["a"], 0);
         assert_eq!(spinner.frame_duration(), Duration::from_secs(1));
     }
+
+    #[test]
+    fn test_model_init_returns_tick_cmd() {
+        let spinner = SpinnerModel::new();
+        let cmd = Model::init(&spinner);
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_model_update_advances_frame() {
+        let mut spinner = SpinnerModel::new();
+        let initial_frame = spinner.frame;
+        let tick = Message::new(TickMsg {
+            id: spinner.id(),
+            tag: spinner.tag,
+        });
+
+        let cmd = Model::update(&mut spinner, tick);
+
+        assert!(cmd.is_some());
+        assert_eq!(spinner.frame, initial_frame + 1);
+    }
+
+    #[test]
+    fn test_model_view_matches_view() {
+        let spinner = SpinnerModel::new();
+        assert_eq!(Model::view(&spinner), spinner.view());
+    }
 }

@@ -47,6 +47,10 @@ pub mod crates;
 #[path = "../integration/mod.rs"]
 pub mod integration;
 
+// Benchmark validation tests - verify benchmarked operations produce correct results
+#[cfg(test)]
+mod benchmark_validation;
+
 // Re-export the crates under test for convenience
 pub use bubbles;
 pub use bubbletea;
@@ -55,6 +59,7 @@ pub use glamour;
 pub use harmonica;
 pub use huh;
 pub use lipgloss;
+#[cfg(feature = "wish")]
 pub use wish;
 
 /// Prelude for convenient imports

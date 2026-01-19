@@ -11,9 +11,18 @@ description = "Stylesheet-based markdown rendering for terminal applications"
 lipgloss = { path = "../lipgloss" }
 pulldown-cmark = "0.13"
 
+# Optional: syntax highlighting
+# Uses fancy-regex (pure Rust) instead of onig for WASM compatibility
+# See docs/SYNTAX_HIGHLIGHTING_RESEARCH.md for rationale
+syntect = { version = "5", optional = true, default-features = false, features = [
+    "default-fancy",  # Pure Rust regex engine (WASM compatible)
+] }
+
 [features]
 default = []
-syntax-highlighting = []
+# Enable syntax highlighting for code blocks. Adds ~2MB to binary size
+# due to embedded syntax definitions.
+syntax-highlighting = ["dep:syntect"]
 
 [dev-dependencies]
 criterion.workspace = true

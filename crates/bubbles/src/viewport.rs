@@ -481,4 +481,29 @@ mod tests {
         assert!(v.at_top());
         assert!(v.at_bottom());
     }
+
+    #[test]
+    fn test_viewport_model_init_returns_none() {
+        let v = Viewport::new(80, 24);
+        assert!(Model::init(&v).is_none());
+    }
+
+    #[test]
+    fn test_viewport_model_update_scrolls() {
+        let mut v = Viewport::new(10, 2);
+        v.set_content("1\n2\n3\n4");
+        assert_eq!(v.y_offset(), 0);
+
+        let down_msg = Message::new(KeyMsg::from_char('j'));
+        let result = Model::update(&mut v, down_msg);
+        assert!(result.is_none());
+        assert_eq!(v.y_offset(), 1);
+    }
+
+    #[test]
+    fn test_viewport_model_view_matches_view() {
+        let mut v = Viewport::new(10, 2);
+        v.set_content("Line 1\nLine 2\nLine 3");
+        assert_eq!(Model::view(&v), v.view());
+    }
 }

@@ -15,7 +15,7 @@ bubbles = { path = "../../crates/bubbles" }
 charmed_log = { path = "../../crates/charmed_log" }
 glamour = { path = "../../crates/glamour" }
 huh = { path = "../../crates/huh" }
-wish = { path = "../../crates/wish" }
+wish = { path = "../../crates/wish", optional = true }
 
 # Test infrastructure
 serde = { version = "1", features = ["derive"] }

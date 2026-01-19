@@ -51,13 +51,18 @@ use std::fmt;
 use std::future::Future;
 use std::io::{self, Write};
 use std::net::SocketAddr;
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
 use parking_lot::RwLock;
 use thiserror::Error;
+use tokio::net::TcpListener;
 use tracing::{debug, error, info, warn};
+
+mod handler;
+pub use handler::{ServerState, WishHandler, WishHandlerFactory};
 
 // Re-export dependencies for convenience
 pub use bubbletea;
@@ -78,9 +83,17 @@ pub enum Error {
     #[error("ssh error: {0}")]
     Ssh(String),
 
+    /// russh error.
+    #[error("russh error: {0}")]
+    Russh(#[from] russh::Error),
+
     /// Key generation or loading error.
     #[error("key error: {0}")]
     Key(String),
+
+    /// Key loading error from russh-keys.
+    #[error("key loading error: {0}")]
+    KeyLoad(#[from] russh_keys::Error),
 
     /// Authentication failed.
     #[error("authentication failed")]

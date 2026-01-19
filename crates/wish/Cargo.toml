@@ -18,6 +18,8 @@ tracing = "0.1"
 futures = "0.3"
 parking_lot = "0.12"
 bytes = "1.5"
+russh = { workspace = true }
+russh-keys = { workspace = true }
 
 # SSH support - optional for now since russh-keys is in beta
 # russh = "0.56"
