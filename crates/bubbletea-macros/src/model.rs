@@ -36,11 +36,14 @@
 //! }
 //! ```
 
+use darling::FromDeriveInput;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{DeriveInput, parse2};
 
+use crate::attributes::ModelInput;
 use crate::error::MacroError;
+use crate::state::{StateField, generate_state_snapshot_with_generics};
 
 /// Main implementation for the derive macro.
 ///
@@ -104,6 +107,19 @@ fn derive_model_inner(input: TokenStream) -> Result<TokenStream, MacroError> {
     #[cfg(debug_assertions)]
     eprintln!("[bubbletea-macros] Deriving Model for: {}", name);
 
+    // Parse fields using darling for #[state] attribute handling
+    let parsed = ModelInput::from_derive_input(&input)?;
+
+    // Extract state-tracked fields
+    let state_fields: Vec<StateField<'_>> = parsed
+        .fields()
+        .iter()
+        .filter_map(|f| StateField::from_model_field(f))
+        .collect();
+
+    // Generate state snapshot code for change detection
+    let state_snapshot = generate_state_snapshot_with_generics(name, &state_fields, generics);
+
     // Generate the Model trait implementation.
     //
     // The implementation delegates to inherent methods on the struct:
@@ -136,6 +152,8 @@ fn derive_model_inner(input: TokenStream) -> Result<TokenStream, MacroError> {
                 stringify!(#name)
             }
         }
+
+        #state_snapshot
     };
 
     Ok(expanded)
@@ -232,7 +250,68 @@ mod tests {
         let output = derive_model_impl(input);
         let output_str = output.to_string();
 
-        // Should still generate Model impl (state attribute for future use)
+        // Should generate Model impl
         assert!(output_str.contains("impl :: bubbletea :: Model for MyApp"));
+
+        // Should generate state snapshot struct
+        assert!(output_str.contains("__MyAppStateSnapshot"));
+        assert!(output_str.contains("text : String"));
+        assert!(output_str.contains("count : i32"));
+
+        // Should generate snapshot method
+        assert!(output_str.contains("__snapshot_state"));
+
+        // Should generate state changed method
+        assert!(output_str.contains("__state_changed"));
+    }
+
+    #[test]
+    fn test_struct_with_state_options() {
+        let input = quote! {
+            struct App {
+                #[state(eq = "custom_eq")]
+                progress: f64,
+                #[state(skip)]
+                timestamp: u64,
+                #[state(debug)]
+                selected: usize,
+                cache: String,  // not tracked
+            }
+        };
+
+        let output = derive_model_impl(input);
+        let output_str = output.to_string();
+
+        // Should include progress and selected in snapshot (not timestamp or cache)
+        assert!(output_str.contains("progress : f64"));
+        assert!(output_str.contains("selected : usize"));
+        assert!(!output_str.contains("timestamp : u64")); // skipped
+        assert!(!output_str.contains("cache : String")); // not #[state]
+
+        // Should use custom equality for progress
+        assert!(output_str.contains("custom_eq"));
+
+        // Should have debug logging for selected
+        assert!(output_str.contains("eprintln !"));
+    }
+
+    #[test]
+    fn test_struct_without_state_fields() {
+        let input = quote! {
+            struct SimpleApp {
+                data: String,
+            }
+        };
+
+        let output = derive_model_impl(input);
+        let output_str = output.to_string();
+
+        // Should generate Model impl
+        assert!(output_str.contains("impl :: bubbletea :: Model for SimpleApp"));
+
+        // Should have stub methods that return false/unit
+        assert!(output_str.contains("__state_changed"));
+        assert!(output_str.contains("__snapshot_state"));
+        assert!(output_str.contains("false")); // always returns false
     }
 }

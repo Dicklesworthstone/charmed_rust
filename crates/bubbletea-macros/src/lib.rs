@@ -48,6 +48,7 @@ use proc_macro_error2::proc_macro_error;
 mod attributes;
 mod error;
 mod model;
+mod state;
 
 /// Derive macro for implementing the Model trait.
 ///

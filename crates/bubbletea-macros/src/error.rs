@@ -313,6 +313,12 @@ impl From<syn::Error> for MacroError {
     }
 }
 
+impl From<darling::Error> for MacroError {
+    fn from(err: darling::Error) -> Self {
+        Self::Parse(err.to_string(), err.span())
+    }
+}
+
 impl std::fmt::Display for MacroError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.primary_message())
