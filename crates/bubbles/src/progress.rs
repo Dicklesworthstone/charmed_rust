@@ -18,7 +18,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use bubbletea::{Cmd, Message};
+use bubbletea::{Cmd, Message, Model};
 use harmonica::Spring;
 use lipgloss::Style;
 
@@ -359,6 +359,25 @@ fn interpolate_color(color_a: &str, color_b: &str, t: f64) -> String {
     format!("{};{};{}", r, g, bl)
 }
 
+impl Model for Progress {
+    /// Initialize the progress bar.
+    ///
+    /// Progress bars don't require initialization commands.
+    fn init(&self) -> Option<Cmd> {
+        None
+    }
+
+    /// Update the progress bar state based on incoming messages.
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        Progress::update(self, msg)
+    }
+
+    /// Render the progress bar at the current animated position.
+    fn view(&self) -> String {
+        Progress::view(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -448,5 +467,23 @@ mod tests {
 
         p.target_percent = 0.8;
         assert!(p.is_animating());
+    }
+
+    // Model trait implementation tests
+    #[test]
+    fn test_model_init() {
+        let p = Progress::new();
+        // Progress bars don't require init commands
+        let cmd = Model::init(&p);
+        assert!(cmd.is_none());
+    }
+
+    #[test]
+    fn test_model_view() {
+        let p = Progress::new();
+        // Model::view should return same result as Progress::view
+        let model_view = Model::view(&p);
+        let progress_view = Progress::view(&p);
+        assert_eq!(model_view, progress_view);
     }
 }
