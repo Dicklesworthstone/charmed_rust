@@ -10,14 +10,17 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use russh::server::{Auth, Handler as RusshHandler, Msg, Session as RusshSession};
-use russh::{Channel, ChannelId, CryptoVec};
+use russh::{Channel, ChannelId};
 use tokio::sync::{broadcast, mpsc};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, info, trace, warn};
 
 use crate::{
-    Context, Error, Handler, Pty, PublicKey, Result, ServerOptions, Session, Window,
+    Context, Error, Handler, Pty, PublicKey, ServerOptions, Session, Window,
     compose_middleware, noop_handler,
 };
+
+// Re-export russh server types for use by Server
+pub use russh::server::{Config as RusshConfig, run_stream};
 
 /// Shared state for all connections to a server.
 pub struct ServerState {
@@ -64,8 +67,6 @@ struct ChannelState {
     input_tx: mpsc::Sender<Vec<u8>>,
     /// Whether shell/exec has started.
     started: bool,
-    /// Output receiver from handler.
-    output_rx: Option<mpsc::Receiver<Vec<u8>>>,
 }
 
 /// Handler for a single SSH connection.
@@ -92,6 +93,7 @@ pub struct WishHandler {
     /// Active channels.
     channels: HashMap<ChannelId, ChannelState>,
     /// Shutdown signal receiver.
+    #[allow(dead_code)]
     shutdown_rx: broadcast::Receiver<()>,
 }
 
@@ -126,19 +128,20 @@ impl WishHandler {
 
     /// Creates a Context from current connection state.
     fn make_context(&self, user: &str) -> Context {
-        let mut ctx = Context::new(user, self.remote_addr, self.local_addr);
+        let ctx = Context::new(user, self.remote_addr, self.local_addr);
         ctx.set_value("connection_id", self.connection_id.to_string());
         ctx
     }
 
     /// Converts a russh public key to our PublicKey type.
     fn convert_public_key(key: &russh_keys::key::PublicKey) -> PublicKey {
-        let key_type = match key.name() {
-            russh_keys::key::ED25519 => "ssh-ed25519",
-            russh_keys::key::RSA_SHA2_256 | russh_keys::key::RSA_SHA2_512 => "ssh-rsa",
-            russh_keys::key::ECDSA_SHA2_NISTP256 => "ecdsa-sha2-nistp256",
-            russh_keys::key::ECDSA_SHA2_NISTP384 => "ecdsa-sha2-nistp384",
-            russh_keys::key::ECDSA_SHA2_NISTP521 => "ecdsa-sha2-nistp521",
+        let key_name = key.name();
+        let key_type = match key_name {
+            "ssh-ed25519" => "ssh-ed25519",
+            "rsa-sha2-256" | "rsa-sha2-512" | "ssh-rsa" => "ssh-rsa",
+            "ecdsa-sha2-nistp256" => "ecdsa-sha2-nistp256",
+            "ecdsa-sha2-nistp384" => "ecdsa-sha2-nistp384",
+            "ecdsa-sha2-nistp521" => "ecdsa-sha2-nistp521",
             other => other,
         };
 
@@ -151,19 +154,6 @@ impl WishHandler {
 #[async_trait]
 impl RusshHandler for WishHandler {
     type Error = Error;
-
-    /// Handle client version string.
-    async fn client_info(
-        &mut self,
-        _client_name: &str,
-        _client_version: &str,
-    ) -> std::result::Result<(), Self::Error> {
-        debug!(
-            connection_id = self.connection_id,
-            "Client connected"
-        );
-        Ok(())
-    }
 
     /// Handle public key authentication.
     async fn auth_publickey(
@@ -280,7 +270,6 @@ impl RusshHandler for WishHandler {
 
         // Create channel state
         let (input_tx, _input_rx) = mpsc::channel(1024);
-        let (output_tx, output_rx) = mpsc::channel(1024);
 
         let user = self.user.clone().unwrap_or_default();
         let ctx = self.make_context(&user);
@@ -291,10 +280,10 @@ impl RusshHandler for WishHandler {
             wish_session = wish_session.with_public_key(Self::convert_public_key(pk));
         }
 
-        // Store the output sender in the session for later use
+        // Store channel reference in the session for later use
         wish_session
             .context()
-            .set_value("output_channel", format!("{channel_id:?}"));
+            .set_value("channel_id", format!("{channel_id:?}"));
 
         self.channels.insert(
             channel_id,
@@ -302,12 +291,8 @@ impl RusshHandler for WishHandler {
                 session: wish_session,
                 input_tx,
                 started: false,
-                output_rx: Some(output_rx),
             },
         );
-
-        // Store output_tx for handler to use
-        let _ = output_tx; // Will be used when we spawn the handler
 
         Ok(true)
     }
@@ -351,7 +336,7 @@ impl RusshHandler for WishHandler {
             state.session = state.session.clone().with_pty(pty);
         }
 
-        session.channel_success(channel)?;
+        session.channel_success(channel);
         Ok(())
     }
 
@@ -374,7 +359,7 @@ impl RusshHandler for WishHandler {
                     channel = ?channel,
                     "Shell already started"
                 );
-                session.channel_failure(channel)?;
+                session.channel_failure(channel);
                 return Ok(());
             }
 
@@ -390,9 +375,9 @@ impl RusshHandler for WishHandler {
                 debug!(connection_id, "Handler completed");
             });
 
-            session.channel_success(channel)?;
+            session.channel_success(channel);
         } else {
-            session.channel_failure(channel)?;
+            session.channel_failure(channel);
         }
 
         Ok(())
@@ -409,13 +394,13 @@ impl RusshHandler for WishHandler {
         debug!(
             connection_id = self.connection_id,
             channel = ?channel,
-            command = command,
+            command = %command,
             "Exec request"
         );
 
         if let Some(state) = self.channels.get_mut(&channel) {
             if state.started {
-                session.channel_failure(channel)?;
+                session.channel_failure(channel);
                 return Ok(());
             }
 
@@ -429,14 +414,14 @@ impl RusshHandler for WishHandler {
             let connection_id = self.connection_id;
 
             tokio::spawn(async move {
-                debug!(connection_id, command = command, "Starting exec handler");
+                debug!(connection_id, "Starting exec handler");
                 handler(wish_session).await;
                 debug!(connection_id, "Exec handler completed");
             });
 
-            session.channel_success(channel)?;
+            session.channel_success(channel);
         } else {
-            session.channel_failure(channel)?;
+            session.channel_failure(channel);
         }
 
         Ok(())
@@ -465,7 +450,7 @@ impl RusshHandler for WishHandler {
                 .with_env(variable_name, variable_value);
         }
 
-        session.channel_success(channel)?;
+        session.channel_success(channel);
         Ok(())
     }
 
@@ -487,7 +472,7 @@ impl RusshHandler for WishHandler {
         if let Some(handler) = self.server_state.options.subsystem_handlers.get(name) {
             if let Some(state) = self.channels.get_mut(&channel) {
                 if state.started {
-                    session.channel_failure(channel)?;
+                    session.channel_failure(channel);
                     return Ok(());
                 }
 
@@ -497,23 +482,24 @@ impl RusshHandler for WishHandler {
                 let wish_session = state.session.clone();
                 let handler = handler.clone();
                 let connection_id = self.connection_id;
+                let subsystem_name = name.to_string();
 
                 tokio::spawn(async move {
                     debug!(
                         connection_id,
-                        subsystem = name,
+                        subsystem = %subsystem_name,
                         "Starting subsystem handler"
                     );
                     handler(wish_session).await;
                     debug!(connection_id, "Subsystem handler completed");
                 });
 
-                session.channel_success(channel)?;
+                session.channel_success(channel);
                 return Ok(());
             }
         }
 
-        session.channel_failure(channel)?;
+        session.channel_failure(channel);
         Ok(())
     }
 
@@ -648,11 +634,5 @@ mod tests {
         let state = ServerState::new(options);
         assert_eq!(state.next_connection_id(), 1);
         assert_eq!(state.next_connection_id(), 2);
-    }
-
-    #[test]
-    fn test_convert_public_key() {
-        // This would require a real key to test properly
-        // For now, just verify the code compiles
     }
 }

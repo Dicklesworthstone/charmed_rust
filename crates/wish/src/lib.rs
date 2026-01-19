@@ -51,7 +51,6 @@ use std::fmt;
 use std::future::Future;
 use std::io::{self, Write};
 use std::net::SocketAddr;
-use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -62,7 +61,7 @@ use tokio::net::TcpListener;
 use tracing::{debug, error, info, warn};
 
 mod handler;
-pub use handler::{ServerState, WishHandler, WishHandlerFactory};
+pub use handler::{RusshConfig, ServerState, WishHandler, WishHandlerFactory, run_stream};
 
 // Re-export dependencies for convenience
 pub use bubbletea;
@@ -827,8 +826,8 @@ impl Server {
 
     /// Starts listening for connections.
     ///
-    /// This is a placeholder implementation since we can't actually run
-    /// the russh server without full async infrastructure.
+    /// This binds to the configured address, accepts SSH connections,
+    /// and runs the handler for each connection.
     pub async fn listen(&self) -> Result<()> {
         info!("Starting SSH server on {}", self.options.address);
 
@@ -836,19 +835,97 @@ impl Server {
         let addr: SocketAddr = self.options.address.parse()?;
         debug!("Parsed address: {:?}", addr);
 
-        // In a real implementation, this would:
-        // 1. Load or generate host keys
-        // 2. Create the russh server configuration
-        // 3. Bind to the address and accept connections
-        // 4. For each connection, run the middleware chain
+        // Create russh configuration
+        let config = self.create_russh_config()?;
+        let config = Arc::new(config);
 
+        // Create the handler factory
+        let factory = WishHandlerFactory::new(self.options.clone());
+
+        // Bind to the address
+        let listener = TcpListener::bind(addr).await?;
         info!("Server listening on {}", addr);
 
-        // For now, just sleep forever as a placeholder
-        // A real implementation would use russh here
+        // Accept connections
         loop {
-            tokio::time::sleep(Duration::from_secs(3600)).await;
+            match listener.accept().await {
+                Ok((socket, peer_addr)) => {
+                    info!(peer_addr = %peer_addr, "Accepted connection");
+
+                    let config = config.clone();
+                    let local_addr = socket.local_addr().unwrap_or(addr);
+                    let handler = factory.create_handler(peer_addr, local_addr);
+
+                    // Spawn a task to handle this connection
+                    tokio::spawn(async move {
+                        debug!(peer_addr = %peer_addr, "Running SSH session");
+                        match run_stream(config, socket, handler).await {
+                            Ok(session) => {
+                                // Wait for the session to complete
+                                match session.await {
+                                    Ok(()) => {
+                                        debug!(peer_addr = %peer_addr, "Connection closed cleanly");
+                                    }
+                                    Err(e) => {
+                                        warn!(peer_addr = %peer_addr, error = %e, "Connection error");
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!(peer_addr = %peer_addr, error = %e, "SSH handshake failed");
+                            }
+                        }
+                    });
+                }
+                Err(e) => {
+                    error!(error = %e, "Failed to accept connection");
+                }
+            }
         }
+    }
+
+    /// Creates the russh server configuration.
+    fn create_russh_config(&self) -> Result<RusshConfig> {
+        use russh::server::Config;
+        use russh_keys::key::KeyPair;
+
+        let mut config = Config::default();
+
+        // Set server ID
+        config.server_id = russh::SshId::Standard(self.options.version.clone());
+
+        // Set timeouts
+        if let Some(timeout) = self.options.idle_timeout {
+            config.inactivity_timeout = Some(timeout);
+        }
+
+        // Generate or load host key
+        let key = if let Some(ref pem) = self.options.host_key_pem {
+            // Load from PEM
+            russh_keys::decode_secret_key(
+                std::str::from_utf8(pem).map_err(|e| Error::Key(e.to_string()))?,
+                None,
+            )?
+        } else if let Some(ref path) = self.options.host_key_path {
+            // Load from file
+            russh_keys::load_secret_key(path, None)?
+        } else {
+            // Generate ephemeral Ed25519 key
+            info!("Generating ephemeral Ed25519 host key");
+            KeyPair::generate_ed25519()
+        };
+
+        config.keys.push(key);
+
+        // Set authentication banner if configured
+        if let Some(ref banner) = self.options.banner {
+            // russh expects &'static str, so we leak the banner
+            // This is acceptable since the server typically runs for the lifetime of the process
+            let banner: &'static str = Box::leak(banner.clone().into_boxed_str());
+            config.auth_banner = Some(banner);
+        }
+
+        Ok(config)
     }
 
     /// Starts listening and handles shutdown gracefully.
