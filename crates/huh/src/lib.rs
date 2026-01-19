@@ -51,6 +51,8 @@
 use std::any::Any;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use thiserror::Error;
+
 use bubbles::key::Binding;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model};
 use lipgloss::{Border, Style};
@@ -70,30 +72,55 @@ fn next_id() -> usize {
 // -----------------------------------------------------------------------------
 
 /// Errors that can occur during form execution.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum FormError {
     /// User aborted the form with Ctrl+C.
+    #[error("user aborted")]
     UserAborted,
+
     /// Form execution timed out.
+    #[error("timeout")]
     Timeout,
+
     /// Custom validation error.
+    #[error("validation error: {0}")]
     Validation(String),
+
     /// IO error during accessible mode.
+    /// Note: Stores String instead of io::Error to maintain Clone + PartialEq + Eq.
+    #[error("io error: {0}")]
     Io(String),
 }
 
-impl std::fmt::Display for FormError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            FormError::UserAborted => write!(f, "user aborted"),
-            FormError::Timeout => write!(f, "timeout"),
-            FormError::Validation(msg) => write!(f, "validation error: {}", msg),
-            FormError::Io(msg) => write!(f, "io error: {}", msg),
-        }
+impl FormError {
+    /// Creates a validation error with the given message.
+    pub fn validation(message: impl Into<String>) -> Self {
+        Self::Validation(message.into())
+    }
+
+    /// Creates an IO error with the given message.
+    pub fn io(message: impl Into<String>) -> Self {
+        Self::Io(message.into())
+    }
+
+    /// Returns true if this is a user-initiated abort.
+    pub fn is_user_abort(&self) -> bool {
+        matches!(self, Self::UserAborted)
+    }
+
+    /// Returns true if this is a timeout error.
+    pub fn is_timeout(&self) -> bool {
+        matches!(self, Self::Timeout)
+    }
+
+    /// Returns true if this error is recoverable (validation errors).
+    pub fn is_recoverable(&self) -> bool {
+        matches!(self, Self::Validation(_))
     }
 }
 
-impl std::error::Error for FormError {}
+/// A specialized [`Result`] type for huh form operations.
+pub type Result<T> = std::result::Result<T, FormError>;
 
 // -----------------------------------------------------------------------------
 // Form State

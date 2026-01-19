@@ -11,6 +11,7 @@ description = "Build interactive forms and prompts for terminal applications"
 bubbletea = { path = "../bubbletea" }
 lipgloss = { path = "../lipgloss" }
 bubbles = { path = "../bubbles" }
+thiserror.workspace = true
 
 [lints]
 workspace = true
