@@ -26,6 +26,11 @@
 //! reader.read_file("README.md")?;
 //! ```
 
+pub mod browser;
+
+#[cfg(feature = "github")]
+pub mod github;
+
 use std::io;
 use std::path::Path;
 
@@ -147,6 +152,7 @@ impl Stash {
 
 /// Prelude module for convenient imports.
 pub mod prelude {
+    pub use crate::browser::{BrowserConfig, Entry, FileBrowser, FileSelectedMsg};
     pub use crate::{Config, Reader, Stash};
 }
 
