@@ -1,0 +1,15 @@
+[package]
+name = "e2e-tests"
+description = "End-to-end integration tests for charmed_rust examples"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+
+[dev-dependencies]
+# Test utilities
+tempfile = "3"

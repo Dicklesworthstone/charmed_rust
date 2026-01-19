@@ -11,6 +11,7 @@ members = [
     "advanced/form",
     "advanced/markdown-viewer",
     "advanced/multi-component",
+    "e2e-tests",
 ]
 
 [workspace.package]
