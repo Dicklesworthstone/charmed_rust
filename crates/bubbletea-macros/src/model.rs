@@ -296,6 +296,51 @@ mod tests {
     }
 
     #[test]
+    fn test_combined_eq_and_debug() {
+        let input = quote! {
+            struct CombinedApp {
+                #[state(eq = "float_eq", debug)]
+                progress: f64,
+            }
+        };
+
+        let output = derive_model_impl(input);
+        let output_str = output.to_string();
+
+        // Should use custom equality with debug logging
+        assert!(output_str.contains("float_eq"), "Should contain custom eq function");
+        assert!(output_str.contains("eprintln !"), "Should contain debug logging");
+
+        // The change detection should be properly structured
+        assert!(output_str.contains("__changed"), "Should use __changed variable");
+    }
+
+    #[test]
+    fn test_multiple_combined_eq_and_debug() {
+        let input = quote! {
+            struct MultiApp {
+                #[state(eq = "float_eq", debug)]
+                progress: f64,
+                #[state(eq = "str_eq", debug)]
+                name: String,
+            }
+        };
+
+        let output = derive_model_impl(input);
+        let output_str = output.to_string();
+
+        // Print for debugging
+        eprintln!("Generated code for multiple combined eq+debug:\n{}", output_str);
+
+        // Should use both custom equality functions
+        assert!(output_str.contains("float_eq"), "Should contain float_eq function");
+        assert!(output_str.contains("str_eq"), "Should contain str_eq function");
+
+        // The state_changed method should use || to combine checks
+        assert!(output_str.contains("||"), "Should combine checks with OR");
+    }
+
+    #[test]
     fn test_struct_without_state_fields() {
         let input = quote! {
             struct SimpleApp {
@@ -313,5 +358,180 @@ mod tests {
         assert!(output_str.contains("__state_changed"));
         assert!(output_str.contains("__snapshot_state"));
         assert!(output_str.contains("false")); // always returns false
+    }
+
+    #[test]
+    fn test_empty_struct() {
+        let input = quote! {
+            struct EmptyApp {}
+        };
+
+        let output = derive_model_impl(input);
+        let output_str = output.to_string();
+
+        // Should generate Model impl even for empty structs
+        assert!(output_str.contains("impl :: bubbletea :: Model for EmptyApp"));
+        assert!(output_str.contains("fn init"));
+        assert!(output_str.contains("fn update"));
+        assert!(output_str.contains("fn view"));
+    }
+
+    #[test]
+    fn test_many_fields() {
+        let input = quote! {
+            struct LargeApp {
+                #[state]
+                a: i32,
+                #[state]
+                b: i32,
+                #[state]
+                c: String,
+                d: i32,
+                e: i32,
+                f: String,
+                g: bool,
+                h: u64,
+            }
+        };
+
+        let output = derive_model_impl(input);
+        let output_str = output.to_string();
+
+        // Should generate Model impl
+        assert!(output_str.contains("impl :: bubbletea :: Model for LargeApp"));
+
+        // Should track only state fields
+        assert!(output_str.contains("a : i32"));
+        assert!(output_str.contains("b : i32"));
+        assert!(output_str.contains("c : String"));
+
+        // Non-state fields should not be in snapshot
+        assert!(!output_str.contains("d : i32"));
+        assert!(!output_str.contains("e : i32"));
+    }
+
+    #[test]
+    fn test_complex_field_types() {
+        let input = quote! {
+            struct ComplexApp {
+                #[state]
+                items: Vec<String>,
+                #[state]
+                mapping: std::collections::HashMap<String, i32>,
+                optional: Option<Box<String>>,
+            }
+        };
+
+        let output = derive_model_impl(input);
+        let output_str = output.to_string();
+
+        // Should handle complex types
+        assert!(output_str.contains("impl :: bubbletea :: Model for ComplexApp"));
+        assert!(output_str.contains("items : Vec < String >"));
+        assert!(output_str.contains("mapping : std :: collections :: HashMap < String , i32 >"));
+    }
+
+    #[test]
+    fn test_generic_with_state_fields() {
+        let input = quote! {
+            struct GenericState<T>
+            where
+                T: Clone + PartialEq,
+            {
+                #[state]
+                value: T,
+                metadata: String,
+            }
+        };
+
+        let output = derive_model_impl(input);
+        let output_str = output.to_string();
+
+        // Should handle generics with state
+        assert!(output_str.contains("impl < T > :: bubbletea :: Model for GenericState < T >"));
+        assert!(output_str.contains("where T : Clone + PartialEq"));
+
+        // Snapshot struct should also be generic
+        assert!(output_str.contains("__GenericStateStateSnapshot"));
+        assert!(output_str.contains("value : T"));
+    }
+
+    #[test]
+    fn test_lifetime_with_state() {
+        let input = quote! {
+            struct RefApp<'a> {
+                #[state]
+                data: &'a str,
+            }
+        };
+
+        let output = derive_model_impl(input);
+        let output_str = output.to_string();
+
+        // Should handle lifetimes with state
+        assert!(output_str.contains("impl < 'a > :: bubbletea :: Model for RefApp < 'a >"));
+        assert!(output_str.contains("__RefAppStateSnapshot"));
+    }
+
+    #[test]
+    fn test_multiple_generics_and_lifetimes() {
+        let input = quote! {
+            struct MultiGeneric<'a, T, U>
+            where
+                T: Clone,
+                U: Default,
+            {
+                #[state]
+                first: T,
+                second: U,
+                reference: &'a str,
+            }
+        };
+
+        let output = derive_model_impl(input);
+        let output_str = output.to_string();
+
+        // Should handle multiple generics and lifetimes
+        assert!(output_str
+            .contains("impl < 'a , T , U > :: bubbletea :: Model for MultiGeneric < 'a , T , U >"));
+    }
+
+    #[test]
+    fn test_state_debug_generates_logging() {
+        let input = quote! {
+            struct DebugApp {
+                #[state(debug)]
+                value: i32,
+            }
+        };
+
+        let output = derive_model_impl(input);
+        let output_str = output.to_string();
+
+        // Should generate debug logging
+        assert!(output_str.contains("eprintln !"));
+        assert!(output_str.contains("value"));
+    }
+
+    #[test]
+    fn test_all_fields_skipped() {
+        let input = quote! {
+            struct AllSkipped {
+                #[state(skip)]
+                internal1: u64,
+                #[state(skip)]
+                internal2: String,
+            }
+        };
+
+        let output = derive_model_impl(input);
+        let output_str = output.to_string();
+
+        // Should generate Model impl
+        assert!(output_str.contains("impl :: bubbletea :: Model for AllSkipped"));
+
+        // With all fields skipped, state_changed should always return false
+        assert!(output_str.contains("__state_changed"));
+        assert!(output_str.contains("false"));
     }
 }
