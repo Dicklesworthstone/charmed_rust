@@ -4,18 +4,30 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (build only, no release)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false  # Never cancel releases
+
+permissions:
+  contents: write
+  id-token: write  # For SLSA provenance attestation
 
 env:
   CARGO_TERM_COLOR: always
   BINARY_NAME: glow
 
-permissions:
-  contents: write
-
 jobs:
   build:
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -24,41 +36,33 @@ jobs:
             os: ubuntu-latest
             artifact_name: glow-linux-x64
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: ubuntu-24.04-arm  # Native ARM runner (10x faster than QEMU)
             artifact_name: glow-linux-arm64
           - target: x86_64-apple-darwin
-            os: macos-latest
+            os: macos-15-intel
             artifact_name: glow-macos-x64
           - target: aarch64-apple-darwin
-            os: macos-latest
+            os: macos-14  # Apple Silicon native
             artifact_name: glow-macos-arm64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact_name: glow-windows-x64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross-compilation tools (Linux ARM64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-
       - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
         with:
-          key: ${{ matrix.target }}
+          key: release-${{ matrix.target }}
 
       - name: Build release binary
         run: cargo build --release --package glow --target ${{ matrix.target }}
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
 
       - name: Prepare artifact (Unix)
         if: runner.os != 'Windows'
@@ -75,7 +79,7 @@ jobs:
           Copy-Item "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}.exe" "dist/${{ matrix.artifact_name }}.exe"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ matrix.artifact_name }}
           path: dist/*
@@ -85,18 +89,19 @@ jobs:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ !inputs.dry_run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: artifacts
 
       - name: Prepare release assets
         run: |
           mkdir -p release
-          # Move all binaries to release directory
           find artifacts -type f -exec mv {} release/ \;
           ls -la release/
 
@@ -110,8 +115,19 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+      - name: Generate SBOM
+        uses: anchore/sbom-action@f325610c9f50a54015d37c8d16cb3b0e2c8f4de0 # v0.18.0
+        with:
+          path: release/
+          output-file: release/sbom.spdx.json
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd # v2.3.0
+        with:
+          subject-path: release/*
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
           name: Release ${{ steps.version.outputs.VERSION }}
           draft: false
@@ -121,3 +137,70 @@ jobs:
             release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-crates:
+    name: Publish to crates.io
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ !inputs.dry_run && !contains(github.ref, '-') }}  # Skip pre-releases
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+        with:
+          key: publish
+
+      - name: Publish crates to crates.io
+        if: ${{ env.CARGO_REGISTRY_TOKEN != '' }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -e
+          # Publish crates in dependency order with delay between publishes
+          # to allow crates.io index to update
+
+          echo "Publishing harmonica..."
+          cargo publish -p harmonica --allow-dirty || true
+          sleep 30
+
+          echo "Publishing lipgloss..."
+          cargo publish -p lipgloss --allow-dirty || true
+          sleep 30
+
+          echo "Publishing charmed_log..."
+          cargo publish -p charmed_log --allow-dirty || true
+          sleep 30
+
+          echo "Publishing bubbletea-macros..."
+          cargo publish -p bubbletea-macros --allow-dirty || true
+          sleep 30
+
+          echo "Publishing bubbletea..."
+          cargo publish -p bubbletea --allow-dirty || true
+          sleep 30
+
+          echo "Publishing glamour..."
+          cargo publish -p glamour --allow-dirty || true
+          sleep 30
+
+          echo "Publishing bubbles..."
+          cargo publish -p bubbles --allow-dirty || true
+          sleep 30
+
+          echo "Publishing huh..."
+          cargo publish -p huh --allow-dirty || true
+          sleep 30
+
+          echo "Publishing wish..."
+          cargo publish -p wish --allow-dirty || true
+          sleep 30
+
+          echo "Publishing glow..."
+          cargo publish -p glow --allow-dirty || true
+
+          echo "All crates published successfully!"
