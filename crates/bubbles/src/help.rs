@@ -20,6 +20,7 @@
 //! ```
 
 use crate::key::Binding;
+use bubbletea::{Cmd, Message, Model};
 use lipgloss::Style;
 
 /// Styles for the help view.
@@ -55,6 +56,18 @@ impl Default for Styles {
     }
 }
 
+/// Message to toggle full help display.
+#[derive(Debug, Clone, Copy)]
+pub struct ToggleFullHelpMsg;
+
+/// Message to set the width of the help view.
+#[derive(Debug, Clone, Copy)]
+pub struct SetWidthMsg(pub usize);
+
+/// Message to set key bindings for the help view.
+#[derive(Debug, Clone)]
+pub struct SetBindingsMsg(pub Vec<Binding>);
+
 /// Help view model.
 #[derive(Debug, Clone)]
 pub struct Help {
@@ -70,6 +83,8 @@ pub struct Help {
     pub ellipsis: String,
     /// Styles for rendering.
     pub styles: Styles,
+    /// Key bindings for standalone Model usage.
+    bindings: Vec<Binding>,
 }
 
 impl Default for Help {
@@ -89,7 +104,26 @@ impl Help {
             full_separator: "    ".to_string(),
             ellipsis: "…".to_string(),
             styles: Styles::default(),
+            bindings: Vec::new(),
         }
+    }
+
+    /// Sets the key bindings for standalone Model usage.
+    #[must_use]
+    pub fn with_bindings(mut self, bindings: Vec<Binding>) -> Self {
+        self.bindings = bindings;
+        self
+    }
+
+    /// Sets the key bindings.
+    pub fn set_bindings(&mut self, bindings: Vec<Binding>) {
+        self.bindings = bindings;
+    }
+
+    /// Returns the stored key bindings.
+    #[must_use]
+    pub fn bindings(&self) -> &[Binding] {
+        &self.bindings
     }
 
     /// Sets the width of the help view.
@@ -257,6 +291,46 @@ pub trait KeyMap {
 
     /// Returns groups of bindings for full help display.
     fn full_help(&self) -> Vec<Vec<Binding>>;
+}
+
+/// Implement the Model trait for standalone bubbletea usage.
+impl Model for Help {
+    fn init(&self) -> Option<Cmd> {
+        // Help doesn't need initialization
+        None
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        // Handle toggle full help
+        if msg.is::<ToggleFullHelpMsg>() {
+            self.show_all = !self.show_all;
+            return None;
+        }
+
+        // Handle set width
+        if let Some(SetWidthMsg(width)) = msg.downcast_ref::<SetWidthMsg>() {
+            self.width = *width;
+            return None;
+        }
+
+        // Handle set bindings
+        if let Some(set_bindings) = msg.downcast::<SetBindingsMsg>() {
+            self.bindings = set_bindings.0;
+            return None;
+        }
+
+        None
+    }
+
+    fn view(&self) -> String {
+        // Use stored bindings for standalone Model view
+        let binding_refs: Vec<&Binding> = self.bindings.iter().collect();
+        if self.show_all {
+            self.full_help_view(&[binding_refs])
+        } else {
+            self.short_help_view(&binding_refs)
+        }
+    }
 }
 
 #[cfg(test)]

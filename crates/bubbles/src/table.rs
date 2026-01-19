@@ -26,7 +26,7 @@
 
 use crate::key::{Binding, matches};
 use crate::viewport::Viewport;
-use bubbletea::{Cmd, KeyMsg, Message};
+use bubbletea::{Cmd, KeyMsg, Message, Model};
 use lipgloss::{Color, Style};
 
 /// A single column definition for the table.
@@ -467,6 +467,25 @@ fn truncate_string(s: &str, width: usize) -> String {
     }
 }
 
+impl Model for Table {
+    /// Initialize the table.
+    ///
+    /// Tables don't require initialization commands.
+    fn init(&self) -> Option<Cmd> {
+        None
+    }
+
+    /// Update the table state based on incoming messages.
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        Table::update(self, msg)
+    }
+
+    /// Render the table.
+    fn view(&self) -> String {
+        Table::view(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -624,5 +643,25 @@ mod tests {
         let km = KeyMap::default();
         assert!(!km.line_up.get_keys().is_empty());
         assert!(!km.goto_bottom.get_keys().is_empty());
+    }
+
+    // Model trait implementation tests
+    #[test]
+    fn test_model_init() {
+        let table = Table::new();
+        // Tables don't require init commands
+        let cmd = Model::init(&table);
+        assert!(cmd.is_none());
+    }
+
+    #[test]
+    fn test_model_view() {
+        let columns = vec![Column::new("ID", 5)];
+        let rows = vec![vec!["1".into()]];
+        let table = Table::new().columns(columns).rows(rows);
+        // Model::view should return same result as Table::view
+        let model_view = Model::view(&table);
+        let table_view = Table::view(&table);
+        assert_eq!(model_view, table_view);
     }
 }

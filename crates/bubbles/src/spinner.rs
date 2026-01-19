@@ -20,7 +20,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use bubbletea::{Cmd, Message};
+use bubbletea::{Cmd, Message, Model};
 use lipgloss::Style;
 
 /// Global ID counter for spinner instances.
@@ -271,6 +271,29 @@ impl SpinnerModel {
         }
 
         self.style.render(&self.spinner.frames[self.frame])
+    }
+}
+
+/// Implement the Model trait for standalone bubbletea usage.
+impl Model for SpinnerModel {
+    fn init(&self) -> Option<Cmd> {
+        // Return a command to start the spinner's tick cycle
+        let id = self.id;
+        let tag = self.tag;
+        let duration = self.spinner.frame_duration();
+
+        Some(Cmd::new(move || {
+            std::thread::sleep(duration);
+            Message::new(TickMsg { id, tag })
+        }))
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        SpinnerModel::update(self, msg)
+    }
+
+    fn view(&self) -> String {
+        SpinnerModel::view(self)
     }
 }
 

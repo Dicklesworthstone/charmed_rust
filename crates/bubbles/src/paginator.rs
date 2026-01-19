@@ -23,7 +23,7 @@
 //! ```
 
 use crate::key::{Binding, matches};
-use bubbletea::{KeyMsg, Message};
+use bubbletea::{Cmd, KeyMsg, Message, Model};
 
 /// Pagination display type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -219,8 +219,16 @@ impl Paginator {
         self.page == 0
     }
 
+    /// Initializes the paginator.
+    ///
+    /// Paginators don't require initialization commands.
+    #[must_use]
+    pub fn init(&self) -> Option<Cmd> {
+        None
+    }
+
     /// Updates the paginator based on key input.
-    pub fn update(&mut self, msg: Message) {
+    pub fn update(&mut self, msg: Message) -> Option<Cmd> {
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
             let key_str = key.to_string();
             if matches(&key_str, &[&self.key_map.next_page]) {
@@ -229,6 +237,7 @@ impl Paginator {
                 self.prev_page();
             }
         }
+        None
     }
 
     /// Renders the pagination display.
@@ -257,6 +266,21 @@ impl Paginator {
         self.arabic_format
             .replacen("{}", &(self.page + 1).to_string(), 1)
             .replacen("{}", &self.total_pages.to_string(), 1)
+    }
+}
+
+/// Implement the Model trait for standalone bubbletea usage.
+impl Model for Paginator {
+    fn init(&self) -> Option<Cmd> {
+        Paginator::init(self)
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        Paginator::update(self, msg)
+    }
+
+    fn view(&self) -> String {
+        Paginator::view(self)
     }
 }
 

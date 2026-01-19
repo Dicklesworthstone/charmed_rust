@@ -17,7 +17,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use bubbletea::{Cmd, Message};
+use bubbletea::{Cmd, Message, Model};
 
 /// Global ID counter for stopwatch instances.
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
@@ -248,6 +248,21 @@ fn format_duration(d: Duration) -> String {
         format!("{}.{}s", seconds, millis / 100)
     } else {
         format!("{}s", seconds)
+    }
+}
+
+/// Implement the Model trait for standalone bubbletea usage.
+impl Model for Stopwatch {
+    fn init(&self) -> Option<Cmd> {
+        Stopwatch::init(self)
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        Stopwatch::update(self, msg)
+    }
+
+    fn view(&self) -> String {
+        Stopwatch::view(self)
     }
 }
 

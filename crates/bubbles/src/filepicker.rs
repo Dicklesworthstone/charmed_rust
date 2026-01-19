@@ -16,7 +16,7 @@
 //! ```
 
 use crate::key::{Binding, matches};
-use bubbletea::{Cmd, KeyMsg, Message, WindowSizeMsg};
+use bubbletea::{Cmd, KeyMsg, Message, Model, WindowSizeMsg};
 use lipgloss::{Color, Style};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -557,6 +557,23 @@ impl FilePicker {
     }
 }
 
+impl Model for FilePicker {
+    /// Initialize the file picker by reading the current directory.
+    fn init(&self) -> Option<Cmd> {
+        FilePicker::init(self)
+    }
+
+    /// Update the file picker state based on incoming messages.
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        FilePicker::update(self, msg)
+    }
+
+    /// Render the file picker.
+    fn view(&self) -> String {
+        FilePicker::view(self)
+    }
+}
+
 /// Reads a directory and returns sorted entries.
 fn read_directory(path: &Path, show_hidden: bool) -> std::io::Result<Vec<DirEntry>> {
     let mut entries = Vec::new();
@@ -770,5 +787,30 @@ mod tests {
         assert_eq!(entry.name, "test.txt");
         assert!(!entry.is_dir);
         assert_eq!(entry.size, 1024);
+    }
+
+    // Model trait implementation tests
+    #[test]
+    fn test_model_init_returns_cmd() {
+        let fp = FilePicker::new();
+        // FilePicker init returns a command to read the directory
+        let cmd = Model::init(&fp);
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_model_view_matches_filepicker_view() {
+        let fp = FilePicker::new();
+        // Model::view should return same result as FilePicker::view
+        let model_view = Model::view(&fp);
+        let filepicker_view = FilePicker::view(&fp);
+        assert_eq!(model_view, filepicker_view);
+    }
+
+    #[test]
+    fn test_filepicker_satisfies_model_bounds() {
+        fn requires_model<T: Model>(_: &T) {}
+        let fp = FilePicker::new();
+        requires_model(&fp);
     }
 }

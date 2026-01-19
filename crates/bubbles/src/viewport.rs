@@ -16,7 +16,7 @@
 //! ```
 
 use crate::key::{Binding, matches};
-use bubbletea::{KeyMsg, Message, MouseMsg};
+use bubbletea::{Cmd, KeyMsg, Message, Model, MouseMsg};
 use lipgloss::Style;
 
 /// Key bindings for viewport navigation.
@@ -357,6 +357,24 @@ impl Viewport {
         }
 
         self.style.render(&lines.join("\n"))
+    }
+}
+
+/// Implement the Model trait for standalone bubbletea usage.
+impl Model for Viewport {
+    fn init(&self) -> Option<Cmd> {
+        // Viewport doesn't need initialization
+        None
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        // Call the existing update method
+        Viewport::update(self, &msg);
+        None
+    }
+
+    fn view(&self) -> String {
+        Viewport::view(self)
     }
 }
 
