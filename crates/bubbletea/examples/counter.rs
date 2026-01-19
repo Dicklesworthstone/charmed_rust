@@ -7,7 +7,7 @@ struct Counter {
 }
 
 impl Counter {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self { count: 0 }
     }
 }
@@ -38,10 +38,7 @@ impl Model for Counter {
     }
 
     fn view(&self) -> String {
-        format!(
-            "Count: {}\n\nPress + / - to change, q to quit.",
-            self.count
-        )
+        format!("Count: {}\n\nPress + / - to change, q to quit.", self.count)
     }
 }
 

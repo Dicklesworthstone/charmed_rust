@@ -47,35 +47,32 @@ fn main() {
 
     let reader = Reader::new(config);
 
-    match cli.path {
-        Some(path) => {
-            if path.as_os_str() == "-" {
-                let mut input = String::new();
-                if let Err(err) = std::io::stdin().read_to_string(&mut input) {
-                    eprintln!("Error reading stdin: {err}");
+    if let Some(path) = cli.path {
+        if path.as_os_str() == "-" {
+            let mut input = String::new();
+            if let Err(err) = std::io::stdin().read_to_string(&mut input) {
+                eprintln!("Error reading stdin: {err}");
+                std::process::exit(1);
+            }
+            match reader.render_markdown(&input) {
+                Ok(output) => print!("{output}"),
+                Err(err) => {
+                    eprintln!("Error rendering markdown: {err}");
                     std::process::exit(1);
                 }
-                match reader.render_markdown(&input) {
-                    Ok(output) => print!("{output}"),
-                    Err(err) => {
-                        eprintln!("Error rendering markdown: {err}");
-                        std::process::exit(1);
-                    }
-                }
-            } else {
-                match reader.read_file(&path) {
-                    Ok(output) => print!("{output}"),
-                    Err(err) => {
-                        eprintln!("Error reading file: {err}");
-                        std::process::exit(1);
-                    }
+            }
+        } else {
+            match reader.read_file(&path) {
+                Ok(output) => print!("{output}"),
+                Err(err) => {
+                    eprintln!("Error reading file: {err}");
+                    std::process::exit(1);
                 }
             }
         }
-        None => {
-            let mut cmd = Cli::command();
-            let _ = cmd.print_help();
-            println!();
-        }
+    } else {
+        let mut cmd = Cli::command();
+        let _ = cmd.print_help();
+        println!();
     }
 }
