@@ -607,8 +607,10 @@ impl<M: Model> Program<M> {
         // Save options for cleanup (since self will be moved)
         let options = self.options.clone();
 
-        // Setup terminal
-        enable_raw_mode()?;
+        // Setup terminal (skip for custom I/O)
+        if !options.custom_io {
+            enable_raw_mode()?;
+        }
 
         if options.alt_screen {
             execute!(stdout, EnterAlternateScreen)?;
@@ -652,7 +654,9 @@ impl<M: Model> Program<M> {
             let _ = execute!(stdout, LeaveAlternateScreen);
         }
 
-        let _ = disable_raw_mode();
+        if !options.custom_io {
+            let _ = disable_raw_mode();
+        }
 
         result
     }
@@ -665,9 +669,21 @@ impl<M: Model> Program<M> {
         let cancel_token = CancellationToken::new();
         let task_tracker = TaskTracker::new();
 
+        // Forward external messages
+        if let Some(ext_rx) = self.external_rx.take() {
+            let tx_clone = tx.clone();
+            thread::spawn(move || {
+                while let Ok(msg) = ext_rx.recv() {
+                    let _ = tx_clone.blocking_send(msg);
+                }
+            });
+        }
+
         // Get initial window size
-        let (width, height) = terminal::size()?;
-        let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
+        if !self.options.custom_io {
+            let (width, height) = terminal::size()?;
+            let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
+        }
 
         // Call init and handle initial command
         if let Some(cmd) = self.model.init() {
@@ -691,7 +707,7 @@ impl<M: Model> Program<M> {
         loop {
             tokio::select! {
                 // Check for terminal events (using spawn_blocking for crossterm)
-                event_result = Self::poll_event_async() => {
+                event_result = Self::poll_event_async(), if !self.options.custom_io => {
                     if let Some(event) = event_result? {
                         match event {
                             Event::Key(key_event) => {
@@ -763,8 +779,10 @@ impl<M: Model> Program<M> {
 
                     // Handle window size request
                     if msg.is::<RequestWindowSizeMsg>() {
-                        let (width, height) = terminal::size()?;
-                        let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
+                        if !self.options.custom_io {
+                            let (width, height) = terminal::size()?;
+                            let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
+                        }
                         continue;
                     }
 
