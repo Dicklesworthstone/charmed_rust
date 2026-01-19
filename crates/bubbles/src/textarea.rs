@@ -1229,4 +1229,71 @@ mod tests {
         let textarea_view = TextArea::view(&ta);
         assert_eq!(model_view, textarea_view);
     }
+
+    #[test]
+    fn test_model_update_handles_paste_msg() {
+        use bubbletea::Message;
+
+        let mut ta = TextArea::new();
+        ta.focus();
+        assert_eq!(ta.value(), "");
+
+        let paste_msg = Message::new(PasteMsg("hello world".to_string()));
+        let _ = Model::update(&mut ta, paste_msg);
+
+        assert_eq!(ta.value(), "hello world", "TextArea should insert pasted text");
+    }
+
+    #[test]
+    fn test_model_update_unfocused_ignores_input() {
+        use bubbletea::{KeyMsg, Message};
+
+        let mut ta = TextArea::new();
+        // Not focused
+        assert!(!ta.focused());
+        assert_eq!(ta.value(), "");
+
+        let key_msg = Message::new(KeyMsg::from_char('a'));
+        let _ = Model::update(&mut ta, key_msg);
+
+        assert_eq!(ta.value(), "", "Unfocused textarea should ignore key input");
+    }
+
+    #[test]
+    fn test_model_update_handles_key_input() {
+        use bubbletea::{KeyMsg, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+        assert_eq!(ta.value(), "");
+
+        let key_msg = Message::new(KeyMsg::from_char('H'));
+        let _ = Model::update(&mut ta, key_msg);
+
+        assert_eq!(ta.value(), "H", "Focused textarea should insert typed character");
+    }
+
+    #[test]
+    fn test_model_update_handles_navigation() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+        ta.set_value("Hello\nWorld");
+        ta.move_to_begin();
+        assert_eq!(ta.row, 0);
+        assert_eq!(ta.col, 0);
+
+        // Press Down arrow
+        let down_msg = Message::new(KeyMsg::from_type(KeyType::Down));
+        let _ = Model::update(&mut ta, down_msg);
+
+        assert_eq!(ta.row, 1, "TextArea should navigate down on Down key");
+    }
+
+    #[test]
+    fn test_textarea_satisfies_model_bounds() {
+        fn requires_model<T: Model + Send + 'static>() {}
+        requires_model::<TextArea>();
+    }
 }

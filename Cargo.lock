@@ -110,6 +110,7 @@ name = "bubbles"
 version = "0.1.0"
 dependencies = [
  "bubbletea",
+ "criterion",
  "harmonica",
  "lipgloss",
  "parking_lot",
@@ -121,6 +122,7 @@ dependencies = [
 name = "bubbletea"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "crossterm",
  "parking_lot",
 ]
@@ -542,6 +544,7 @@ dependencies = [
 name = "glamour"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "lipgloss",
  "pulldown-cmark",
 ]
@@ -668,6 +671,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags",
  "colored",
+ "criterion",
  "crossterm",
  "unicode-width 0.1.14",
 ]

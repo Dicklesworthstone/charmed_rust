@@ -664,4 +664,64 @@ mod tests {
         let table_view = Table::view(&table);
         assert_eq!(model_view, table_view);
     }
+
+    #[test]
+    fn test_model_update_handles_navigation() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let columns = vec![Column::new("ID", 5), Column::new("Name", 20)];
+        let rows = vec![
+            vec!["1".into(), "First".into()],
+            vec!["2".into(), "Second".into()],
+            vec!["3".into(), "Third".into()],
+        ];
+        let mut table = Table::new().columns(columns).rows(rows).focused(true);
+        assert_eq!(table.cursor(), 0);
+
+        // Press down arrow
+        let down_msg = Message::new(KeyMsg::from_type(KeyType::Down));
+        let _ = Model::update(&mut table, down_msg);
+
+        assert_eq!(table.cursor(), 1, "Table should navigate down on Down key");
+    }
+
+    #[test]
+    fn test_model_update_unfocused_ignores_input() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let columns = vec![Column::new("ID", 5)];
+        let rows = vec![vec!["1".into()], vec!["2".into()]];
+        let mut table = Table::new().columns(columns).rows(rows);
+        // Table is not focused by default
+        assert!(!table.focus);
+        assert_eq!(table.cursor(), 0);
+
+        // Press down arrow
+        let down_msg = Message::new(KeyMsg::from_type(KeyType::Down));
+        let _ = Model::update(&mut table, down_msg);
+
+        assert_eq!(table.cursor(), 0, "Unfocused table should ignore key input");
+    }
+
+    #[test]
+    fn test_model_update_goto_bottom() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let columns = vec![Column::new("ID", 5)];
+        let rows = vec![vec!["1".into()], vec!["2".into()], vec!["3".into()]];
+        let mut table = Table::new().columns(columns).rows(rows).focused(true);
+        assert_eq!(table.cursor(), 0);
+
+        // Press End to go to bottom
+        let end_msg = Message::new(KeyMsg::from_type(KeyType::End));
+        let _ = Model::update(&mut table, end_msg);
+
+        assert_eq!(table.cursor(), 2, "Table should go to bottom on End key");
+    }
+
+    #[test]
+    fn test_table_satisfies_model_bounds() {
+        fn requires_model<T: Model + Send + 'static>() {}
+        requires_model::<Table>();
+    }
 }

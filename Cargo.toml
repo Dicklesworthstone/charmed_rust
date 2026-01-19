@@ -96,6 +96,9 @@ strip = true
 [profile.dev]
 opt-level = 1
 
+[profile.bench]
+debug = true
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 

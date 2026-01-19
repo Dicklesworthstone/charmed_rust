@@ -18,6 +18,11 @@ unicode-width.workspace = true
 parking_lot = "0.12"
 
 [dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "bubbles_benchmarks"
+harness = false
 
 [lints]
 workspace = true

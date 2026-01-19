@@ -13,5 +13,12 @@ unicode-width = "0.1"
 colored = "2.1"
 bitflags = "2.4"
 
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "lipgloss_benchmarks"
+harness = false
+
 [lints]
 workspace = true

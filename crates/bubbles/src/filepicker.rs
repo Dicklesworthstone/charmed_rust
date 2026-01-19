@@ -809,8 +809,93 @@ mod tests {
 
     #[test]
     fn test_filepicker_satisfies_model_bounds() {
-        fn requires_model<T: Model>(_: &T) {}
-        let fp = FilePicker::new();
-        requires_model(&fp);
+        fn requires_model<T: Model + Send + 'static>() {}
+        requires_model::<FilePicker>();
+    }
+
+    #[test]
+    fn test_model_update_handles_navigation() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut fp = FilePicker::new();
+        // Simulate having some files loaded
+        fp.files = vec![
+            DirEntry {
+                name: "file1.txt".to_string(),
+                path: PathBuf::from("/tmp/file1.txt"),
+                is_dir: false,
+                is_symlink: false,
+                size: 100,
+                mode: "-rw-r--r--".to_string(),
+            },
+            DirEntry {
+                name: "file2.txt".to_string(),
+                path: PathBuf::from("/tmp/file2.txt"),
+                is_dir: false,
+                is_symlink: false,
+                size: 200,
+                mode: "-rw-r--r--".to_string(),
+            },
+        ];
+        fp.max = 10;
+        fp.selected = 0;
+
+        // Press down arrow
+        let down_msg = Message::new(KeyMsg::from_type(KeyType::Down));
+        let _ = Model::update(&mut fp, down_msg);
+
+        assert_eq!(fp.selected, 1, "FilePicker should navigate down on Down key");
+    }
+
+    #[test]
+    fn test_model_update_handles_read_dir_msg() {
+        use bubbletea::Message;
+
+        let mut fp = FilePicker::new();
+        let id = fp.id();
+        assert!(fp.files.is_empty());
+
+        // Simulate receiving a ReadDirMsg
+        let read_msg = ReadDirMsg {
+            id,
+            entries: vec![DirEntry {
+                name: "test.txt".to_string(),
+                path: PathBuf::from("/tmp/test.txt"),
+                is_dir: false,
+                is_symlink: false,
+                size: 42,
+                mode: "-rw-r--r--".to_string(),
+            }],
+        };
+
+        let _ = Model::update(&mut fp, Message::new(read_msg));
+
+        assert_eq!(fp.files.len(), 1, "FilePicker should populate files from ReadDirMsg");
+        assert_eq!(fp.files[0].name, "test.txt");
+    }
+
+    #[test]
+    fn test_model_update_ignores_wrong_id() {
+        use bubbletea::Message;
+
+        let mut fp = FilePicker::new();
+        assert!(fp.files.is_empty());
+
+        // Send ReadDirMsg with wrong ID
+        let read_msg = ReadDirMsg {
+            id: fp.id() + 1, // Wrong ID
+            entries: vec![DirEntry {
+                name: "test.txt".to_string(),
+                path: PathBuf::from("/tmp/test.txt"),
+                is_dir: false,
+                is_symlink: false,
+                size: 42,
+                mode: "-rw-r--r--".to_string(),
+            }],
+        };
+
+        let _ = Model::update(&mut fp, Message::new(read_msg));
+
+        assert!(fp.files.is_empty(), "FilePicker should ignore ReadDirMsg with wrong ID");
     }
 }
