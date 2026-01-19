@@ -1470,11 +1470,15 @@ mod tests {
         ];
         fp.selected = 0;
 
-        let entry = fp.highlighted_entry().expect("Should have highlighted entry");
+        let entry = fp
+            .highlighted_entry()
+            .expect("Should have highlighted entry");
         assert_eq!(entry.name, "first.txt");
 
         fp.selected = 1;
-        let entry = fp.highlighted_entry().expect("Should have highlighted entry");
+        let entry = fp
+            .highlighted_entry()
+            .expect("Should have highlighted entry");
         assert_eq!(entry.name, "second.txt");
     }
 

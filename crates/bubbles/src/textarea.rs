@@ -1332,7 +1332,11 @@ mod tests {
         let backspace_msg = Message::new(KeyMsg::from_type(KeyType::Backspace));
         let _ = Model::update(&mut ta, backspace_msg);
 
-        assert_eq!(ta.value(), "Hell", "Backspace should delete character before cursor");
+        assert_eq!(
+            ta.value(),
+            "Hell",
+            "Backspace should delete character before cursor"
+        );
     }
 
     #[test]
@@ -1366,7 +1370,11 @@ mod tests {
         let delete_msg = Message::new(KeyMsg::from_type(KeyType::Delete));
         let _ = Model::update(&mut ta, delete_msg);
 
-        assert_eq!(ta.value(), "ello", "Delete should remove character at cursor");
+        assert_eq!(
+            ta.value(),
+            "ello",
+            "Delete should remove character at cursor"
+        );
     }
 
     #[test]
@@ -1443,8 +1451,10 @@ mod tests {
         let view = ta.view();
 
         // Line numbers should appear in view
-        assert!(view.contains('1') && view.contains('2') && view.contains('3'),
-                "View should contain line numbers");
+        assert!(
+            view.contains('1') && view.contains('2') && view.contains('3'),
+            "View should contain line numbers"
+        );
     }
 
     #[test]
@@ -1456,8 +1466,10 @@ mod tests {
         let view = ta.view();
 
         // Content should be present but line numbers formatting may differ
-        assert!(view.contains('A') && view.contains('B') && view.contains('C'),
-                "View should contain content");
+        assert!(
+            view.contains('A') && view.contains('B') && view.contains('C'),
+            "View should contain content"
+        );
     }
 
     #[test]
@@ -1474,7 +1486,11 @@ mod tests {
         ta.move_to_begin();
         ta.move_to_end();
 
-        assert_eq!(ta.value(), "", "Empty textarea should remain empty after navigation");
+        assert_eq!(
+            ta.value(),
+            "",
+            "Empty textarea should remain empty after navigation"
+        );
         assert_eq!(ta.row, 0);
         assert_eq!(ta.col, 0);
     }
@@ -1548,7 +1564,10 @@ mod tests {
         ta.focus();
 
         let cmd = Model::init(&ta);
-        assert!(cmd.is_some(), "Focused textarea init should return blink command");
+        assert!(
+            cmd.is_some(),
+            "Focused textarea init should return blink command"
+        );
     }
 
     #[test]

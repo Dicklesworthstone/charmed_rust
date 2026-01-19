@@ -284,7 +284,7 @@ mod timer_e2e {
 
 mod stopwatch_e2e {
     use super::*;
-    use bubbles::stopwatch::{Stopwatch, StartStopMsg};
+    use bubbles::stopwatch::{StartStopMsg, Stopwatch};
 
     #[test]
     fn test_stopwatch_standalone_lifecycle() {

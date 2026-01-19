@@ -915,7 +915,11 @@ mod tests {
 
         let end_msg = Message::new(KeyMsg::from_type(KeyType::End));
         let _ = Model::update(&mut table, end_msg);
-        assert_eq!(table.cursor(), 0, "Empty table goto_bottom should stay at 0");
+        assert_eq!(
+            table.cursor(),
+            0,
+            "Empty table goto_bottom should stay at 0"
+        );
 
         let home_msg = Message::new(KeyMsg::from_type(KeyType::Home));
         let _ = Model::update(&mut table, home_msg);
@@ -949,11 +953,7 @@ mod tests {
         use bubbletea::{KeyMsg, KeyType, Message};
 
         let columns = vec![Column::new("ID", 5)];
-        let rows = vec![
-            vec!["1".into()],
-            vec!["2".into()],
-            vec!["3".into()],
-        ];
+        let rows = vec![vec!["1".into()], vec!["2".into()], vec!["3".into()]];
         let mut table = Table::new().columns(columns).rows(rows).focused(true);
         table.set_cursor(2);
         assert_eq!(table.cursor(), 2);
@@ -968,9 +968,7 @@ mod tests {
     #[test]
     fn test_table_view_with_long_content() {
         let columns = vec![Column::new("Name", 5)];
-        let rows = vec![
-            vec!["VeryLongNameThatExceedsColumnWidth".into()],
-        ];
+        let rows = vec![vec!["VeryLongNameThatExceedsColumnWidth".into()]];
         let table = Table::new().columns(columns).rows(rows);
         let view = table.view();
 
