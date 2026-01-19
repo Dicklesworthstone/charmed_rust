@@ -7,6 +7,9 @@ updates:
       day: "monday"
       time: "03:00"
     open-pull-requests-limit: 10
+    labels:
+      - "ci"
+      - "dependencies"
     groups:
       actions:
         patterns:
@@ -19,6 +22,8 @@ updates:
       day: "monday"
       time: "03:00"
     open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
     groups:
       cargo:
         patterns:
@@ -31,6 +36,8 @@ updates:
       day: "monday"
       time: "03:00"
     open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
     groups:
       cargo-examples:
         patterns:
