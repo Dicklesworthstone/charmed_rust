@@ -21,6 +21,52 @@
 use crate::color::{AdaptiveColor, Color};
 use crate::style::Style;
 
+/// Semantic theme color slots.
+///
+/// These slots map to entries in [`ThemeColors`], allowing code to reference
+/// colors by purpose instead of hard-coded values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ColorSlot {
+    Primary,
+    Secondary,
+    Accent,
+    Background,
+    Surface,
+    SurfaceAlt,
+    Text,
+    TextMuted,
+    TextDisabled,
+    Success,
+    Warning,
+    Error,
+    Info,
+    Border,
+    BorderMuted,
+    Separator,
+    Focus,
+    Selection,
+    Hover,
+    CodeKeyword,
+    CodeString,
+    CodeNumber,
+    CodeComment,
+    CodeFunction,
+    CodeType,
+    CodeVariable,
+    CodeOperator,
+}
+
+/// Semantic roles for quick style creation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThemeRole {
+    Primary,
+    Success,
+    Warning,
+    Error,
+    Muted,
+    Inverted,
+}
+
 /// A complete theme with semantic color slots.
 ///
 /// Themes provide a consistent color palette that components can reference
@@ -173,6 +219,11 @@ impl Theme {
         &self.colors
     }
 
+    /// Returns a color by slot.
+    pub fn get(&self, slot: ColorSlot) -> &Color {
+        self.colors.get(slot)
+    }
+
     /// Returns a mutable reference to the theme's color palette.
     pub fn colors_mut(&mut self) -> &mut ThemeColors {
         &mut self.colors
@@ -258,6 +309,39 @@ impl Default for Theme {
 }
 
 impl ThemeColors {
+    /// Returns a color by slot.
+    pub fn get(&self, slot: ColorSlot) -> &Color {
+        match slot {
+            ColorSlot::Primary => &self.primary,
+            ColorSlot::Secondary => &self.secondary,
+            ColorSlot::Accent => &self.accent,
+            ColorSlot::Background => &self.background,
+            ColorSlot::Surface => &self.surface,
+            ColorSlot::SurfaceAlt => &self.surface_alt,
+            ColorSlot::Text => &self.text,
+            ColorSlot::TextMuted => &self.text_muted,
+            ColorSlot::TextDisabled => &self.text_disabled,
+            ColorSlot::Success => &self.success,
+            ColorSlot::Warning => &self.warning,
+            ColorSlot::Error => &self.error,
+            ColorSlot::Info => &self.info,
+            ColorSlot::Border => &self.border,
+            ColorSlot::BorderMuted => &self.border_muted,
+            ColorSlot::Separator => &self.separator,
+            ColorSlot::Focus => &self.focus,
+            ColorSlot::Selection => &self.selection,
+            ColorSlot::Hover => &self.hover,
+            ColorSlot::CodeKeyword => &self.code_keyword,
+            ColorSlot::CodeString => &self.code_string,
+            ColorSlot::CodeNumber => &self.code_number,
+            ColorSlot::CodeComment => &self.code_comment,
+            ColorSlot::CodeFunction => &self.code_function,
+            ColorSlot::CodeType => &self.code_type,
+            ColorSlot::CodeVariable => &self.code_variable,
+            ColorSlot::CodeOperator => &self.code_operator,
+        }
+    }
+
     /// Creates a new `ThemeColors` with all slots set to the same color.
     ///
     /// Useful as a starting point for building custom themes.
@@ -606,6 +690,19 @@ mod tests {
         let style = theme.style();
         // Style should be empty/default
         assert!(style.value().is_empty());
+    }
+
+    #[test]
+    fn test_theme_get_slot() {
+        let theme = Theme::dark();
+        assert_eq!(
+            theme.get(ColorSlot::Primary).0,
+            theme.colors().primary.0
+        );
+        assert_eq!(
+            theme.get(ColorSlot::TextMuted).0,
+            theme.colors().text_muted.0
+        );
     }
 
     #[test]
