@@ -72,6 +72,12 @@ struct ChannelState {
     started: bool,
 }
 
+/// Tracks pending keyboard-interactive prompts for a connection.
+struct KeyboardInteractiveState {
+    prompts: Vec<String>,
+    echos: Vec<bool>,
+}
+
 /// Handler for a single SSH connection.
 ///
 /// Implements `russh::server::Handler` to handle SSH protocol events
@@ -100,6 +106,8 @@ pub struct WishHandler {
     shutdown_rx: broadcast::Receiver<()>,
     /// Authentication attempts for this connection.
     auth_attempts: u32,
+    /// Pending keyboard-interactive challenge state.
+    keyboard_interactive: Option<KeyboardInteractiveState>,
 }
 
 impl WishHandler {
@@ -129,6 +137,7 @@ impl WishHandler {
             channels: HashMap::new(),
             shutdown_rx,
             auth_attempts: 0,
+            keyboard_interactive: None,
         }
     }
 
@@ -189,6 +198,13 @@ impl WishHandler {
 
         let key_bytes = key.public_key_bytes();
         PublicKey::new(key_type, key_bytes)
+    }
+
+    fn default_keyboard_interactive_state() -> KeyboardInteractiveState {
+        KeyboardInteractiveState {
+            prompts: vec!["Password: ".to_string()],
+            echos: vec![false],
+        }
     }
 }
 
@@ -339,6 +355,100 @@ impl RusshHandler for WishHandler {
             return Ok(Auth::Accept);
         }
 
+        Ok(Auth::Reject {
+            proceed_with_methods: None,
+        })
+    }
+
+    /// Handle keyboard-interactive authentication.
+    async fn auth_keyboard_interactive(
+        &mut self,
+        user: &str,
+        submethods: &str,
+        response: Option<russh::server::Response<'async_trait>>,
+    ) -> std::result::Result<Auth, Self::Error> {
+        debug!(
+            connection_id = self.connection_id,
+            user = user,
+            submethods = submethods,
+            "Keyboard-interactive auth attempt"
+        );
+
+        let has_handler = self.server_state.options.auth_handler.is_some()
+            || self
+                .server_state
+                .options
+                .keyboard_interactive_handler
+                .is_some();
+
+        if !has_handler {
+            return Ok(Auth::Reject {
+                proceed_with_methods: None,
+            });
+        }
+
+        if response.is_none() {
+            let state = self
+                .keyboard_interactive
+                .get_or_insert_with(Self::default_keyboard_interactive_state);
+            let prompts: Vec<(std::borrow::Cow<'static, str>, bool)> = state
+                .prompts
+                .iter()
+                .enumerate()
+                .map(|(index, prompt)| {
+                    let echo = state.echos.get(index).copied().unwrap_or(false);
+                    (std::borrow::Cow::Owned(prompt.clone()), echo)
+                })
+                .collect();
+
+            return Ok(Auth::Partial {
+                name: std::borrow::Cow::Borrowed("keyboard-interactive"),
+                instructions: std::borrow::Cow::Borrowed(""),
+                prompts: std::borrow::Cow::Owned(prompts),
+            });
+        }
+
+        let responses: Vec<String> = response
+            .into_iter()
+            .flat_map(|r| r)
+            .map(|bytes| String::from_utf8_lossy(bytes).to_string())
+            .collect();
+
+        if let Some(handler) = self.server_state.options.auth_handler.clone() {
+            let ctx = self.next_auth_context(user);
+            let response_text = responses.join("\n");
+            let result = handler.auth_keyboard_interactive(&ctx, &response_text).await;
+            if result.is_accepted() {
+                info!(
+                    connection_id = self.connection_id,
+                    user = user,
+                    "Keyboard-interactive auth accepted"
+                );
+                self.user = Some(user.to_string());
+            }
+            self.keyboard_interactive = None;
+            return Ok(Self::map_auth_result(result));
+        }
+
+        if let Some(handler) = &self.server_state.options.keyboard_interactive_handler {
+            let ctx = self.make_context(user);
+            let state = self
+                .keyboard_interactive
+                .take()
+                .unwrap_or_else(Self::default_keyboard_interactive_state);
+            let expected = handler(&ctx, submethods, &state.prompts, &state.echos);
+            if expected == responses {
+                info!(
+                    connection_id = self.connection_id,
+                    user = user,
+                    "Keyboard-interactive auth accepted"
+                );
+                self.user = Some(user.to_string());
+                return Ok(Auth::Accept);
+            }
+        }
+
+        self.keyboard_interactive = None;
         Ok(Auth::Reject {
             proceed_with_methods: None,
         })

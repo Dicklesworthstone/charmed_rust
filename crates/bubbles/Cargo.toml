@@ -19,6 +19,7 @@ parking_lot = "0.12"
 
 [dev-dependencies]
 criterion.workspace = true
+regex.workspace = true
 
 [[bench]]
 name = "bubbles_benchmarks"

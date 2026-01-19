@@ -117,10 +117,29 @@ impl<I: Item> ItemDelegate<I> for DefaultDelegate {
 
     fn render(&self, item: &I, _index: usize, selected: bool, width: usize) -> String {
         let value = item.filter_value();
-        let truncated = if value.len() > width {
-            format!("{}…", &value[..width.saturating_sub(1)])
-        } else {
-            value.to_string()
+        
+        // Truncate based on display width
+        let truncated = {
+            use unicode_width::UnicodeWidthStr;
+            if UnicodeWidthStr::width(value) <= width {
+                value.to_string()
+            } else if width == 0 {
+                String::new()
+            } else {
+                let target_width = width.saturating_sub(1);
+                let mut current_width = 0;
+                let mut result = String::new();
+                
+                for c in value.chars() {
+                    let w = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+                    if current_width + w > target_width {
+                        break;
+                    }
+                    result.push(c);
+                    current_width += w;
+                }
+                format!("{}…", result)
+            }
         };
 
         if selected {

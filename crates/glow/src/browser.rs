@@ -79,17 +79,18 @@ pub struct Entry {
 impl Entry {
     /// Creates a new entry from a path.
     pub fn from_path(path: &Path) -> io::Result<Self> {
-        let metadata = fs::metadata(path)?;
+        // Use symlink_metadata to detect symlinks without following them
+        let symlink_metadata = fs::symlink_metadata(path)?;
         let name = path
             .file_name()
             .and_then(OsStr::to_str)
             .unwrap_or("")
             .to_string();
 
-        let entry_type = if metadata.is_dir() {
-            EntryType::Directory
-        } else if metadata.is_symlink() {
+        let entry_type = if symlink_metadata.is_symlink() {
             EntryType::Symlink
+        } else if symlink_metadata.is_dir() {
+            EntryType::Directory
         } else {
             let is_markdown = is_markdown_file(path);
             EntryType::File { is_markdown }
@@ -99,8 +100,8 @@ impl Entry {
             name,
             path: path.to_path_buf(),
             entry_type,
-            size: metadata.len(),
-            modified: metadata.modified().ok(),
+            size: symlink_metadata.len(),
+            modified: symlink_metadata.modified().ok(),
         })
     }
 

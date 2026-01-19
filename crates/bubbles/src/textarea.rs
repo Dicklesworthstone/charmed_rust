@@ -975,7 +975,12 @@ impl TextArea {
             }
 
             // Padding
-            let padding = self.width.saturating_sub(line.len());
+            let mut current_line_width: usize = line.iter().map(|c| unicode_width::UnicodeWidthChar::width(*c).unwrap_or(0)).sum();
+            if is_cursor_line && self.col >= line.len() {
+                current_line_width += 1; // Cursor at end adds a space
+            }
+
+            let padding = self.width.saturating_sub(current_line_width);
             if padding > 0 {
                 s.push_str(&line_style.render(&" ".repeat(padding)));
             }

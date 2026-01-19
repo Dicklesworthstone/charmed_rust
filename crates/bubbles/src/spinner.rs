@@ -245,7 +245,7 @@ impl SpinnerModel {
             }
 
             // Reject outdated tags
-            if tick.tag > 0 && tick.tag != self.tag {
+            if tick.tag != self.tag {
                 return None;
             }
 
@@ -384,6 +384,21 @@ mod tests {
         spinner.update(tick);
 
         assert_eq!(spinner.frame, initial_frame); // Should not advance
+    }
+
+    #[test]
+    fn test_spinner_rejects_stale_zero_tag() {
+        let mut spinner = SpinnerModel::new();
+        spinner.tag = 1;
+        let initial_frame = spinner.frame;
+
+        let tick = Message::new(TickMsg {
+            id: spinner.id(),
+            tag: 0,
+        });
+        spinner.update(tick);
+
+        assert_eq!(spinner.frame, initial_frame);
     }
 
     #[test]

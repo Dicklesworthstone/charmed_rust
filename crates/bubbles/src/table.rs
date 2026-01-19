@@ -400,7 +400,7 @@ impl Table {
             .filter(|col| col.width > 0)
             .map(|col| {
                 let truncated = truncate_string(&col.title, col.width);
-                let padded = format!("{:width$}", truncated, width = col.width);
+                let padded = pad_string(&truncated, col.width);
                 self.styles.header.render(&padded)
             })
             .collect();
@@ -420,7 +420,7 @@ impl Table {
             .map(|(i, col)| {
                 let value = row.get(i).map(String::as_str).unwrap_or("");
                 let truncated = truncate_string(value, col.width);
-                let padded = format!("{:width$}", truncated, width = col.width);
+                let padded = pad_string(&truncated, col.width);
                 self.styles.cell.render(&padded)
             })
             .collect();
@@ -472,17 +472,45 @@ impl Table {
     }
 }
 
+/// Pads a string to the given width with spaces.
+fn pad_string(s: &str, width: usize) -> String {
+    use unicode_width::UnicodeWidthStr;
+    let current_width = UnicodeWidthStr::width(s);
+    if current_width >= width {
+        s.to_string()
+    } else {
+        let padding = width - current_width;
+        format!("{}{}", s, " ".repeat(padding))
+    }
+}
+
 /// Truncates a string to the given width, adding ellipsis if needed.
 fn truncate_string(s: &str, width: usize) -> String {
-    let chars: Vec<char> = s.chars().collect();
-    if chars.len() <= width {
-        s.to_string()
-    } else if width > 0 {
-        let truncated: String = chars[..width.saturating_sub(1)].iter().collect();
-        format!("{}…", truncated)
-    } else {
-        String::new()
+    use unicode_width::UnicodeWidthStr;
+    
+    if UnicodeWidthStr::width(s) <= width {
+        return s.to_string();
     }
+    
+    if width == 0 {
+        return String::new();
+    }
+    
+    // We need to truncate to width - 1 (for ellipsis)
+    let target_width = width.saturating_sub(1);
+    let mut current_width = 0;
+    let mut result = String::new();
+    
+    for c in s.chars() {
+        let w = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+        if current_width + w > target_width {
+            break;
+        }
+        result.push(c);
+        current_width += w;
+    }
+    
+    format!("{}…", result)
 }
 
 impl Model for Table {

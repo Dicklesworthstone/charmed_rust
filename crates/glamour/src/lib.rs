@@ -1790,7 +1790,7 @@ impl<'a> RenderContext<'a> {
         for word in text.split_whitespace() {
             if current_line.is_empty() {
                 current_line.push_str(word);
-            } else if current_line.chars().count() + 1 + word.chars().count() <= width {
+            } else if unicode_width::UnicodeWidthStr::width(current_line.as_str()) + 1 + unicode_width::UnicodeWidthStr::width(word) <= width {
                 current_line.push(' ');
                 current_line.push_str(word);
             } else {

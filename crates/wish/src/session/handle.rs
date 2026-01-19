@@ -76,7 +76,11 @@ impl SessionHandle {
 
     /// Decrements the channel count.
     pub fn remove_channel(&self) {
-        self.channel_count.fetch_sub(1, Ordering::Relaxed);
+        let _ = self.channel_count.fetch_update(
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+            |count| count.checked_sub(1),
+        );
     }
 
     /// Returns the current channel count.
