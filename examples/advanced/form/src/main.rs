@@ -6,17 +6,42 @@
 //! - Select dropdown and multi-select
 //! - Confirmation step before submission
 //! - Field navigation with Tab/Shift+Tab
+//! - Checking form state for user abort
 //!
 //! Run with: `cargo run -p example-form`
+//!
+//! See also: `examples/basic/error-handling` for comprehensive error handling patterns.
 
 #![forbid(unsafe_code)]
 
 use bubbletea::Program;
-use huh::{Confirm, Form, Group, Input, MultiSelect, Select, SelectOption, new_options};
+use huh::{Confirm, Form, FormState, Group, Input, MultiSelect, Select, SelectOption, new_options};
 
 fn main() -> anyhow::Result<()> {
-    // Create the registration form with multiple groups
-    let form = Form::new(vec![
+    // Create and run the form
+    let final_form = Program::new(create_form()).with_alt_screen().run()?;
+
+    // Check the form state to handle user abort
+    match final_form.state() {
+        FormState::Completed => {
+            println!("\nForm completed! Thank you for registering.");
+        }
+        FormState::Aborted => {
+            // User pressed Ctrl+C or Escape - this is normal, not an error
+            println!("\nForm cancelled.");
+        }
+        FormState::Normal => {
+            // Form exited without explicit completion or abort
+            println!("\nForm exited.");
+        }
+    }
+
+    Ok(())
+}
+
+/// Create the registration form.
+fn create_form() -> Form {
+    Form::new(vec![
         // Group 1: Personal Information
         Group::new(vec![
             Box::new(
@@ -96,11 +121,5 @@ fn main() -> anyhow::Result<()> {
         )])
         .title("Confirmation"),
     ])
-    .width(60);
-
-    // Run the form
-    Program::new(form).with_alt_screen().run()?;
-
-    println!("\nForm completed! Thank you for registering.");
-    Ok(())
+    .width(60)
 }

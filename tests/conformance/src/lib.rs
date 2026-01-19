@@ -55,6 +55,10 @@ mod benchmark_validation;
 #[cfg(test)]
 mod benchmark_e2e;
 
+// Error propagation e2e tests - verify errors work across crate boundaries
+#[cfg(test)]
+mod error_e2e;
+
 // Re-export the crates under test for convenience
 pub use bubbles;
 pub use bubbletea;

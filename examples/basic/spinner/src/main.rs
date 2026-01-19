@@ -116,14 +116,21 @@ mod tests {
     fn test_view_shows_loading() {
         let app = App::new();
         let view = app.view();
-        assert!(view.contains("Loading"), "View should contain 'Loading': {}", view);
+        assert!(
+            view.contains("Loading"),
+            "View should contain 'Loading': {}",
+            view
+        );
     }
 
     #[test]
     fn test_view_shows_quit_hint() {
         let app = App::new();
         let view = app.view();
-        assert!(view.contains("[q]") || view.contains("quit"), "View should show quit hint");
+        assert!(
+            view.contains("[q]") || view.contains("quit"),
+            "View should show quit hint"
+        );
     }
 
     #[test]
@@ -175,6 +182,10 @@ mod tests {
         let mut app = App::new();
         app.loading = false;
         let view = app.view();
-        assert!(view.contains("Done"), "View should show 'Done' when not loading: {}", view);
+        assert!(
+            view.contains("Done"),
+            "View should show 'Done' when not loading: {}",
+            view
+        );
     }
 }

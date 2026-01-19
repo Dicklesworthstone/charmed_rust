@@ -377,11 +377,10 @@ lipgloss/style_creation/Style::new
         assert!(regression_output.contains("Performance has regressed"));
 
         // Parse regression percentage
-        let contains_severe_regression = regression_output.contains("+20.") || regression_output.contains("+21.") || regression_output.contains("+22.");
-        assert!(
-            contains_severe_regression,
-            "Should detect >20% regression"
-        );
+        let contains_severe_regression = regression_output.contains("+20.")
+            || regression_output.contains("+21.")
+            || regression_output.contains("+22.");
+        assert!(contains_severe_regression, "Should detect >20% regression");
     }
 
     /// Test that benchmark summary can be generated

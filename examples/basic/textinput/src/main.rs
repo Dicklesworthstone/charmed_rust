@@ -165,7 +165,10 @@ mod tests {
         app.update(key_type(KeyType::Enter));
 
         let view = app.view();
-        assert!(view.contains("Hello"), "Submitted view should show greeting");
+        assert!(
+            view.contains("Hello"),
+            "Submitted view should show greeting"
+        );
         assert!(view.contains("Bob"), "Submitted view should show name");
     }
 

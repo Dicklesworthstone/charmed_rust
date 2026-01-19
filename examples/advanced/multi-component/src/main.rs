@@ -526,7 +526,11 @@ mod tests {
         let app = App::new();
         let view = app.view();
         for item in MENU_ITEMS {
-            assert!(view.contains(item), "View should contain menu item: {}", item);
+            assert!(
+                view.contains(item),
+                "View should contain menu item: {}",
+                item
+            );
         }
     }
 

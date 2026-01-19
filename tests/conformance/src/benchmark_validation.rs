@@ -243,10 +243,7 @@ mod bubbletea_validation {
         for (name, seq) in sequences {
             let result = parse_sequence(seq);
             // Should return a valid parse result
-            assert!(
-                result.is_some() || seq.is_empty(),
-                "Failed to parse {name}"
-            );
+            assert!(result.is_some() || seq.is_empty(), "Failed to parse {name}");
         }
     }
 
