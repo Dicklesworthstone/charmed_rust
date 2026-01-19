@@ -370,4 +370,29 @@ mod tests {
         assert!(output_str.contains("eprintln !"));
         assert!(output_str.contains("bubbletea::state"));
     }
+
+    #[test]
+    fn test_combined_eq_and_debug() {
+        let struct_name = Ident::new("App", proc_macro2::Span::call_site());
+        let field_ident = Ident::new("progress", proc_macro2::Span::call_site());
+        let field_ty: syn::Type = syn::parse_quote!(f64);
+
+        let mut args = StateFieldArgs::default();
+        args.eq = Some(syn::parse_quote!(float_approx_eq));
+        args.debug = true;
+
+        let fields = vec![make_field(&field_ident, &field_ty, args)];
+        let output = generate_state_snapshot(&struct_name, &fields);
+        let output_str = output.to_string();
+
+        // Should have custom equality function
+        assert!(output_str.contains("float_approx_eq"), "Should use custom eq function");
+        // Should have debug logging
+        assert!(output_str.contains("eprintln !"), "Should have debug logging");
+        // Should NOT have != for PartialEq
+        assert!(!output_str.contains("!= __prev"), "Should not use PartialEq");
+
+        // Print for debugging
+        println!("Generated code for combined eq+debug:\n{}", output_str);
+    }
 }
