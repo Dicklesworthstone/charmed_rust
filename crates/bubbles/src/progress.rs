@@ -486,4 +486,63 @@ mod tests {
         let progress_view = Progress::view(&p);
         assert_eq!(model_view, progress_view);
     }
+
+    #[test]
+    fn test_model_update_handles_frame_msg() {
+        let mut p = Progress::new();
+        p.target_percent = 1.0;
+        p.percent_shown = 0.0;
+        p.velocity = 0.0;
+        let id = p.id();
+        let tag = p.tag;
+
+        // Use Model::update explicitly
+        let frame_msg = Message::new(FrameMsg { id, tag });
+        let cmd = Model::update(&mut p, frame_msg);
+
+        // Should return a command for the next frame (animating)
+        assert!(cmd.is_some(), "Model::update should return next frame command when animating");
+        // Percent should have changed
+        assert!(p.percent_shown > 0.0, "percent_shown should have advanced");
+    }
+
+    #[test]
+    fn test_model_update_ignores_wrong_id() {
+        let mut p = Progress::new();
+        p.target_percent = 1.0;
+        p.percent_shown = 0.0;
+        let original_percent = p.percent_shown;
+
+        // Send frame message with wrong ID
+        let frame_msg = Message::new(FrameMsg { id: 99999, tag: 0 });
+        let cmd = Model::update(&mut p, frame_msg);
+
+        assert!(cmd.is_none(), "Should ignore messages for other progress bars");
+        assert!((p.percent_shown - original_percent).abs() < 0.001, "percent_shown should not change");
+    }
+
+    #[test]
+    fn test_model_update_ignores_wrong_tag() {
+        let mut p = Progress::new();
+        p.target_percent = 1.0;
+        p.percent_shown = 0.0;
+        p.tag = 5;
+        let id = p.id();
+        let original_percent = p.percent_shown;
+
+        // Send frame message with wrong tag
+        let frame_msg = Message::new(FrameMsg { id, tag: 3 });
+        let cmd = Model::update(&mut p, frame_msg);
+
+        assert!(cmd.is_none(), "Should ignore messages with old tag");
+        assert!((p.percent_shown - original_percent).abs() < 0.001, "percent_shown should not change");
+    }
+
+    #[test]
+    fn test_progress_satisfies_model_bounds() {
+        // Verify Progress can be used where Model + Send + 'static is required
+        fn accepts_model<M: Model + Send + 'static>(_model: M) {}
+        let p = Progress::new();
+        accepts_model(p);
+    }
 }

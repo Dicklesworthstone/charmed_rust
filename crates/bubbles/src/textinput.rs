@@ -1079,4 +1079,57 @@ mod tests {
         let textinput_view = TextInput::view(&input);
         assert_eq!(model_view, textinput_view);
     }
+
+    #[test]
+    fn test_model_update_handles_paste_msg() {
+        let mut input = TextInput::new();
+        input.focus();
+        assert_eq!(input.value(), "");
+
+        // Use Model::update to handle a paste message
+        let paste_msg = Message::new(PasteMsg("hello world".to_string()));
+        let _ = Model::update(&mut input, paste_msg);
+
+        assert_eq!(input.value(), "hello world");
+    }
+
+    #[test]
+    fn test_model_update_unfocused_ignores_input() {
+        let mut input = TextInput::new();
+        assert!(!input.focused());
+        assert_eq!(input.value(), "");
+
+        // Unfocused input should ignore paste
+        let paste_msg = Message::new(PasteMsg("ignored".to_string()));
+        let _ = Model::update(&mut input, paste_msg);
+
+        assert_eq!(input.value(), "", "Unfocused input should ignore messages");
+    }
+
+    #[test]
+    fn test_model_update_handles_key_input() {
+        let mut input = TextInput::new();
+        input.focus();
+        input.set_value("hello");
+        assert_eq!(input.position(), 5);
+
+        // Create a left arrow key message to move cursor
+        let key_msg = Message::new(KeyMsg {
+            key_type: bubbletea::KeyType::Left,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        let _ = Model::update(&mut input, key_msg);
+
+        assert_eq!(input.position(), 4, "Cursor should have moved left");
+    }
+
+    #[test]
+    fn test_textinput_satisfies_model_bounds() {
+        // Verify TextInput can be used where Model + Send + 'static is required
+        fn accepts_model<M: Model + Send + 'static>(_model: M) {}
+        let input = TextInput::new();
+        accepts_model(input);
+    }
 }
