@@ -19,7 +19,7 @@
 use crate::cursor::{Cursor, blink_cmd};
 use crate::key::{Binding, matches};
 use crate::runeutil::Sanitizer;
-use bubbletea::{Cmd, KeyMsg, Message};
+use bubbletea::{Cmd, KeyMsg, Message, Model};
 use lipgloss::{Color, Style};
 
 /// Echo mode for the text input.
@@ -887,6 +887,30 @@ impl TextInput {
     }
 }
 
+impl Model for TextInput {
+    /// Initialize the text input.
+    ///
+    /// If focused and cursor is in blink mode, returns a blink command.
+    fn init(&self) -> Option<Cmd> {
+        if self.focus { Some(blink_cmd()) } else { None }
+    }
+
+    /// Update the text input state based on incoming messages.
+    ///
+    /// Handles:
+    /// - `KeyMsg` - Keyboard input for text entry and navigation
+    /// - `PasteMsg` - Paste operations
+    /// - Cursor blink messages
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        TextInput::update(self, msg)
+    }
+
+    /// Render the text input.
+    fn view(&self) -> String {
+        TextInput::view(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1026,5 +1050,33 @@ mod tests {
         let km = KeyMap::default();
         assert!(!km.character_forward.get_keys().is_empty());
         assert!(!km.delete_character_backward.get_keys().is_empty());
+    }
+
+    // Model trait implementation tests
+    #[test]
+    fn test_model_init_unfocused() {
+        let input = TextInput::new();
+        // Unfocused input should not return init command
+        let cmd = Model::init(&input);
+        assert!(cmd.is_none());
+    }
+
+    #[test]
+    fn test_model_init_focused() {
+        let mut input = TextInput::new();
+        input.focus();
+        // Focused input should return init command for cursor blink
+        let cmd = Model::init(&input);
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_model_view() {
+        let mut input = TextInput::new();
+        input.set_value("test");
+        // Model::view should return same result as TextInput::view
+        let model_view = Model::view(&input);
+        let textinput_view = TextInput::view(&input);
+        assert_eq!(model_view, textinput_view);
     }
 }

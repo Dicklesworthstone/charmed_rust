@@ -19,7 +19,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use bubbletea::{Cmd, Message};
+use bubbletea::{Cmd, Message, Model};
 use lipgloss::Style;
 
 /// Default blink speed (530ms).
@@ -264,6 +264,35 @@ pub fn blink_cmd() -> Cmd {
     Cmd::new(|| Message::new(InitialBlinkMsg))
 }
 
+impl Model for Cursor {
+    /// Initialize the cursor and return a blink command if in blink mode and focused.
+    fn init(&self) -> Option<Cmd> {
+        if self.mode == Mode::Blink && self.focus {
+            Some(blink_cmd())
+        } else {
+            None
+        }
+    }
+
+    /// Update the cursor state based on incoming messages.
+    ///
+    /// Handles:
+    /// - `InitialBlinkMsg` - Start blinking if focused and in blink mode
+    /// - `FocusMsg` - Focus the cursor and start blinking
+    /// - `BlurMsg` - Blur the cursor and stop blinking
+    /// - `BlinkMsg` - Toggle blink state and schedule next blink
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        Cursor::update(self, msg)
+    }
+
+    /// Render the cursor.
+    ///
+    /// Returns the cursor character styled appropriately based on blink state.
+    fn view(&self) -> String {
+        Cursor::view(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -352,5 +381,43 @@ mod tests {
 
         let cmd2 = cursor2.update(msg);
         assert!(cmd2.is_none()); // cursor2 should ignore cursor1's message
+    }
+
+    // Model trait implementation tests
+    #[test]
+    fn test_model_init_unfocused() {
+        let cursor = Cursor::new();
+        // Unfocused cursor should not return init command
+        let cmd = Model::init(&cursor);
+        assert!(cmd.is_none());
+    }
+
+    #[test]
+    fn test_model_init_focused_blink() {
+        let mut cursor = Cursor::new();
+        cursor.focus();
+        // Focused cursor in blink mode should return init command
+        let cmd = Model::init(&cursor);
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_model_init_focused_static() {
+        let mut cursor = Cursor::new();
+        cursor.set_mode(Mode::Static);
+        cursor.focus();
+        // Focused cursor in static mode should not return init command
+        let cmd = Model::init(&cursor);
+        assert!(cmd.is_none());
+    }
+
+    #[test]
+    fn test_model_view() {
+        let mut cursor = Cursor::new();
+        cursor.set_char("x");
+        // Model::view should return same result as Cursor::view
+        let model_view = Model::view(&cursor);
+        let cursor_view = Cursor::view(&cursor);
+        assert_eq!(model_view, cursor_view);
     }
 }

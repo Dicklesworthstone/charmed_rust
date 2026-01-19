@@ -19,7 +19,7 @@ use crate::cursor::{Cursor, Mode as CursorMode, blink_cmd};
 use crate::key::{Binding, matches};
 use crate::runeutil::Sanitizer;
 use crate::viewport::Viewport;
-use bubbletea::{Cmd, KeyMsg, Message};
+use bubbletea::{Cmd, KeyMsg, Message, Model};
 use lipgloss::{Color, Style};
 
 const MIN_HEIGHT: usize = 1;
@@ -1054,6 +1054,27 @@ impl TextArea {
     }
 }
 
+impl Model for TextArea {
+    /// Initialize the textarea and return a blink command if focused.
+    fn init(&self) -> Option<Cmd> {
+        if self.focus {
+            Some(blink_cmd())
+        } else {
+            None
+        }
+    }
+
+    /// Update the textarea state based on incoming messages.
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        TextArea::update(self, msg)
+    }
+
+    /// Render the textarea.
+    fn view(&self) -> String {
+        TextArea::view(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1183,5 +1204,33 @@ mod tests {
         let km = KeyMap::default();
         assert!(!km.character_forward.get_keys().is_empty());
         assert!(!km.insert_newline.get_keys().is_empty());
+    }
+
+    // Model trait implementation tests
+    #[test]
+    fn test_model_init_unfocused() {
+        let ta = TextArea::new();
+        // Unfocused textarea should not return init command
+        let cmd = Model::init(&ta);
+        assert!(cmd.is_none());
+    }
+
+    #[test]
+    fn test_model_init_focused() {
+        let mut ta = TextArea::new();
+        ta.focus();
+        // Focused textarea should return blink command
+        let cmd = Model::init(&ta);
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_model_view() {
+        let mut ta = TextArea::new();
+        ta.set_value("Test content");
+        // Model::view should return same result as TextArea::view
+        let model_view = Model::view(&ta);
+        let textarea_view = TextArea::view(&ta);
+        assert_eq!(model_view, textarea_view);
     }
 }
