@@ -1710,16 +1710,16 @@ impl<'a> RenderContext<'a> {
             };
 
         // Output a blank styled line first (matching Go behavior)
+        // Note: document margin (2 spaces) is applied post-rendering, so no extra prefix needed
         let doc_style = &self.options.styles.document.style;
         let lipgloss = doc_style.to_lipgloss();
-        self.output.push_str("  ");
         let blank_line = lipgloss.render(&" ".repeat(table_width));
         self.output.push_str(&blank_line);
         self.output.push('\n');
 
         // Output header row if present
         if let Some(header) = &self.table_header_row {
-            self.output.push_str("   "); // 3 spaces to match Go output
+            self.output.push(' '); // 1 space here + 2 from margin = 3 spaces total (Go compat)
             for (i, cell) in header.iter().enumerate() {
                 let alignment = self
                     .table_alignments
@@ -1747,7 +1747,7 @@ impl<'a> RenderContext<'a> {
             self.output.push('\n');
 
             // Output separator row
-            self.output.push_str("  "); // 2 spaces prefix to match Go output
+            // Note: document margin (2 spaces) is applied post-rendering
             for i in 0..num_cols {
                 let sep_segment = row_sep.repeat(col_width + 1); // +1 for the leading space
                 self.output.push_str(&sep_segment);
@@ -1762,7 +1762,7 @@ impl<'a> RenderContext<'a> {
 
         // Output body rows
         for row in &self.table_rows {
-            self.output.push_str("   "); // 3 spaces to match Go output
+            self.output.push(' '); // 1 space here + 2 from margin = 3 spaces total (Go compat)
             for (i, cell) in row.iter().enumerate() {
                 let alignment = self
                     .table_alignments
@@ -2368,26 +2368,35 @@ mod table_spacing_tests {
         let renderer = Renderer::new().with_style(Style::Dark);
         let md = "| A | B |\n|---|---|\n| 1 | 2 |";
         let output = renderer.render(md);
-        
+
         // Print each line for debugging
         for (i, line) in output.lines().enumerate() {
             eprintln!("Line {}: {:?}", i, line);
         }
-        
-        // Check header row starts with 3 spaces (after blank line)
+
+        // Structure after margin processing:
+        // Line 0: "  " (empty prefix from block_prefix)
+        // Line 1: "  " + styled blank (2 spaces from margin)
+        // Line 2: "   " + header (3 spaces: 2 margin + 1 explicit)
+        // Line 3: "  ─" + separator (2 spaces from margin)
+        // Line 4: "   " + data (3 spaces: 2 margin + 1 explicit)
         let lines: Vec<&str> = output.lines().collect();
-        assert!(lines.len() >= 4, "Expected at least 4 lines");
-        
-        // Line 1 (index 1) should be the header row starting with "   "
-        assert!(lines[1].starts_with("   "), 
-            "Header row should start with 3 spaces, got: {:?}", lines[1]);
-        
-        // Line 2 (index 2) should be separator starting with "  " (2 spaces + dashes)
-        assert!(lines[2].starts_with("  ─"), 
-            "Separator row should start with '  ─', got: {:?}", lines[2]);
-        
-        // Line 3 (index 3) should be data row starting with "   "
-        assert!(lines[3].starts_with("   "), 
-            "Data row should start with 3 spaces, got: {:?}", lines[3]);
+        assert!(lines.len() >= 5, "Expected at least 5 lines, got {}", lines.len());
+
+        // Line 1 should be blank styled line starting with "  " (margin only)
+        assert!(lines[1].starts_with("  "),
+            "Blank styled line should start with 2 spaces, got: {:?}", lines[1]);
+
+        // Line 2 should be header row starting with "   " (3 spaces)
+        assert!(lines[2].starts_with("   "),
+            "Header row should start with 3 spaces, got: {:?}", lines[2]);
+
+        // Line 3 should be separator starting with "  ─" (2 spaces + dash)
+        assert!(lines[3].starts_with("  ─"),
+            "Separator row should start with '  ─', got: {:?}", lines[3]);
+
+        // Line 4 should be data row starting with "   " (3 spaces)
+        assert!(lines[4].starts_with("   "),
+            "Data row should start with 3 spaces, got: {:?}", lines[4]);
     }
 }

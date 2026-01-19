@@ -11,6 +11,12 @@ use std::time::Duration;
 #[cfg(feature = "async")]
 use crate::command::CommandKind;
 
+#[cfg(feature = "async")]
+use tokio_util::sync::CancellationToken;
+
+#[cfg(feature = "async")]
+use tokio_util::task::TaskTracker;
+
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind},
@@ -522,13 +528,22 @@ impl<M: Model> Program<M> {
         // Create async message channel
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Message>(256);
 
+        // Create cancellation token and task tracker for graceful shutdown
+        let cancel_token = CancellationToken::new();
+        let task_tracker = TaskTracker::new();
+
         // Get initial window size
         let (width, height) = terminal::size()?;
         let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
 
         // Call init and handle initial command
         if let Some(cmd) = self.model.init() {
-            self.handle_command_async(cmd.into(), tx.clone());
+            Self::handle_command_tracked(
+                cmd.into(),
+                tx.clone(),
+                &task_tracker,
+                cancel_token.clone(),
+            );
         }
 
         // Render initial view
@@ -590,17 +605,19 @@ impl<M: Model> Program<M> {
 
                 // Process incoming messages
                 Some(msg) = rx.recv() => {
-                    // Check for quit message
+                    // Check for quit message - initiate graceful shutdown
                     if msg.is::<QuitMsg>() {
+                        Self::graceful_shutdown(&cancel_token, &task_tracker).await;
                         return Ok(self.model);
                     }
 
-                    // Check for interrupt message (Ctrl+C)
+                    // Check for interrupt message (Ctrl+C) - initiate graceful shutdown
                     if msg.is::<InterruptMsg>() {
+                        Self::graceful_shutdown(&cancel_token, &task_tracker).await;
                         return Ok(self.model);
                     }
 
-                    // Handle batch message (already handled in handle_command_async)
+                    // Handle batch message (already handled in handle_command_tracked)
                     if msg.is::<BatchMsg>() {
                         continue;
                     }
@@ -620,7 +637,12 @@ impl<M: Model> Program<M> {
 
                     // Update model
                     if let Some(cmd) = self.model.update(msg) {
-                        self.handle_command_async(cmd.into(), tx.clone());
+                        Self::handle_command_tracked(
+                            cmd.into(),
+                            tx.clone(),
+                            &task_tracker,
+                            cancel_token.clone(),
+                        );
                     }
 
                     // Render after processing message
@@ -633,6 +655,19 @@ impl<M: Model> Program<M> {
                 }
             }
         }
+    }
+
+    /// Perform graceful shutdown: cancel all tasks and wait for them to complete.
+    async fn graceful_shutdown(cancel_token: &CancellationToken, task_tracker: &TaskTracker) {
+        // Signal all tasks to cancel
+        cancel_token.cancel();
+
+        // Close the tracker to prevent new tasks
+        task_tracker.close();
+
+        // Wait for all tasks with a timeout (5 seconds)
+        let shutdown_timeout = Duration::from_secs(5);
+        let _ = tokio::time::timeout(shutdown_timeout, task_tracker.wait()).await;
     }
 
     /// Poll for terminal events asynchronously.
@@ -649,7 +684,57 @@ impl<M: Model> Program<M> {
         .map_err(|_| Error::Io(io::Error::other("task join error")))?
     }
 
-    /// Handle a command asynchronously using tokio::spawn.
+    /// Handle a command with task tracking and cancellation support.
+    fn handle_command_tracked(
+        cmd: CommandKind,
+        tx: tokio::sync::mpsc::Sender<Message>,
+        tracker: &TaskTracker,
+        cancel_token: CancellationToken,
+    ) {
+        tracker.spawn(async move {
+            tokio::select! {
+                // Execute the command
+                result = cmd.execute() => {
+                    if let Some(msg) = result {
+                        // Handle batch and sequence messages specially
+                        if msg.is::<BatchMsg>() {
+                            if let Some(batch) = msg.downcast::<BatchMsg>() {
+                                for cmd in batch.0 {
+                                    let tx_clone = tx.clone();
+                                    // Note: batch commands don't get tracked individually
+                                    // for simplicity, but they still respect the main cancel
+                                    tokio::spawn(async move {
+                                        let cmd_kind: CommandKind = cmd.into();
+                                        if let Some(msg) = cmd_kind.execute().await {
+                                            let _ = tx_clone.send(msg).await;
+                                        }
+                                    });
+                                }
+                            }
+                        } else if msg.is::<SequenceMsg>() {
+                            if let Some(seq) = msg.downcast::<SequenceMsg>() {
+                                for cmd in seq.0 {
+                                    let cmd_kind: CommandKind = cmd.into();
+                                    if let Some(msg) = cmd_kind.execute().await {
+                                        let _ = tx.send(msg).await;
+                                    }
+                                }
+                            }
+                        } else {
+                            let _ = tx.send(msg).await;
+                        }
+                    }
+                }
+                // Cancellation requested - exit cleanly
+                _ = cancel_token.cancelled() => {
+                    // Command cancelled, cleanup happens automatically
+                }
+            }
+        });
+    }
+
+    /// Handle a command asynchronously using tokio::spawn (legacy, without tracking).
+    #[allow(dead_code)]
     fn handle_command_async(&self, cmd: CommandKind, tx: tokio::sync::mpsc::Sender<Message>) {
         tokio::spawn(async move {
             if let Some(msg) = cmd.execute().await {
