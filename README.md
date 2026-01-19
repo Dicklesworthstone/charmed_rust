@@ -247,6 +247,9 @@ Every crate is tested against the original Go implementation. Same inputs, same 
 # Core framework
 bubbletea = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
 
+# With async support (tokio-based)
+# bubbletea = { git = "https://github.com/Dicklesworthstone/charmed_rust", features = ["async"] }
+
 # Styling (standalone, no TUI required)
 lipgloss = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
 
@@ -583,16 +586,43 @@ Semantically yes, syntactically adapted for Rust. The Elm Architecture pattern i
 
 ### How do I handle async operations?
 
-Return a `Cmd` from `update`:
+Enable the `async` feature for tokio-based async support:
+
+```toml
+[dependencies]
+bubbletea = { git = "https://github.com/Dicklesworthstone/charmed_rust", features = ["async"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+```
+
+Then use `run_async()` and `AsyncCmd`:
 
 ```rust
-fn update(&mut self, msg: Message) -> Cmd {
-    Cmd::perform(async {
-        // Your async work
-        fetch_data().await
-    }, |result| Message::new(DataLoaded(result)))
+use bubbletea::{Program, Model, Message, AsyncCmd, tick_async};
+use std::time::Duration;
+
+// Async command for I/O operations
+fn fetch_data() -> AsyncCmd {
+    AsyncCmd::new(|| async {
+        let data = reqwest::get("https://api.example.com/data")
+            .await.unwrap().text().await.unwrap();
+        Message::new(DataLoaded(data))
+    })
+}
+
+// Async timer (doesn't block a thread)
+fn start_timer() -> AsyncCmd {
+    tick_async(Duration::from_secs(1), |t| Message::new(Tick(t)))
+}
+
+#[tokio::main]
+async fn main() -> Result<(), bubbletea::Error> {
+    let model = MyModel::new();
+    Program::new(model).run_async().await?;
+    Ok(())
 }
 ```
+
+Sync `Cmd` commands still work and are automatically run on tokio's blocking thread pool. See [docs/async-migration.md](docs/async-migration.md) for the full migration guide.
 
 ### Does it work in Docker/CI?
 
