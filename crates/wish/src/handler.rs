@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use parking_lot::RwLock;
+use russh::MethodSet;
 use russh::server::{Auth, Handler as RusshHandler, Msg, Session as RusshSession};
 use russh::{Channel, ChannelId};
 use tokio::sync::{broadcast, mpsc};
@@ -17,8 +18,8 @@ use bubbletea::{KeyMsg, Message, WindowSizeMsg, parse_sequence};
 use russh_keys::PublicKeyBase64;
 
 use crate::{
-    Context, Error, Handler, Pty, PublicKey, ServerOptions, Session, SessionOutput, Window,
-    compose_middleware, noop_handler,
+    AuthContext, AuthMethod, AuthResult, Context, Error, Handler, Pty, PublicKey, ServerOptions,
+    Session, SessionOutput, Window, compose_middleware, noop_handler,
 };
 
 // Re-export russh server types for use by Server
@@ -97,6 +98,8 @@ pub struct WishHandler {
     /// Shutdown signal receiver.
     #[allow(dead_code)]
     shutdown_rx: broadcast::Receiver<()>,
+    /// Authentication attempts for this connection.
+    auth_attempts: u32,
 }
 
 impl WishHandler {
@@ -125,6 +128,7 @@ impl WishHandler {
             server_state,
             channels: HashMap::new(),
             shutdown_rx,
+            auth_attempts: 0,
         }
     }
 
@@ -133,6 +137,42 @@ impl WishHandler {
         let ctx = Context::new(user, self.remote_addr, self.local_addr);
         ctx.set_value("connection_id", self.connection_id.to_string());
         ctx
+    }
+
+    fn next_auth_context(&mut self, user: &str) -> AuthContext {
+        self.auth_attempts = self.auth_attempts.saturating_add(1);
+        AuthContext::new(user, self.remote_addr, crate::SessionId(self.connection_id))
+            .with_attempt(self.auth_attempts)
+    }
+
+    fn method_set_from(methods: &[AuthMethod]) -> Option<MethodSet> {
+        let mut set = MethodSet::empty();
+        for method in methods {
+            match method {
+                AuthMethod::None => set |= MethodSet::NONE,
+                AuthMethod::Password => set |= MethodSet::PASSWORD,
+                AuthMethod::PublicKey => set |= MethodSet::PUBLICKEY,
+                AuthMethod::KeyboardInteractive => set |= MethodSet::KEYBOARD_INTERACTIVE,
+                AuthMethod::HostBased => set |= MethodSet::HOSTBASED,
+            }
+        }
+        if set.is_empty() {
+            None
+        } else {
+            Some(set)
+        }
+    }
+
+    fn map_auth_result(result: AuthResult) -> Auth {
+        match result {
+            AuthResult::Accept => Auth::Accept,
+            AuthResult::Reject => Auth::Reject {
+                proceed_with_methods: None,
+            },
+            AuthResult::Partial { next_methods } => Auth::Reject {
+                proceed_with_methods: Self::method_set_from(&next_methods),
+            },
+        }
     }
 
     /// Converts a russh public key to our PublicKey type.
@@ -168,6 +208,22 @@ impl RusshHandler for WishHandler {
             key_type = public_key.name(),
             "Public key auth attempt"
         );
+
+        if let Some(handler) = self.server_state.options.auth_handler.clone() {
+            let ctx = self.next_auth_context(user);
+            let pk = Self::convert_public_key(public_key);
+            let result = handler.auth_publickey(&ctx, &pk).await;
+            if result.is_accepted() {
+                info!(
+                    connection_id = self.connection_id,
+                    user = user,
+                    "Public key auth accepted"
+                );
+                self.user = Some(user.to_string());
+                self.public_key = Some(public_key.clone());
+            }
+            return Ok(Self::map_auth_result(result));
+        }
 
         // Check if we have a public key handler
         if let Some(handler) = &self.server_state.options.public_key_handler {
@@ -209,6 +265,20 @@ impl RusshHandler for WishHandler {
             "Password auth attempt"
         );
 
+        if let Some(handler) = self.server_state.options.auth_handler.clone() {
+            let ctx = self.next_auth_context(user);
+            let result = handler.auth_password(&ctx, password).await;
+            if result.is_accepted() {
+                info!(
+                    connection_id = self.connection_id,
+                    user = user,
+                    "Password auth accepted"
+                );
+                self.user = Some(user.to_string());
+            }
+            return Ok(Self::map_auth_result(result));
+        }
+
         // Check if we have a password handler
         if let Some(handler) = &self.server_state.options.password_handler {
             let ctx = self.make_context(user);
@@ -236,6 +306,20 @@ impl RusshHandler for WishHandler {
 
     /// Handle "none" authentication (for servers that accept all).
     async fn auth_none(&mut self, user: &str) -> std::result::Result<Auth, Self::Error> {
+        if let Some(handler) = self.server_state.options.auth_handler.clone() {
+            let ctx = self.next_auth_context(user);
+            let result = handler.auth_none(&ctx).await;
+            if result.is_accepted() {
+                info!(
+                    connection_id = self.connection_id,
+                    user = user,
+                    "Auth handler accepted none authentication"
+                );
+                self.user = Some(user.to_string());
+            }
+            return Ok(Self::map_auth_result(result));
+        }
+
         // Accept if no auth handlers are configured
         let has_auth = self.server_state.options.public_key_handler.is_some()
             || self.server_state.options.password_handler.is_some()

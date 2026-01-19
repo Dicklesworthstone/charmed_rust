@@ -152,7 +152,12 @@ pub use color::{
 pub use position::{Position, Sides};
 pub use renderer::{Renderer, color_profile, default_renderer, has_dark_background};
 pub use style::Style;
-pub use theme::{CatppuccinFlavor, ColorSlot, Theme, ThemeColors, ThemePreset, ThemeRole};
+pub use theme::{
+    global_theme, set_global_preset, set_global_theme, CatppuccinFlavor, ColorSlot, ListenerId,
+    Theme, ThemeChangeListener, ThemeColors, ThemeContext, ThemePreset, ThemeRole,
+};
+#[cfg(feature = "tokio")]
+pub use theme::AsyncThemeContext;
 
 /// Prelude module for convenient imports.
 pub mod prelude {
@@ -162,8 +167,11 @@ pub mod prelude {
     pub use crate::renderer::Renderer;
     pub use crate::style::Style;
     pub use crate::theme::{
-        CatppuccinFlavor, ColorSlot, Theme, ThemeColors, ThemePreset, ThemeRole,
+        global_theme, set_global_preset, set_global_theme, CatppuccinFlavor, ColorSlot,
+        ListenerId, Theme, ThemeChangeListener, ThemeColors, ThemeContext, ThemePreset, ThemeRole,
     };
+    #[cfg(feature = "tokio")]
+    pub use crate::theme::AsyncThemeContext;
 }
 
 // Convenience constructors

@@ -44,6 +44,8 @@ const EPSILON: f64 = f64::EPSILON;
 /// Note that game engines often provide the time delta as well, which you
 /// should use instead of this function if possible.
 ///
+/// If `n` is 0, this returns `0.0`.
+///
 /// # Example
 ///
 /// ```rust

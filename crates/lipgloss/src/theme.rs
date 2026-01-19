@@ -38,9 +38,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, LazyLock, RwLock};
 use thiserror::Error;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 
 /// A complete theme with semantic color slots.
 ///
@@ -335,6 +338,185 @@ pub struct ThemeMeta {
 impl ThemeMeta {
     fn is_empty(&self) -> bool {
         self.version.is_none() && self.variant.is_none() && self.source.is_none()
+    }
+}
+
+/// Identifier for a registered theme change listener.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ListenerId(u64);
+
+/// Listener callback for theme changes.
+pub trait ThemeChangeListener: Send + Sync {
+    fn on_theme_change(&self, theme: &Theme);
+}
+
+impl<F> ThemeChangeListener for F
+where
+    F: Fn(&Theme) + Send + Sync,
+{
+    fn on_theme_change(&self, theme: &Theme) {
+        self(theme);
+    }
+}
+
+/// Thread-safe context for runtime theme switching.
+#[derive(Clone)]
+pub struct ThemeContext {
+    current: Arc<RwLock<Theme>>,
+    listeners: Arc<RwLock<HashMap<ListenerId, Arc<dyn ThemeChangeListener>>>>,
+    next_listener_id: Arc<AtomicU64>,
+}
+
+impl ThemeContext {
+    /// Create a new context with the provided theme.
+    pub fn new(initial: Theme) -> Self {
+        Self {
+            current: Arc::new(RwLock::new(initial)),
+            listeners: Arc::new(RwLock::new(HashMap::new())),
+            next_listener_id: Arc::new(AtomicU64::new(1)),
+        }
+    }
+
+    /// Create a new context from a preset.
+    pub fn from_preset(preset: ThemePreset) -> Self {
+        Self::new(preset.to_theme())
+    }
+
+    /// Returns a read guard for the current theme.
+    pub fn current(&self) -> std::sync::RwLockReadGuard<'_, Theme> {
+        let guard = self.current.read().expect("theme context lock poisoned");
+        trace!(theme.name = %guard.name(), "Theme read");
+        guard
+    }
+
+    /// Switch to a new theme and notify listeners.
+    pub fn set_theme(&self, theme: Theme) {
+        let from = {
+            let current = self.current.read().expect("theme context lock poisoned");
+            current.name().to_string()
+        };
+        let to = theme.name().to_string();
+        let snapshot = theme.clone();
+        {
+            let mut current = self.current.write().expect("theme context lock poisoned");
+            *current = theme;
+        }
+
+        info!(theme.from = %from, theme.to = %to, "Theme switched");
+        self.notify_listeners(&snapshot);
+    }
+
+    /// Switch to a preset theme and notify listeners.
+    pub fn set_preset(&self, preset: ThemePreset) {
+        self.set_theme(preset.to_theme());
+    }
+
+    /// Register a listener for theme changes.
+    pub fn on_change<F>(&self, callback: F) -> ListenerId
+    where
+        F: Fn(&Theme) + Send + Sync + 'static,
+    {
+        let id = ListenerId(self.next_listener_id.fetch_add(1, Ordering::Relaxed));
+        let mut listeners = self.listeners.write().expect("theme listener lock poisoned");
+        listeners.insert(id, Arc::new(callback));
+        debug!(theme.listener_id = id.0, "Theme listener registered");
+        id
+    }
+
+    /// Remove a listener by id.
+    pub fn remove_listener(&self, id: ListenerId) {
+        let mut listeners = self.listeners.write().expect("theme listener lock poisoned");
+        if listeners.remove(&id).is_some() {
+            debug!(theme.listener_id = id.0, "Theme listener removed");
+        }
+    }
+
+    fn notify_listeners(&self, theme: &Theme) {
+        let listeners: Vec<(ListenerId, Arc<dyn ThemeChangeListener>)> = {
+            let listeners = self.listeners.read().expect("theme listener lock poisoned");
+            listeners
+                .iter()
+                .map(|(id, listener)| (*id, Arc::clone(listener)))
+                .collect()
+        };
+
+        for (id, listener) in listeners {
+            let result = catch_unwind(AssertUnwindSafe(|| listener.on_theme_change(theme)));
+            if result.is_err() {
+                warn!(
+                    theme.listener_id = id.0,
+                    theme.name = %theme.name(),
+                    "Theme listener panicked"
+                );
+            }
+        }
+    }
+}
+
+static GLOBAL_THEME_CONTEXT: LazyLock<ThemeContext> =
+    LazyLock::new(|| ThemeContext::from_preset(ThemePreset::Dark));
+
+/// Returns the global theme context.
+pub fn global_theme() -> &'static ThemeContext {
+    &GLOBAL_THEME_CONTEXT
+}
+
+/// Replace the global theme.
+pub fn set_global_theme(theme: Theme) {
+    GLOBAL_THEME_CONTEXT.set_theme(theme);
+}
+
+/// Replace the global theme using a preset.
+pub fn set_global_preset(preset: ThemePreset) {
+    GLOBAL_THEME_CONTEXT.set_preset(preset);
+}
+
+/// Async theme context backed by a tokio watch channel.
+#[cfg(feature = "tokio")]
+pub struct AsyncThemeContext {
+    sender: tokio::sync::watch::Sender<Theme>,
+    receiver: tokio::sync::watch::Receiver<Theme>,
+}
+
+#[cfg(feature = "tokio")]
+impl AsyncThemeContext {
+    /// Create a new async context with the provided theme.
+    pub fn new(initial: Theme) -> Self {
+        let (sender, receiver) = tokio::sync::watch::channel(initial);
+        Self { sender, receiver }
+    }
+
+    /// Create a new async context from a preset.
+    pub fn from_preset(preset: ThemePreset) -> Self {
+        Self::new(preset.to_theme())
+    }
+
+    /// Returns the current theme snapshot.
+    pub fn current(&self) -> Theme {
+        self.receiver.borrow().clone()
+    }
+
+    /// Switch to a new theme.
+    pub fn set_theme(&self, theme: Theme) {
+        let from = self.receiver.borrow().name().to_string();
+        let to = theme.name().to_string();
+        let _ = self.sender.send(theme);
+        info!(theme.from = %from, theme.to = %to, "Theme switched (async)");
+    }
+
+    /// Switch to a preset theme.
+    pub fn set_preset(&self, preset: ThemePreset) {
+        self.set_theme(preset.to_theme());
+    }
+
+    /// Subscribe to theme changes.
+    pub fn subscribe(&self) -> tokio::sync::watch::Receiver<Theme> {
+        self.receiver.clone()
+    }
+
+    /// Await the next theme change.
+    pub async fn changed(&mut self) -> Result<(), tokio::sync::watch::error::RecvError> {
+        self.receiver.changed().await
     }
 }
 
@@ -1280,6 +1462,8 @@ pub enum ThemeSaveError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     #[test]
     fn test_theme_dark_default() {
@@ -1363,6 +1547,55 @@ mod tests {
     }
 
     #[test]
+    fn test_theme_context_switch() {
+        let ctx = ThemeContext::from_preset(ThemePreset::Dark);
+        assert_eq!(ctx.current().name(), "Dark");
+        ctx.set_preset(ThemePreset::Light);
+        assert_eq!(ctx.current().name(), "Light");
+    }
+
+    #[test]
+    fn test_theme_context_listener() {
+        let ctx = ThemeContext::from_preset(ThemePreset::Dark);
+        let hits = Arc::new(AtomicUsize::new(0));
+        let hits_ref = Arc::clone(&hits);
+        let id = ctx.on_change(move |_theme| {
+            hits_ref.fetch_add(1, Ordering::SeqCst);
+        });
+
+        ctx.set_preset(ThemePreset::Light);
+        assert_eq!(hits.load(Ordering::SeqCst), 1);
+
+        ctx.remove_listener(id);
+        ctx.set_preset(ThemePreset::Dark);
+        assert_eq!(hits.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn test_theme_context_thread_safe() {
+        use std::thread;
+
+        let ctx = Arc::new(ThemeContext::from_preset(ThemePreset::Dark));
+        let handles: Vec<_> = (0..8)
+            .map(|i| {
+                let ctx = Arc::clone(&ctx);
+                thread::spawn(move || {
+                    if i % 2 == 0 {
+                        ctx.set_preset(ThemePreset::Light);
+                    } else {
+                        ctx.set_preset(ThemePreset::Dark);
+                    }
+                    let _current = ctx.current();
+                })
+            })
+            .collect();
+
+        for handle in handles {
+            handle.join().expect("thread join");
+        }
+    }
+
+    #[test]
     fn test_theme_builder() {
         let theme = Theme::dark().with_name("Custom Dark").with_dark(true);
         assert_eq!(theme.name(), "Custom Dark");
@@ -1419,6 +1652,16 @@ mod tests {
         assert_eq!(loaded.colors().primary.0, theme.colors().primary.0);
         assert_eq!(loaded.description(), Some("A dark theme"));
         assert_eq!(loaded.author(), Some("charmed_rust"));
+        assert!(loaded.is_dark());
+    }
+
+    #[test]
+    fn test_theme_toml_roundtrip() {
+        let theme = Theme::dark().with_description("TOML theme");
+        let toml = theme.to_toml().expect("serialize theme to toml");
+        let loaded = Theme::from_toml(&toml).expect("deserialize theme from toml");
+        assert_eq!(loaded.colors().primary.0, theme.colors().primary.0);
+        assert_eq!(loaded.description(), Some("TOML theme"));
         assert!(loaded.is_dark());
     }
 

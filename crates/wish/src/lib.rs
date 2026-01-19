@@ -1067,6 +1067,7 @@ impl Server {
     /// Creates the russh server configuration.
     fn create_russh_config(&self) -> Result<RusshConfig> {
         use russh::server::Config;
+        use russh::MethodSet;
         use russh_keys::key::KeyPair;
 
         let mut config = Config::default();
@@ -1078,6 +1079,37 @@ impl Server {
         if let Some(timeout) = self.options.idle_timeout {
             config.inactivity_timeout = Some(timeout);
         }
+
+        config.max_auth_attempts = self.options.max_auth_attempts as usize;
+        config.auth_rejection_time =
+            Duration::from_millis(self.options.auth_rejection_delay_ms);
+
+        let mut methods = MethodSet::empty();
+        if let Some(handler) = &self.options.auth_handler {
+            for method in handler.supported_methods() {
+                methods |= match method {
+                    auth::AuthMethod::None => MethodSet::NONE,
+                    auth::AuthMethod::Password => MethodSet::PASSWORD,
+                    auth::AuthMethod::PublicKey => MethodSet::PUBLICKEY,
+                    auth::AuthMethod::KeyboardInteractive => MethodSet::KEYBOARD_INTERACTIVE,
+                    auth::AuthMethod::HostBased => MethodSet::HOSTBASED,
+                };
+            }
+        } else {
+            if self.options.public_key_handler.is_some() {
+                methods |= MethodSet::PUBLICKEY;
+            }
+            if self.options.password_handler.is_some() {
+                methods |= MethodSet::PASSWORD;
+            }
+            if self.options.keyboard_interactive_handler.is_some() {
+                methods |= MethodSet::KEYBOARD_INTERACTIVE;
+            }
+            if methods.is_empty() {
+                methods |= MethodSet::NONE;
+            }
+        }
+        config.methods = methods;
 
         // Generate or load host key
         let key = if let Some(ref pem) = self.options.host_key_pem {

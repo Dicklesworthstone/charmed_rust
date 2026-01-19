@@ -17,34 +17,37 @@
 //! ## Example
 //!
 //! ```rust,ignore
-//! use huh::{Form, Group, Input, Select, Confirm};
-//!
-//! let mut name = String::new();
-//! let mut color = String::new();
-//! let mut confirm = false;
+//! use huh::{Form, Group, Input, Select, SelectOption, Confirm};
+//! use bubbletea::Program;
 //!
 //! let form = Form::new(vec![
 //!     Group::new(vec![
 //!         Box::new(Input::new()
-//!             .title("What's your name?")
-//!             .value(&mut name)),
+//!             .key("name")
+//!             .title("What's your name?")),
 //!         Box::new(Select::new()
+//!             .key("color")
 //!             .title("Favorite color?")
 //!             .options(vec![
 //!                 SelectOption::new("Red", "red"),
 //!                 SelectOption::new("Green", "green"),
 //!                 SelectOption::new("Blue", "blue"),
-//!             ])
-//!             .value(&mut color)),
+//!             ])),
 //!     ]),
 //!     Group::new(vec![
 //!         Box::new(Confirm::new()
-//!             .title("Are you sure?")
-//!             .value(&mut confirm)),
+//!             .key("confirm")
+//!             .title("Are you sure?")),
 //!     ]),
 //! ]);
 //!
-//! form.run()?;
+//! let form = Program::new(form).run()?;
+//!
+//! let name = form.get_string("name").unwrap();
+//! let color = form.get_string("color").unwrap();
+//! let confirm = form.get_bool("confirm").unwrap();
+//!
+//! println!("Name: {}, Color: {}, Confirmed: {}", name, color, confirm);
 //! ```
 
 use std::any::Any;
@@ -260,50 +263,6 @@ pub enum FormState {
     /// User has aborted the form.
     Aborted,
 }
-
-// -----------------------------------------------------------------------------
-// Accessor
-// -----------------------------------------------------------------------------
-
-/// Provides read/write access to field values.
-pub trait Accessor<T>: Send + Sync {
-    /// Gets the current value.
-    fn get(&self) -> T;
-    /// Sets the value.
-    fn set(&mut self, value: T);
-}
-
-/// An embedded accessor that owns the value.
-#[derive(Debug, Clone, Default)]
-pub struct EmbeddedAccessor<T> {
-    value: T,
-}
-
-impl<T: Clone + Send + Sync> Accessor<T> for EmbeddedAccessor<T> {
-    fn get(&self) -> T {
-        self.value.clone()
-    }
-
-    fn set(&mut self, value: T) {
-        self.value = value;
-    }
-}
-
-/// A pointer accessor that references an external value.
-pub struct PointerAccessor<'a, T> {
-    #[allow(dead_code)]
-    value: &'a mut T,
-}
-
-impl<'a, T> PointerAccessor<'a, T> {
-    /// Creates a new pointer accessor.
-    pub fn new(value: &'a mut T) -> Self {
-        Self { value }
-    }
-}
-
-// Note: PointerAccessor can't implement Accessor trait due to lifetime issues
-// In practice, we'll use a different pattern for Rust
 
 // -----------------------------------------------------------------------------
 // SelectOption
@@ -2938,6 +2897,32 @@ impl Form {
         }
         None
     }
+
+    /// Returns the value of a field by key.
+    pub fn get_value(&self, key: &str) -> Option<Box<dyn Any>> {
+        for group in &self.groups {
+            for field in &group.fields {
+                if field.get_key() == key {
+                    return Some(field.get_value());
+                }
+            }
+        }
+        None
+    }
+
+    /// Returns the string value of a field by key.
+    pub fn get_string(&self, key: &str) -> Option<String> {
+        self.get_value(key)
+            .and_then(|v| v.downcast::<String>().ok())
+            .map(|v| *v)
+    }
+
+    /// Returns the boolean value of a field by key.
+    pub fn get_bool(&self, key: &str) -> Option<bool> {
+        self.get_value(key)
+            .and_then(|v| v.downcast::<bool>().ok())
+            .map(|v| *v)
+    }
 }
 
 impl Model for Form {
@@ -3259,14 +3244,6 @@ mod tests {
 
         let input = Input::new().echo_mode(EchoMode::None);
         assert_eq!(input.echo_mode, EchoMode::None);
-    }
-
-    #[test]
-    fn test_embedded_accessor() {
-        let mut accessor = EmbeddedAccessor { value: 42 };
-        assert_eq!(accessor.get(), 42);
-        accessor.set(100);
-        assert_eq!(accessor.get(), 100);
     }
 
     #[test]

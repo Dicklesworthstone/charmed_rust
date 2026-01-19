@@ -61,7 +61,7 @@ use glamour::{Renderer, Style as GlamourStyle};
 ///
 /// Defaults:
 /// - pager enabled
-/// - width inferred from terminal size
+/// - width uses glamour's default word wrap
 /// - style set to `"dark"`
 ///
 /// # Example

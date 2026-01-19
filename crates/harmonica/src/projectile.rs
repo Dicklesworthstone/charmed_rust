@@ -153,14 +153,12 @@ impl Vector {
     }
 
     /// Returns the magnitude (length) of the vector.
-    #[cfg(feature = "std")]
     #[inline]
     pub fn magnitude(&self) -> f64 {
-        (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
+        sqrt(self.x * self.x + self.y * self.y + self.z * self.z)
     }
 
     /// Returns a normalized (unit) vector with magnitude 1.
-    #[cfg(feature = "std")]
     #[inline]
     pub fn normalized(&self) -> Self {
         let mag = self.magnitude();
@@ -173,6 +171,18 @@ impl Vector {
             z: self.z / mag,
         }
     }
+}
+
+#[cfg(feature = "std")]
+#[inline]
+fn sqrt(x: f64) -> f64 {
+    x.sqrt()
+}
+
+#[cfg(not(feature = "std"))]
+#[inline]
+fn sqrt(x: f64) -> f64 {
+    libm::sqrt(x)
 }
 
 impl Add for Vector {
@@ -353,15 +363,15 @@ impl Projectile {
     /// ```
     #[inline]
     pub fn update(&mut self) -> Point {
-        // Update position based on velocity
-        self.pos.x += self.vel.x * self.delta_time;
-        self.pos.y += self.vel.y * self.delta_time;
-        self.pos.z += self.vel.z * self.delta_time;
-
-        // Update velocity based on acceleration
+        // Update velocity based on acceleration (Semi-Implicit Euler)
         self.vel.x += self.acc.x * self.delta_time;
         self.vel.y += self.acc.y * self.delta_time;
         self.vel.z += self.acc.z * self.delta_time;
+
+        // Update position based on NEW velocity
+        self.pos.x += self.vel.x * self.delta_time;
+        self.pos.y += self.vel.y * self.delta_time;
+        self.pos.z += self.vel.z * self.delta_time;
 
         self.pos
     }

@@ -789,22 +789,14 @@ fn format_args_simple(format: &str, args: &[&dyn fmt::Display]) -> String {
 }
 
 /// Formats a Unix timestamp.
-fn format_timestamp(secs: u64, _format: &str) -> String {
-    // Simplified timestamp formatting
-    // In production, would use chrono or time crate
-    let hours = (secs % 86400) / 3600;
-    let minutes = (secs % 3600) / 60;
-    let seconds = secs % 60;
-    let days = secs / 86400;
-    let years = 1970 + days / 365;
-    let remaining_days = days % 365;
-    let months = remaining_days / 30 + 1;
-    let day_of_month = remaining_days % 30 + 1;
+fn format_timestamp(secs: u64, format: &str) -> String {
+    use chrono::{DateTime, Utc};
 
-    format!(
-        "{:04}/{:02}/{:02} {:02}:{:02}:{:02}",
-        years, months, day_of_month, hours, minutes, seconds
-    )
+    if let Some(datetime) = DateTime::from_timestamp(secs as i64, 0) {
+        datetime.with_timezone(&Utc).format(format).to_string()
+    } else {
+        "INVALID TIMESTAMP".to_string()
+    }
 }
 
 /// Writes a JSON field.

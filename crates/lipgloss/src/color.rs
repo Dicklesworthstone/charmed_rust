@@ -172,7 +172,11 @@ impl Color {
             }
         }
 
-        0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+        let r = channel(r);
+        let g = channel(g);
+        let b = channel(b);
+
+        0.0722_f64.mul_add(b, 0.2126_f64.mul_add(r, 0.7152 * g))
     }
 }
 

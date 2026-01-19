@@ -354,12 +354,17 @@ where
     F: FnOnce(Instant) -> Message + Send + 'static,
 {
     Cmd::new(move || {
+        let duration_nanos = duration.as_nanos() as u64;
+        if duration_nanos == 0 {
+            // Zero duration means tick immediately
+            return f(Instant::now());
+        }
+
         // Get current wall clock time as nanos since Unix epoch
         let now_nanos = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .map(|d| d.as_nanos() as u64)
             .unwrap_or(0);
-        let duration_nanos = duration.as_nanos() as u64;
         // Calculate time until next tick aligned with system clock
         let next_tick_nanos = ((now_nanos / duration_nanos) + 1) * duration_nanos;
         let sleep_nanos = next_tick_nanos - now_nanos;
@@ -423,12 +428,17 @@ where
     F: FnOnce(Instant) -> Message + Send + 'static,
 {
     AsyncCmd::new(move || async move {
+        let duration_nanos = duration.as_nanos() as u64;
+        if duration_nanos == 0 {
+            // Zero duration means tick immediately
+            return f(Instant::now());
+        }
+
         // Get current wall clock time as nanos since Unix epoch
         let now_nanos = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .map(|d| d.as_nanos() as u64)
             .unwrap_or(0);
-        let duration_nanos = duration.as_nanos() as u64;
         // Calculate time until next tick aligned with system clock
         let next_tick_nanos = ((now_nanos / duration_nanos) + 1) * duration_nanos;
         let sleep_nanos = next_tick_nanos - now_nanos;

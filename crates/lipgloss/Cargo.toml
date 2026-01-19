@@ -18,6 +18,7 @@ toml = { workspace = true }
 thiserror = { workspace = true }
 serde_yaml = { workspace = true, optional = true }
 tracing = { workspace = true }
+tokio = { workspace = true, optional = true, features = ["sync"] }
 
 [dev-dependencies]
 criterion.workspace = true
@@ -31,3 +32,4 @@ workspace = true
 
 [features]
 yaml = ["serde_yaml"]
+tokio = ["dep:tokio"]

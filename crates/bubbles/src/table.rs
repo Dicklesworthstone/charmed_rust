@@ -359,17 +359,35 @@ impl Table {
             return;
         }
 
-        // Calculate visible range
         let height = self.viewport.height;
-        self.start = if self.cursor >= height {
-            self.cursor.saturating_sub(height)
-        } else {
-            0
-        };
-        self.end = (self.cursor + height).min(self.rows.len());
+        if height == 0 {
+            self.start = 0;
+            self.end = 0;
+            self.viewport.set_content("");
+            return;
+        }
 
-        // Render rows
-        let rendered: Vec<String> = (self.start..self.end).map(|i| self.render_row(i)).collect();
+        // Keep cursor visible - adjust start window if cursor moves out of view
+        if self.cursor < self.start {
+            // Cursor moved above visible window
+            self.start = self.cursor;
+        } else if self.cursor >= self.start + height {
+            // Cursor moved below visible window
+            self.start = self.cursor - height + 1;
+        }
+
+        // Calculate end to show exactly height rows (or fewer if not enough data)
+        self.end = (self.start + height).min(self.rows.len());
+
+        // If we're near the end and have room, fill the viewport
+        if self.end - self.start < height && self.start > 0 {
+            self.start = self.end.saturating_sub(height);
+        }
+
+        // Render only the visible rows
+        let rendered: Vec<String> = (self.start..self.end)
+            .map(|i| self.render_row(i))
+            .collect();
 
         self.viewport.set_content(&rendered.join("\n"));
     }

@@ -12,6 +12,7 @@ lipgloss = { path = "../lipgloss" }
 thiserror.workspace = true
 tracing = "0.1"
 tracing-subscriber = "0.3"
+chrono = { workspace = true }
 
 [lints]
 workspace = true

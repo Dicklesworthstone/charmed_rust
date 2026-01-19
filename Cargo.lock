@@ -413,6 +413,7 @@ dependencies = [
 name = "charmed_log"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "lipgloss",
  "thiserror 2.0.18",
  "tracing",
@@ -1734,6 +1735,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "thiserror 2.0.18",
+ "tokio",
  "toml 0.8.23",
  "tracing",
  "unicode-width 0.1.14",

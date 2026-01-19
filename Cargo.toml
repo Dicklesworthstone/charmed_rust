@@ -75,6 +75,7 @@ regex = "1.11"
 once_cell = "1.19"
 bitflags = "2"
 lru = "0.12"
+chrono = "0.4"
 
 # CLI (for glow binary)
 clap = { version = "4.5", features = ["derive", "env"] }
