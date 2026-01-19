@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Async runtime example demonstrating the async feature.
+//! Async runtime example demonstrating `#[derive(Model)]` with the async feature.
 //!
 //! This example shows how to:
 //! - Use `run_async()` with tokio runtime
@@ -24,7 +24,7 @@ fn main() {
 // All async-related code is gated behind the feature
 #[cfg(feature = "async")]
 mod async_app {
-    use bubbletea::{quit, tick, Cmd, KeyMsg, KeyType, Message, Model, Program};
+    use bubbletea::{Cmd, KeyMsg, KeyType, Message, quit, tick};
     use lipgloss::Style;
     use std::time::{Duration, Instant};
 
@@ -35,6 +35,10 @@ mod async_app {
     struct FetchComplete(String);
 
     /// Application state.
+    ///
+    /// Uses `#[derive(bubbletea::Model)]` to auto-implement the Model trait,
+    /// delegating to the inherent `init`, `update`, and `view` methods.
+    #[derive(bubbletea::Model)]
     pub struct App {
         status: Status,
         elapsed_secs: u32,
@@ -70,13 +74,13 @@ mod async_app {
         fn tick() -> Cmd {
             tick(Duration::from_secs(1), |t| Message::new(TimerTick(t)))
         }
-    }
 
-    impl Model for App {
+        /// Initialize the model. Called once when the program starts.
         fn init(&self) -> Option<Cmd> {
             None
         }
 
+        /// Handle messages and update the model state.
         fn update(&mut self, msg: Message) -> Option<Cmd> {
             // Handle keyboard input
             if let Some(key) = msg.downcast_ref::<KeyMsg>() {
@@ -90,10 +94,13 @@ mod async_app {
                                         self.elapsed_secs = 0;
                                         // Start both the fetch and timer concurrently
                                         // With run_async(), these run on tokio's thread pools
-                                        return Some(bubbletea::batch(vec![
-                                            Some(Self::fetch_data()),
-                                            Some(Self::tick()),
-                                        ]).unwrap());
+                                        return Some(
+                                            bubbletea::batch(vec![
+                                                Some(Self::fetch_data()),
+                                                Some(Self::tick()),
+                                            ])
+                                            .unwrap(),
+                                        );
                                     }
                                 }
                                 'r' | 'R' => {
@@ -126,6 +133,7 @@ mod async_app {
             None
         }
 
+        /// Render the model as a string for display.
         fn view(&self) -> String {
             let title_style = Style::new().bold().foreground("#7D56F4");
             let status_style = Style::new().foreground("#FF69B4");
@@ -137,10 +145,7 @@ mod async_app {
                 Status::Idle => status_style.render("Ready. Press 'f' to fetch data."),
                 Status::Fetching => {
                     let dots = ".".repeat((self.elapsed_secs as usize % 4) + 1);
-                    status_style.render(&format!(
-                        "Fetching{dots} ({}s elapsed)",
-                        self.elapsed_secs
-                    ))
+                    status_style.render(&format!("Fetching{dots} ({}s elapsed)", self.elapsed_secs))
                 }
                 Status::Done(data) => status_style.render(&format!("✓ {data}")),
             };
@@ -163,7 +168,7 @@ mod async_app {
 async fn main() -> Result<(), bubbletea::Error> {
     use async_app::App;
     use bubbletea::Program;
-    
+
     let model = App::new();
     Program::new(model).run_async().await?;
     Ok(())

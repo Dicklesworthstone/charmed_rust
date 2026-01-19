@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Spinner example demonstrating animated loading indicators.
+//! Spinner example demonstrating `#[derive(Model)]` with animated loading indicators.
 //!
 //! This example shows how to:
 //! - Compose bubbles components into a custom model
@@ -9,11 +9,15 @@
 //!
 //! Run with: cargo run -p bubbletea --example spinner
 
-use bubbles::spinner::{spinners, SpinnerModel};
+use bubbles::spinner::{SpinnerModel, spinners};
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, quit};
 use lipgloss::Style;
 
 /// Main application model composing a spinner with app state.
+///
+/// Uses `#[derive(bubbletea::Model)]` to auto-implement the Model trait,
+/// delegating to the inherent `init`, `update`, and `view` methods.
+#[derive(bubbletea::Model)]
 struct App {
     spinner: SpinnerModel,
     loading: bool,
@@ -30,14 +34,14 @@ impl App {
             loading: true,
         }
     }
-}
 
-impl Model for App {
+    /// Initialize the model. Called once when the program starts.
     fn init(&self) -> Option<Cmd> {
         // Start the spinner animation
         self.spinner.init()
     }
 
+    /// Handle messages and update the model state.
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         // Handle keyboard input
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
@@ -59,6 +63,7 @@ impl Model for App {
         self.spinner.update(msg)
     }
 
+    /// Render the model as a string for display.
     fn view(&self) -> String {
         if self.loading {
             format!(

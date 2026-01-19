@@ -12,6 +12,7 @@ categories = ["command-line-interface", "asynchronous"]
 [dependencies]
 crossterm = "0.29"
 parking_lot = "0.12"
+thiserror.workspace = true
 
 # Async runtime (optional)
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"], optional = true }
@@ -30,10 +31,20 @@ async = ["dep:tokio", "dep:tokio-util", "dep:futures"]
 criterion.workspace = true
 bubbles = { path = "../bubbles" }
 lipgloss = { path = "../lipgloss" }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+
+[[example]]
+name = "async_fetch"
+required-features = ["async"]
 
 [[bench]]
 name = "bubbletea_benchmarks"
 harness = false
+
+[[bench]]
+name = "async_vs_threads"
+harness = false
+required-features = ["async"]
 
 [lints]
 workspace = true

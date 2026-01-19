@@ -71,6 +71,74 @@ impl Cmd {
     pub fn execute(self) -> Option<Message> {
         (self.0)()
     }
+
+    /// Create a command that performs blocking I/O.
+    ///
+    /// This is semantically equivalent to `Cmd::new()` but makes the blocking
+    /// intent explicit. When the `async` feature is enabled, blocking commands
+    /// are automatically run on tokio's blocking thread pool via `spawn_blocking`.
+    ///
+    /// Use this for operations like:
+    /// - File I/O (`std::fs::read`, `std::fs::write`)
+    /// - Network operations with blocking APIs
+    /// - CPU-intensive computations
+    /// - Thread sleep operations
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use bubbletea::{Cmd, Message};
+    ///
+    /// fn read_config() -> Cmd {
+    ///     Cmd::blocking(|| {
+    ///         let content = std::fs::read_to_string("config.toml").unwrap();
+    ///         Message::new(content)
+    ///     })
+    /// }
+    /// ```
+    pub fn blocking<F>(f: F) -> Self
+    where
+        F: FnOnce() -> Message + Send + 'static,
+    {
+        // Blocking commands are handled the same as regular commands.
+        // When the async feature is enabled, CommandKind::execute() runs
+        // sync commands via tokio::task::spawn_blocking automatically.
+        Self::new(f)
+    }
+
+    /// Create a command that performs a blocking operation returning a Result.
+    ///
+    /// Converts `Result<T, E>` into a message, wrapping both success and error
+    /// cases. This is convenient for I/O operations that can fail.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use bubbletea::{Cmd, Message};
+    /// use std::io;
+    ///
+    /// struct FileContent(String);
+    /// struct FileError(io::Error);
+    ///
+    /// fn read_file(path: &'static str) -> Cmd {
+    ///     Cmd::blocking_result(
+    ///         move || std::fs::read_to_string(path),
+    ///         |content| Message::new(FileContent(content)),
+    ///         |err| Message::new(FileError(err)),
+    ///     )
+    /// }
+    /// ```
+    pub fn blocking_result<F, T, E, S, Err>(f: F, on_success: S, on_error: Err) -> Self
+    where
+        F: FnOnce() -> Result<T, E> + Send + 'static,
+        S: FnOnce(T) -> Message + Send + 'static,
+        Err: FnOnce(E) -> Message + Send + 'static,
+    {
+        Self::new(move || match f() {
+            Ok(value) => on_success(value),
+            Err(err) => on_error(err),
+        })
+    }
 }
 
 // =============================================================================
@@ -424,6 +492,47 @@ mod tests {
         assert!(msg.is::<SetWindowTitleMsg>());
     }
 
+    #[test]
+    fn test_blocking() {
+        let cmd = Cmd::blocking(|| Message::new("blocked"));
+        let msg = cmd.execute().unwrap();
+        assert_eq!(msg.downcast::<&str>().unwrap(), "blocked");
+    }
+
+    #[test]
+    fn test_blocking_result_success() {
+        struct FileContent(String);
+
+        let cmd = Cmd::blocking_result(
+            || Ok::<_, std::io::Error>("file content".to_string()),
+            |content| Message::new(FileContent(content)),
+            |_err| Message::new("error"),
+        );
+        let msg = cmd.execute().unwrap();
+        assert!(msg.is::<FileContent>());
+        let content = msg.downcast::<FileContent>().unwrap();
+        assert_eq!(content.0, "file content");
+    }
+
+    #[test]
+    fn test_blocking_result_error() {
+        #[allow(dead_code)] // Field unused; we only check is::<FileError>()
+        struct FileError(std::io::Error);
+
+        let cmd = Cmd::blocking_result(
+            || {
+                Err::<String, _>(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "not found",
+                ))
+            },
+            |_content| Message::new("success"),
+            |err| Message::new(FileError(err)),
+        );
+        let msg = cmd.execute().unwrap();
+        assert!(msg.is::<FileError>());
+    }
+
     // =============================================================================
     // Async Command Tests (requires "async" feature)
     // =============================================================================
@@ -480,6 +589,310 @@ mod tests {
             let cmd = tick_async(Duration::from_millis(1), |t| Message::new(TickMsg(t)));
             let msg = cmd.execute().await.unwrap();
             assert!(msg.is::<TickMsg>());
+        }
+
+        #[tokio::test]
+        async fn test_blocking_via_spawn_blocking() {
+            // Verify that Cmd::blocking runs via spawn_blocking in async context
+            let cmd = Cmd::blocking(|| {
+                // Simulate a blocking operation
+                std::thread::sleep(Duration::from_millis(1));
+                Message::new("blocked_async")
+            });
+            let kind: CommandKind = cmd.into();
+            let msg = kind.execute().await.unwrap();
+            assert_eq!(msg.downcast::<&str>().unwrap(), "blocked_async");
+        }
+
+        #[tokio::test]
+        async fn test_blocking_result_via_spawn_blocking() {
+            struct FileContent(String);
+
+            let cmd = Cmd::blocking_result(
+                || {
+                    // Simulate blocking I/O
+                    std::thread::sleep(Duration::from_millis(1));
+                    Ok::<_, std::io::Error>("async file content".to_string())
+                },
+                |content| Message::new(FileContent(content)),
+                |_err| Message::new("error"),
+            );
+            let kind: CommandKind = cmd.into();
+            let msg = kind.execute().await.unwrap();
+            assert!(msg.is::<FileContent>());
+        }
+
+        // =========================================================================
+        // Error Handling Tests
+        // =========================================================================
+
+        #[tokio::test]
+        async fn test_blocking_result_error_in_async_context() {
+            struct ErrorResult(String);
+
+            let cmd = Cmd::blocking_result(
+                || {
+                    Err::<String, _>(std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        "not found",
+                    ))
+                },
+                |_content| Message::new("success"),
+                |err| Message::new(ErrorResult(err.to_string())),
+            );
+            let kind: CommandKind = cmd.into();
+            let msg = kind.execute().await.unwrap();
+            assert!(msg.is::<ErrorResult>());
+        }
+
+        #[tokio::test]
+        async fn test_async_cmd_with_io_error() {
+            struct IoError(String);
+
+            let cmd = AsyncCmd::new(|| async {
+                // Simulate an async operation that fails
+                let result: Result<String, std::io::Error> = Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "file not found",
+                ));
+                match result {
+                    Ok(data) => Message::new(data),
+                    Err(e) => Message::new(IoError(e.to_string())),
+                }
+            });
+            let msg = cmd.execute().await.unwrap();
+            assert!(msg.is::<IoError>());
+        }
+
+        #[tokio::test]
+        async fn test_async_cmd_optional_returns_none_on_error() {
+            let cmd = AsyncCmd::new_optional(|| async {
+                // Simulate operation that fails silently
+                let result: Result<i32, &str> = Err("failed");
+                result.ok().map(Message::new)
+            });
+            assert!(cmd.execute().await.is_none());
+        }
+
+        // =========================================================================
+        // Timeout Tests
+        // =========================================================================
+
+        #[tokio::test]
+        async fn test_tick_async_respects_duration() {
+            struct TimerFired;
+
+            let start = std::time::Instant::now();
+            let cmd = tick_async(Duration::from_millis(50), |_| Message::new(TimerFired));
+            let msg = cmd.execute().await.unwrap();
+            let elapsed = start.elapsed();
+
+            assert!(msg.is::<TimerFired>());
+            assert!(elapsed >= Duration::from_millis(50));
+            assert!(elapsed < Duration::from_millis(150)); // Allow some slack
+        }
+
+        #[tokio::test]
+        async fn test_async_cmd_with_timeout() {
+            use tokio::time::timeout;
+
+            struct SlowResult;
+
+            let cmd = AsyncCmd::new(|| async {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                Message::new(SlowResult)
+            });
+
+            // Should complete within timeout
+            let result = timeout(Duration::from_millis(100), cmd.execute()).await;
+            assert!(result.is_ok());
+            assert!(result.unwrap().unwrap().is::<SlowResult>());
+        }
+
+        #[tokio::test]
+        async fn test_async_cmd_timeout_expires() {
+            use tokio::time::timeout;
+
+            let cmd = AsyncCmd::new(|| async {
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                Message::new("never")
+            });
+
+            // Should timeout
+            let result = timeout(Duration::from_millis(10), cmd.execute()).await;
+            assert!(result.is_err()); // Timeout elapsed
+        }
+
+        // =========================================================================
+        // Concurrency Tests
+        // =========================================================================
+
+        #[tokio::test]
+        async fn test_concurrent_async_commands() {
+            use std::sync::Arc;
+            use std::sync::atomic::{AtomicUsize, Ordering};
+
+            struct CounterResult(usize);
+
+            let counter = Arc::new(AtomicUsize::new(0));
+            let mut handles = vec![];
+
+            // Spawn 10 concurrent async commands
+            for i in 0..10 {
+                let counter = Arc::clone(&counter);
+                let cmd = AsyncCmd::new(move || async move {
+                    counter.fetch_add(1, Ordering::SeqCst);
+                    tokio::time::sleep(Duration::from_millis(1)).await;
+                    Message::new(CounterResult(i))
+                });
+                handles.push(tokio::spawn(async move { cmd.execute().await }));
+            }
+
+            // Wait for all
+            for handle in handles {
+                let msg = handle.await.unwrap().unwrap();
+                assert!(msg.is::<CounterResult>());
+            }
+
+            // All 10 should have run
+            assert_eq!(counter.load(Ordering::SeqCst), 10);
+        }
+
+        #[tokio::test]
+        async fn test_concurrent_command_kind_mixed() {
+            use std::sync::Arc;
+            use std::sync::atomic::{AtomicUsize, Ordering};
+
+            let counter = Arc::new(AtomicUsize::new(0));
+            let mut handles = vec![];
+
+            // Mix of sync and async commands
+            for i in 0..6 {
+                let counter = Arc::clone(&counter);
+                let kind: CommandKind = if i % 2 == 0 {
+                    // Sync command (runs via spawn_blocking)
+                    let counter = Arc::clone(&counter);
+                    Cmd::new(move || {
+                        counter.fetch_add(1, Ordering::SeqCst);
+                        Message::new(i)
+                    })
+                    .into()
+                } else {
+                    // Async command
+                    let counter = Arc::clone(&counter);
+                    AsyncCmd::new(move || async move {
+                        counter.fetch_add(1, Ordering::SeqCst);
+                        Message::new(i)
+                    })
+                    .into()
+                };
+                handles.push(tokio::spawn(async move { kind.execute().await }));
+            }
+
+            // Wait for all
+            for handle in handles {
+                assert!(handle.await.unwrap().is_some());
+            }
+
+            // All 6 should have run
+            assert_eq!(counter.load(Ordering::SeqCst), 6);
+        }
+
+        #[tokio::test]
+        async fn test_command_kind_ordering_within_single_task() {
+            use std::sync::Arc;
+            use std::sync::atomic::{AtomicUsize, Ordering};
+
+            #[derive(Debug, PartialEq)]
+            struct OrderedResult {
+                index: usize,
+                order: usize,
+            }
+
+            let order = Arc::new(AtomicUsize::new(0));
+            let mut results = vec![];
+
+            // Execute commands sequentially within single task
+            for i in 0..3usize {
+                let order = Arc::clone(&order);
+                let cmd = AsyncCmd::new(move || async move {
+                    let n = order.fetch_add(1, Ordering::SeqCst);
+                    Message::new(OrderedResult { index: i, order: n })
+                });
+                let msg = cmd.execute().await.unwrap();
+                results.push(msg.downcast::<OrderedResult>().unwrap());
+            }
+
+            // Should execute in order
+            assert_eq!(results[0], OrderedResult { index: 0, order: 0 });
+            assert_eq!(results[1], OrderedResult { index: 1, order: 1 });
+            assert_eq!(results[2], OrderedResult { index: 2, order: 2 });
+        }
+
+        // =========================================================================
+        // Edge Cases
+        // =========================================================================
+
+        #[tokio::test]
+        async fn test_async_cmd_with_large_message() {
+            let large_data = vec![42u8; 1024 * 1024]; // 1MB
+            let cmd = AsyncCmd::new(move || async move { Message::new(large_data) });
+            let msg = cmd.execute().await.unwrap();
+            let data = msg.downcast::<Vec<u8>>().unwrap();
+            assert_eq!(data.len(), 1024 * 1024);
+            assert!(data.iter().all(|&b| b == 42));
+        }
+
+        #[tokio::test]
+        async fn test_every_async_produces_message() {
+            struct EveryTick;
+
+            let cmd = every_async(Duration::from_millis(1), |_| Message::new(EveryTick));
+            let msg = cmd.execute().await.unwrap();
+            assert!(msg.is::<EveryTick>());
+        }
+
+        #[tokio::test]
+        async fn test_command_kind_from_conversions() {
+            // Test From<Cmd> for CommandKind
+            let sync_cmd = Cmd::new(|| Message::new(1i32));
+            let kind: CommandKind = sync_cmd.into();
+            assert!(matches!(kind, CommandKind::Sync(_)));
+
+            // Test From<AsyncCmd> for CommandKind
+            let async_cmd = AsyncCmd::new(|| async { Message::new(2i32) });
+            let kind: CommandKind = async_cmd.into();
+            assert!(matches!(kind, CommandKind::Async(_)));
+        }
+
+        #[tokio::test]
+        async fn test_spawn_blocking_does_not_block_runtime() {
+            use std::time::Instant;
+
+            let start = Instant::now();
+
+            // Start two blocking commands concurrently
+            let cmd1: CommandKind = Cmd::blocking(|| {
+                std::thread::sleep(Duration::from_millis(50));
+                Message::new(1)
+            })
+            .into();
+
+            let cmd2: CommandKind = Cmd::blocking(|| {
+                std::thread::sleep(Duration::from_millis(50));
+                Message::new(2)
+            })
+            .into();
+
+            let (r1, r2) = tokio::join!(cmd1.execute(), cmd2.execute());
+
+            let elapsed = start.elapsed();
+
+            assert!(r1.is_some());
+            assert!(r2.is_some());
+
+            // Should run concurrently, so total time should be ~50ms, not ~100ms
+            assert!(elapsed < Duration::from_millis(100));
         }
     }
 }

@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Text input example demonstrating user input handling.
+//! Text input example demonstrating `#[derive(Model)]` with component composition.
 //!
 //! This example shows how to:
 //! - Use the bubbles TextInput component
@@ -14,6 +14,10 @@ use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, quit};
 use lipgloss::Style;
 
 /// Application state tracking input and submission.
+///
+/// Uses `#[derive(bubbletea::Model)]` to auto-implement the Model trait,
+/// delegating to the inherent `init`, `update`, and `view` methods.
+#[derive(bubbletea::Model)]
 struct App {
     input: TextInput,
     submitted: bool,
@@ -32,14 +36,14 @@ impl App {
             name: String::new(),
         }
     }
-}
 
-impl Model for App {
+    /// Initialize the model. Called once when the program starts.
     fn init(&self) -> Option<Cmd> {
         // Initialize cursor blinking for the text input
         self.input.init()
     }
 
+    /// Handle messages and update the model state.
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         // Handle keyboard input
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
@@ -65,6 +69,7 @@ impl Model for App {
         None
     }
 
+    /// Render the model as a string for display.
     fn view(&self) -> String {
         if self.submitted {
             let style = Style::new().foreground("212");

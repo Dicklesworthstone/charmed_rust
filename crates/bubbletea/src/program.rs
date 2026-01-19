@@ -36,28 +36,108 @@ use crate::message::{
 };
 use crate::mouse::from_crossterm_mouse;
 
-/// Error type for program execution.
-#[derive(Debug)]
+/// Errors that can occur when running a bubbletea program.
+///
+/// This enum represents all possible error conditions when running
+/// a TUI application with bubbletea.
+///
+/// # Error Handling
+///
+/// Most errors from bubbletea are recoverable. The recommended pattern
+/// is to use the `?` operator for propagation:
+///
+/// ```rust,ignore
+/// use bubbletea::{Program, Result};
+///
+/// fn run_app() -> Result<()> {
+///     let program = Program::new(MyModel::default());
+///     program.run()?;
+///     Ok(())
+/// }
+/// ```
+///
+/// # Recovery Strategies
+///
+/// | Error Variant | Recovery Strategy |
+/// |--------------|-------------------|
+/// | [`Io`](Error::Io) | Check terminal availability, retry, or report to user |
+///
+/// # Example: Graceful Error Handling
+///
+/// ```rust,ignore
+/// use bubbletea::{Program, Error};
+///
+/// match Program::new(my_model).run() {
+///     Ok(final_model) => {
+///         println!("Program completed successfully");
+///     }
+///     Err(Error::Io(e)) if e.kind() == std::io::ErrorKind::NotConnected => {
+///         eprintln!("Terminal disconnected, saving state...");
+///         // Save any important state before exiting
+///     }
+///     Err(e) => {
+///         eprintln!("Program error: {}", e);
+///         std::process::exit(1);
+///     }
+/// }
+/// ```
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
-    /// IO error.
-    Io(io::Error),
+    /// I/O error during terminal operations.
+    ///
+    /// This typically occurs when:
+    /// - The terminal is not available (e.g., running in a pipe)
+    /// - The terminal was closed unexpectedly
+    /// - System I/O resources are exhausted
+    /// - Terminal control sequences failed
+    ///
+    /// # Recovery
+    ///
+    /// Check if stdin/stdout are TTYs before starting your program.
+    /// Consider using a fallback mode for non-interactive environments.
+    ///
+    /// # Underlying Error
+    ///
+    /// The underlying [`std::io::Error`] can be accessed to determine
+    /// the specific cause. Common error kinds include:
+    /// - `NotConnected`: Terminal was disconnected
+    /// - `BrokenPipe`: Output stream closed
+    /// - `Other`: Terminal control sequence errors
+    #[error("terminal io error: {0}")]
+    Io(#[from] io::Error),
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::Io(e) => write!(f, "IO error: {}", e),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
-
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Error::Io(e)
-    }
-}
+/// A specialized [`Result`] type for bubbletea operations.
+///
+/// This type alias is used throughout the bubbletea crate for convenience.
+/// It defaults to [`Error`] as the error type.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use bubbletea::Result;
+///
+/// fn run_program() -> Result<()> {
+///     // ... implementation
+///     Ok(())
+/// }
+/// ```
+///
+/// # Converting to Other Error Types
+///
+/// When integrating with other crates like `anyhow`:
+///
+/// ```rust,ignore
+/// use anyhow::Context;
+///
+/// fn main() -> anyhow::Result<()> {
+///     let model = bubbletea::Program::new(my_model)
+///         .run()
+///         .context("failed to run TUI program")?;
+///     Ok(())
+/// }
+/// ```
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// The Model trait for TUI applications.
 ///
@@ -226,7 +306,7 @@ impl<M: Model> Program<M> {
     }
 
     /// Run the program and return the final model state.
-    pub fn run(self) -> Result<M, Error> {
+    pub fn run(self) -> Result<M> {
         let mut stdout = io::stdout();
 
         // Save options for cleanup (since self will be moved)
@@ -282,7 +362,7 @@ impl<M: Model> Program<M> {
         result
     }
 
-    fn event_loop(mut self, stdout: &mut io::Stdout) -> Result<M, Error> {
+    fn event_loop(mut self, stdout: &mut io::Stdout) -> Result<M> {
         // Create message channel
         let (tx, rx): (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
@@ -424,7 +504,7 @@ impl<M: Model> Program<M> {
         });
     }
 
-    fn render(&self, stdout: &mut io::Stdout, last_view: &mut String) -> Result<(), Error> {
+    fn render(&self, stdout: &mut io::Stdout, last_view: &mut String) -> Result<()> {
         let view = self.model.view();
 
         // Skip if view hasn't changed
@@ -468,7 +548,7 @@ impl<M: Model> Program<M> {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn run_async(self) -> Result<M, Error> {
+    pub async fn run_async(self) -> Result<M> {
         let mut stdout = io::stdout();
 
         // Save options for cleanup (since self will be moved)
@@ -524,7 +604,7 @@ impl<M: Model> Program<M> {
         result
     }
 
-    async fn event_loop_async(mut self, stdout: &mut io::Stdout) -> Result<M, Error> {
+    async fn event_loop_async(mut self, stdout: &mut io::Stdout) -> Result<M> {
         // Create async message channel
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Message>(256);
 
@@ -671,7 +751,7 @@ impl<M: Model> Program<M> {
     }
 
     /// Poll for terminal events asynchronously.
-    async fn poll_event_async() -> Result<Option<Event>, Error> {
+    async fn poll_event_async() -> Result<Option<Event>> {
         // crossterm doesn't have native async support, so we use spawn_blocking
         tokio::task::spawn_blocking(|| {
             if event::poll(Duration::from_millis(10))? {

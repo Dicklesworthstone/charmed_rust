@@ -191,7 +191,14 @@ pub use message::{
     BlurMsg, FocusMsg, InterruptMsg, Message, QuitMsg, ResumeMsg, SuspendMsg, WindowSizeMsg,
 };
 pub use mouse::{MouseAction, MouseButton, MouseMsg, parse_mouse_event_sequence};
-pub use program::{Error, Model, Program, ProgramOptions};
+pub use program::{Error, Model, Program, ProgramOptions, Result};
+
+// Re-export derive macro when macros feature is enabled.
+// Derive macros and traits live in different namespaces, so both can be named `Model`.
+// Users can write `#[derive(bubbletea::Model)]` for the macro and `impl bubbletea::Model` for the trait.
+#[cfg(feature = "macros")]
+#[doc(hidden)]
+pub use bubbletea_macros::*;
 
 /// Prelude module for convenient imports.
 pub mod prelude {
