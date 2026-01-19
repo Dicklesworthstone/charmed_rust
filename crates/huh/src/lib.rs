@@ -1,6 +1,5 @@
 #![forbid(unsafe_code)]
 // Allow pedantic lints for early-stage API ergonomics.
-#![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::nursery)]
 #![allow(clippy::pedantic)]
 
@@ -1451,7 +1450,7 @@ impl Field for Input {
             output.push_str(&styles.error_indicator.render(""));
         }
 
-        styles.base.width(self.width as u16).render(&output)
+        styles.base.width(self.width.try_into().unwrap_or(u16::MAX)).render(&output)
     }
 
     fn focus(&mut self) -> Option<Cmd> {
@@ -1790,7 +1789,7 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for Select<T>
             output.push_str(&styles.error_indicator.render(""));
         }
 
-        styles.base.width(self.width as u16).render(&output)
+        styles.base.width(self.width.try_into().unwrap_or(u16::MAX)).render(&output)
     }
 
     fn focus(&mut self) -> Option<Cmd> {
@@ -2180,7 +2179,7 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for MultiSele
             output.push_str(&styles.error_indicator.render(""));
         }
 
-        styles.base.width(self.width as u16).render(&output)
+        styles.base.width(self.width.try_into().unwrap_or(u16::MAX)).render(&output)
     }
 
     fn focus(&mut self) -> Option<Cmd> {
@@ -2410,7 +2409,7 @@ impl Field for Confirm {
             output.push_str(&styles.focused_button.render(&self.negative));
         }
 
-        styles.base.width(self.width as u16).render(&output)
+        styles.base.width(self.width.try_into().unwrap_or(u16::MAX)).render(&output)
     }
 
     fn focus(&mut self) -> Option<Cmd> {
@@ -2595,7 +2594,7 @@ impl Field for Note {
             output.push_str(&styles.description.render(&self.description));
         }
 
-        styles.base.width(self.width as u16).render(&output)
+        styles.base.width(self.width.try_into().unwrap_or(u16::MAX)).render(&output)
     }
 
     fn focus(&mut self) -> Option<Cmd> {
@@ -2808,7 +2807,7 @@ impl Model for Group {
             }
         }
 
-        theme.group.base.width(self.width as u16).render(&output)
+        theme.group.base.width(self.width.try_into().unwrap_or(u16::MAX)).render(&output)
     }
 }
 
@@ -2987,7 +2986,7 @@ impl Model for Form {
                 .form
                 .base
                 .clone()
-                .width(self.width as u16)
+                .width(self.width.try_into().unwrap_or(u16::MAX))
                 .render(&group.view())
         } else {
             String::new()
@@ -3000,27 +2999,36 @@ impl Model for Form {
 // -----------------------------------------------------------------------------
 
 /// Creates a validator that checks if the input is not empty.
-/// Returns an error message using the provided field name.
+///
+/// **Note**: Due to Rust function pointer limitations, the `_field_name` parameter
+/// is not used. It exists only for API compatibility. To create validators with
+/// custom error messages, use a closure directly:
+///
+/// ```rust,ignore
+/// let validator = |s: &str| {
+///     if s.trim().is_empty() {
+///         Some("username is required".to_string())
+///     } else {
+///         None
+///     }
+/// };
+/// ```
 ///
 /// # Example
 /// ```
 /// use huh::validate_required;
-/// let validator = validate_required("name");
-/// assert!(validator("").is_some()); // Error: "name is required"
+/// let validator = validate_required("any");
+/// assert!(validator("").is_some()); // Error: "field is required"
 /// assert!(validator("John").is_none()); // Valid
 /// ```
-pub fn validate_required(field_name: &'static str) -> fn(&str) -> Option<String> {
-    fn make_validator(s: &str) -> Option<String> {
-        // This is a bit awkward due to Rust's function pointer limitations
-        // We need to check for empty/whitespace
+pub fn validate_required(_field_name: &'static str) -> fn(&str) -> Option<String> {
+    |s| {
         if s.trim().is_empty() {
-            Some("name is required".to_string())
+            Some("field is required".to_string())
         } else {
             None
         }
     }
-    let _ = field_name; // The field name is baked into the returned function
-    make_validator
 }
 
 /// Creates a required validator for the "name" field.
