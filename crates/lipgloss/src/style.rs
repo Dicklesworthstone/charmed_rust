@@ -23,6 +23,7 @@ use crate::border::{Border, BorderEdges};
 use crate::color::{Color, ColorProfile, NoColor, TerminalColor};
 use crate::position::{Position, Sides};
 use crate::renderer::Renderer;
+use crate::theme::{ColorSlot, Theme, ThemeRole};
 
 bitflags! {
     /// Flags indicating which style properties are explicitly set.
@@ -181,6 +182,34 @@ impl Style {
         Self::default()
     }
 
+    // ==================== Theme Helpers ====================
+
+    /// Create a style with foreground color from a theme slot.
+    pub fn from_theme(theme: &Theme, slot: ColorSlot) -> Self {
+        Style::new().foreground_color(theme.get(slot).clone())
+    }
+
+    /// Create a style with both foreground and background from theme slots.
+    pub fn from_theme_colors(theme: &Theme, fg: ColorSlot, bg: ColorSlot) -> Self {
+        Style::new()
+            .foreground_color(theme.get(fg).clone())
+            .background_color(theme.get(bg).clone())
+    }
+
+    /// Create a style using a semantic theme role.
+    pub fn from_theme_role(theme: &Theme, role: ThemeRole) -> Self {
+        match role {
+            ThemeRole::Primary => Style::from_theme(theme, ColorSlot::Primary),
+            ThemeRole::Success => Style::from_theme(theme, ColorSlot::Success),
+            ThemeRole::Warning => Style::from_theme(theme, ColorSlot::Warning),
+            ThemeRole::Error => Style::from_theme(theme, ColorSlot::Error),
+            ThemeRole::Muted => Style::from_theme(theme, ColorSlot::TextMuted),
+            ThemeRole::Inverted => Style::new()
+                .foreground_color(theme.get(ColorSlot::Background).clone())
+                .background_color(theme.get(ColorSlot::Text).clone()),
+        }
+    }
+
     /// Set the underlying string value for this style.
     pub fn set_string(mut self, s: impl Into<String>) -> Self {
         self.value = s.into();
@@ -281,6 +310,11 @@ impl Style {
         self
     }
 
+    /// Set the foreground color using a theme slot.
+    pub fn foreground_slot(self, theme: &Theme, slot: ColorSlot) -> Self {
+        self.foreground_color(theme.get(slot).clone())
+    }
+
     /// Remove the foreground color.
     pub fn no_foreground(mut self) -> Self {
         self.props |= Props::FOREGROUND;
@@ -300,6 +334,11 @@ impl Style {
         self.props |= Props::BACKGROUND;
         self.bg_color = Some(Box::new(color));
         self
+    }
+
+    /// Set the background color using a theme slot.
+    pub fn background_slot(self, theme: &Theme, slot: ColorSlot) -> Self {
+        self.background_color(theme.get(slot).clone())
     }
 
     /// Remove the background color.
@@ -507,6 +546,22 @@ impl Style {
         self
     }
 
+    /// Set border foreground color for all sides using a theme slot.
+    pub fn border_foreground_slot(mut self, theme: &Theme, slot: ColorSlot) -> Self {
+        let c = theme.get(slot).clone();
+        self.props |= Props::BORDER_TOP_FG
+            | Props::BORDER_RIGHT_FG
+            | Props::BORDER_BOTTOM_FG
+            | Props::BORDER_LEFT_FG;
+        self.border_fg = [
+            Some(c.clone_box()),
+            Some(c.clone_box()),
+            Some(c.clone_box()),
+            Some(c.clone_box()),
+        ];
+        self
+    }
+
     /// Set border background color for all sides.
     pub fn border_background(mut self, color: impl Into<String>) -> Self {
         let c = Color::new(color);
@@ -521,6 +576,62 @@ impl Style {
             Some(c.clone_box()),
         ];
         self
+    }
+
+    /// Set border background color for all sides using a theme slot.
+    pub fn border_background_slot(mut self, theme: &Theme, slot: ColorSlot) -> Self {
+        let c = theme.get(slot).clone();
+        self.props |= Props::BORDER_TOP_BG
+            | Props::BORDER_RIGHT_BG
+            | Props::BORDER_BOTTOM_BG
+            | Props::BORDER_LEFT_BG;
+        self.border_bg = [
+            Some(c.clone_box()),
+            Some(c.clone_box()),
+            Some(c.clone_box()),
+            Some(c.clone_box()),
+        ];
+        self
+    }
+
+    // ==================== Theme Presets ====================
+
+    /// Create a button-like style from theme colors.
+    pub fn button_from_theme(theme: &Theme) -> Self {
+        Style::new()
+            .foreground_color(theme.get(ColorSlot::Background).clone())
+            .background_color(theme.get(ColorSlot::Primary).clone())
+            .padding((1, 2))
+            .bold()
+    }
+
+    /// Create an error message style from theme colors.
+    pub fn error_from_theme(theme: &Theme) -> Self {
+        Style::new()
+            .foreground_color(theme.get(ColorSlot::Error).clone())
+            .bold()
+    }
+
+    /// Create a muted/secondary text style from theme colors.
+    pub fn muted_from_theme(theme: &Theme) -> Self {
+        Style::new()
+            .foreground_color(theme.get(ColorSlot::TextMuted).clone())
+            .italic()
+    }
+
+    /// Create a highlighted/selected item style from theme colors.
+    pub fn selected_from_theme(theme: &Theme) -> Self {
+        Style::new()
+            .foreground_color(theme.get(ColorSlot::Text).clone())
+            .background_color(theme.get(ColorSlot::Selection).clone())
+    }
+
+    /// Create a bordered panel style from theme colors.
+    pub fn panel_from_theme(theme: &Theme) -> Self {
+        Style::new()
+            .border(Border::rounded())
+            .border_foreground_slot(theme, ColorSlot::Border)
+            .padding(1)
     }
 
     // ==================== Other ====================
