@@ -1,34 +1,21 @@
-# charmed_rust
+# charmed_rust - Charm's TUI Libraries for Rust
 
 <div align="center">
+  <img src="charmed_illustration.webp" alt="charmed_rust - Charm's TUI libraries ported to idiomatic Rust" width="600">
+</div>
 
-```
-   ╭──────────────────────────────────────────────────────────────╮
-   │                                                              │
-   │   ░█████╗░██╗░░██╗░█████╗░██████╗░███╗░░░███╗███████╗██████╗░ │
-   │   ██╔══██╗██║░░██║██╔══██╗██╔══██╗████╗░████║██╔════╝██╔══██╗│
-   │   ██║░░╚═╝███████║███████║██████╔╝██╔████╔██║█████╗░░██║░░██║│
-   │   ██║░░██╗██╔══██║██╔══██║██╔══██╗██║╚██╔╝██║██╔══╝░░██║░░██║│
-   │   ╚█████╔╝██║░░██║██║░░██║██║░░██║██║░╚═╝░██║███████╗██████╔╝│
-   │   ░╚════╝░╚═╝░░╚═╝╚═╝░░╚═╝╚═╝░░╚═╝╚═╝░░░░░╚═╝╚══════╝╚═════╝ │
-   │                                                              │
-   │              🦀  RUST  🦀                                    │
-   │                                                              │
-   │     Charm's TUI libraries, ported to idiomatic Rust          │
-   │                                                              │
-   ╰──────────────────────────────────────────────────────────────╯
-```
-
-<img src="charmed_illustration.webp" alt="Charmed Rust - Charm's TUI libraries ported to Rust">
+<div align="center">
 
 [![CI](https://github.com/Dicklesworthstone/charmed_rust/actions/workflows/ci.yml/badge.svg)](https://github.com/Dicklesworthstone/charmed_rust/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org/)
 [![Edition](https://img.shields.io/badge/edition-2024-blue.svg)](https://doc.rust-lang.org/edition-guide/)
 
-**Build beautiful terminal UIs in Rust with the elegance of Charm.**
-
 </div>
+
+A complete Rust port of [Charm's](https://charm.sh) TUI ecosystem: `bubbletea` (Elm Architecture), `lipgloss` (CSS-like styling), `bubbles` (16 components), `glamour` (Markdown), `wish` (SSH apps), and more.
+
+[Quick Start](#quick-start) | [Components](#bubbles-components) | [Styling](#lipgloss-styling-examples) | [FAQ](#faq)
 
 <div align="center">
 <h3>Quick Install</h3>
