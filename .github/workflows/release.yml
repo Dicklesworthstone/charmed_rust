@@ -16,8 +16,7 @@ concurrency:
   cancel-in-progress: false  # Never cancel releases
 
 permissions:
-  contents: write
-  id-token: write  # For SLSA provenance attestation
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -59,10 +58,10 @@ jobs:
       - name: Cache cargo registry and build
         uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
         with:
-          key: release-${{ matrix.target }}
+          key: release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build release binary
-        run: cargo build --release --package glow --target ${{ matrix.target }}
+        run: cargo build --release --package glow --target ${{ matrix.target }} --locked
 
       - name: Prepare artifact (Unix)
         if: runner.os != 'Windows'
@@ -91,6 +90,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: ${{ !inputs.dry_run }}
+    permissions:
+      contents: write
+      id-token: write  # For SLSA provenance attestation
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -165,42 +167,42 @@ jobs:
           # to allow crates.io index to update
 
           echo "Publishing harmonica..."
-          cargo publish -p harmonica --allow-dirty || true
+          cargo publish -p harmonica --allow-dirty --locked || true
           sleep 30
 
           echo "Publishing lipgloss..."
-          cargo publish -p lipgloss --allow-dirty || true
+          cargo publish -p lipgloss --allow-dirty --locked || true
           sleep 30
 
           echo "Publishing charmed_log..."
-          cargo publish -p charmed_log --allow-dirty || true
+          cargo publish -p charmed_log --allow-dirty --locked || true
           sleep 30
 
           echo "Publishing bubbletea-macros..."
-          cargo publish -p bubbletea-macros --allow-dirty || true
+          cargo publish -p bubbletea-macros --allow-dirty --locked || true
           sleep 30
 
           echo "Publishing bubbletea..."
-          cargo publish -p bubbletea --allow-dirty || true
+          cargo publish -p bubbletea --allow-dirty --locked || true
           sleep 30
 
           echo "Publishing glamour..."
-          cargo publish -p glamour --allow-dirty || true
+          cargo publish -p glamour --allow-dirty --locked || true
           sleep 30
 
           echo "Publishing bubbles..."
-          cargo publish -p bubbles --allow-dirty || true
+          cargo publish -p bubbles --allow-dirty --locked || true
           sleep 30
 
           echo "Publishing huh..."
-          cargo publish -p huh --allow-dirty || true
+          cargo publish -p huh --allow-dirty --locked || true
           sleep 30
 
           echo "Publishing wish..."
-          cargo publish -p wish --allow-dirty || true
+          cargo publish -p wish --allow-dirty --locked || true
           sleep 30
 
           echo "Publishing glow..."
-          cargo publish -p glow --allow-dirty || true
+          cargo publish -p glow --allow-dirty --locked || true
 
           echo "All crates published successfully!"

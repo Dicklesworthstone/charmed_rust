@@ -38,7 +38,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
   test:
     name: Test (${{ matrix.os }})
@@ -62,16 +62,16 @@ jobs:
       - name: Cache cargo registry and build
         uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
         with:
-          key: ${{ runner.os }}-${{ runner.arch }}
+          key: ${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build
-        run: cargo build --workspace --all-targets
+        run: cargo build --workspace --all-targets --locked
 
       - name: Run tests
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
 
       - name: Run doc tests
-        run: cargo test --doc --workspace
+        run: cargo test --doc --workspace --locked
 
   examples:
     name: Examples
@@ -89,6 +89,7 @@ jobs:
         uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
         with:
           workspaces: examples
+          key: examples-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('examples/Cargo.lock') }}
 
       - name: Check formatting
         working-directory: examples
@@ -96,11 +97,11 @@ jobs:
 
       - name: Build examples
         working-directory: examples
-        run: cargo build --workspace
+        run: cargo build --workspace --locked
 
       - name: Run Clippy on examples
         working-directory: examples
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace --locked -- -D warnings
 
   security:
     name: Security Audit
