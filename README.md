@@ -1,7 +1,7 @@
 # charmed_rust - Charm's TUI Libraries for Rust
 
 <div align="center">
-  <img src="charmed_illustration.webp" alt="charmed_rust - Charm's TUI libraries ported to idiomatic Rust" width="600">
+  <img src="charmed_rust_illustration.webp" alt="charmed_rust - Charm's TUI libraries ported to idiomatic Rust" width="600">
 </div>
 
 <div align="center">
