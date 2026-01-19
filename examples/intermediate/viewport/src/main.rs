@@ -206,3 +206,173 @@ fn main() -> anyhow::Result<()> {
     println!("Goodbye!");
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Create a key message for a character.
+    fn key_char(ch: char) -> Message {
+        Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: vec![ch],
+            alt: false,
+            paste: false,
+        })
+    }
+
+    /// Create a key message for a special key.
+    fn key_type(kt: KeyType) -> Message {
+        Message::new(KeyMsg {
+            key_type: kt,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        })
+    }
+
+    #[test]
+    fn test_app_initial_state() {
+        let app = App::new();
+        assert!(app.viewport.total_line_count() > 0);
+        assert_eq!(app.viewport.y_offset(), 0);
+        assert!(app.viewport.at_top());
+    }
+
+    #[test]
+    fn test_app_init_returns_none() {
+        let app = App::new();
+        assert!(app.init().is_none());
+    }
+
+    #[test]
+    fn test_quit_q() {
+        let mut app = App::new();
+        let cmd = app.update(key_char('q'));
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_quit_capital_q() {
+        let mut app = App::new();
+        let cmd = app.update(key_char('Q'));
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_quit_ctrl_c() {
+        let mut app = App::new();
+        let cmd = app.update(key_type(KeyType::CtrlC));
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_quit_esc() {
+        let mut app = App::new();
+        let cmd = app.update(key_type(KeyType::Esc));
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_scroll_down_j() {
+        let mut app = App::new();
+        let initial = app.viewport.y_offset();
+        app.update(key_char('j'));
+        assert_eq!(app.viewport.y_offset(), initial + 1);
+    }
+
+    #[test]
+    fn test_scroll_down_arrow() {
+        let mut app = App::new();
+        let initial = app.viewport.y_offset();
+        app.update(key_type(KeyType::Down));
+        assert_eq!(app.viewport.y_offset(), initial + 1);
+    }
+
+    #[test]
+    fn test_scroll_up_k() {
+        let mut app = App::new();
+        // First scroll down, then up
+        app.update(key_char('j'));
+        app.update(key_char('j'));
+        let after_down = app.viewport.y_offset();
+        app.update(key_char('k'));
+        assert_eq!(app.viewport.y_offset(), after_down - 1);
+    }
+
+    #[test]
+    fn test_scroll_up_arrow() {
+        let mut app = App::new();
+        // First scroll down, then up
+        app.update(key_type(KeyType::Down));
+        app.update(key_type(KeyType::Down));
+        let after_down = app.viewport.y_offset();
+        app.update(key_type(KeyType::Up));
+        assert_eq!(app.viewport.y_offset(), after_down - 1);
+    }
+
+    #[test]
+    fn test_page_down_f() {
+        let mut app = App::new();
+        let initial = app.viewport.y_offset();
+        app.update(key_char('f'));
+        assert!(app.viewport.y_offset() > initial);
+    }
+
+    #[test]
+    fn test_page_up_b() {
+        let mut app = App::new();
+        // First page down, then page up
+        app.update(key_char('f'));
+        let after_down = app.viewport.y_offset();
+        app.update(key_char('b'));
+        assert!(app.viewport.y_offset() < after_down);
+    }
+
+    #[test]
+    fn test_view_contains_header() {
+        let app = App::new();
+        let view = app.view();
+        assert!(view.contains("Viewport Example"));
+    }
+
+    #[test]
+    fn test_view_contains_scroll_indicator() {
+        let app = App::new();
+        let view = app.view();
+        assert!(view.contains("Scroll:"));
+    }
+
+    #[test]
+    fn test_view_contains_help_text() {
+        let app = App::new();
+        let view = app.view();
+        assert!(view.contains("j/k"));
+        assert!(view.contains("quit"));
+    }
+
+    #[test]
+    fn test_view_contains_content() {
+        let app = App::new();
+        let view = app.view();
+        // Check for part of the sample content
+        assert!(view.contains("Rust"));
+    }
+
+    #[test]
+    fn test_scroll_bounded_at_top() {
+        let mut app = App::new();
+        assert!(app.viewport.at_top());
+        app.update(key_char('k')); // Try to scroll up at top
+        assert!(app.viewport.at_top());
+        assert_eq!(app.viewport.y_offset(), 0);
+    }
+
+    #[test]
+    fn test_regular_input_returns_none() {
+        let mut app = App::new();
+        // Non-quit keys should return None
+        let cmd = app.update(key_char('j'));
+        assert!(cmd.is_none());
+    }
+}

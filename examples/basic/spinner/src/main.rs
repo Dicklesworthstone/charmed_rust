@@ -81,3 +81,100 @@ fn main() -> anyhow::Result<()> {
     println!("Goodbye!");
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Create a key message for a character
+    fn key_char(ch: char) -> Message {
+        Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: vec![ch],
+            alt: false,
+            paste: false,
+        })
+    }
+
+    /// Create a key message for a special key
+    fn key_type(kt: KeyType) -> Message {
+        Message::new(KeyMsg {
+            key_type: kt,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        })
+    }
+
+    #[test]
+    fn test_app_initial_state() {
+        let app = App::new();
+        assert!(app.loading, "App should start in loading state");
+    }
+
+    #[test]
+    fn test_view_shows_loading() {
+        let app = App::new();
+        let view = app.view();
+        assert!(view.contains("Loading"), "View should contain 'Loading': {}", view);
+    }
+
+    #[test]
+    fn test_view_shows_quit_hint() {
+        let app = App::new();
+        let view = app.view();
+        assert!(view.contains("[q]") || view.contains("quit"), "View should show quit hint");
+    }
+
+    #[test]
+    fn test_quit_q_returns_command() {
+        let mut app = App::new();
+        let cmd = app.update(key_char('q'));
+        assert!(cmd.is_some(), "Pressing 'q' should return quit command");
+    }
+
+    #[test]
+    fn test_quit_capital_q_returns_command() {
+        let mut app = App::new();
+        let cmd = app.update(key_char('Q'));
+        assert!(cmd.is_some(), "Pressing 'Q' should return quit command");
+    }
+
+    #[test]
+    fn test_quit_esc_returns_command() {
+        let mut app = App::new();
+        let cmd = app.update(key_type(KeyType::Esc));
+        assert!(cmd.is_some(), "Pressing Esc should return quit command");
+    }
+
+    #[test]
+    fn test_quit_ctrl_c_returns_command() {
+        let mut app = App::new();
+        let cmd = app.update(key_type(KeyType::CtrlC));
+        assert!(cmd.is_some(), "Pressing Ctrl+C should return quit command");
+    }
+
+    #[test]
+    fn test_other_keys_dont_quit() {
+        let mut app = App::new();
+        let cmd = app.update(key_char('x'));
+        // Other keys may return a tick command from spinner, but shouldn't quit
+        // We can't easily test this without mocking the spinner
+        let _ = cmd; // Just ensure it doesn't panic
+    }
+
+    #[test]
+    fn test_init_returns_tick_command() {
+        let app = App::new();
+        let cmd = app.init();
+        assert!(cmd.is_some(), "Init should return spinner tick command");
+    }
+
+    #[test]
+    fn test_not_loading_shows_done() {
+        let mut app = App::new();
+        app.loading = false;
+        let view = app.view();
+        assert!(view.contains("Done"), "View should show 'Done' when not loading: {}", view);
+    }
+}

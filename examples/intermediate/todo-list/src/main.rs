@@ -30,7 +30,7 @@ impl TodoItem {
 }
 
 /// Input mode for the application.
-#[derive(PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 enum Mode {
     /// Browsing/navigating the list.
     Browse,
@@ -228,4 +228,255 @@ fn main() -> anyhow::Result<()> {
 
     println!("Goodbye!");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Create a key message for a character
+    fn key_char(ch: char) -> Message {
+        Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: vec![ch],
+            alt: false,
+            paste: false,
+        })
+    }
+
+    /// Create a key message for a special key
+    fn key_type(kt: KeyType) -> Message {
+        Message::new(KeyMsg {
+            key_type: kt,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        })
+    }
+
+    #[test]
+    fn test_initial_state() {
+        let app = App::new();
+        assert_eq!(app.items.len(), 3);
+        assert_eq!(app.cursor, 0);
+        assert_eq!(app.mode, Mode::Browse);
+        assert!(app.input.is_empty());
+    }
+
+    #[test]
+    fn test_cursor_down_j() {
+        let mut app = App::new();
+        app.update(key_char('j'));
+        assert_eq!(app.cursor, 1);
+    }
+
+    #[test]
+    fn test_cursor_down_arrow() {
+        let mut app = App::new();
+        app.update(key_type(KeyType::Down));
+        assert_eq!(app.cursor, 1);
+    }
+
+    #[test]
+    fn test_cursor_up_k() {
+        let mut app = App::new();
+        app.cursor = 2;
+        app.update(key_char('k'));
+        assert_eq!(app.cursor, 1);
+    }
+
+    #[test]
+    fn test_cursor_up_arrow() {
+        let mut app = App::new();
+        app.cursor = 2;
+        app.update(key_type(KeyType::Up));
+        assert_eq!(app.cursor, 1);
+    }
+
+    #[test]
+    fn test_cursor_bounds_top() {
+        let mut app = App::new();
+        app.cursor = 0;
+        app.update(key_char('k')); // Try to go above
+        assert_eq!(app.cursor, 0);
+    }
+
+    #[test]
+    fn test_cursor_bounds_bottom() {
+        let mut app = App::new();
+        app.cursor = 2; // Last item
+        app.update(key_char('j')); // Try to go below
+        assert_eq!(app.cursor, 2);
+    }
+
+    #[test]
+    fn test_toggle_completion_space() {
+        let mut app = App::new();
+        assert!(!app.items[0].completed);
+        app.update(key_char(' '));
+        assert!(app.items[0].completed);
+        app.update(key_char(' '));
+        assert!(!app.items[0].completed);
+    }
+
+    #[test]
+    fn test_toggle_completion_enter() {
+        let mut app = App::new();
+        assert!(!app.items[0].completed);
+        app.update(key_type(KeyType::Enter));
+        assert!(app.items[0].completed);
+    }
+
+    #[test]
+    fn test_enter_add_mode() {
+        let mut app = App::new();
+        assert_eq!(app.mode, Mode::Browse);
+        app.update(key_char('a'));
+        assert_eq!(app.mode, Mode::Add);
+    }
+
+    #[test]
+    fn test_add_item() {
+        let mut app = App::new();
+        let initial_count = app.items.len();
+
+        // Enter add mode
+        app.update(key_char('a'));
+        assert_eq!(app.mode, Mode::Add);
+
+        // Type text
+        app.update(key_char('T'));
+        app.update(key_char('e'));
+        app.update(key_char('s'));
+        app.update(key_char('t'));
+        assert_eq!(app.input, "Test");
+
+        // Submit
+        app.update(key_type(KeyType::Enter));
+        assert_eq!(app.mode, Mode::Browse);
+        assert_eq!(app.items.len(), initial_count + 1);
+        assert_eq!(app.items.last().unwrap().text, "Test");
+        assert_eq!(app.cursor, app.items.len() - 1);
+    }
+
+    #[test]
+    fn test_add_empty_item_ignored() {
+        let mut app = App::new();
+        let initial_count = app.items.len();
+
+        // Enter add mode
+        app.update(key_char('a'));
+
+        // Submit without typing (or just spaces)
+        app.update(key_type(KeyType::Space));
+        app.update(key_type(KeyType::Enter));
+
+        // Should not add empty item
+        assert_eq!(app.items.len(), initial_count);
+        assert_eq!(app.mode, Mode::Browse);
+    }
+
+    #[test]
+    fn test_cancel_add_mode() {
+        let mut app = App::new();
+        let initial_count = app.items.len();
+
+        // Enter add mode
+        app.update(key_char('a'));
+        app.update(key_char('T'));
+        app.update(key_char('e'));
+        app.update(key_char('s'));
+        app.update(key_char('t'));
+
+        // Cancel with Esc
+        app.update(key_type(KeyType::Esc));
+
+        assert_eq!(app.mode, Mode::Browse);
+        assert_eq!(app.items.len(), initial_count);
+        assert!(app.input.is_empty());
+    }
+
+    #[test]
+    fn test_backspace_in_add_mode() {
+        let mut app = App::new();
+        app.update(key_char('a')); // Enter add mode
+        app.update(key_char('A'));
+        app.update(key_char('B'));
+        app.update(key_char('C'));
+        assert_eq!(app.input, "ABC");
+
+        app.update(key_type(KeyType::Backspace));
+        assert_eq!(app.input, "AB");
+    }
+
+    #[test]
+    fn test_delete_item() {
+        let mut app = App::new();
+        assert_eq!(app.items.len(), 3);
+        let first_text = app.items[0].text.clone();
+        let second_text = app.items[1].text.clone();
+
+        app.update(key_char('d'));
+
+        assert_eq!(app.items.len(), 2);
+        assert_eq!(app.items[0].text, second_text);
+        assert_ne!(app.items[0].text, first_text);
+    }
+
+    #[test]
+    fn test_delete_last_item_adjusts_cursor() {
+        let mut app = App::new();
+        app.cursor = 2; // Last item
+        app.update(key_char('d'));
+        assert_eq!(app.cursor, 1); // Should adjust to new last item
+    }
+
+    #[test]
+    fn test_delete_all_items() {
+        let mut app = App::new();
+        app.update(key_char('d'));
+        app.update(key_char('d'));
+        app.update(key_char('d'));
+        assert!(app.items.is_empty());
+        assert_eq!(app.cursor, 0);
+    }
+
+    #[test]
+    fn test_view_contains_items() {
+        let app = App::new();
+        let view = app.view();
+        assert!(view.contains("Learn Rust"));
+        assert!(view.contains("Build a TUI app"));
+    }
+
+    #[test]
+    fn test_view_empty_list() {
+        let mut app = App::new();
+        app.items.clear();
+        let view = app.view();
+        assert!(view.contains("No items"));
+        assert!(view.contains("Press 'a' to add"));
+    }
+
+    #[test]
+    fn test_view_add_mode() {
+        let mut app = App::new();
+        app.update(key_char('a'));
+        let view = app.view();
+        assert!(view.contains("New item"));
+        assert!(view.contains("Press Enter to add"));
+    }
+
+    #[test]
+    fn test_quit_returns_command() {
+        let mut app = App::new();
+        let cmd = app.update(key_char('q'));
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_init_returns_none() {
+        let app = App::new();
+        assert!(app.init().is_none());
+    }
 }

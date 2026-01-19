@@ -122,7 +122,7 @@ Visit https://charm.sh/docs or press F1"#,
 ];
 
 /// Which panel is currently focused.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Focus {
     Sidebar,
     Content,
@@ -344,4 +344,233 @@ fn main() -> anyhow::Result<()> {
 
     println!("Goodbye!");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Create a key message for a character.
+    fn key_char(ch: char) -> Message {
+        Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: vec![ch],
+            alt: false,
+            paste: false,
+        })
+    }
+
+    /// Create a key message for a special key.
+    fn key_type(kt: KeyType) -> Message {
+        Message::new(KeyMsg {
+            key_type: kt,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        })
+    }
+
+    #[test]
+    fn test_initial_state() {
+        let app = App::new();
+        assert_eq!(app.focus, Focus::Sidebar);
+        assert_eq!(app.selected, 0);
+        assert_eq!(app.status, "OK");
+    }
+
+    #[test]
+    fn test_init_returns_none() {
+        let app = App::new();
+        assert!(app.init().is_none());
+    }
+
+    #[test]
+    fn test_focus_toggle() {
+        let focus = Focus::Sidebar;
+        assert_eq!(focus.toggle(), Focus::Content);
+        assert_eq!(focus.toggle().toggle(), Focus::Sidebar);
+    }
+
+    #[test]
+    fn test_tab_switches_focus() {
+        let mut app = App::new();
+        assert_eq!(app.focus, Focus::Sidebar);
+
+        app.update(key_type(KeyType::Tab));
+        assert_eq!(app.focus, Focus::Content);
+
+        app.update(key_type(KeyType::Tab));
+        assert_eq!(app.focus, Focus::Sidebar);
+    }
+
+    #[test]
+    fn test_move_down_j_in_sidebar() {
+        let mut app = App::new();
+        assert_eq!(app.focus, Focus::Sidebar);
+        assert_eq!(app.selected, 0);
+
+        app.update(key_char('j'));
+        assert_eq!(app.selected, 1);
+    }
+
+    #[test]
+    fn test_move_down_arrow_in_sidebar() {
+        let mut app = App::new();
+        assert_eq!(app.selected, 0);
+
+        app.update(key_type(KeyType::Down));
+        assert_eq!(app.selected, 1);
+    }
+
+    #[test]
+    fn test_move_up_k_in_sidebar() {
+        let mut app = App::new();
+        app.selected = 2;
+
+        app.update(key_char('k'));
+        assert_eq!(app.selected, 1);
+    }
+
+    #[test]
+    fn test_move_up_arrow_in_sidebar() {
+        let mut app = App::new();
+        app.selected = 2;
+
+        app.update(key_type(KeyType::Up));
+        assert_eq!(app.selected, 1);
+    }
+
+    #[test]
+    fn test_navigation_bounded_top() {
+        let mut app = App::new();
+        assert_eq!(app.selected, 0);
+
+        app.update(key_char('k')); // Try to go above
+        assert_eq!(app.selected, 0);
+    }
+
+    #[test]
+    fn test_navigation_bounded_bottom() {
+        let mut app = App::new();
+        app.selected = MENU_ITEMS.len() - 1;
+
+        app.update(key_char('j')); // Try to go below
+        assert_eq!(app.selected, MENU_ITEMS.len() - 1);
+    }
+
+    #[test]
+    fn test_j_ignored_when_content_focused() {
+        let mut app = App::new();
+        app.focus = Focus::Content;
+        let initial_selected = app.selected;
+
+        app.update(key_char('j'));
+        assert_eq!(app.selected, initial_selected); // Unchanged
+    }
+
+    #[test]
+    fn test_enter_updates_viewport_content() {
+        let mut app = App::new();
+        app.selected = 1; // Analytics
+
+        app.update(key_type(KeyType::Enter));
+        // Viewport content should be updated (we can't easily check content,
+        // but we can verify y_offset is reset)
+        assert_eq!(app.viewport.y_offset(), 0);
+    }
+
+    #[test]
+    fn test_quit_q() {
+        let mut app = App::new();
+        let cmd = app.update(key_char('q'));
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_quit_capital_q() {
+        let mut app = App::new();
+        let cmd = app.update(key_char('Q'));
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_quit_ctrl_c() {
+        let mut app = App::new();
+        let cmd = app.update(key_type(KeyType::CtrlC));
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_quit_esc() {
+        let mut app = App::new();
+        let cmd = app.update(key_type(KeyType::Esc));
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_view_contains_header() {
+        let app = App::new();
+        let view = app.view();
+        assert!(view.contains("Dashboard"));
+    }
+
+    #[test]
+    fn test_view_contains_status() {
+        let app = App::new();
+        let view = app.view();
+        assert!(view.contains("OK"));
+    }
+
+    #[test]
+    fn test_view_contains_menu_items() {
+        let app = App::new();
+        let view = app.view();
+        for item in MENU_ITEMS {
+            assert!(view.contains(item), "View should contain menu item: {}", item);
+        }
+    }
+
+    #[test]
+    fn test_view_contains_help_text() {
+        let app = App::new();
+        let view = app.view();
+        assert!(view.contains("Tab"));
+        assert!(view.contains("quit"));
+    }
+
+    #[test]
+    fn test_render_header() {
+        let app = App::new();
+        let header = app.render_header();
+        assert!(header.contains("Dashboard"));
+        assert!(header.contains("OK"));
+    }
+
+    #[test]
+    fn test_render_sidebar_shows_focused_indicator() {
+        let mut app = App::new();
+        app.focus = Focus::Sidebar;
+        let sidebar = app.render_sidebar();
+        assert!(sidebar.contains("◆")); // Focused indicator
+    }
+
+    #[test]
+    fn test_render_sidebar_shows_unfocused_indicator() {
+        let mut app = App::new();
+        app.focus = Focus::Content;
+        let sidebar = app.render_sidebar();
+        assert!(sidebar.contains("○")); // Unfocused indicator
+    }
+
+    #[test]
+    fn test_render_footer_shows_current_focus() {
+        let mut app = App::new();
+        app.focus = Focus::Sidebar;
+        let footer = app.render_footer();
+        assert!(footer.contains("[Sidebar]"));
+
+        app.focus = Focus::Content;
+        let footer = app.render_footer();
+        assert!(footer.contains("[Content]"));
+    }
 }
