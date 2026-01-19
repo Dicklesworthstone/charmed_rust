@@ -4,6 +4,20 @@
 //! for consistent styling across an application. Themes support light/dark variants
 //! and can be serialized for user configuration.
 //!
+//! ## Preset Preview
+//!
+//! <table>
+//!   <tr><th>Preset</th><th>Background</th><th>Primary</th><th>Text</th></tr>
+//!   <tr><td>Dark</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#0f0f0f;border:1px solid #999"></span> `#0f0f0f`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#7c3aed;border:1px solid #999"></span> `#7c3aed`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#fafafa;border:1px solid #999"></span> `#fafafa`</td></tr>
+//!   <tr><td>Light</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#ffffff;border:1px solid #999"></span> `#ffffff`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#7c3aed;border:1px solid #999"></span> `#7c3aed`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#18181b;border:1px solid #999"></span> `#18181b`</td></tr>
+//!   <tr><td>Dracula</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#282a36;border:1px solid #999"></span> `#282a36`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#bd93f9;border:1px solid #999"></span> `#bd93f9`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#f8f8f2;border:1px solid #999"></span> `#f8f8f2`</td></tr>
+//!   <tr><td>Nord</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#2e3440;border:1px solid #999"></span> `#2e3440`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#88c0d0;border:1px solid #999"></span> `#88c0d0`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#eceff4;border:1px solid #999"></span> `#eceff4`</td></tr>
+//!   <tr><td>Catppuccin Latte</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#eff1f5;border:1px solid #999"></span> `#eff1f5`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#8839ef;border:1px solid #999"></span> `#8839ef`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#4c4f69;border:1px solid #999"></span> `#4c4f69`</td></tr>
+//!   <tr><td>Catppuccin Frappe</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#303446;border:1px solid #999"></span> `#303446`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#ca9ee6;border:1px solid #999"></span> `#ca9ee6`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#c6d0f5;border:1px solid #999"></span> `#c6d0f5`</td></tr>
+//!   <tr><td>Catppuccin Macchiato</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#24273a;border:1px solid #999"></span> `#24273a`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#c6a0f6;border:1px solid #999"></span> `#c6a0f6`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#cad3f5;border:1px solid #999"></span> `#cad3f5`</td></tr>
+//!   <tr><td>Catppuccin Mocha</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#1e1e2e;border:1px solid #999"></span> `#1e1e2e`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#cba6f7;border:1px solid #999"></span> `#cba6f7`</td><td><span style="display:inline-block;width:0.9em;height:0.9em;background:#cdd6f4;border:1px solid #999"></span> `#cdd6f4`</td></tr>
+//! </table>
+//!
 //! # Example
 //!
 //! ```rust
@@ -22,9 +36,11 @@ use crate::color::{AdaptiveColor, Color};
 use crate::style::Style;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 use std::fs;
 use std::path::Path;
 use thiserror::Error;
+use tracing::{debug, info, warn};
 
 /// A complete theme with semantic color slots.
 ///
@@ -250,6 +266,53 @@ pub enum ThemeRole {
     Inverted,
 }
 
+/// Built-in theme presets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ThemePreset {
+    Dark,
+    Light,
+    Dracula,
+    Nord,
+    Catppuccin(CatppuccinFlavor),
+}
+
+/// Catppuccin palette flavors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CatppuccinFlavor {
+    /// Light flavor.
+    Latte,
+    /// Medium-light flavor.
+    Frappe,
+    /// Medium-dark flavor.
+    Macchiato,
+    /// Dark flavor.
+    Mocha,
+}
+
+impl fmt::Display for CatppuccinFlavor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Self::Latte => "Latte",
+            Self::Frappe => "Frappe",
+            Self::Macchiato => "Macchiato",
+            Self::Mocha => "Mocha",
+        };
+        f.write_str(name)
+    }
+}
+
+impl fmt::Display for ThemePreset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Dark => f.write_str("Dark"),
+            Self::Light => f.write_str("Light"),
+            Self::Dracula => f.write_str("Dracula"),
+            Self::Nord => f.write_str("Nord"),
+            Self::Catppuccin(flavor) => write!(f, "Catppuccin {flavor}"),
+        }
+    }
+}
+
 /// Theme variant for light/dark themes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -400,7 +463,38 @@ impl Theme {
     /// Returns `ThemeValidationError` if any color slot is empty or invalid.
     pub fn validate(&self) -> Result<(), ThemeValidationError> {
         self.colors.validate()?;
+        let _ = self.check_contrast_aa(ColorSlot::Foreground, ColorSlot::Background);
         Ok(())
+    }
+
+    /// Calculate contrast ratio between two theme slots.
+    pub fn contrast_ratio(&self, fg: ColorSlot, bg: ColorSlot) -> f64 {
+        let fg_lum = self.get(fg).relative_luminance();
+        let bg_lum = self.get(bg).relative_luminance();
+        let lighter = fg_lum.max(bg_lum);
+        let darker = fg_lum.min(bg_lum);
+        (lighter + 0.05) / (darker + 0.05)
+    }
+
+    /// Check if a slot combination meets WCAG AA contrast (>= 4.5:1).
+    pub fn check_contrast_aa(&self, fg: ColorSlot, bg: ColorSlot) -> bool {
+        let ratio = self.contrast_ratio(fg, bg);
+        let ok = ratio >= 4.5;
+        if !ok {
+            warn!(
+                theme.contrast_ratio = ratio,
+                theme.fg = ?fg,
+                theme.bg = ?bg,
+                theme.name = %self.name(),
+                "Theme contrast below WCAG AA"
+            );
+        }
+        ok
+    }
+
+    /// Check if a slot combination meets WCAG AAA contrast (>= 7.0:1).
+    pub fn check_contrast_aaa(&self, fg: ColorSlot, bg: ColorSlot) -> bool {
+        self.contrast_ratio(fg, bg) >= 7.0
     }
 
     fn normalize(&mut self) {
@@ -558,12 +652,47 @@ impl Theme {
         Self::new("Nord", true, ThemeColors::nord())
     }
 
-    /// Returns the Catppuccin Mocha theme.
+    /// Returns a Catppuccin theme for the requested flavor.
     ///
     /// A soothing pastel theme with warm tones.
     /// <https://catppuccin.com>
+    pub fn catppuccin(flavor: CatppuccinFlavor) -> Self {
+        match flavor {
+            CatppuccinFlavor::Latte => {
+                Self::new("Catppuccin Latte", false, ThemeColors::catppuccin_latte())
+            }
+            CatppuccinFlavor::Frappe => {
+                Self::new("Catppuccin Frappe", true, ThemeColors::catppuccin_frappe())
+            }
+            CatppuccinFlavor::Macchiato => Self::new(
+                "Catppuccin Macchiato",
+                true,
+                ThemeColors::catppuccin_macchiato(),
+            ),
+            CatppuccinFlavor::Mocha => {
+                Self::new("Catppuccin Mocha", true, ThemeColors::catppuccin_mocha())
+            }
+        }
+    }
+
+    /// Returns the Catppuccin Latte theme.
+    pub fn catppuccin_latte() -> Self {
+        Self::catppuccin(CatppuccinFlavor::Latte)
+    }
+
+    /// Returns the Catppuccin Frappe theme.
+    pub fn catppuccin_frappe() -> Self {
+        Self::catppuccin(CatppuccinFlavor::Frappe)
+    }
+
+    /// Returns the Catppuccin Macchiato theme.
+    pub fn catppuccin_macchiato() -> Self {
+        Self::catppuccin(CatppuccinFlavor::Macchiato)
+    }
+
+    /// Returns the Catppuccin Mocha theme.
     pub fn catppuccin_mocha() -> Self {
-        Self::new("Catppuccin Mocha", true, ThemeColors::catppuccin_mocha())
+        Self::catppuccin(CatppuccinFlavor::Mocha)
     }
 }
 
@@ -573,10 +702,26 @@ impl Default for Theme {
     }
 }
 
+impl ThemePreset {
+    /// Convert this preset into a concrete theme instance.
+    pub fn to_theme(&self) -> Theme {
+        let theme = match *self {
+            ThemePreset::Dark => Theme::dark(),
+            ThemePreset::Light => Theme::light(),
+            ThemePreset::Dracula => Theme::dracula(),
+            ThemePreset::Nord => Theme::nord(),
+            ThemePreset::Catppuccin(flavor) => Theme::catppuccin(flavor),
+        };
+
+        info!(theme.preset = %self, theme.name = %theme.name(), "Loaded theme preset");
+        theme
+    }
+}
+
 impl ThemeColors {
     /// Returns the color for the given slot.
     pub fn get(&self, slot: ColorSlot) -> &Color {
-        match slot {
+        let color = match slot {
             ColorSlot::Primary => &self.primary,
             ColorSlot::Secondary => &self.secondary,
             ColorSlot::Accent => &self.accent,
@@ -604,7 +749,10 @@ impl ThemeColors {
             ColorSlot::CodeType => &self.code_type,
             ColorSlot::CodeVariable => &self.code_variable,
             ColorSlot::CodeOperator => &self.code_operator,
-        }
+        };
+
+        debug!(theme.slot = ?slot, theme.value = %color.0, "Theme color lookup");
+        color
     }
 
     /// Returns the custom color slots.
@@ -898,7 +1046,7 @@ impl ThemeColors {
 
     /// Returns the Catppuccin Mocha color palette.
     pub fn catppuccin_mocha() -> Self {
-        // Catppuccin Mocha colors from https://catppuccin.com
+        // Catppuccin Mocha colors from https://catppuccin.com/palette
         Self {
             primary: Color::from("#cba6f7"),   // Mauve
             secondary: Color::from("#89b4fa"), // Blue
@@ -933,6 +1081,129 @@ impl ThemeColors {
             code_type: Color::from("#f9e2af"),     // Yellow
             code_variable: Color::from("#f5c2e7"), // Pink
             code_operator: Color::from("#89dceb"), // Sky
+            custom: HashMap::new(),
+        }
+    }
+
+    /// Returns the Catppuccin Latte color palette.
+    pub fn catppuccin_latte() -> Self {
+        // Catppuccin Latte colors from https://catppuccin.com/palette
+        Self {
+            primary: Color::from("#8839ef"),   // Mauve
+            secondary: Color::from("#1e66f5"), // Blue
+            accent: Color::from("#ea76cb"),    // Pink
+
+            background: Color::from("#eff1f5"),  // Base
+            surface: Color::from("#ccd0da"),     // Surface0
+            surface_alt: Color::from("#bcc0cc"), // Surface1
+
+            text: Color::from("#4c4f69"),          // Text
+            text_muted: Color::from("#6c6f85"),    // Subtext0
+            text_disabled: Color::from("#9ca0b0"), // Overlay0
+
+            success: Color::from("#40a02b"), // Green
+            warning: Color::from("#df8e1d"), // Yellow
+            error: Color::from("#d20f39"),   // Red
+            info: Color::from("#04a5e5"),    // Sky
+
+            border: Color::from("#bcc0cc"),       // Surface1
+            border_muted: Color::from("#ccd0da"), // Surface0
+            separator: Color::from("#ccd0da"),    // Surface0
+
+            focus: Color::from("#8839ef"),     // Mauve
+            selection: Color::from("#bcc0cc"), // Surface1
+            hover: Color::from("#ccd0da"),     // Surface0
+
+            code_keyword: Color::from("#8839ef"),  // Mauve
+            code_string: Color::from("#40a02b"),   // Green
+            code_number: Color::from("#fe640b"),   // Peach
+            code_comment: Color::from("#9ca0b0"),  // Overlay0
+            code_function: Color::from("#1e66f5"), // Blue
+            code_type: Color::from("#df8e1d"),     // Yellow
+            code_variable: Color::from("#ea76cb"), // Pink
+            code_operator: Color::from("#04a5e5"), // Sky
+            custom: HashMap::new(),
+        }
+    }
+
+    /// Returns the Catppuccin Frappe color palette.
+    pub fn catppuccin_frappe() -> Self {
+        // Catppuccin Frappe colors from https://catppuccin.com/palette
+        Self {
+            primary: Color::from("#ca9ee6"),   // Mauve
+            secondary: Color::from("#8caaee"), // Blue
+            accent: Color::from("#f4b8e4"),    // Pink
+
+            background: Color::from("#303446"),  // Base
+            surface: Color::from("#414559"),     // Surface0
+            surface_alt: Color::from("#51576d"), // Surface1
+
+            text: Color::from("#c6d0f5"),          // Text
+            text_muted: Color::from("#a5adce"),    // Subtext0
+            text_disabled: Color::from("#737994"), // Overlay0
+
+            success: Color::from("#a6d189"), // Green
+            warning: Color::from("#e5c890"), // Yellow
+            error: Color::from("#e78284"),   // Red
+            info: Color::from("#99d1db"),    // Sky
+
+            border: Color::from("#51576d"),       // Surface1
+            border_muted: Color::from("#414559"), // Surface0
+            separator: Color::from("#414559"),    // Surface0
+
+            focus: Color::from("#ca9ee6"),     // Mauve
+            selection: Color::from("#51576d"), // Surface1
+            hover: Color::from("#414559"),     // Surface0
+
+            code_keyword: Color::from("#ca9ee6"),  // Mauve
+            code_string: Color::from("#a6d189"),   // Green
+            code_number: Color::from("#ef9f76"),   // Peach
+            code_comment: Color::from("#737994"),  // Overlay0
+            code_function: Color::from("#8caaee"), // Blue
+            code_type: Color::from("#e5c890"),     // Yellow
+            code_variable: Color::from("#f4b8e4"), // Pink
+            code_operator: Color::from("#99d1db"), // Sky
+            custom: HashMap::new(),
+        }
+    }
+
+    /// Returns the Catppuccin Macchiato color palette.
+    pub fn catppuccin_macchiato() -> Self {
+        // Catppuccin Macchiato colors from https://catppuccin.com/palette
+        Self {
+            primary: Color::from("#c6a0f6"),   // Mauve
+            secondary: Color::from("#8aadf4"), // Blue
+            accent: Color::from("#f5bde6"),    // Pink
+
+            background: Color::from("#24273a"),  // Base
+            surface: Color::from("#363a4f"),     // Surface0
+            surface_alt: Color::from("#494d64"), // Surface1
+
+            text: Color::from("#cad3f5"),          // Text
+            text_muted: Color::from("#a5adcb"),    // Subtext0
+            text_disabled: Color::from("#6e738d"), // Overlay0
+
+            success: Color::from("#a6da95"), // Green
+            warning: Color::from("#eed49f"), // Yellow
+            error: Color::from("#ed8796"),   // Red
+            info: Color::from("#91d7e3"),    // Sky
+
+            border: Color::from("#494d64"),       // Surface1
+            border_muted: Color::from("#363a4f"), // Surface0
+            separator: Color::from("#363a4f"),    // Surface0
+
+            focus: Color::from("#c6a0f6"),     // Mauve
+            selection: Color::from("#494d64"), // Surface1
+            hover: Color::from("#363a4f"),     // Surface0
+
+            code_keyword: Color::from("#c6a0f6"),  // Mauve
+            code_string: Color::from("#a6da95"),   // Green
+            code_number: Color::from("#f5a97f"),   // Peach
+            code_comment: Color::from("#6e738d"),  // Overlay0
+            code_function: Color::from("#8aadf4"), // Blue
+            code_type: Color::from("#eed49f"),     // Yellow
+            code_variable: Color::from("#f5bde6"), // Pink
+            code_operator: Color::from("#91d7e3"), // Sky
             custom: HashMap::new(),
         }
     }
@@ -1052,6 +1323,46 @@ mod tests {
     }
 
     #[test]
+    fn test_theme_catppuccin_latte() {
+        let theme = Theme::catppuccin_latte();
+        assert!(!theme.is_dark());
+        assert_eq!(theme.name(), "Catppuccin Latte");
+        assert_eq!(theme.colors().background.0, "#eff1f5");
+        assert_eq!(theme.colors().primary.0, "#8839ef");
+    }
+
+    #[test]
+    fn test_theme_catppuccin_frappe() {
+        let theme = Theme::catppuccin_frappe();
+        assert!(theme.is_dark());
+        assert_eq!(theme.name(), "Catppuccin Frappe");
+        assert_eq!(theme.colors().background.0, "#303446");
+        assert_eq!(theme.colors().primary.0, "#ca9ee6");
+    }
+
+    #[test]
+    fn test_theme_catppuccin_macchiato() {
+        let theme = Theme::catppuccin_macchiato();
+        assert!(theme.is_dark());
+        assert_eq!(theme.name(), "Catppuccin Macchiato");
+        assert_eq!(theme.colors().background.0, "#24273a");
+        assert_eq!(theme.colors().primary.0, "#c6a0f6");
+    }
+
+    #[test]
+    fn test_theme_preset_to_theme() {
+        let theme = ThemePreset::Catppuccin(CatppuccinFlavor::Latte).to_theme();
+        assert_eq!(theme.name(), "Catppuccin Latte");
+        assert!(!theme.is_dark());
+    }
+
+    #[test]
+    fn test_theme_contrast_aa() {
+        let theme = Theme::dark();
+        assert!(theme.check_contrast_aa(ColorSlot::Foreground, ColorSlot::Background));
+    }
+
+    #[test]
     fn test_theme_builder() {
         let theme = Theme::dark().with_name("Custom Dark").with_dark(true);
         assert_eq!(theme.name(), "Custom Dark");
@@ -1121,10 +1432,7 @@ mod tests {
         let json = theme.to_json().expect("serialize theme");
         let loaded = Theme::from_json(&json).expect("deserialize theme");
         assert_eq!(
-            loaded
-                .colors()
-                .get_custom("brand")
-                .expect("custom color"),
+            loaded.colors().get_custom("brand").expect("custom color"),
             &Color::from("#123456")
         );
     }
@@ -1138,6 +1446,9 @@ mod tests {
             Theme::dracula(),
             Theme::nord(),
             Theme::catppuccin_mocha(),
+            Theme::catppuccin_latte(),
+            Theme::catppuccin_frappe(),
+            Theme::catppuccin_macchiato(),
         ] {
             let c = theme.colors();
 

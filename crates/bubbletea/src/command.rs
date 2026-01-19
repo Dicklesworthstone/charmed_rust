@@ -12,7 +12,7 @@
 //!
 //! Both types are automatically handled by the program's command executor.
 
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use crate::message::{
     BatchMsg, Message, QuitMsg, RequestWindowSizeMsg, SequenceMsg, SetWindowTitleMsg,
@@ -354,10 +354,13 @@ where
     F: FnOnce(Instant) -> Message + Send + 'static,
 {
     Cmd::new(move || {
-        let now = Instant::now();
-        // Calculate time until next tick aligned with system clock
-        let now_nanos = now.elapsed().as_nanos() as u64;
+        // Get current wall clock time as nanos since Unix epoch
+        let now_nanos = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0);
         let duration_nanos = duration.as_nanos() as u64;
+        // Calculate time until next tick aligned with system clock
         let next_tick_nanos = ((now_nanos / duration_nanos) + 1) * duration_nanos;
         let sleep_nanos = next_tick_nanos - now_nanos;
         std::thread::sleep(Duration::from_nanos(sleep_nanos));
@@ -420,10 +423,13 @@ where
     F: FnOnce(Instant) -> Message + Send + 'static,
 {
     AsyncCmd::new(move || async move {
-        let now = Instant::now();
-        // Calculate time until next tick aligned with system clock
-        let now_nanos = now.elapsed().as_nanos() as u64;
+        // Get current wall clock time as nanos since Unix epoch
+        let now_nanos = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0);
         let duration_nanos = duration.as_nanos() as u64;
+        // Calculate time until next tick aligned with system clock
         let next_tick_nanos = ((now_nanos / duration_nanos) + 1) * duration_nanos;
         let sleep_nanos = next_tick_nanos - now_nanos;
         tokio::time::sleep(Duration::from_nanos(sleep_nanos)).await;

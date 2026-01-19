@@ -53,6 +53,10 @@ const EPSILON: f64 = f64::EPSILON;
 /// ```
 #[inline]
 pub fn fps(n: u32) -> f64 {
+    if n == 0 {
+        return 0.0;
+    }
+    debug_assert!(n > 0, "fps() requires a non-zero frame rate");
     1.0 / n as f64
 }
 
@@ -325,6 +329,7 @@ mod tests {
         assert!(approx_eq(fps(60), 1.0 / 60.0));
         assert!(approx_eq(fps(30), 1.0 / 30.0));
         assert!(approx_eq(fps(120), 1.0 / 120.0));
+        assert!(approx_eq(fps(0), 0.0));
     }
 
     #[test]

@@ -64,6 +64,7 @@ use tracing::{debug, error, info, warn};
 
 pub mod auth;
 mod handler;
+pub mod session;
 
 pub use auth::{
     AcceptAllAuth, AsyncCallbackAuth, AsyncPublicKeyAuth, AuthContext, AuthHandler, AuthMethod,
@@ -320,6 +321,11 @@ impl Context {
         &self.client_version
     }
 
+    /// Sets the client version string.
+    pub fn set_client_version(&mut self, version: impl Into<String>) {
+        self.client_version = version.into();
+    }
+
     /// Sets a value in the context.
     pub fn set_value(&self, key: impl Into<String>, value: impl Into<String>) {
         self.values.write().insert(key.into(), value.into());
@@ -347,9 +353,11 @@ pub struct Session {
     /// Environment variables.
     env: HashMap<String, String>,
     /// Output buffer for stdout.
-    stdout: Arc<RwLock<Vec<u8>>>,
+    #[allow(dead_code)]
+    pub(crate) stdout: Arc<RwLock<Vec<u8>>>,
     /// Output buffer for stderr.
-    stderr: Arc<RwLock<Vec<u8>>>,
+    #[allow(dead_code)]
+    pub(crate) stderr: Arc<RwLock<Vec<u8>>>,
     /// Exit code.
     exit_code: Arc<RwLock<Option<i32>>>,
     /// Whether the session is closed.
@@ -361,6 +369,8 @@ pub struct Session {
 
     /// Channel for sending output to the client.
     output_tx: Option<tokio::sync::mpsc::UnboundedSender<SessionOutput>>,
+    /// Channel for receiving input from the client.
+    input_rx: Arc<tokio::sync::Mutex<Option<tokio::sync::mpsc::Receiver<Vec<u8>>>>>,
     /// Channel for injecting messages into the running bubbletea program.
     message_tx: Arc<RwLock<Option<Sender<Message>>>>,
 }
@@ -404,6 +414,7 @@ impl Session {
             public_key: None,
             subsystem: None,
             output_tx: None,
+            input_rx: Arc::new(tokio::sync::Mutex::new(None)),
             message_tx: Arc::new(RwLock::new(None)),
         }
     }
@@ -411,6 +422,21 @@ impl Session {
     /// Sets the output sender.
     pub fn set_output_sender(&mut self, tx: tokio::sync::mpsc::UnboundedSender<SessionOutput>) {
         self.output_tx = Some(tx);
+    }
+
+    /// Sets the input receiver.
+    pub fn set_input_receiver(&self, rx: tokio::sync::mpsc::Receiver<Vec<u8>>) {
+        *self.input_rx.blocking_lock() = Some(rx);
+    }
+
+    /// Receives input from the client.
+    pub async fn recv(&self) -> Option<Vec<u8>> {
+        let mut rx_guard = self.input_rx.lock().await;
+        if let Some(rx) = rx_guard.as_mut() {
+            rx.recv().await
+        } else {
+            None
+        }
     }
 
     /// Sets the message sender for the bubbletea program.
@@ -478,9 +504,6 @@ impl Session {
 
     /// Writes to stdout.
     pub fn write(&self, data: &[u8]) -> io::Result<usize> {
-        // Write to buffer for inspection
-        self.stdout.write().extend_from_slice(data);
-
         // Send to client
         if let Some(tx) = &self.output_tx {
             let _ = tx.send(SessionOutput::Stdout(data.to_vec()));
@@ -491,9 +514,6 @@ impl Session {
 
     /// Writes to stderr.
     pub fn write_stderr(&self, data: &[u8]) -> io::Result<usize> {
-        // Write to buffer for inspection
-        self.stderr.write().extend_from_slice(data);
-
         // Send to client
         if let Some(tx) = &self.output_tx {
             let _ = tx.send(SessionOutput::Stderr(data.to_vec()));
@@ -1321,6 +1341,30 @@ pub mod middleware {
             fn log(&self, format: &str, args: &[&dyn fmt::Display]);
         }
 
+        /// Structured logger for connection events.
+        pub trait StructuredLogger: Send + Sync {
+            fn log_connect(
+                &self,
+                level: tracing::Level,
+                user: &str,
+                remote_addr: &SocketAddr,
+                public_key: bool,
+                command: &[String],
+                term: &str,
+                width: u32,
+                height: u32,
+                client_version: &str,
+            );
+
+            fn log_disconnect(
+                &self,
+                level: tracing::Level,
+                user: &str,
+                remote_addr: &SocketAddr,
+                duration: Duration,
+            );
+        }
+
         /// Default logger that uses tracing.
         #[derive(Clone, Copy)]
         pub struct TracingLogger;
@@ -1334,6 +1378,134 @@ pub mod middleware {
                     }
                 }
                 info!("{}", msg);
+            }
+        }
+
+        /// Default structured logger that uses tracing events.
+        #[derive(Clone, Copy)]
+        pub struct TracingStructuredLogger;
+
+        impl StructuredLogger for TracingStructuredLogger {
+            fn log_connect(
+                &self,
+                level: tracing::Level,
+                user: &str,
+                remote_addr: &SocketAddr,
+                public_key: bool,
+                command: &[String],
+                term: &str,
+                width: u32,
+                height: u32,
+                client_version: &str,
+            ) {
+                match level {
+                    tracing::Level::TRACE => tracing::event!(
+                        tracing::Level::TRACE,
+                        user = %user,
+                        remote_addr = %remote_addr,
+                        public_key = public_key,
+                        command = ?command,
+                        term = %term,
+                        width = width,
+                        height = height,
+                        client_version = %client_version,
+                        "connect"
+                    ),
+                    tracing::Level::DEBUG => tracing::event!(
+                        tracing::Level::DEBUG,
+                        user = %user,
+                        remote_addr = %remote_addr,
+                        public_key = public_key,
+                        command = ?command,
+                        term = %term,
+                        width = width,
+                        height = height,
+                        client_version = %client_version,
+                        "connect"
+                    ),
+                    tracing::Level::INFO => tracing::event!(
+                        tracing::Level::INFO,
+                        user = %user,
+                        remote_addr = %remote_addr,
+                        public_key = public_key,
+                        command = ?command,
+                        term = %term,
+                        width = width,
+                        height = height,
+                        client_version = %client_version,
+                        "connect"
+                    ),
+                    tracing::Level::WARN => tracing::event!(
+                        tracing::Level::WARN,
+                        user = %user,
+                        remote_addr = %remote_addr,
+                        public_key = public_key,
+                        command = ?command,
+                        term = %term,
+                        width = width,
+                        height = height,
+                        client_version = %client_version,
+                        "connect"
+                    ),
+                    tracing::Level::ERROR => tracing::event!(
+                        tracing::Level::ERROR,
+                        user = %user,
+                        remote_addr = %remote_addr,
+                        public_key = public_key,
+                        command = ?command,
+                        term = %term,
+                        width = width,
+                        height = height,
+                        client_version = %client_version,
+                        "connect"
+                    ),
+                }
+            }
+
+            fn log_disconnect(
+                &self,
+                level: tracing::Level,
+                user: &str,
+                remote_addr: &SocketAddr,
+                duration: Duration,
+            ) {
+                match level {
+                    tracing::Level::TRACE => tracing::event!(
+                        tracing::Level::TRACE,
+                        user = %user,
+                        remote_addr = %remote_addr,
+                        duration = ?duration,
+                        "disconnect"
+                    ),
+                    tracing::Level::DEBUG => tracing::event!(
+                        tracing::Level::DEBUG,
+                        user = %user,
+                        remote_addr = %remote_addr,
+                        duration = ?duration,
+                        "disconnect"
+                    ),
+                    tracing::Level::INFO => tracing::event!(
+                        tracing::Level::INFO,
+                        user = %user,
+                        remote_addr = %remote_addr,
+                        duration = ?duration,
+                        "disconnect"
+                    ),
+                    tracing::Level::WARN => tracing::event!(
+                        tracing::Level::WARN,
+                        user = %user,
+                        remote_addr = %remote_addr,
+                        duration = ?duration,
+                        "disconnect"
+                    ),
+                    tracing::Level::ERROR => tracing::event!(
+                        tracing::Level::ERROR,
+                        user = %user,
+                        remote_addr = %remote_addr,
+                        duration = ?duration,
+                        "disconnect"
+                    ),
+                }
             }
         }
 
@@ -1360,9 +1532,10 @@ pub mod middleware {
                     let (pty, _) = session.pty();
                     let term = pty.map(|p| p.term.clone()).unwrap_or_default();
                     let window = session.window();
+                    let client_version = session.context().client_version();
 
                     logger.log(
-                        "{} connect {} {} {} {} {} {}",
+                        "{} connect {} {} {} {} {} {} {}",
                         &[
                             &user as &dyn fmt::Display,
                             &remote_addr,
@@ -1371,6 +1544,7 @@ pub mod middleware {
                             &term,
                             &window.width,
                             &window.height,
+                            &client_version,
                         ],
                     );
 
@@ -1393,9 +1567,21 @@ pub mod middleware {
 
         /// Creates structured logging middleware.
         pub fn structured_middleware() -> Middleware {
-            Arc::new(|next| {
+            structured_middleware_with_logger(TracingStructuredLogger, tracing::Level::INFO)
+        }
+
+        /// Creates structured logging middleware with a custom logger and level.
+        pub fn structured_middleware_with_logger<L: StructuredLogger + 'static>(
+            logger: L,
+            level: tracing::Level,
+        ) -> Middleware {
+            let logger = Arc::new(logger);
+            Arc::new(move |next| {
+                let logger = logger.clone();
                 Arc::new(move |session| {
                     let next = next.clone();
+                    let logger = logger.clone();
+                    let level = level;
                     let start = Instant::now();
 
                     let user = session.user().to_string();
@@ -1405,28 +1591,25 @@ pub mod middleware {
                     let (pty, _) = session.pty();
                     let term = pty.map(|p| p.term.clone()).unwrap_or_default();
                     let window = session.window();
+                    let client_version = session.context().client_version().to_string();
 
-                    info!(
-                        user = %user,
-                        remote_addr = %remote_addr,
-                        public_key = has_key,
-                        command = ?command,
-                        term = %term,
-                        width = window.width,
-                        height = window.height,
-                        "connect"
+                    logger.log_connect(
+                        level,
+                        &user,
+                        &remote_addr,
+                        has_key,
+                        &command,
+                        &term,
+                        window.width,
+                        window.height,
+                        &client_version,
                     );
 
                     Box::pin(async move {
                         next(session.clone()).await;
 
                         let duration = start.elapsed();
-                        info!(
-                            user = %user,
-                            remote_addr = %remote_addr,
-                            duration = ?duration,
-                            "disconnect"
-                        );
+                        logger.log_disconnect(level, &user, &remote_addr, duration);
                     })
                 })
             })
@@ -2013,16 +2196,40 @@ mod tests {
     fn test_output_helpers() {
         let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
         let ctx = Context::new("test", addr, addr);
-        let session = Session::new(ctx);
+        let mut session = Session::new(ctx);
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        session.set_output_sender(tx);
 
         print(&session, "hello");
         println(&session, "world");
         error(&session, "err");
         errorln(&session, "error line");
 
-        // Verify data was written to buffers
-        assert!(!session.stdout.read().is_empty());
-        assert!(!session.stderr.read().is_empty());
+        // Verify data was written to channel
+        // 1. print "hello"
+        match rx.try_recv() {
+            Ok(SessionOutput::Stdout(data)) => assert_eq!(data, b"hello"),
+            _ => panic!("Expected stdout hello"),
+        }
+
+        // 2. println "world\r\n"
+        match rx.try_recv() {
+            Ok(SessionOutput::Stdout(data)) => assert_eq!(data, b"world\r\n"),
+            _ => panic!("Expected stdout world"),
+        }
+
+        // 3. error "err"
+        match rx.try_recv() {
+            Ok(SessionOutput::Stderr(data)) => assert_eq!(data, b"err"),
+            _ => panic!("Expected stderr err"),
+        }
+
+        // 4. errorln "error line\r\n"
+        match rx.try_recv() {
+            Ok(SessionOutput::Stderr(data)) => assert_eq!(data, b"error line\r\n"),
+            _ => panic!("Expected stderr error line"),
+        }
     }
 
     #[test]

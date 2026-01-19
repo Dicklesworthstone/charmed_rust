@@ -13,7 +13,8 @@ use russh::server::{Auth, Handler as RusshHandler, Msg, Session as RusshSession}
 use russh::{Channel, ChannelId};
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info, trace, warn};
-use bubbletea::{Message, KeyMsg, parse_sequence, WindowSizeMsg};
+use bubbletea::{KeyMsg, Message, WindowSizeMsg, parse_sequence};
+use russh_keys::PublicKeyBase64;
 
 use crate::{
     Context, Error, Handler, Pty, PublicKey, ServerOptions, Session, SessionOutput, Window,
@@ -146,9 +147,8 @@ impl WishHandler {
             other => other,
         };
 
-        // Get key bytes - use fingerprint as placeholder since we can't easily serialize
-        let fingerprint = key.fingerprint();
-        PublicKey::new(key_type, fingerprint.as_bytes().to_vec())
+        let key_bytes = key.public_key_bytes();
+        PublicKey::new(key_type, key_bytes)
     }
 }
 
@@ -274,13 +274,16 @@ impl RusshHandler for WishHandler {
         );
 
         // Create channel state
-        let (input_tx, _input_rx) = mpsc::channel(1024);
+        let (input_tx, input_rx) = mpsc::channel(1024);
         let (output_tx, mut output_rx) = mpsc::unbounded_channel::<SessionOutput>();
 
         let user = self.user.clone().unwrap_or_default();
-        let ctx = self.make_context(&user);
+        let mut ctx = self.make_context(&user);
+        let client_version = String::from_utf8_lossy(session.remote_sshid()).to_string();
+        ctx.set_client_version(client_version);
         let mut wish_session = Session::new(ctx);
         wish_session.set_output_sender(output_tx);
+        wish_session.set_input_receiver(input_rx);
 
         // Get session handle for sending exit status from spawned task
         let handle = session.handle();
@@ -594,7 +597,14 @@ impl RusshHandler for WishHandler {
 
         if let Some(state) = self.channels.get(&channel) {
             // Forward raw data to input_tx (legacy/stream support)
-            let _ = state.input_tx.send(data.to_vec()).await;
+            // We use try_send to avoid blocking the handler if the app isn't reading input
+            if let Err(mpsc::error::TrySendError::Full(_)) = state.input_tx.try_send(data.to_vec()) {
+                warn!(
+                    connection_id = self.connection_id,
+                    channel = ?channel,
+                    "Input buffer full, dropping data (app not reading input?)"
+                );
+            }
 
             // Parse for bubbletea
             if let Some(key) = parse_sequence(data) {

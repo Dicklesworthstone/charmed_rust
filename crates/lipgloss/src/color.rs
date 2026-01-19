@@ -149,6 +149,31 @@ impl Color {
         }
         self.as_rgb().is_some() || self.as_ansi().is_some()
     }
+
+    /// Returns the WCAG relative luminance for this color.
+    ///
+    /// ANSI colors are mapped to the xterm 256-color palette before calculation.
+    /// Invalid color strings return 0.0.
+    pub fn relative_luminance(&self) -> f64 {
+        let (r, g, b) = if let Some((r, g, b)) = self.as_rgb() {
+            (r, g, b)
+        } else if let Some(n) = self.as_ansi() {
+            ansi256_to_rgb(n)
+        } else {
+            return 0.0;
+        };
+
+        fn channel(c: u8) -> f64 {
+            let s = f64::from(c) / 255.0;
+            if s <= 0.03928 {
+                s / 12.92
+            } else {
+                ((s + 0.055) / 1.055).powf(2.4)
+            }
+        }
+
+        0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+    }
 }
 
 impl From<&str> for Color {
@@ -700,6 +725,14 @@ mod tests {
     }
 
     #[test]
+    fn test_color_relative_luminance_black_white() {
+        let black = Color::from("#000000");
+        let white = Color::from("#ffffff");
+        assert!((black.relative_luminance() - 0.0).abs() < 1e-6);
+        assert!((white.relative_luminance() - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
     fn test_rgb_to_ansi256() {
         // Pure red should map to 196
         let n = rgb_to_ansi256(255, 0, 0);
@@ -741,8 +774,8 @@ mod tests {
 
     #[test]
     fn test_color_serde_rgb_map() {
-        let c: Color = serde_json::from_str("{\"r\":255,\"g\":0,\"b\":128}")
-            .expect("parse rgb map");
+        let c: Color =
+            serde_json::from_str("{\"r\":255,\"g\":0,\"b\":128}").expect("parse rgb map");
         assert_eq!(c.0, "#ff0080");
     }
 }

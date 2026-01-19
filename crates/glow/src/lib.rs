@@ -9,22 +9,43 @@
 //!
 //! Glow provides a beautiful way to read markdown files directly in the terminal:
 //! - Render local markdown files
-//! - Browse and read GitHub READMEs
+//! - Browse local files
+//! - Fetch GitHub READMEs (with the `github` feature)
 //! - Stash and organize documents
 //! - Customizable pager controls
 //!
-//! ## Example
+//! ## Quick start (library)
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use glow::{Reader, Config};
 //!
-//! let config = Config::new()
-//!     .pager(true)
-//!     .width(80);
+//! fn main() -> std::io::Result<()> {
+//!     let config = Config::new()
+//!         .pager(true)
+//!         .width(80)
+//!         .style("dark");
 //!
-//! let reader = Reader::new(config);
-//! reader.read_file("README.md")?;
+//!     let reader = Reader::new(config);
+//!     let rendered = reader.read_file("README.md")?;
+//!     println!("{rendered}");
+//!     Ok(())
+//! }
 //! ```
+//!
+//! ## CLI usage
+//!
+//! ```bash
+//! glow README.md
+//! glow --style light README.md
+//! glow --width 80 README.md
+//! glow --no-pager README.md
+//! cat README.md | glow -
+//! ```
+//!
+//! ## Feature flags
+//!
+//! - `github`: enable GitHub README fetching utilities
+//! - `default`: core markdown rendering via `glamour`
 
 pub mod browser;
 
@@ -37,6 +58,22 @@ use std::path::Path;
 use glamour::{Renderer, Style as GlamourStyle};
 
 /// Configuration for the markdown reader.
+///
+/// Defaults:
+/// - pager enabled
+/// - width inferred from terminal size
+/// - style set to `"dark"`
+///
+/// # Example
+///
+/// ```rust
+/// use glow::Config;
+///
+/// let config = Config::new()
+///     .pager(false)
+///     .width(80)
+///     .style("light");
+/// ```
 #[derive(Debug, Clone)]
 pub struct Config {
     pager: bool,
@@ -98,6 +135,19 @@ impl Default for Config {
 }
 
 /// Markdown file reader.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use glow::{Config, Reader};
+///
+/// # fn main() -> std::io::Result<()> {
+/// let reader = Reader::new(Config::new().width(80));
+/// let output = reader.read_file("README.md")?;
+/// println!("{output}");
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct Reader {
     config: Config,
@@ -128,6 +178,17 @@ impl Reader {
 }
 
 /// Stash for saving and organizing documents.
+///
+/// # Example
+///
+/// ```rust
+/// use glow::Stash;
+///
+/// let mut stash = Stash::new();
+/// stash.add("README.md");
+/// stash.add("docs/guide.md");
+/// assert_eq!(stash.documents().len(), 2);
+/// ```
 #[derive(Debug, Default)]
 pub struct Stash {
     documents: Vec<String>,

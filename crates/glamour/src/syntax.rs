@@ -639,6 +639,94 @@ fn styles_equal(a: &SynStyle, b: &SynStyle) -> bool {
         && a.font_style == b.font_style
 }
 
+fn is_json_language(language: &str) -> bool {
+    matches!(
+        language.trim().to_ascii_lowercase().as_str(),
+        "json" | "jsonc" | "json5"
+    )
+}
+
+fn is_default_foreground(style: &SynStyle, theme: &SyntaxTheme) -> bool {
+    if style.foreground.a == 0 {
+        return true;
+    }
+
+    match theme.foreground_color() {
+        Some((r, g, b)) => style.foreground.r == r && style.foreground.g == g && style.foreground.b == b,
+        None => false,
+    }
+}
+
+fn adjust_channel(value: u8, delta: i16) -> u8 {
+    let shifted = value as i16 + delta;
+    if shifted < 0 {
+        0
+    } else if shifted > 255 {
+        255
+    } else {
+        shifted as u8
+    }
+}
+
+fn relative_luminance(r: u8, g: u8, b: u8) -> f32 {
+    let r = r as f32 / 255.0;
+    let g = g as f32 / 255.0;
+    let b = b as f32 / 255.0;
+    0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+fn json_punctuation_style(theme: &SyntaxTheme) -> LipglossStyle {
+    let base = theme.foreground_color().unwrap_or((180, 180, 180));
+    let delta = theme
+        .background_color()
+        .map(|(r, g, b)| if relative_luminance(r, g, b) < 0.5 { 40 } else { -40 })
+        .unwrap_or(-40);
+
+    let mut adjusted = (
+        adjust_channel(base.0, delta),
+        adjust_channel(base.1, delta),
+        adjust_channel(base.2, delta),
+    );
+
+    if adjusted == base {
+        let alt = if delta > 0 { -60 } else { 60 };
+        adjusted = (
+            adjust_channel(base.0, alt),
+            adjust_channel(base.1, alt),
+            adjust_channel(base.2, alt),
+        );
+    }
+
+    LipglossStyle::new().foreground_color(RgbColor::new(adjusted.0, adjusted.1, adjusted.2))
+}
+
+fn is_json_punctuation(ch: char) -> bool {
+    matches!(ch, '{' | '}' | '[' | ']' | ':' | ',' | '"')
+}
+
+fn render_with_json_punctuation(
+    default_style: &LipglossStyle,
+    punctuation_style: &LipglossStyle,
+    text: &str,
+    output: &mut String,
+) {
+    let mut start = 0;
+    for (idx, ch) in text.char_indices() {
+        if is_json_punctuation(ch) {
+            if start < idx {
+                output.push_str(&default_style.render(&text[start..idx]));
+            }
+            let mut buf = [0u8; 4];
+            let encoded = ch.encode_utf8(&mut buf);
+            output.push_str(&punctuation_style.render(encoded));
+            start = idx + ch.len_utf8();
+        }
+    }
+    if start < text.len() {
+        output.push_str(&default_style.render(&text[start..]));
+    }
+}
+
 /// Highlights code with syntax highlighting and returns styled text.
 ///
 /// This is the main entry point for syntax highlighting. It takes source code,
@@ -673,6 +761,7 @@ pub fn highlight_code(code: &str, language: &str, theme: &SyntaxTheme) -> String
     let mut highlighter = HighlightLines::new(syntax, theme.inner());
     let mut cache = StyleCache::new();
     let mut output = String::with_capacity(code.len() * 2);
+    let json_punct_style = is_json_language(language).then(|| json_punctuation_style(theme));
 
     for line in LinesWithEndings::from(code) {
         match highlighter.highlight_line(line, &SYNTAX_SET) {
@@ -683,7 +772,14 @@ pub fn highlight_code(code: &str, language: &str, theme: &SyntaxTheme) -> String
                     // (lipgloss render may strip trailing whitespace)
                     let ends_with_newline = text.ends_with('\n');
                     let trimmed = text.trim_end_matches('\n');
-                    output.push_str(&lip_style.render(trimmed));
+                    if let Some(punctuation_style) = json_punct_style.as_ref()
+                        && is_default_foreground(&syn_style, theme)
+                        && trimmed.chars().any(is_json_punctuation)
+                    {
+                        render_with_json_punctuation(&lip_style, punctuation_style, trimmed, &mut output);
+                    } else {
+                        output.push_str(&lip_style.render(trimmed));
+                    }
                     if ends_with_newline {
                         output.push('\n');
                     }

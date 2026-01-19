@@ -118,6 +118,7 @@ impl Paginator {
     #[must_use]
     pub fn total_pages(mut self, n: usize) -> Self {
         self.total_pages = n.max(1);
+        self.page = self.page.min(self.total_pages.saturating_sub(1));
         self
     }
 
@@ -157,6 +158,7 @@ impl Paginator {
             n += 1;
         }
         self.total_pages = n;
+        self.page = self.page.min(self.total_pages.saturating_sub(1));
         n
     }
 
@@ -188,8 +190,8 @@ impl Paginator {
     /// ```
     #[must_use]
     pub fn get_slice_bounds(&self, length: usize) -> (usize, usize) {
-        let start = self.page * self.per_page;
-        let end = (self.page * self.per_page + self.per_page).min(length);
+        let start = (self.page * self.per_page).min(length);
+        let end = (start + self.per_page).min(length);
         (start, end)
     }
 
@@ -389,6 +391,25 @@ mod tests {
         assert_eq!(p.get_total_pages(), 2);
 
         assert_eq!(p.set_total_pages_from_items(0), 2); // Doesn't change on 0
+    }
+
+    #[test]
+    fn test_total_pages_clamps_current_page() {
+        let mut p = Paginator::new().total_pages(5);
+        p.set_page(4);
+        assert_eq!(p.page(), 4);
+
+        p = p.total_pages(1);
+        assert_eq!(p.page(), 0);
+    }
+
+    #[test]
+    fn test_slice_bounds_clamp_when_out_of_range() {
+        let mut p = Paginator::new().per_page(10).total_pages(5);
+        p.set_page(4);
+
+        let (start, end) = p.get_slice_bounds(5);
+        assert_eq!((start, end), (5, 5));
     }
 
     // Model trait tests
