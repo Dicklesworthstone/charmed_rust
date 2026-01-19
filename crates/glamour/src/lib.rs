@@ -58,6 +58,7 @@ pub mod table;
 use lipgloss::Style as LipglossStyle;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use std::collections::HashMap;
+use unicode_width::UnicodeWidthChar;
 #[cfg(feature = "syntax-highlighting")]
 use std::collections::HashSet;
 
@@ -1643,15 +1644,17 @@ impl<'a> RenderContext<'a> {
             let mut len = 0;
             let mut in_escape = false;
             for c in s.chars() {
-                if c == '\x1b' {
-                    in_escape = true;
-                } else if in_escape {
+                if in_escape {
                     if c == 'm' {
                         in_escape = false;
                     }
-                } else {
-                    len += 1;
+                    continue;
                 }
+                if c == '\x1b' {
+                    in_escape = true;
+                    continue;
+                }
+                len += c.width().unwrap_or(0);
             }
             len
         };
