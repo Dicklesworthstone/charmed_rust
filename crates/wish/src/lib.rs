@@ -53,8 +53,10 @@ use std::io::{self, Write};
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::mpsc::Sender;
 use std::time::Duration;
 
+use bubbletea::Message;
 use parking_lot::RwLock;
 use thiserror::Error;
 use tokio::net::TcpListener;
@@ -356,6 +358,24 @@ pub struct Session {
     public_key: Option<PublicKey>,
     /// Subsystem being used (if any).
     subsystem: Option<String>,
+
+    /// Channel for sending output to the client.
+    output_tx: Option<tokio::sync::mpsc::UnboundedSender<SessionOutput>>,
+    /// Channel for injecting messages into the running bubbletea program.
+    message_tx: Arc<RwLock<Option<Sender<Message>>>>,
+}
+
+/// Output messages sent from Session to the SSH channel.
+#[derive(Debug)]
+pub enum SessionOutput {
+    /// Standard output data.
+    Stdout(Vec<u8>),
+    /// Standard error data.
+    Stderr(Vec<u8>),
+    /// Exit status code.
+    Exit(u32),
+    /// Close the channel.
+    Close,
 }
 
 impl fmt::Debug for Session {
@@ -383,6 +403,26 @@ impl Session {
             closed: Arc::new(RwLock::new(false)),
             public_key: None,
             subsystem: None,
+            output_tx: None,
+            message_tx: Arc::new(RwLock::new(None)),
+        }
+    }
+
+    /// Sets the output sender.
+    pub fn set_output_sender(&mut self, tx: tokio::sync::mpsc::UnboundedSender<SessionOutput>) {
+        self.output_tx = Some(tx);
+    }
+
+    /// Sets the message sender for the bubbletea program.
+    pub fn set_message_sender(&self, tx: Sender<Message>) {
+        *self.message_tx.write() = Some(tx);
+    }
+
+    /// Sends a message to the bubbletea program (if running).
+    pub fn send_message(&self, msg: Message) {
+        if let Some(tx) = self.message_tx.read().as_ref() {
+            // We ignore errors because if the channel is closed, the program is gone
+            let _ = tx.send(msg);
         }
     }
 
@@ -438,25 +478,45 @@ impl Session {
 
     /// Writes to stdout.
     pub fn write(&self, data: &[u8]) -> io::Result<usize> {
+        // Write to buffer for inspection
         self.stdout.write().extend_from_slice(data);
+
+        // Send to client
+        if let Some(tx) = &self.output_tx {
+            let _ = tx.send(SessionOutput::Stdout(data.to_vec()));
+        }
+
         Ok(data.len())
     }
 
     /// Writes to stderr.
     pub fn write_stderr(&self, data: &[u8]) -> io::Result<usize> {
+        // Write to buffer for inspection
         self.stderr.write().extend_from_slice(data);
+
+        // Send to client
+        if let Some(tx) = &self.output_tx {
+            let _ = tx.send(SessionOutput::Stderr(data.to_vec()));
+        }
+
         Ok(data.len())
     }
 
     /// Exits the session with the given code.
     pub fn exit(&self, code: i32) -> io::Result<()> {
         *self.exit_code.write() = Some(code);
+        if let Some(tx) = &self.output_tx {
+            let _ = tx.send(SessionOutput::Exit(code as u32));
+        }
         Ok(())
     }
 
     /// Closes the session.
     pub fn close(&self) -> io::Result<()> {
         *self.closed.write() = true;
+        if let Some(tx) = &self.output_tx {
+            let _ = tx.send(SessionOutput::Close);
+        }
         Ok(())
     }
 
@@ -1426,81 +1486,154 @@ pub mod middleware {
     /// Middleware for rate limiting.
     pub mod ratelimiter {
         use super::*;
-        use std::collections::HashMap;
+        use lru::LruCache;
+        use std::num::NonZeroUsize;
         use std::time::Instant;
+
+        /// Rate limit exceeded error message.
+        pub const ERR_RATE_LIMIT_EXCEEDED: &str = "rate limit exceeded, please try again later";
 
         /// Rate limiter configuration.
         #[derive(Clone)]
         pub struct Config {
-            /// Maximum requests per duration.
-            pub max_requests: u32,
-            /// Time window for rate limiting.
-            pub duration: Duration,
+            /// Tokens per second.
+            pub rate_per_sec: f64,
+            /// Maximum burst tokens.
+            pub burst: usize,
+            /// Maximum number of cached limiters.
+            pub max_entries: usize,
         }
 
         impl Default for Config {
             fn default() -> Self {
                 Self {
-                    max_requests: 100,
-                    duration: Duration::from_secs(60),
+                    rate_per_sec: 1.0,
+                    burst: 10,
+                    max_entries: 1000,
                 }
             }
         }
 
-        /// Simple in-memory rate limiter.
-        pub struct RateLimiter {
-            config: Config,
-            requests: RwLock<HashMap<String, Vec<Instant>>>,
+        /// Rate limiter errors.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub struct RateLimitError;
+
+        impl fmt::Display for RateLimitError {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{ERR_RATE_LIMIT_EXCEEDED}")
+            }
         }
 
-        impl RateLimiter {
-            pub fn new(config: Config) -> Self {
+        impl std::error::Error for RateLimitError {}
+
+        /// Rate limiter implementations should check if a given session is allowed.
+        pub trait RateLimiter: Send + Sync {
+            fn allow(&self, session: &Session) -> std::result::Result<(), RateLimitError>;
+        }
+
+        #[derive(Debug, Clone)]
+        struct TokenBucketState {
+            tokens: f64,
+            last: Instant,
+        }
+
+        /// Token-bucket rate limiter with LRU eviction.
+        pub struct TokenBucketLimiter {
+            rate_per_sec: f64,
+            burst: f64,
+            cache: RwLock<LruCache<String, TokenBucketState>>,
+        }
+
+        impl TokenBucketLimiter {
+            pub fn new(rate_per_sec: f64, burst: usize, max_entries: usize) -> Self {
+                let max_entries = max_entries.max(1);
+                let cache = LruCache::new(NonZeroUsize::new(max_entries).unwrap());
                 Self {
-                    config,
-                    requests: RwLock::new(HashMap::new()),
+                    rate_per_sec: rate_per_sec.max(0.0),
+                    burst: burst.max(1) as f64,
+                    cache: RwLock::new(cache),
                 }
             }
 
-            pub fn check(&self, key: &str) -> bool {
+            fn allow_key(&self, key: &str) -> bool {
                 let now = Instant::now();
-                let cutoff = now - self.config.duration;
+                let mut cache = self.cache.write();
 
-                let mut requests = self.requests.write();
-                let entry = requests.entry(key.to_string()).or_default();
+                let state = cache
+                    .get_mut(key)
+                    .map(|state| {
+                        let elapsed = now.duration_since(state.last).as_secs_f64();
+                        state.tokens = (state.tokens + elapsed * self.rate_per_sec).min(self.burst);
+                        state.last = now;
+                        state
+                    })
+                    .cloned();
 
-                // Remove old requests
-                entry.retain(|&t| t > cutoff);
+                let mut state = state.unwrap_or(TokenBucketState {
+                    tokens: self.burst,
+                    last: now,
+                });
 
-                // Check if under limit
-                if entry.len() < self.config.max_requests as usize {
-                    entry.push(now);
+                let allowed = if state.tokens >= 1.0 {
+                    state.tokens -= 1.0;
                     true
                 } else {
                     false
-                }
+                };
+
+                cache.put(key.to_string(), state);
+                allowed
             }
         }
 
+        impl RateLimiter for TokenBucketLimiter {
+            fn allow(&self, session: &Session) -> std::result::Result<(), RateLimitError> {
+                let key = session.remote_addr().ip().to_string();
+                let allowed = self.allow_key(&key);
+                debug!(key = %key, allowed, "rate limiter key");
+                if allowed { Ok(()) } else { Err(RateLimitError) }
+            }
+        }
+
+        /// Creates a new token-bucket rate limiter.
+        pub fn new_rate_limiter(
+            rate_per_sec: f64,
+            burst: usize,
+            max_entries: usize,
+        ) -> TokenBucketLimiter {
+            TokenBucketLimiter::new(rate_per_sec, burst, max_entries)
+        }
+
         /// Creates rate limiting middleware.
-        pub fn middleware(config: Config) -> Middleware {
-            let limiter = Arc::new(RateLimiter::new(config));
+        pub fn middleware<L: RateLimiter + 'static>(limiter: L) -> Middleware {
+            let limiter = Arc::new(limiter);
             Arc::new(move |next| {
                 let limiter = limiter.clone();
                 Arc::new(move |session| {
                     let next = next.clone();
                     let limiter = limiter.clone();
                     Box::pin(async move {
-                        let key = session.remote_addr().ip().to_string();
-                        if limiter.check(&key) {
-                            next(session).await;
-                        } else {
-                            warn!(remote_addr = %session.remote_addr(), "rate limited");
-                            errorln(&session, "Rate limit exceeded");
-                            let _ = session.exit(1);
+                        match limiter.allow(&session) {
+                            Ok(()) => {
+                                next(session).await;
+                            }
+                            Err(err) => {
+                                warn!(remote_addr = %session.remote_addr(), "rate limited");
+                                fatal(&session, err);
+                            }
                         }
                     })
                 })
             })
+        }
+
+        /// Creates rate limiting middleware from a Config.
+        pub fn middleware_with_config(config: Config) -> Middleware {
+            middleware(new_rate_limiter(
+                config.rate_per_sec,
+                config.burst,
+                config.max_entries,
+            ))
         }
     }
 
@@ -1508,20 +1641,35 @@ pub mod middleware {
     pub mod elapsed {
         use super::*;
 
-        /// Creates middleware that tracks elapsed time in context.
-        pub fn middleware() -> Middleware {
-            Arc::new(|next| {
+        fn format_elapsed(format: &str, elapsed: Duration) -> String {
+            if format.contains("%v") {
+                format.replace("%v", &format!("{:?}", elapsed))
+            } else {
+                format.replace("{}", &format!("{:?}", elapsed)).to_string()
+            }
+        }
+
+        /// Creates middleware that logs the elapsed time of the session.
+        pub fn middleware_with_format(format: impl Into<String>) -> Middleware {
+            let format = format.into();
+            Arc::new(move |next| {
+                let format = format.clone();
                 Arc::new(move |session| {
                     let next = next.clone();
-                    let start = Instant::now();
-                    session
-                        .context()
-                        .set_value("elapsed_start", format!("{:?}", start));
+                    let format = format.clone();
                     Box::pin(async move {
-                        next(session).await;
+                        let start = Instant::now();
+                        next(session.clone()).await;
+                        let msg = format_elapsed(&format, start.elapsed());
+                        print(&session, msg);
                     })
                 })
             })
+        }
+
+        /// Creates middleware that logs elapsed time using the default format.
+        pub fn middleware() -> Middleware {
+            middleware_with_format("elapsed time: %v\n")
         }
     }
 
@@ -1538,8 +1686,8 @@ pub mod middleware {
                     let next = next.clone();
                     let message = message.clone();
                     Box::pin(async move {
+                        next(session.clone()).await;
                         println(&session, &message);
-                        next(session).await;
                     })
                 })
             })
@@ -1562,7 +1710,7 @@ pub mod tea {
     /// Creates middleware that serves a BubbleTea application.
     pub fn middleware<M, F>(handler: F) -> Middleware
     where
-        M: Model + Send + 'static,
+        M: Model + Send + Sync + 'static,
         F: Fn(&Session) -> M + Send + Sync + 'static,
     {
         let handler = Arc::new(handler);
@@ -1572,7 +1720,7 @@ pub mod tea {
                 let next = next.clone();
                 let handler = handler.clone();
                 Box::pin(async move {
-                    let (pty, active) = session.pty();
+                    let (_pty, active) = session.pty();
                     if !active {
                         fatalln(&session, "no active terminal, skipping");
                         return;
@@ -1581,19 +1729,20 @@ pub mod tea {
                     // Create the model
                     let model = handler(&session);
 
-                    // Create and run the program
-                    let _window = pty.map(|p| p.window).unwrap_or_default();
+                    // Create message channel for the program
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    session.set_message_sender(tx);
 
-                    // In a real implementation, we would:
-                    // 1. Set up input/output streams from the session
-                    // 2. Handle window resize events
-                    // 3. Run the program until it quits
-
-                    // For now, just create the program (placeholder)
-                    let _program = Program::new(model);
-
-                    // The program would run here...
-                    // program.run();
+                    // Run the program in a blocking task
+                    let session_clone = session.clone();
+                    tokio::task::spawn_blocking(move || {
+                        let _ = Program::new(model)
+                            .with_custom_io()
+                            .with_input_receiver(rx)
+                            .run_with_writer(session_clone);
+                    })
+                    .await
+                    .unwrap();
 
                     next(session).await;
                 })
@@ -1847,21 +1996,17 @@ mod tests {
 
     #[test]
     fn test_rate_limiter() {
-        use middleware::ratelimiter::{Config, RateLimiter};
+        use middleware::ratelimiter::{RateLimiter, new_rate_limiter};
 
-        let config = Config {
-            max_requests: 3,
-            duration: Duration::from_secs(60),
-        };
-        let limiter = RateLimiter::new(config);
+        let limiter = new_rate_limiter(0.0, 3, 10);
+        let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
+        let ctx = Context::new("testuser", addr, addr);
+        let session = Session::new(ctx);
 
-        assert!(limiter.check("test"));
-        assert!(limiter.check("test"));
-        assert!(limiter.check("test"));
-        assert!(!limiter.check("test")); // Should be rate limited
-
-        // Different key should work
-        assert!(limiter.check("other"));
+        assert!(limiter.allow(&session).is_ok());
+        assert!(limiter.allow(&session).is_ok());
+        assert!(limiter.allow(&session).is_ok());
+        assert!(limiter.allow(&session).is_err()); // Should be rate limited
     }
 
     #[test]

@@ -13,10 +13,11 @@ use russh::server::{Auth, Handler as RusshHandler, Msg, Session as RusshSession}
 use russh::{Channel, ChannelId};
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info, trace, warn};
+use bubbletea::{Message, KeyMsg, parse_sequence, WindowSizeMsg};
 
 use crate::{
-    Context, Error, Handler, Pty, PublicKey, ServerOptions, Session, Window, compose_middleware,
-    noop_handler,
+    Context, Error, Handler, Pty, PublicKey, ServerOptions, Session, SessionOutput, Window,
+    compose_middleware, noop_handler,
 };
 
 // Re-export russh server types for use by Server
@@ -263,7 +264,7 @@ impl RusshHandler for WishHandler {
     async fn channel_open_session(
         &mut self,
         channel: Channel<Msg>,
-        _session: &mut RusshSession,
+        session: &mut RusshSession,
     ) -> std::result::Result<bool, Self::Error> {
         let channel_id = channel.id();
         debug!(
@@ -274,10 +275,41 @@ impl RusshHandler for WishHandler {
 
         // Create channel state
         let (input_tx, _input_rx) = mpsc::channel(1024);
+        let (output_tx, mut output_rx) = mpsc::unbounded_channel::<SessionOutput>();
 
         let user = self.user.clone().unwrap_or_default();
         let ctx = self.make_context(&user);
         let mut wish_session = Session::new(ctx);
+        wish_session.set_output_sender(output_tx);
+
+        // Get session handle for sending exit status from spawned task
+        let handle = session.handle();
+
+        // Spawn output pump
+        let connection_id = self.connection_id;
+        tokio::spawn(async move {
+            debug!(connection_id, channel = ?channel_id, "Starting output pump");
+            while let Some(msg) = output_rx.recv().await {
+                match msg {
+                    SessionOutput::Stdout(data) => {
+                        let _ = channel.data(&data[..]).await;
+                    }
+                    SessionOutput::Stderr(data) => {
+                        let _ = channel.extended_data(1, &data[..]).await;
+                    }
+                    SessionOutput::Exit(code) => {
+                        let _ = handle.exit_status_request(channel_id, code).await;
+                        let _ = channel.close().await;
+                        break;
+                    }
+                    SessionOutput::Close => {
+                        let _ = channel.close().await;
+                        break;
+                    }
+                }
+            }
+            debug!(connection_id, channel = ?channel_id, "Output pump finished");
+        });
 
         // Add public key if authenticated via key
         if let Some(ref pk) = self.public_key {
@@ -535,7 +567,13 @@ impl RusshHandler for WishHandler {
             pty.window = self.window;
         }
 
-        // TODO: Send WindowSizeMsg to bubbletea Program if running
+        // Send WindowSizeMsg to bubbletea Program if running
+        if let Some(state) = self.channels.get(&channel) {
+            state.session.send_message(Message::new(WindowSizeMsg {
+                width: col_width as u16,
+                height: row_height as u16,
+            }));
+        }
 
         Ok(())
     }
@@ -555,7 +593,21 @@ impl RusshHandler for WishHandler {
         );
 
         if let Some(state) = self.channels.get(&channel) {
+            // Forward raw data to input_tx (legacy/stream support)
             let _ = state.input_tx.send(data.to_vec()).await;
+
+            // Parse for bubbletea
+            if let Some(key) = parse_sequence(data) {
+                state.session.send_message(Message::new(key));
+            } else {
+                // Parse as UTF-8 chars
+                if let Ok(s) = std::str::from_utf8(data) {
+                    for c in s.chars() {
+                        let key = KeyMsg::from_char(c);
+                        state.session.send_message(Message::new(key));
+                    }
+                }
+            }
         }
 
         Ok(())

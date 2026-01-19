@@ -24,6 +24,9 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::{self, MapAccess, Visitor};
+
 /// Color profile indicating terminal color capabilities.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ColorProfile {
@@ -109,7 +112,16 @@ impl Color {
 
     /// Parse as RGB if this is a hex color.
     pub fn as_rgb(&self) -> Option<(u8, u8, u8)> {
-        let s = self.0.trim_start_matches('#');
+        let raw = self.0.trim();
+        let s = raw.trim_start_matches('#');
+        let has_hash = raw.starts_with('#');
+        let has_hex_alpha = s
+            .chars()
+            .any(|c| c.is_ascii_hexdigit() && !c.is_ascii_digit());
+
+        if !has_hash && !has_hex_alpha {
+            return None;
+        }
         if s.len() == 6 {
             let r = u8::from_str_radix(&s[0..2], 16).ok()?;
             let g = u8::from_str_radix(&s[2..4], 16).ok()?;
@@ -129,6 +141,14 @@ impl Color {
     pub fn as_ansi(&self) -> Option<u8> {
         self.0.parse::<u8>().ok()
     }
+
+    /// Returns true if this color is a valid ANSI or hex value.
+    pub fn is_valid(&self) -> bool {
+        if self.0.trim().is_empty() {
+            return false;
+        }
+        self.as_rgb().is_some() || self.as_ansi().is_some()
+    }
 }
 
 impl From<&str> for Color {
@@ -141,6 +161,114 @@ impl From<String> for Color {
     fn from(s: String) -> Self {
         Self(s)
     }
+}
+
+impl Serialize for Color {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Color {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_any(ColorVisitor)
+    }
+}
+
+struct ColorVisitor;
+
+impl<'de> Visitor<'de> for ColorVisitor {
+    type Value = Color;
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "a hex string, ANSI number, or RGB map")
+    }
+
+    fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+        parse_color_str(v).map_err(E::custom)
+    }
+
+    fn visit_string<E: de::Error>(self, v: String) -> Result<Self::Value, E> {
+        parse_color_str(&v).map_err(E::custom)
+    }
+
+    fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
+        let value = u8::try_from(v)
+            .map_err(|_| E::custom(format!("ANSI color must be 0-255, got {v}")))?;
+        Ok(Color::new(value.to_string()))
+    }
+
+    fn visit_i64<E: de::Error>(self, v: i64) -> Result<Self::Value, E> {
+        if (0..=i64::from(u8::MAX)).contains(&v) {
+            Ok(Color::new(v.to_string()))
+        } else {
+            Err(E::custom(format!("ANSI color must be 0-255, got {v}")))
+        }
+    }
+
+    fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<Self::Value, M::Error> {
+        let mut r: Option<u8> = None;
+        let mut g: Option<u8> = None;
+        let mut b: Option<u8> = None;
+        let mut a: Option<u8> = None;
+
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "r" | "red" => r = Some(map.next_value()?),
+                "g" | "green" => g = Some(map.next_value()?),
+                "b" | "blue" => b = Some(map.next_value()?),
+                "a" | "alpha" => a = Some(map.next_value()?),
+                _ => {
+                    let _ = map.next_value::<de::IgnoredAny>()?;
+                }
+            }
+        }
+
+        match (r, g, b) {
+            (Some(r), Some(g), Some(b)) => {
+                let _ = a;
+                Ok(Color::new(format!("#{:02x}{:02x}{:02x}", r, g, b)))
+            }
+            _ => Err(de::Error::custom("RGB color requires r, g, b fields")),
+        }
+    }
+}
+
+fn parse_color_str(s: &str) -> Result<Color, String> {
+    let raw = s.trim();
+    if raw.is_empty() {
+        return Err("color string is empty".to_string());
+    }
+
+    let has_hash = raw.starts_with('#');
+    let has_hex_alpha = raw
+        .chars()
+        .any(|c| matches!(c, 'a'..='f' | 'A'..='F'));
+
+    if has_hash || has_hex_alpha {
+        let hex = raw.trim_start_matches('#');
+        let is_hex = hex.chars().all(|c| c.is_ascii_hexdigit());
+        if !is_hex || !(hex.len() == 3 || hex.len() == 6) {
+            return Err(format!("invalid hex color '{raw}'"));
+        }
+        let normalized = if has_hash {
+            raw.to_string()
+        } else {
+            format!("#{hex}")
+        };
+        return Ok(Color::new(normalized));
+    }
+
+    if raw.chars().all(|c| c.is_ascii_digit()) {
+        let value: u16 = raw
+            .parse()
+            .map_err(|_| format!("invalid ANSI color '{raw}'"))?;
+        let value = u8::try_from(value)
+            .map_err(|_| format!("ANSI color must be 0-255, got {value}"))?;
+        return Ok(Color::new(value.to_string()));
+    }
+
+    Err(format!("invalid color '{raw}'"))
 }
 
 impl TerminalColor for Color {
@@ -554,6 +682,7 @@ const ANSI_COLORS: [(u8, u8, u8); 16] = [
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json;
 
     #[test]
     fn test_color_from_hex() {
@@ -594,5 +723,26 @@ mod tests {
         assert!(ColorProfile::TrueColor.supports(ColorProfile::Ansi256));
         assert!(ColorProfile::Ansi256.supports(ColorProfile::Ansi));
         assert!(!ColorProfile::Ansi.supports(ColorProfile::TrueColor));
+    }
+
+    #[test]
+    fn test_color_serde_number() {
+        let c: Color = serde_json::from_str("196").expect("parse ANSI number");
+        assert_eq!(c.as_ansi(), Some(196));
+        assert!(c.as_rgb().is_none());
+    }
+
+    #[test]
+    fn test_color_serde_hex_without_hash() {
+        let c: Color = serde_json::from_str("\"ff00ff\"").expect("parse hex string");
+        assert_eq!(c.0, "#ff00ff");
+        assert_eq!(c.as_rgb(), Some((255, 0, 255)));
+    }
+
+    #[test]
+    fn test_color_serde_rgb_map() {
+        let c: Color = serde_json::from_str("{\"r\":255,\"g\":0,\"b\":128}")
+            .expect("parse rgb map");
+        assert_eq!(c.0, "#ff0080");
     }
 }

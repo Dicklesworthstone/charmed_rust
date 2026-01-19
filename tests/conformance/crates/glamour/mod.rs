@@ -330,7 +330,7 @@ fn run_glamour_test_with_mode(fixture: &TestFixture, mode: CompareMode) -> Resul
                 CompareMode::SyntaxHighlight => {
                     // Syntax highlighting mode: checks for multi-colored tokens
                     // Go glamour produces per-token coloring (keywords, strings, etc.)
-                    // Rust glamour currently does NOT implement syntax highlighting
+                    // Rust glamour uses syntect for syntax highlighting.
                     let result =
                         compare_syntax_highlighting(&expected.output, &actual, &input.input);
                     if result.text_matches {
@@ -339,8 +339,7 @@ fn run_glamour_test_with_mode(fixture: &TestFixture, mode: CompareMode) -> Resul
                             Err(format!(
                                 "SYNTAX_HIGHLIGHT_GAP: Text content matches but syntax highlighting differs\n  \
                                  Expected colors: {:?}\n  Actual colors: {:?}\n  \
-                                 Go has {} distinct token colors, Rust has {}\n  \
-                                 Note: Rust glamour does not implement syntax highlighting",
+                                 Go has {} distinct token colors, Rust has {}",
                                 result.expected_colors,
                                 result.actual_colors,
                                 result.expected_colors.len(),
@@ -531,7 +530,7 @@ mod tests {
     //
     // These tests verify syntax highlighting behavior in code blocks.
     // Go glamour uses chroma for syntax highlighting with per-token coloring.
-    // Rust glamour currently does NOT implement syntax highlighting.
+    // Rust glamour uses syntect for syntax highlighting.
     //
     // Test naming convention: test_syntax_highlight_<language>
     //

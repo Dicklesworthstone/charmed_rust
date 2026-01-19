@@ -21,6 +21,7 @@ use crate::key::{Binding, matches};
 use crate::runeutil::Sanitizer;
 use bubbletea::{Cmd, KeyMsg, Message, Model};
 use lipgloss::{Color, Style};
+use unicode_width::UnicodeWidthChar;
 
 /// Echo mode for the text input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -430,7 +431,8 @@ impl TextInput {
     }
 
     fn handle_overflow(&mut self) {
-        if self.width == 0 || self.value.len() <= self.width {
+        let total_width: usize = self.value.iter().map(|c| c.width().unwrap_or(0)).sum();
+        if self.width == 0 || total_width <= self.width {
             self.offset = 0;
             self.offset_right = self.value.len();
             return;
@@ -444,28 +446,32 @@ impl TextInput {
             let mut i = 0;
             let runes = &self.value[self.offset..];
 
-            while i < runes.len() && w <= self.width {
-                w += 1; // Simplified: assuming 1 width per char
-                if w <= self.width + 1 {
-                    i += 1;
+            while i < runes.len() {
+                let cw = runes[i].width().unwrap_or(0);
+                if w + cw > self.width {
+                    break;
                 }
+                w += cw;
+                i += 1;
             }
             self.offset_right = self.offset + i;
         } else if self.pos >= self.offset_right {
             self.offset_right = self.pos;
             let mut w = 0;
             let runes = &self.value[..self.offset_right];
-            let mut i = runes.len().saturating_sub(1);
+            let mut start_index = self.offset_right;
 
-            while i > 0 && w < self.width {
-                w += 1;
-                if w <= self.width {
-                    i = i.saturating_sub(1);
+            // Scan backwards from offset_right
+            while start_index > 0 {
+                let prev = start_index - 1;
+                let cw = runes[prev].width().unwrap_or(0);
+                if w + cw > self.width {
+                    break;
                 }
+                w += cw;
+                start_index = prev;
             }
-            self.offset = self
-                .offset_right
-                .saturating_sub(runes.len().saturating_sub(i));
+            self.offset = start_index;
         }
     }
 
@@ -495,19 +501,30 @@ impl TextInput {
         let old_pos = self.pos;
         self.set_cursor(self.pos.saturating_sub(1));
 
-        // Skip whitespace
-        while self.pos > 0 && self.value.get(self.pos).is_some_and(|c| c.is_whitespace()) {
-            self.set_cursor(self.pos.saturating_sub(1));
+        // Skip whitespace backward
+        while self.pos > 0 {
+            let prev = self.pos - 1;
+            if let Some(c) = self.value.get(prev) {
+                if c.is_whitespace() {
+                    self.set_cursor(prev);
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
         }
 
-        // Skip non-whitespace
+        // Skip non-whitespace backward
         while self.pos > 0 {
-            if !self.value.get(self.pos).is_some_and(|c| c.is_whitespace()) {
-                self.set_cursor(self.pos.saturating_sub(1));
-            } else {
-                if self.pos > 0 {
-                    self.set_cursor(self.pos + 1);
+            let prev = self.pos - 1;
+            if let Some(c) = self.value.get(prev) {
+                if !c.is_whitespace() {
+                    self.set_cursor(prev);
+                } else {
+                    break;
                 }
+            } else {
                 break;
             }
         }
@@ -572,19 +589,29 @@ impl TextInput {
             return;
         }
 
-        let mut i = self.pos.saturating_sub(1);
-
-        // Skip whitespace
-        while i > 0 && self.value.get(i).is_some_and(|c| c.is_whitespace()) {
-            self.set_cursor(self.pos.saturating_sub(1));
-            i = i.saturating_sub(1);
+        // Skip whitespace backward
+        while self.pos > 0 {
+            let prev = self.pos - 1;
+            if let Some(c) = self.value.get(prev) {
+                if c.is_whitespace() {
+                    self.set_cursor(prev);
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
         }
 
-        // Skip non-whitespace
-        while i > 0 {
-            if !self.value.get(i).is_some_and(|c| c.is_whitespace()) {
-                self.set_cursor(self.pos.saturating_sub(1));
-                i = i.saturating_sub(1);
+        // Skip non-whitespace backward
+        while self.pos > 0 {
+            let prev = self.pos - 1;
+            if let Some(c) = self.value.get(prev) {
+                if !c.is_whitespace() {
+                    self.set_cursor(prev);
+                } else {
+                    break;
+                }
             } else {
                 break;
             }
@@ -842,7 +869,7 @@ impl TextInput {
 
         // Padding for width
         if self.width > 0 {
-            let val_width = value.len();
+            let val_width: usize = value.iter().map(|c| c.width().unwrap_or(0)).sum();
             if val_width <= self.width {
                 let padding = self.width.saturating_sub(val_width);
                 v.push_str(
@@ -878,7 +905,7 @@ impl TextInput {
     fn completion_view(&self, offset: usize) -> String {
         if self.can_accept_suggestion()
             && let Some(suggestion) = self.matched_suggestions.get(self.current_suggestion_index)
-            && self.value.len() < suggestion.len()
+            && self.value.len() + offset <= suggestion.len()
         {
             let completion: String = suggestion[self.value.len() + offset..].iter().collect();
             return self.placeholder_style.clone().inline().render(&completion);
@@ -1131,5 +1158,49 @@ mod tests {
         fn accepts_model<M: Model + Send + 'static>(_model: M) {}
         let input = TextInput::new();
         accepts_model(input);
+    }
+
+    #[test]
+    fn test_word_backward_boundary() {
+        let mut input = TextInput::new();
+        input.set_value("abc");
+        input.set_cursor(1); // "a|bc" (cursor is at 1, so 'b' is to the right, 'a' to the left)
+        input.word_backward();
+        assert_eq!(input.position(), 0); // Should move to start
+    }
+
+    #[test]
+    fn test_delete_word_backward_boundary() {
+        let mut input = TextInput::new();
+        input.set_value("abc");
+        input.set_cursor(1); // "a|bc"
+        input.delete_word_backward();
+        assert_eq!(input.value(), "bc");
+        assert_eq!(input.position(), 0);
+    }
+
+    #[test]
+    fn test_handle_overflow_wide_chars() {
+        let mut input = TextInput::new();
+        input.width = 3;
+        input.set_value("a😀b"); // 'a' (1), '😀' (2), 'b' (1). Total 4.
+        // pos=0. offset=0. offset_right=?
+        // w=0. 'a'(1) -> w=1. '😀'(2) -> w=3. 'b'(1) -> w=4 > 3. Break.
+        // offset_right should be 2 ("a😀").
+        
+        // Force overflow update
+        input.set_cursor(0); 
+        // internal update triggers handle_overflow
+        
+        // Can't check internal state easily without exposing or deducing from view
+        // But let's check view length
+        let view = input.view();
+        // view should contain "a😀" (char count 2) or something fitting width 3.
+        // But view strips ANSI from result to check?
+        // Let's rely on logic correctness.
+        // width=3. "a😀" is width 3. "a😀b" is 4.
+        // So it should show "a😀".
+        assert!(view.contains("a😀"));
+        assert!(!view.contains("b")); // 'b' is clipped
     }
 }

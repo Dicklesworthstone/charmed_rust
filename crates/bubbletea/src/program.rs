@@ -195,6 +195,8 @@ pub struct ProgramOptions {
     pub bracketed_paste: bool,
     /// Enable focus reporting.
     pub report_focus: bool,
+    /// Use custom I/O (skip terminal setup and event polling).
+    pub custom_io: bool,
     /// Target frames per second for rendering.
     pub fps: u32,
     /// Disable signal handling.
@@ -211,6 +213,7 @@ impl Default for ProgramOptions {
             mouse_all_motion: false,
             bracketed_paste: true,
             report_focus: false,
+            custom_io: false,
             fps: 60,
             without_signals: false,
             without_catch_panics: false,
@@ -238,6 +241,7 @@ impl Default for ProgramOptions {
 pub struct Program<M: Model> {
     model: M,
     options: ProgramOptions,
+    external_rx: Option<Receiver<Message>>,
 }
 
 impl<M: Model> Program<M> {
@@ -246,7 +250,17 @@ impl<M: Model> Program<M> {
         Self {
             model,
             options: ProgramOptions::default(),
+            external_rx: None,
         }
+    }
+
+    /// Provide an external message receiver.
+    ///
+    /// Messages received on this channel will be forwarded to the program's event loop.
+    /// This is useful for injecting events from external sources (e.g. SSH).
+    pub fn with_input_receiver(mut self, rx: Receiver<Message>) -> Self {
+        self.external_rx = Some(rx);
+        self
     }
 
     /// Use alternate screen buffer (full-screen mode).
@@ -305,70 +319,100 @@ impl<M: Model> Program<M> {
         self
     }
 
-    /// Run the program and return the final model state.
-    pub fn run(self) -> Result<M> {
-        let mut stdout = io::stdout();
+    /// Enable custom I/O mode (skip terminal setup and crossterm polling).
+    ///
+    /// This is useful when embedding bubbletea in environments that manage
+    /// terminal state externally or when events are injected manually.
+    pub fn with_custom_io(mut self) -> Self {
+        self.options.custom_io = true;
+        self
+    }
 
+    /// Run the program with a custom writer.
+    pub fn run_with_writer<W: Write + Send + 'static>(self, mut writer: W) -> Result<M> {
         // Save options for cleanup (since self will be moved)
         let options = self.options.clone();
 
-        // Setup terminal
-        enable_raw_mode()?;
-
-        if options.alt_screen {
-            execute!(stdout, EnterAlternateScreen)?;
+        // Setup terminal (skip for custom IO)
+        if !options.custom_io {
+            enable_raw_mode()?;
         }
 
-        execute!(stdout, Hide)?;
+        if options.alt_screen {
+            execute!(writer, EnterAlternateScreen)?;
+        }
+
+        execute!(writer, Hide)?;
 
         if options.mouse_all_motion {
-            execute!(stdout, EnableMouseCapture)?;
+            execute!(writer, EnableMouseCapture)?;
         } else if options.mouse_cell_motion {
-            execute!(stdout, EnableMouseCapture)?;
+            execute!(writer, EnableMouseCapture)?;
         }
 
         if options.report_focus {
-            execute!(stdout, event::EnableFocusChange)?;
+            execute!(writer, event::EnableFocusChange)?;
         }
 
         if options.bracketed_paste {
-            execute!(stdout, event::EnableBracketedPaste)?;
+            execute!(writer, event::EnableBracketedPaste)?;
         }
 
         // Run the event loop
-        let result = self.event_loop(&mut stdout);
+        let result = self.event_loop(&mut writer);
 
         // Cleanup terminal
         if options.bracketed_paste {
-            let _ = execute!(stdout, event::DisableBracketedPaste);
+            let _ = execute!(writer, event::DisableBracketedPaste);
         }
 
         if options.report_focus {
-            let _ = execute!(stdout, event::DisableFocusChange);
+            let _ = execute!(writer, event::DisableFocusChange);
         }
 
         if options.mouse_all_motion || options.mouse_cell_motion {
-            let _ = execute!(stdout, DisableMouseCapture);
+            let _ = execute!(writer, DisableMouseCapture);
         }
 
-        let _ = execute!(stdout, Show);
+        let _ = execute!(writer, Show);
 
         if options.alt_screen {
-            let _ = execute!(stdout, LeaveAlternateScreen);
+            let _ = execute!(writer, LeaveAlternateScreen);
         }
 
-        let _ = disable_raw_mode();
+        if !options.custom_io {
+            let _ = disable_raw_mode();
+        }
 
         result
     }
 
-    fn event_loop(mut self, stdout: &mut io::Stdout) -> Result<M> {
+    /// Run the program and return the final model state.
+    pub fn run(self) -> Result<M> {
+        let stdout = io::stdout();
+        self.run_with_writer(stdout)
+    }
+
+    fn event_loop<W: Write>(mut self, writer: &mut W) -> Result<M> {
         // Create message channel
         let (tx, rx): (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
-        // Get initial window size
-        let (width, height) = terminal::size()?;
-        let _ = tx.send(Message::new(WindowSizeMsg { width, height }));
+        // Forward external messages
+        if let Some(ext_rx) = self.external_rx.take() {
+            let tx_clone = tx.clone();
+            thread::spawn(move || {
+                while let Ok(msg) = ext_rx.recv() {
+                    let _ = tx_clone.send(msg);
+                }
+            });
+        }
+
+        // Get initial window size (only if not custom IO, otherwise trust init msg)
+        if !self.options.custom_io
+            && let Ok((width, height)) = terminal::size()
+        {
+            let _ = tx.send(Message::new(WindowSizeMsg { width, height }));
+        }
 
         // Call init and handle initial command
         if let Some(cmd) = self.model.init() {
@@ -377,15 +421,17 @@ impl<M: Model> Program<M> {
 
         // Render initial view
         let mut last_view = String::new();
-        self.render(stdout, &mut last_view)?;
+        self.render(writer, &mut last_view)?;
 
         // Frame timing
         let frame_duration = Duration::from_secs_f64(1.0 / self.options.fps as f64);
 
         // Event loop
         loop {
-            // Poll for events with frame-rate limiting
-            if event::poll(frame_duration)? {
+            // Poll for events with frame-rate limiting (skip poll if custom IO)
+            // Note: For custom IO, we assume events are injected via other means (not yet implemented fully)
+            // For now, custom IO just skips crossterm polling.
+            if !self.options.custom_io && event::poll(frame_duration)? {
                 match event::read()? {
                     Event::Key(key_event) => {
                         // Only handle key press events, not release
@@ -448,14 +494,17 @@ impl<M: Model> Program<M> {
 
                 // Handle window title
                 if let Some(title_msg) = msg.downcast_ref::<SetWindowTitleMsg>() {
-                    execute!(stdout, terminal::SetTitle(&title_msg.0))?;
+                    execute!(writer, terminal::SetTitle(&title_msg.0))?;
                     continue;
                 }
 
                 // Handle window size request
                 if msg.is::<RequestWindowSizeMsg>() {
-                    let (width, height) = terminal::size()?;
-                    let _ = tx.send(Message::new(WindowSizeMsg { width, height }));
+                    if !self.options.custom_io
+                        && let Ok((width, height)) = terminal::size()
+                    {
+                        let _ = tx.send(Message::new(WindowSizeMsg { width, height }));
+                    }
                     continue;
                 }
 
@@ -468,13 +517,17 @@ impl<M: Model> Program<M> {
 
             // Render if needed
             if needs_render {
-                self.render(stdout, &mut last_view)?;
+                self.render(writer, &mut last_view)?;
+            }
+
+            // Sleep a bit if loop is tight (only needed if poll didn't sleep)
+            if self.options.custom_io {
+                thread::sleep(frame_duration);
             }
         }
     }
 
     fn handle_command(&self, cmd: Cmd, tx: Sender<Message>) {
-        // Execute command in a separate thread
         thread::spawn(move || {
             if let Some(msg) = cmd.execute() {
                 // Handle batch and sequence messages specially
@@ -504,7 +557,7 @@ impl<M: Model> Program<M> {
         });
     }
 
-    fn render(&self, stdout: &mut io::Stdout, last_view: &mut String) -> Result<()> {
+    fn render<W: Write>(&self, writer: &mut W, last_view: &mut String) -> Result<()> {
         let view = self.model.view();
 
         // Skip if view hasn't changed
@@ -513,9 +566,9 @@ impl<M: Model> Program<M> {
         }
 
         // Clear and render
-        execute!(stdout, MoveTo(0, 0), Clear(ClearType::All))?;
-        write!(stdout, "{}", view)?;
-        stdout.flush()?;
+        execute!(writer, MoveTo(0, 0), Clear(ClearType::All))?;
+        write!(writer, "{}", view)?;
+        writer.flush()?;
 
         *last_view = view;
         Ok(())

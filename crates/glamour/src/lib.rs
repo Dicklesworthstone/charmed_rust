@@ -1638,36 +1638,6 @@ impl<'a> RenderContext<'a> {
             return;
         }
 
-        // Calculate number of columns
-        let num_cols = all_rows.iter().map(|r| r.len()).max().unwrap_or(0);
-        if num_cols == 0 {
-            return;
-        }
-
-        // Calculate column widths to fill available space
-        // Total width is DEFAULT_WIDTH (80) minus margin on each side (2*margin)
-        let margin = self
-            .options
-            .styles
-            .document
-            .margin
-            .unwrap_or(DEFAULT_MARGIN);
-        let table_width = DEFAULT_WIDTH.saturating_sub(2 * margin);
-
-        // Account for separator space between columns
-        // We need space for (num_cols - 1) separators, each taking 3 chars: " │ "
-        let separator_space = if num_cols > 1 {
-            (num_cols - 1) * 3 // " │ " is 3 chars
-        } else {
-            0
-        };
-        let available_width = table_width.saturating_sub(separator_space);
-        let col_width = if num_cols > 0 {
-            available_width / num_cols
-        } else {
-            0
-        };
-
         // Helper function to strip ANSI codes and count visible characters
         let visible_len = |s: &str| -> usize {
             let mut len = 0;
@@ -1684,6 +1654,40 @@ impl<'a> RenderContext<'a> {
                 }
             }
             len
+        };
+
+        // Calculate number of columns
+        let num_cols = all_rows.iter().map(|r| r.len()).max().unwrap_or(0);
+        if num_cols == 0 {
+            return;
+        }
+
+        // Calculate column widths to fill available space
+        // Total width is options.word_wrap minus margin on each side (2*margin)
+        let margin = self
+            .options
+            .styles
+            .document
+            .margin
+            .unwrap_or(DEFAULT_MARGIN);
+        
+        // Use configured word wrap width
+        let table_width = self.options.word_wrap.saturating_sub(2 * margin);
+
+        // Account for separator space between columns
+        // We add spaces around the separator: format!(" {} ", col_sep)
+        // So we need visible_len(col_sep) + 2
+        let sep_width = visible_len(col_sep) + 2;
+        let separator_space = if num_cols > 1 {
+            (num_cols - 1) * sep_width
+        } else {
+            0
+        };
+        let available_width = table_width.saturating_sub(separator_space);
+        let col_width = if num_cols > 0 {
+            available_width / num_cols
+        } else {
+            0
         };
 
         // Helper to pad/align cell content
@@ -2902,6 +2906,36 @@ mod table_spacing_tests {
             lines[4].starts_with("   "),
             "Data row should start with 3 spaces, got: {:?}",
             lines[4]
+        );
+    }
+
+    #[test]
+    fn test_table_respects_word_wrap() {
+        let markdown = "| A | B |\n|---|---|\n| 1 | 2 |";
+
+        // Render with 40 width
+        let renderer_small = Renderer::new().with_word_wrap(40).with_style(Style::Ascii);
+        let output_small = renderer_small.render(markdown);
+
+        // Render with 120 width
+        let renderer_large = Renderer::new().with_word_wrap(120).with_style(Style::Ascii);
+        let output_large = renderer_large.render(markdown);
+
+        // Find the separator line (usually has dashes and pipes)
+        let small_sep_line = output_small.lines()
+            .find(|l| l.contains("---") && l.contains("|"))
+            .expect("Could not find separator line in small output");
+
+        let large_sep_line = output_large.lines()
+            .find(|l| l.contains("---") && l.contains("|"))
+            .expect("Could not find separator line in large output");
+
+        assert_ne!(
+            small_sep_line.len(),
+            large_sep_line.len(),
+            "Table width should change with word_wrap. Small: {}, Large: {}",
+            small_sep_line.len(),
+            large_sep_line.len()
         );
     }
 }

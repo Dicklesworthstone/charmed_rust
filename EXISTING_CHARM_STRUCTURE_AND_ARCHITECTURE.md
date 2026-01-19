@@ -2140,240 +2140,317 @@ impl Form {
 
 ## 8. Wish — SSH Apps
 
-**Purpose:** SSH server with Bubble Tea TUI middleware.
+**Purpose:** SSH server with middleware (Bubble Tea, logging, access control, etc.).
 
 **Source:** `legacy_wish/` (~1,500 lines of Go)
 
-### 8.1 Server Setup
+**Scope for this extraction:** wish core + bubbletea middleware + accesscontrol/activeterm/logging/ratelimiter/recover/comment/elapsed.
+
+**Excluded for now:** git, scp, testsession, examples, systemd docs.
+
+### 8.1 Core Types and Helpers (wish)
 
 ```rust
-pub struct Server {
-    pub addr: String,
-    pub version: String,
-    pub banner: Option<String>,
-    pub host_signers: Vec<Signer>,
-    pub handler: Handler,
-    pub idle_timeout: Option<Duration>,
-    pub max_timeout: Option<Duration>,
+/// Middleware is a function that wraps an ssh.Handler.
+/// Middlewares must call the provided handler.
+pub type Middleware = fn(next: ssh::Handler) -> ssh::Handler;
+
+/// NewServer returns a default SSH server with options applied.
+/// If HostSigners is empty, it creates an ed25519 key pair at "id_ed25519"
+/// and sets the host key via WithHostKeyPEM.
+pub fn NewServer(ops: Vec<ssh::Option>) -> Result<ssh::Server, Error> { ... }
+
+/// Stdout/stderr helpers.
+pub fn Error(s: ssh::Session, v: impl Display);
+pub fn Errorf(s: ssh::Session, f: &str, v: ...);
+pub fn Errorln(s: ssh::Session, v: ...);
+pub fn Print(s: ssh::Session, v: ...);
+pub fn Printf(s: ssh::Session, f: &str, v: ...);
+pub fn Println(s: ssh::Session, v: ...);
+pub fn WriteString(s: ssh::Session, v: &str) -> Result<usize, io::Error>;
+
+/// Fatal helpers: print to stderr and exit(1).
+pub fn Fatal(s: ssh::Session, v: ...);
+pub fn Fatalf(s: ssh::Session, f: &str, v: ...);
+pub fn Fatalln(s: ssh::Session, v: ...);
+```
+
+**Defaults / validation:**
+- NewServer applies all `ssh.Option` values via `Server.SetOption`.
+- If `HostSigners` is empty, it calls `keygen.New("id_ed25519", keygen.WithKeyType(keygen.Ed25519), keygen.WithWrite())`.
+- On keygen success it sets host key with `WithHostKeyPEM(k.RawPrivateKey())`.
+- If keygen fails, NewServer returns that error.
+
+### 8.2 Server Options (wish/options.go)
+
+```rust
+pub fn WithAddress(addr: &str) -> ssh::Option;              // sets Server.Addr
+pub fn WithVersion(version: &str) -> ssh::Option;           // sets Server.Version
+pub fn WithBanner(banner: &str) -> ssh::Option;             // sets Server.Banner
+pub fn WithBannerHandler(h: ssh::BannerHandler) -> ssh::Option; // sets Server.BannerHandler
+
+/// WithMiddleware composes middleware first-to-last (last executes first).
+pub fn WithMiddleware(mw: ...Middleware) -> ssh::Option;
+
+/// WithHostKeyPath ensures an ed25519 key exists at path.
+/// If path is missing, it creates a new key file.
+pub fn WithHostKeyPath(path: &str) -> ssh::Option;
+
+/// WithHostKeyPEM sets a host key from PEM bytes.
+pub fn WithHostKeyPEM(pem: &[u8]) -> ssh::Option;
+
+/// Auth helpers (delegates to gliderlabs/ssh).
+pub fn WithPublicKeyAuth(h: ssh::PublicKeyHandler) -> ssh::Option;
+pub fn WithPasswordAuth(h: ssh::PasswordHandler) -> ssh::Option;
+pub fn WithKeyboardInteractiveAuth(h: ssh::KeyboardInteractiveHandler) -> ssh::Option;
+
+/// Authorized keys and cert auth.
+pub fn WithAuthorizedKeys(path: &str) -> ssh::Option;
+pub fn WithTrustedUserCAKeys(path: &str) -> ssh::Option;
+
+/// Timeouts.
+pub fn WithIdleTimeout(d: Duration) -> ssh::Option;         // sets Server.IdleTimeout
+pub fn WithMaxTimeout(d: Duration) -> ssh::Option;          // sets Server.MaxTimeout
+
+/// Subsystems.
+pub fn WithSubsystem(key: &str, h: ssh::SubsystemHandler) -> ssh::Option;
+```
+
+**Validation rules and defaults:**
+- `WithMiddleware` starts from `h := func(ssh.Session){}` and folds `mw` in order:
+  `for m in mw { h = m(h) }`. Last middleware executes first.
+- `WithHostKeyPath`:
+  - If `os.Stat(path)` reports missing, it calls
+    `keygen.New(path, keygen.WithKeyType(keygen.Ed25519), keygen.WithWrite())`.
+  - If keygen fails, it returns an option that always returns that error when applied.
+  - Otherwise returns `ssh.HostKeyFile(path)`.
+- `WithAuthorizedKeys`:
+  - If `os.Stat(path)` errors, option returns that error.
+  - Auth handler uses `isAuthorized(path, matcher)` with `ssh.KeysEqual`.
+- `WithTrustedUserCAKeys`:
+  - If `os.Stat(path)` errors, option returns that error.
+  - Auth handler requires `key.(*gossh.Certificate)`; otherwise denies.
+  - For each CA key in file, it creates a `gossh.CertChecker` with
+    `IsUserAuthority: func(authKey) bool { bytes.Equal(authKey.Marshal(), ca.Marshal()) }`.
+  - Deny if `!checker.IsUserAuthority(cert.SignatureKey)` or if `checker.CheckCert(ctx.User(), cert)` errors.
+- `WithSubsystem` initializes `Server.SubsystemHandlers` map if nil.
+
+**Authorized keys parsing (`isAuthorized`):**
+- Reads file line-by-line with `bufio.Reader.ReadLine`.
+- Skips empty lines and lines starting with `#`.
+- On open/read/parse error, logs warn and returns false.
+- Parses with `ssh.ParseAuthorizedKey`, returning true if any key passes `checker`.
+
+### 8.3 Command Execution (wish/cmd.go)
+
+```rust
+/// CommandContext uses exec.CommandContext and binds stdin/out/err to the session PTY.
+pub fn CommandContext(ctx: Context, s: ssh::Session, name: &str, args: &[&str]) -> Cmd;
+
+/// Command uses s.Context() for exec.CommandContext.
+pub fn Command(s: ssh::Session, name: &str, args: &[&str]) -> Cmd;
+
+pub struct Cmd {
+    sess: ssh::Session,
+    cmd: exec::Cmd,
 }
 
-pub type Handler = Box<dyn Fn(&mut Session) + Send + Sync>;
-pub type Middleware = fn(next: Handler) -> Handler;
+impl Cmd {
+    pub fn SetEnv(&mut self, env: Vec<String>);
+    pub fn Environ(&self) -> Vec<String>;
+    pub fn SetDir(&mut self, dir: &str);
+    pub fn Run(&mut self) -> Result<(), Error>;
+}
 
-impl Server {
-    pub fn new(options: Vec<ServerOption>) -> Result<Self, Error> { ... }
-    pub fn listen_and_serve(&self) -> Result<(), Error> { ... }
-    pub fn shutdown(&self, ctx: Context) -> Result<(), Error> { ... }
+/// Implements bubbletea's ExecCommand interface (no-op setters).
+impl tea::ExecCommand for Cmd {
+    fn SetStderr(&mut self, _: io::Writer) {}
+    fn SetStdin(&mut self, _: io::Reader) {}
+    fn SetStdout(&mut self, _: io::Writer) {}
 }
 ```
 
-### 8.2 Server Options
+**Behavior:**
+- `Run()`:
+  - If session has no PTY: set `cmd.Stdin/Stdout/Stderr = sess/sess/sess.Stderr()` and `cmd.Run()`.
+  - If PTY exists: delegates to `doRun`.
+- Unix `doRun`:
+  - `ppty.Start(cmd)` then `cmd.Wait()`.
+- Windows `doRun`:
+  - `ppty.Start(cmd)` then spin-waits up to 10s for `cmd.ProcessState`.
+  - If timeout: `error("could not start process")`.
+  - If exit non-zero: `error("process failed: exit %d")`.
+
+### 8.4 Bubble Tea Middleware (wish/bubbletea)
 
 ```rust
-pub type ServerOption = Box<dyn FnOnce(&mut Server)>;
+/// Bubble Tea handler for SSH sessions.
+pub type Handler = fn(sess: ssh::Session) -> (tea::Model, Vec<tea::ProgramOption>);
 
-pub fn with_address(addr: &str) -> ServerOption { ... }
-pub fn with_version(v: &str) -> ServerOption { ... }
-pub fn with_banner(b: &str) -> ServerOption { ... }
-pub fn with_host_key_path(p: &str) -> ServerOption { ... }
-pub fn with_host_key_pem(pem: &[u8]) -> ServerOption { ... }
-pub fn with_middleware(mw: Vec<Middleware>) -> ServerOption { ... }
-pub fn with_idle_timeout(d: Duration) -> ServerOption { ... }
-pub fn with_max_timeout(d: Duration) -> ServerOption { ... }
+/// ProgramHandler lets callers construct a Program directly.
+pub type ProgramHandler = fn(sess: ssh::Session) -> *tea::Program;
+
+pub fn Middleware(handler: Handler) -> wish::Middleware;
+pub fn MiddlewareWithColorProfile(handler: Handler, profile: termenv::Profile) -> wish::Middleware;
+pub fn MiddlewareWithProgramHandler(handler: ProgramHandler, profile: termenv::Profile) -> wish::Middleware;
+
+pub fn MakeRenderer(sess: ssh::Session) -> lipgloss::Renderer;
+pub fn MakeOptions(sess: ssh::Session) -> Vec<tea::ProgramOption>;
 ```
 
-### 8.3 Session Interface
+**Middleware behavior:**
+- Stores `minColorProfile` in `sess.Context()` for downstream `MakeRenderer`.
+- Builds a program with `handler(sess)`:
+  - If handler returns nil program/model, call `next(sess)` and return.
+  - If no active PTY: `wish.Fatalln(sess, "no active terminal, skipping")` and return.
+- Starts a goroutine that:
+  - On `ctx.Done()`: `program.Quit()` and return.
+  - On PTY window resize: `program.Send(tea.WindowSizeMsg{Width, Height})`.
+- Runs program via `program.Run()`, logs error on failure, then `program.Kill()`.
+- Cancels context and calls `next(sess)` afterward.
+
+**Renderer behavior:**
+- `minColorProfile` comes from context; default is `termenv.Ascii`.
+- If session is not a PTY: return renderer without forcing profile.
+- If PTY renderer has more colors than `minColorProfile`, warn on stderr:
+  `"Warning: Client's terminal is %q, forcing %q\r\n"` and set profile.
+
+**Platform-specific I/O (makeOpts / newRenderer):**
+- Unix-like:
+  - If no PTY or `sess.EmulatedPty()`: use `tea.WithInput(sess), tea.WithOutput(sess)`.
+  - Else use PTY slave for input/output.
+  - `newRenderer`:
+    - If no PTY or `pty.Term == "" || pty.Term == "dumb"` => `termenv.Ascii`.
+    - Else build renderer with `TERM=<pty.Term>` and color cache.
+    - If PTY slave exists, temporarily set raw mode and query background color.
+    - If session-only, query background color via session.
+    - If background color found, set `HasDarkBackground` based on HSL lightness < 0.5.
+- Non-unix:
+  - Always use `tea.WithInput(sess), tea.WithOutput(sess)`.
+  - Renderer uses `termenv.WithEnvironment(env), termenv.WithUnsafe(), termenv.WithColorCache(true)`.
+
+### 8.5 Terminal Queries (wish/bubbletea/query.go)
 
 ```rust
-pub trait Session: io::Read + io::Write + Send + Sync {
-    fn pty(&self) -> Option<(Pty, Receiver<WindowSize>, bool)>;
-    fn emulated_pty(&self) -> bool;
-    fn command(&self) -> Vec<String>;
-    fn environ(&self) -> Vec<String>;
-    fn user(&self) -> String;
-    fn public_key(&self) -> Option<&dyn PublicKey>;
-    fn context(&self) -> &dyn SessionContext;
-    fn stderr(&self) -> Box<dyn io::Write>;
-    fn exit(&mut self, code: i32) -> io::Result<()>;
-}
+/// defaultQueryTimeout = 2 seconds
+const defaultQueryTimeout: Duration = 2s;
 
-pub struct Pty {
-    pub term: String,
-    pub window: WindowSize,
-}
+/// queryBackgroundColor:
+/// - expects input in raw mode
+/// - writes ANSI requests (background color + DA1)
+/// - reads events until filter returns false or timeout
+pub fn queryBackgroundColor(in: io::Reader, out: io::Writer) -> Option<Color>;
 
-pub struct WindowSize {
-    pub width: usize,
-    pub height: usize,
-}
+pub type QueryTerminalFilter = fn(events: Vec<input::Event>) -> bool;
+
+pub fn queryTerminal(
+    in: io::Reader,
+    out: io::Writer,
+    timeout: Duration,
+    filter: QueryTerminalFilter,
+    query: &str,
+) -> Result<(), Error>;
 ```
 
-### 8.4 Bubble Tea Middleware
+**Behavior:**
+- Uses `input.NewReader(in, "", 0)` to read ANSI responses.
+- Spawns a goroutine that calls `rd.Cancel()` after timeout.
+- Writes query string; reads events until filter returns false.
+
+### 8.6 Middleware Library
+
+#### Access Control (`accesscontrol`)
 
 ```rust
-pub type TeaHandler = fn(&mut Session) -> (Box<dyn Model>, Vec<ProgramOption>);
-
-pub fn bubbletea_middleware(handler: TeaHandler) -> Middleware { ... }
-pub fn bubbletea_middleware_with_color_profile(
-    handler: TeaHandler,
-    profile: ColorProfile
-) -> Middleware { ... }
-
-pub fn make_renderer(session: &Session) -> Renderer { ... }
-pub fn make_options(session: &Session) -> Vec<ProgramOption> { ... }
+/// Deny commands not in allowlist. If no allowlist is provided, all commands are denied.
+pub fn Middleware(cmds: Vec<String>) -> wish::Middleware;
 ```
 
-### 8.5 Access Control Middleware
+**Behavior:**
+- If session has no command, calls next handler.
+- If command present and first arg matches allowlist, calls next.
+- Otherwise prints `Command is not allowed: <cmd>` to stdout and exits 1.
+
+#### Active Terminal (`activeterm`)
 
 ```rust
-pub fn access_control_middleware(allowed_commands: Vec<String>) -> Middleware {
-    |next| {
-        |session| {
-            let cmd = session.command();
-            if cmd.is_empty() {
-                return next(session);
-            }
-            if allowed_commands.contains(&cmd[0]) {
-                return next(session);
-            }
-            writeln!(session.stderr(), "Command not allowed: {}", cmd[0]).ok();
-            session.exit(1).ok();
-        }
-    }
-}
+/// Requires an active PTY (sess.Pty() reports active).
+pub fn Middleware() -> wish::Middleware;
 ```
 
-### 8.6 Logging Middleware
+**Behavior:**
+- If PTY active: call next.
+- Else: prints `Requires an active PTY` and exits 1.
+
+#### Logging (`logging`)
 
 ```rust
-pub fn logging_middleware() -> Middleware { ... }
-pub fn logging_middleware_with_logger(logger: &dyn Logger) -> Middleware { ... }
-pub fn structured_logging_middleware(logger: &Logger, level: Level) -> Middleware { ... }
+pub fn Middleware() -> wish::Middleware; // uses log.StandardLog()
+pub fn MiddlewareWithLogger(logger: Logger) -> wish::Middleware;
+
+pub fn StructuredMiddleware() -> wish::Middleware; // uses log.Default(), Info level
+pub fn StructuredMiddlewareWithLogger(logger: *log::Logger, level: log::Level) -> wish::Middleware;
 ```
 
-### 8.7 Rate Limiting Middleware
+**Structured fields (connect):**
+- user, remote-addr, public-key (bool), command, term, width, height, client-version.
+
+**Structured fields (disconnect):**
+- user, remote-addr, duration.
+
+#### Rate Limiting (`ratelimiter`)
 
 ```rust
-pub trait RateLimiter: Send + Sync {
-    fn allow(&self, session: &Session) -> Result<(), RateLimitError>;
+pub trait RateLimiter {
+    fn Allow(sess: ssh::Session) -> Result<(), Err>;
 }
 
-pub fn rate_limiter_middleware(limiter: Box<dyn RateLimiter>) -> Middleware { ... }
+pub fn Middleware(limiter: RateLimiter) -> wish::Middleware;
 
-pub struct TokenBucketLimiter {
-    rate: f64,
-    burst: usize,
-    max_entries: usize,
-}
+pub const ErrRateLimitExceeded: &str = "rate limit exceeded, please try again later";
 
-impl TokenBucketLimiter {
-    pub fn new(rate: f64, burst: usize, max_entries: usize) -> Self { ... }
-}
+/// LRU of token-bucket limiters keyed by remote IP.
+pub fn NewRateLimiter(rate: rate::Limit, burst: usize, max_entries: usize) -> RateLimiter;
 ```
 
-### 8.8 Panic Recovery Middleware
+**Behavior:**
+- If `max_entries <= 0`, uses `max_entries = 1`.
+- Key = remote IP if `RemoteAddr` is TCP; else `RemoteAddr.String()`.
+- Uses `rate.NewLimiter(rate, burst)` per key.
+- Logs debug: `rate limiter key`, `key`, `allowed`.
+- If not allowed: return `ErrRateLimitExceeded`.
+- Middleware calls `wish.Fatal` on error (stderr + exit 1).
+
+#### Panic Recovery (`recover`)
 
 ```rust
-pub fn recover_middleware(inner: Vec<Middleware>) -> Middleware { ... }
-pub fn recover_middleware_with_logger(
-    logger: &dyn Logger,
-    inner: Vec<Middleware>
-) -> Middleware { ... }
+pub fn Middleware(mw: Vec<wish::Middleware>) -> wish::Middleware;
+pub fn MiddlewareWithLogger(logger: Logger, mw: Vec<wish::Middleware>) -> wish::Middleware;
 ```
 
-### 8.9 Active Terminal Middleware
+**Behavior:**
+- If logger is nil, uses `log.StandardLog()`.
+- Composes middleware chain `h` from `mw` (first-to-last).
+- Wraps handler in `defer` recover, logging `panic: <value>\n<stack>`.
+- Always calls `next` after the recover wrapper.
+
+#### Comment (`comment`)
 
 ```rust
-pub fn active_term_middleware() -> Middleware {
-    |next| {
-        |session| {
-            if let Some((_, _, true)) = session.pty() {
-                return next(session);
-            }
-            writeln!(session, "Requires an active PTY").ok();
-            session.exit(1).ok();
-        }
-    }
-}
+/// Prints a comment at the end of the session.
+pub fn Middleware(comment: &str) -> wish::Middleware;
 ```
 
-### 8.10 Color Profile Detection
+#### Elapsed (`elapsed`)
 
 ```rust
-/// Detect color profile from SSH session's PTY terminal type.
-pub fn detect_profile(term: &str) -> ColorProfile {
-    let term_lower = term.to_lowercase();
-
-    // Check for true color support
-    if term_lower.contains("truecolor")
-        || term_lower.contains("24bit")
-        || term_lower.ends_with("-256color")
-    {
-        return ColorProfile::TrueColor;
-    }
-
-    // Check for 256-color support
-    if term_lower.contains("256color") || term_lower == "xterm-256color" {
-        return ColorProfile::ANSI256;
-    }
-
-    // Check for basic ANSI
-    if term_lower.starts_with("xterm")
-        || term_lower.starts_with("vt100")
-        || term_lower.starts_with("screen")
-    {
-        return ColorProfile::ANSI;
-    }
-
-    // Dumb terminals
-    if term_lower == "dumb" || term_lower.is_empty() {
-        return ColorProfile::Ascii;
-    }
-
-    // Default to ANSI for unknown terminals
-    ColorProfile::ANSI
-}
-
-/// Create a Lipgloss renderer with the detected profile.
-pub fn make_renderer(session: &Session) -> Renderer {
-    let profile = if let Some((pty, _, _)) = session.pty() {
-        detect_profile(&pty.term)
-    } else {
-        ColorProfile::Ascii
-    };
-
-    Renderer::new_with_profile(profile)
-}
+pub fn MiddlewareWithFormat(format: &str) -> wish::Middleware;
+pub fn Middleware() -> wish::Middleware; // format = "elapsed time: %v\n"
 ```
 
-### 8.11 Complete Middleware Stack Example
-
-```rust
-use wish::{Server, bubbletea_middleware, logging_middleware,
-           rate_limiter_middleware, recover_middleware, active_term_middleware};
-
-fn main() {
-    let server = Server::new(vec![
-        with_address(":2222"),
-        with_host_key_path("./id_ed25519"),
-        with_middleware(vec![
-            // Order matters: outermost first
-            recover_middleware(vec![]),           // Catch panics
-            logging_middleware(),                 // Log all sessions
-            rate_limiter_middleware(              // Limit connections
-                Box::new(TokenBucketLimiter::new(1.0, 10, 1000))
-            ),
-            active_term_middleware(),             // Require PTY
-            bubbletea_middleware(|session| {      // Run TUI
-                let renderer = make_renderer(session);
-                (Box::new(MyModel::new(renderer)), make_options(session))
-            }),
-        ]),
-    ]).unwrap();
-
-    server.listen_and_serve().unwrap();
-}
-```
+**Behavior:**
+- Measures time across the whole handler.
+- Must be last middleware for accurate duration.
 
 ---
 

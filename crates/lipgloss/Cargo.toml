@@ -12,6 +12,11 @@ crossterm = "0.29"
 unicode-width = "0.1"
 colored = "2.1"
 bitflags = "2.4"
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+thiserror = { workspace = true }
+serde_yaml = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion.workspace = true
@@ -22,3 +27,6 @@ harness = false
 
 [lints]
 workspace = true
+
+[features]
+yaml = ["serde_yaml"]

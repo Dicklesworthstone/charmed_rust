@@ -182,31 +182,55 @@ impl Style {
         Self::default()
     }
 
-    // ==================== Theme Helpers ====================
+    // ==================== Theme Constructors ====================
 
     /// Create a style with foreground color from a theme slot.
+    ///
+    /// # Example
+    /// ```rust
+    /// use lipgloss::{ColorSlot, Style, Theme};
+    ///
+    /// let theme = Theme::dark();
+    /// let style = Style::from_theme(&theme, ColorSlot::Primary);
+    /// ```
     pub fn from_theme(theme: &Theme, slot: ColorSlot) -> Self {
-        Style::new().foreground_color(theme.get(slot).clone())
+        Style::new().foreground_color(theme.get(slot))
     }
 
-    /// Create a style with both foreground and background from theme slots.
+    /// Create a style with foreground and background colors from theme slots.
+    ///
+    /// # Example
+    /// ```rust
+    /// use lipgloss::{ColorSlot, Style, Theme};
+    ///
+    /// let theme = Theme::dark();
+    /// let style = Style::from_theme_colors(&theme, ColorSlot::Text, ColorSlot::Background);
+    /// ```
     pub fn from_theme_colors(theme: &Theme, fg: ColorSlot, bg: ColorSlot) -> Self {
         Style::new()
-            .foreground_color(theme.get(fg).clone())
-            .background_color(theme.get(bg).clone())
+            .foreground_color(theme.get(fg))
+            .background_color(theme.get(bg))
     }
 
-    /// Create a style using a semantic theme role.
+    /// Create a style from a semantic theme role.
+    ///
+    /// # Example
+    /// ```rust
+    /// use lipgloss::{Style, Theme, ThemeRole};
+    ///
+    /// let theme = Theme::dark();
+    /// let style = Style::from_theme_role(&theme, ThemeRole::Muted);
+    /// ```
     pub fn from_theme_role(theme: &Theme, role: ThemeRole) -> Self {
         match role {
-            ThemeRole::Primary => Style::from_theme(theme, ColorSlot::Primary),
-            ThemeRole::Success => Style::from_theme(theme, ColorSlot::Success),
-            ThemeRole::Warning => Style::from_theme(theme, ColorSlot::Warning),
-            ThemeRole::Error => Style::from_theme(theme, ColorSlot::Error),
-            ThemeRole::Muted => Style::from_theme(theme, ColorSlot::TextMuted),
+            ThemeRole::Primary => Style::new().foreground_color(theme.get(ColorSlot::Primary)),
+            ThemeRole::Success => Style::new().foreground_color(theme.get(ColorSlot::Success)),
+            ThemeRole::Warning => Style::new().foreground_color(theme.get(ColorSlot::Warning)),
+            ThemeRole::Error => Style::new().foreground_color(theme.get(ColorSlot::Error)),
+            ThemeRole::Muted => Style::new().foreground_color(theme.get(ColorSlot::TextMuted)),
             ThemeRole::Inverted => Style::new()
-                .foreground_color(theme.get(ColorSlot::Background).clone())
-                .background_color(theme.get(ColorSlot::Text).clone()),
+                .foreground_color(theme.get(ColorSlot::Background))
+                .background_color(theme.get(ColorSlot::Foreground)),
         }
     }
 
@@ -311,8 +335,16 @@ impl Style {
     }
 
     /// Set the foreground color using a theme slot.
+    ///
+    /// # Example
+    /// ```rust
+    /// use lipgloss::{ColorSlot, Style, Theme};
+    ///
+    /// let theme = Theme::dark();
+    /// let style = Style::new().foreground_slot(&theme, ColorSlot::Text);
+    /// ```
     pub fn foreground_slot(self, theme: &Theme, slot: ColorSlot) -> Self {
-        self.foreground_color(theme.get(slot).clone())
+        self.foreground_color(theme.get(slot))
     }
 
     /// Remove the foreground color.
@@ -337,8 +369,16 @@ impl Style {
     }
 
     /// Set the background color using a theme slot.
+    ///
+    /// # Example
+    /// ```rust
+    /// use lipgloss::{ColorSlot, Style, Theme};
+    ///
+    /// let theme = Theme::dark();
+    /// let style = Style::new().background_slot(&theme, ColorSlot::Surface);
+    /// ```
     pub fn background_slot(self, theme: &Theme, slot: ColorSlot) -> Self {
-        self.background_color(theme.get(slot).clone())
+        self.background_color(theme.get(slot))
     }
 
     /// Remove the background color.
@@ -547,8 +587,18 @@ impl Style {
     }
 
     /// Set border foreground color for all sides using a theme slot.
+    ///
+    /// # Example
+    /// ```rust
+    /// use lipgloss::{Border, ColorSlot, Style, Theme};
+    ///
+    /// let theme = Theme::dark();
+    /// let style = Style::new()
+    ///     .border(Border::rounded())
+    ///     .border_foreground_slot(&theme, ColorSlot::Border);
+    /// ```
     pub fn border_foreground_slot(mut self, theme: &Theme, slot: ColorSlot) -> Self {
-        let c = theme.get(slot).clone();
+        let c = theme.get(slot);
         self.props |= Props::BORDER_TOP_FG
             | Props::BORDER_RIGHT_FG
             | Props::BORDER_BOTTOM_FG
@@ -579,8 +629,18 @@ impl Style {
     }
 
     /// Set border background color for all sides using a theme slot.
+    ///
+    /// # Example
+    /// ```rust
+    /// use lipgloss::{Border, ColorSlot, Style, Theme};
+    ///
+    /// let theme = Theme::dark();
+    /// let style = Style::new()
+    ///     .border(Border::rounded())
+    ///     .border_background_slot(&theme, ColorSlot::Surface);
+    /// ```
     pub fn border_background_slot(mut self, theme: &Theme, slot: ColorSlot) -> Self {
-        let c = theme.get(slot).clone();
+        let c = theme.get(slot);
         self.props |= Props::BORDER_TOP_BG
             | Props::BORDER_RIGHT_BG
             | Props::BORDER_BOTTOM_BG
@@ -597,36 +657,76 @@ impl Style {
     // ==================== Theme Presets ====================
 
     /// Create a button-like style from theme colors.
+    ///
+    /// # Example
+    /// ```rust
+    /// use lipgloss::{Style, Theme};
+    ///
+    /// let theme = Theme::dark();
+    /// let style = Style::button_from_theme(&theme);
+    /// ```
     pub fn button_from_theme(theme: &Theme) -> Self {
         Style::new()
-            .foreground_color(theme.get(ColorSlot::Background).clone())
-            .background_color(theme.get(ColorSlot::Primary).clone())
+            .foreground_color(theme.get(ColorSlot::Background))
+            .background_color(theme.get(ColorSlot::Primary))
             .padding((1, 2))
             .bold()
     }
 
     /// Create an error message style from theme colors.
+    ///
+    /// # Example
+    /// ```rust
+    /// use lipgloss::{Style, Theme};
+    ///
+    /// let theme = Theme::dark();
+    /// let style = Style::error_from_theme(&theme);
+    /// ```
     pub fn error_from_theme(theme: &Theme) -> Self {
         Style::new()
-            .foreground_color(theme.get(ColorSlot::Error).clone())
+            .foreground_color(theme.get(ColorSlot::Error))
             .bold()
     }
 
     /// Create a muted/secondary text style from theme colors.
+    ///
+    /// # Example
+    /// ```rust
+    /// use lipgloss::{Style, Theme};
+    ///
+    /// let theme = Theme::dark();
+    /// let style = Style::muted_from_theme(&theme);
+    /// ```
     pub fn muted_from_theme(theme: &Theme) -> Self {
         Style::new()
-            .foreground_color(theme.get(ColorSlot::TextMuted).clone())
+            .foreground_color(theme.get(ColorSlot::TextMuted))
             .italic()
     }
 
     /// Create a highlighted/selected item style from theme colors.
+    ///
+    /// # Example
+    /// ```rust
+    /// use lipgloss::{Style, Theme};
+    ///
+    /// let theme = Theme::dark();
+    /// let style = Style::selected_from_theme(&theme);
+    /// ```
     pub fn selected_from_theme(theme: &Theme) -> Self {
         Style::new()
-            .foreground_color(theme.get(ColorSlot::Text).clone())
-            .background_color(theme.get(ColorSlot::Selection).clone())
+            .foreground_color(theme.get(ColorSlot::Text))
+            .background_color(theme.get(ColorSlot::Selection))
     }
 
     /// Create a bordered panel style from theme colors.
+    ///
+    /// # Example
+    /// ```rust
+    /// use lipgloss::{Style, Theme};
+    ///
+    /// let theme = Theme::dark();
+    /// let style = Style::panel_from_theme(&theme);
+    /// ```
     pub fn panel_from_theme(theme: &Theme) -> Self {
         Style::new()
             .border(Border::rounded())
@@ -1324,5 +1424,85 @@ mod tests {
     fn test_visible_width() {
         assert_eq!(visible_width("hello"), 5);
         assert_eq!(visible_width("\x1b[1mhello\x1b[0m"), 5);
+    }
+
+    #[test]
+    fn test_from_theme_colors_sets_fg_bg() {
+        let theme = Theme::dark();
+        let style = Style::from_theme_colors(&theme, ColorSlot::Primary, ColorSlot::Background);
+        assert!(style.props.contains(Props::FOREGROUND));
+        assert!(style.props.contains(Props::BACKGROUND));
+
+        let fg = style
+            .fg_color
+            .as_ref()
+            .expect("foreground color missing")
+            .to_ansi_fg(ColorProfile::TrueColor, theme.is_dark());
+        let bg = style
+            .bg_color
+            .as_ref()
+            .expect("background color missing")
+            .to_ansi_bg(ColorProfile::TrueColor, theme.is_dark());
+
+        let expected_fg = theme
+            .get(ColorSlot::Primary)
+            .to_ansi_fg(ColorProfile::TrueColor, theme.is_dark());
+        let expected_bg = theme
+            .get(ColorSlot::Background)
+            .to_ansi_bg(ColorProfile::TrueColor, theme.is_dark());
+
+        assert_eq!(fg, expected_fg);
+        assert_eq!(bg, expected_bg);
+    }
+
+    #[test]
+    fn test_from_theme_sets_foreground() {
+        let theme = Theme::dark();
+        let style = Style::from_theme(&theme, ColorSlot::Accent);
+        assert!(style.props.contains(Props::FOREGROUND));
+
+        let fg = style
+            .fg_color
+            .as_ref()
+            .expect("foreground color missing")
+            .to_ansi_fg(ColorProfile::TrueColor, theme.is_dark());
+        let expected_fg = theme
+            .get(ColorSlot::Accent)
+            .to_ansi_fg(ColorProfile::TrueColor, theme.is_dark());
+        assert_eq!(fg, expected_fg);
+    }
+
+    #[test]
+    fn test_from_theme_role_inverted_sets_fg_bg() {
+        let theme = Theme::dark();
+        let style = Style::from_theme_role(&theme, ThemeRole::Inverted);
+        assert!(style.props.contains(Props::FOREGROUND));
+        assert!(style.props.contains(Props::BACKGROUND));
+    }
+
+    #[test]
+    fn test_theme_slot_builders_set_props() {
+        let theme = Theme::dark();
+        let style = Style::new()
+            .foreground_slot(&theme, ColorSlot::Text)
+            .background_slot(&theme, ColorSlot::Background)
+            .border_foreground_slot(&theme, ColorSlot::Border)
+            .border_background_slot(&theme, ColorSlot::Surface);
+
+        assert!(style.props.contains(Props::FOREGROUND));
+        assert!(style.props.contains(Props::BACKGROUND));
+        assert!(style.props.contains(Props::BORDER_TOP_FG));
+        assert!(style.props.contains(Props::BORDER_TOP_BG));
+    }
+
+    #[test]
+    fn test_button_from_theme_padding() {
+        let theme = Theme::dark();
+        let style = Style::button_from_theme(&theme);
+        assert_eq!(style.padding.top, 1);
+        assert_eq!(style.padding.right, 2);
+        assert_eq!(style.padding.bottom, 1);
+        assert_eq!(style.padding.left, 2);
+        assert!(style.attrs.contains(Attrs::BOLD));
     }
 }

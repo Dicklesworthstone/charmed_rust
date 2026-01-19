@@ -18,6 +18,7 @@ tracing = "0.1"
 futures = "0.3"
 parking_lot = "0.12"
 bytes = "1.5"
+lru = { workspace = true }
 russh = { workspace = true }
 russh-keys = { workspace = true }
 

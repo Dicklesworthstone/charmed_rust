@@ -327,11 +327,8 @@ fn test_middleware_accesscontrol_creation() {
 
 #[test]
 fn test_middleware_ratelimiter_creation() {
-    let config = middleware::ratelimiter::Config {
-        max_requests: 100,
-        duration: Duration::from_secs(60),
-    };
-    let _mw = middleware::ratelimiter::middleware(config);
+    let limiter = middleware::ratelimiter::new_rate_limiter(1.0, 10, 100);
+    let _mw = middleware::ratelimiter::middleware(limiter);
     // Middleware created successfully
 }
 
