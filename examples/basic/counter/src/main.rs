@@ -69,3 +69,134 @@ fn main() -> anyhow::Result<()> {
     println!("Final count: {}", final_model.count);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Create a key message for a character
+    fn key_char(ch: char) -> Message {
+        Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: vec![ch],
+            alt: false,
+            paste: false,
+        })
+    }
+
+    /// Create a key message for a special key
+    fn key_type(kt: KeyType) -> Message {
+        Message::new(KeyMsg {
+            key_type: kt,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        })
+    }
+
+    #[test]
+    fn test_counter_initial_state() {
+        let counter = Counter::new();
+        assert_eq!(counter.count, 0);
+    }
+
+    #[test]
+    fn test_counter_increment_plus() {
+        let mut counter = Counter::new();
+        counter.update(key_char('+'));
+        assert_eq!(counter.count, 1);
+    }
+
+    #[test]
+    fn test_counter_increment_equals() {
+        let mut counter = Counter::new();
+        counter.update(key_char('='));
+        assert_eq!(counter.count, 1);
+    }
+
+    #[test]
+    fn test_counter_increment_k() {
+        let mut counter = Counter::new();
+        counter.update(key_char('k'));
+        assert_eq!(counter.count, 1);
+    }
+
+    #[test]
+    fn test_counter_increment_up_arrow() {
+        let mut counter = Counter::new();
+        counter.update(key_type(KeyType::Up));
+        assert_eq!(counter.count, 1);
+    }
+
+    #[test]
+    fn test_counter_decrement_minus() {
+        let mut counter = Counter { count: 5 };
+        counter.update(key_char('-'));
+        assert_eq!(counter.count, 4);
+    }
+
+    #[test]
+    fn test_counter_decrement_underscore() {
+        let mut counter = Counter { count: 5 };
+        counter.update(key_char('_'));
+        assert_eq!(counter.count, 4);
+    }
+
+    #[test]
+    fn test_counter_decrement_j() {
+        let mut counter = Counter { count: 5 };
+        counter.update(key_char('j'));
+        assert_eq!(counter.count, 4);
+    }
+
+    #[test]
+    fn test_counter_decrement_down_arrow() {
+        let mut counter = Counter { count: 5 };
+        counter.update(key_type(KeyType::Down));
+        assert_eq!(counter.count, 4);
+    }
+
+    #[test]
+    fn test_counter_decrement_below_zero() {
+        let mut counter = Counter { count: 0 };
+        counter.update(key_char('-'));
+        assert_eq!(counter.count, -1);
+    }
+
+    #[test]
+    fn test_counter_multiple_operations() {
+        let mut counter = Counter::new();
+        counter.update(key_char('+'));
+        counter.update(key_char('+'));
+        counter.update(key_char('-'));
+        assert_eq!(counter.count, 1);
+    }
+
+    #[test]
+    fn test_view_contains_count() {
+        let counter = Counter { count: 42 };
+        let view = counter.view();
+        assert!(view.contains("42"), "View should contain count: {}", view);
+    }
+
+    #[test]
+    fn test_view_contains_help_text() {
+        let counter = Counter::new();
+        let view = counter.view();
+        assert!(view.contains("[+/-]"), "View should contain help text");
+        assert!(view.contains("[q]"), "View should contain quit hint");
+    }
+
+    #[test]
+    fn test_quit_returns_command() {
+        let mut counter = Counter::new();
+        let cmd = counter.update(key_char('q'));
+        assert!(cmd.is_some(), "Quit should return a command");
+    }
+
+    #[test]
+    fn test_init_returns_none() {
+        let counter = Counter::new();
+        assert!(counter.init().is_none(), "Init should return None");
+    }
+}

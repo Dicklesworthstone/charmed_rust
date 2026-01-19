@@ -8,6 +8,9 @@ members = [
     "intermediate/todo-list",
     "intermediate/viewport",
     "intermediate/progress",
+    "advanced/form",
+    "advanced/markdown-viewer",
+    "advanced/multi-component",
 ]
 
 [workspace.package]

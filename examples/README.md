@@ -14,7 +14,10 @@ examples/
 │   ├── todo-list/      # Todo list with state management
 │   ├── viewport/       # Scrollable content viewer
 │   └── progress/       # Async progress bar with tick commands
-├── advanced/          # Complex applications (coming soon)
+├── advanced/          # Complex applications
+│   ├── form/           # Multi-step form with validation
+│   ├── markdown-viewer/# Markdown rendering with glamour
+│   └── multi-component/# Dashboard with focus management
 └── showcase/          # Full-featured demos (coming soon)
 ```
 
@@ -50,12 +53,13 @@ cd examples && cargo run -p example-counter
 | [viewport](intermediate/viewport/) | Scrollable content viewer | bubbletea, bubbles, lipgloss |
 | [progress](intermediate/progress/) | Async progress bar with tick commands | bubbletea, bubbles, lipgloss |
 
-### Advanced (Coming Soon)
+### Advanced
 
 | Example | Description | Crates Used |
 |---------|-------------|-------------|
-| form | Form with validation | huh |
-| markdown-viewer | Interactive markdown | bubbletea, glamour |
+| [form](advanced/form/) | Multi-step form with validation | bubbletea, huh, lipgloss |
+| [markdown-viewer](advanced/markdown-viewer/) | Markdown rendering with scrolling | bubbletea, bubbles, glamour |
+| [multi-component](advanced/multi-component/) | Dashboard with focus management | bubbletea, bubbles, lipgloss |
 
 ## Adding New Examples
 
