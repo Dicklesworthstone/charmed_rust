@@ -33,7 +33,7 @@ use crate::key::{Binding, matches};
 use crate::paginator::Paginator;
 use crate::spinner::{SpinnerModel, TickMsg};
 use crate::textinput::TextInput;
-use bubbletea::{Cmd, KeyMsg, Message};
+use bubbletea::{Cmd, KeyMsg, Message, Model};
 use lipgloss::{Color, Style};
 use std::time::Duration;
 
@@ -751,6 +751,30 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
 
         sections.join("\n")
     }
+
+    /// Initializes the list (called when used as a standalone Model).
+    ///
+    /// Returns `None` by default since lists are typically initialized with items.
+    /// Override or use `start_spinner()` if loading items asynchronously.
+    #[must_use]
+    pub fn init(&self) -> Option<Cmd> {
+        None
+    }
+}
+
+/// Implement the Model trait for standalone bubbletea usage.
+impl<I: Item, D: ItemDelegate<I>> Model for List<I, D> {
+    fn init(&self) -> Option<Cmd> {
+        List::init(self)
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        List::update(self, msg)
+    }
+
+    fn view(&self) -> String {
+        List::view(self)
+    }
 }
 
 // Implement Debug manually since FilterFn doesn't implement Debug
@@ -941,5 +965,50 @@ mod tests {
         assert_eq!(FilterState::Unfiltered.to_string(), "unfiltered");
         assert_eq!(FilterState::Filtering.to_string(), "filtering");
         assert_eq!(FilterState::FilterApplied.to_string(), "filter applied");
+    }
+
+    // Model trait implementation tests
+
+    #[test]
+    fn test_model_trait_init_returns_none() {
+        let list = List::new(test_items(), DefaultDelegate::new(), 80, 24);
+        // Use the Model trait method explicitly
+        let cmd = Model::init(&list);
+        assert!(cmd.is_none(), "Model::init should return None for List");
+    }
+
+    #[test]
+    fn test_model_trait_view_returns_content() {
+        let list = List::new(test_items(), DefaultDelegate::new(), 80, 24).title("Test List");
+        // Use the Model trait method explicitly
+        let view = Model::view(&list);
+        assert!(view.contains("Test List"), "View should contain the title");
+        assert!(view.contains("Apple"), "View should contain first item");
+    }
+
+    #[test]
+    fn test_model_trait_update_handles_messages() {
+        let mut list = List::new(test_items(), DefaultDelegate::new(), 80, 24);
+        assert_eq!(list.index(), 0);
+
+        // Create a down key message to navigate
+        let key_msg = Message::new(KeyMsg {
+            key_type: bubbletea::KeyType::Runes,
+            runes: vec!['j'], // 'j' is mapped to cursor_down
+            alt: false,
+            paste: false,
+        });
+
+        // Use the Model trait method explicitly
+        let _ = Model::update(&mut list, key_msg);
+        assert_eq!(list.index(), 1, "Cursor should have moved down");
+    }
+
+    #[test]
+    fn test_list_satisfies_model_bounds() {
+        // This test verifies List can be used where Model + Send + 'static is required
+        fn accepts_model<M: Model + Send + 'static>(_model: M) {}
+        let list = List::new(test_items(), DefaultDelegate::new(), 80, 24);
+        accepts_model(list);
     }
 }

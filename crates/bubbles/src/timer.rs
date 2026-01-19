@@ -17,7 +17,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use bubbletea::{Cmd, Message};
+use bubbletea::{Cmd, Message, Model};
 
 /// Global ID counter for timer instances.
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
@@ -225,6 +225,58 @@ impl Timer {
     }
 }
 
+/// Implement the Model trait for standalone bubbletea usage.
+impl Model for Timer {
+    fn init(&self) -> Option<Cmd> {
+        Some(self.tick_cmd())
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        // Handle start/stop
+        if let Some(ss) = msg.downcast_ref::<StartStopMsg>() {
+            if ss.id != 0 && ss.id != self.id {
+                return None;
+            }
+            self.running = ss.running;
+            return Some(self.tick_cmd());
+        }
+
+        // Handle tick
+        if let Some(tick) = msg.downcast_ref::<TickMsg>() {
+            if !self.running() || (tick.id != 0 && tick.id != self.id) {
+                return None;
+            }
+
+            // Reject old tags
+            if tick.tag > 0 && tick.tag != self.tag {
+                return None;
+            }
+
+            // Decrease timeout
+            self.timeout = self.timeout.saturating_sub(self.interval);
+            self.tag = self.tag.wrapping_add(1);
+
+            // Return tick command and optionally timeout message
+            if self.timed_out() {
+                let id = self.id;
+                let tick_cmd = self.tick_cmd();
+                return bubbletea::batch(vec![
+                    Some(tick_cmd),
+                    Some(Cmd::new(move || Message::new(TimeoutMsg { id }))),
+                ]);
+            }
+
+            return Some(self.tick_cmd());
+        }
+
+        None
+    }
+
+    fn view(&self) -> String {
+        format_duration(self.timeout)
+    }
+}
+
 /// Formats a duration for display.
 fn format_duration(d: Duration) -> String {
     let total_secs = d.as_secs();
@@ -329,5 +381,68 @@ mod tests {
         assert_eq!(format_duration(Duration::from_secs(90)), "1m30s");
         assert_eq!(format_duration(Duration::from_secs(3600)), "1h0m0s");
         assert_eq!(format_duration(Duration::from_millis(5500)), "5.5s");
+    }
+
+    // Model trait implementation tests
+
+    #[test]
+    fn test_model_trait_init_returns_cmd() {
+        let timer = Timer::new(Duration::from_secs(30));
+        // Use the Model trait method explicitly
+        let cmd = Model::init(&timer);
+        assert!(cmd.is_some(), "Model::init should return a command");
+    }
+
+    #[test]
+    fn test_model_trait_view_formats_time() {
+        let timer = Timer::new(Duration::from_secs(125));
+        // Use the Model trait method explicitly
+        let view = Model::view(&timer);
+        assert_eq!(view, "2m5s");
+    }
+
+    #[test]
+    fn test_model_trait_update_handles_tick() {
+        let mut timer = Timer::new(Duration::from_secs(10));
+        let id = timer.id();
+
+        // Use the Model trait method explicitly
+        let tick_msg = Message::new(TickMsg {
+            id,
+            tag: 0,
+            timeout: false,
+        });
+        let cmd = Model::update(&mut timer, tick_msg);
+
+        // Should return a command for the next tick
+        assert!(
+            cmd.is_some(),
+            "Model::update should return next tick command"
+        );
+        assert_eq!(timer.remaining(), Duration::from_secs(9));
+    }
+
+    #[test]
+    fn test_model_trait_update_handles_start_stop() {
+        let mut timer = Timer::new(Duration::from_secs(10));
+        let id = timer.id();
+
+        // Stop the timer
+        let stop_msg = Message::new(StartStopMsg { id, running: false });
+        let _ = Model::update(&mut timer, stop_msg);
+        assert!(!timer.running(), "Timer should be stopped");
+
+        // Start the timer
+        let start_msg = Message::new(StartStopMsg { id, running: true });
+        let _ = Model::update(&mut timer, start_msg);
+        assert!(timer.running(), "Timer should be running again");
+    }
+
+    #[test]
+    fn test_timer_satisfies_model_bounds() {
+        // This test verifies Timer can be used where Model + Send + 'static is required
+        fn accepts_model<M: Model + Send + 'static>(_model: M) {}
+        let timer = Timer::new(Duration::from_secs(10));
+        accepts_model(timer);
     }
 }
