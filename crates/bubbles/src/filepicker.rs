@@ -844,7 +844,10 @@ mod tests {
         let down_msg = Message::new(KeyMsg::from_type(KeyType::Down));
         let _ = Model::update(&mut fp, down_msg);
 
-        assert_eq!(fp.selected, 1, "FilePicker should navigate down on Down key");
+        assert_eq!(
+            fp.selected, 1,
+            "FilePicker should navigate down on Down key"
+        );
     }
 
     #[test]
@@ -870,7 +873,11 @@ mod tests {
 
         let _ = Model::update(&mut fp, Message::new(read_msg));
 
-        assert_eq!(fp.files.len(), 1, "FilePicker should populate files from ReadDirMsg");
+        assert_eq!(
+            fp.files.len(),
+            1,
+            "FilePicker should populate files from ReadDirMsg"
+        );
         assert_eq!(fp.files[0].name, "test.txt");
     }
 
@@ -896,6 +903,9 @@ mod tests {
 
         let _ = Model::update(&mut fp, Message::new(read_msg));
 
-        assert!(fp.files.is_empty(), "FilePicker should ignore ReadDirMsg with wrong ID");
+        assert!(
+            fp.files.is_empty(),
+            "FilePicker should ignore ReadDirMsg with wrong ID"
+        );
     }
 }

@@ -11,8 +11,13 @@ description = "Stylesheet-based markdown rendering for terminal applications"
 lipgloss = { path = "../lipgloss" }
 pulldown-cmark = "0.13"
 
+[features]
+default = []
+syntax-highlighting = []
+
 [dev-dependencies]
 criterion.workspace = true
+stats_alloc = "0.1.10"
 
 [[bench]]
 name = "glamour_benchmarks"

@@ -501,7 +501,10 @@ mod tests {
         let cmd = Model::update(&mut p, frame_msg);
 
         // Should return a command for the next frame (animating)
-        assert!(cmd.is_some(), "Model::update should return next frame command when animating");
+        assert!(
+            cmd.is_some(),
+            "Model::update should return next frame command when animating"
+        );
         // Percent should have changed
         assert!(p.percent_shown > 0.0, "percent_shown should have advanced");
     }
@@ -517,8 +520,14 @@ mod tests {
         let frame_msg = Message::new(FrameMsg { id: 99999, tag: 0 });
         let cmd = Model::update(&mut p, frame_msg);
 
-        assert!(cmd.is_none(), "Should ignore messages for other progress bars");
-        assert!((p.percent_shown - original_percent).abs() < 0.001, "percent_shown should not change");
+        assert!(
+            cmd.is_none(),
+            "Should ignore messages for other progress bars"
+        );
+        assert!(
+            (p.percent_shown - original_percent).abs() < 0.001,
+            "percent_shown should not change"
+        );
     }
 
     #[test]
@@ -535,7 +544,10 @@ mod tests {
         let cmd = Model::update(&mut p, frame_msg);
 
         assert!(cmd.is_none(), "Should ignore messages with old tag");
-        assert!((p.percent_shown - original_percent).abs() < 0.001, "percent_shown should not change");
+        assert!(
+            (p.percent_shown - original_percent).abs() < 0.001,
+            "percent_shown should not change"
+        );
     }
 
     #[test]

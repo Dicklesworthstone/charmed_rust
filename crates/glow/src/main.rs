@@ -12,25 +12,70 @@
 //! glow github.com/user/repo # Read GitHub README
 //! ```
 
+use std::io::Read;
+use std::path::PathBuf;
+
+use clap::{ArgAction, CommandFactory, Parser};
 use glow::{Config, Reader};
 
-fn main() {
-    let args: Vec<String> = std::env::args().collect();
+#[derive(Debug, Parser)]
+#[command(name = "glow", about = "Terminal-based markdown reader", version)]
+struct Cli {
+    /// Markdown file to render. Use "-" to read from stdin.
+    path: Option<PathBuf>,
 
-    let config = Config::new();
+    /// Style theme (dark, light, ascii, pink, auto, no-tty)
+    #[arg(short = 's', long, default_value = "dark")]
+    style: String,
+
+    /// Word wrap width (defaults to glamour's default if omitted)
+    #[arg(short, long)]
+    width: Option<usize>,
+
+    /// Disable pager mode (not yet implemented)
+    #[arg(long = "no-pager", action = ArgAction::SetTrue)]
+    no_pager: bool,
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    let mut config = Config::new().style(cli.style).pager(!cli.no_pager);
+    if let Some(width) = cli.width {
+        config = config.width(width);
+    }
+
     let reader = Reader::new(config);
 
-    if let Some(path) = args.get(1) {
-        match reader.read_file(path) {
-            Ok(output) => println!("{output}"),
-            Err(e) => eprintln!("Error reading file: {e}"),
+    match cli.path {
+        Some(path) => {
+            if path.as_os_str() == "-" {
+                let mut input = String::new();
+                if let Err(err) = std::io::stdin().read_to_string(&mut input) {
+                    eprintln!("Error reading stdin: {err}");
+                    std::process::exit(1);
+                }
+                match reader.render_markdown(&input) {
+                    Ok(output) => print!("{output}"),
+                    Err(err) => {
+                        eprintln!("Error rendering markdown: {err}");
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                match reader.read_file(&path) {
+                    Ok(output) => print!("{output}"),
+                    Err(err) => {
+                        eprintln!("Error reading file: {err}");
+                        std::process::exit(1);
+                    }
+                }
+            }
         }
-    } else {
-        println!("Glow - Terminal Markdown Reader");
-        println!();
-        println!("Usage: glow [file]");
-        println!();
-        println!("Arguments:");
-        println!("  [file]  Markdown file to render");
+        None => {
+            let mut cmd = Cli::command();
+            let _ = cmd.print_help();
+            println!();
+        }
     }
 }

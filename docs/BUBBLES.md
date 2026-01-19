@@ -1046,3 +1046,924 @@ mod tests {
     }
 }
 ```
+
+## Model Trait Usage Guides
+
+These guides focus on wiring each component into a Bubble Tea update loop. Every section lists the messages the component understands, the commands it returns, and a minimal working example.
+
+### cursor
+
+#### Overview
+Blinking cursor primitive used by text inputs. It reacts to focus/blur and blink messages.
+
+#### Quick Start
+```rust
+use bubbles::cursor::Cursor;
+
+let mut cursor = Cursor::new();
+cursor.set_char("_");
+cursor.focus();
+```
+
+#### Messages
+- `InitialBlinkMsg`
+- `BlinkMsg { id, tag }`
+- `BlinkCanceledMsg`
+- `bubbletea::FocusMsg` / `bubbletea::BlurMsg`
+
+#### Commands
+- `blink_cmd()` to kick off blinking
+- `Cursor::focus()` / `Cursor::set_mode(Mode::Blink)` return a blink command
+- `Cursor::update(...)` returns the next blink command when a `BlinkMsg` is handled
+
+#### Configuration
+- `blink_speed`, `set_mode(Mode)`, `set_char(...)`
+- `focus()` / `blur()` to enable or disable blinking
+
+#### Styling
+- `style` for the cursor block
+- `text_style` for the hidden/blinked-off state
+
+#### Full Example
+```rust
+use bubbletea::{Cmd, Message, Model, Program};
+use bubbles::cursor::Cursor;
+
+struct App {
+    cursor: Cursor,
+}
+
+impl Model for App {
+    fn init(&self) -> Option<Cmd> {
+        self.cursor.init()
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        self.cursor.update(msg)
+    }
+
+    fn view(&self) -> String {
+        self.cursor.view()
+    }
+}
+
+fn main() -> Result<(), bubbletea::Error> {
+    let mut cursor = Cursor::new();
+    cursor.set_char("_");
+    cursor.focus();
+
+    let app = App { cursor };
+    Program::new(app).run().map(|_| ())
+}
+```
+
+### spinner
+
+#### Overview
+Animated loading indicator with multiple preset styles.
+
+#### Quick Start
+```rust
+use bubbles::spinner::{SpinnerModel, spinners};
+
+let spinner = SpinnerModel::with_spinner(spinners::dot());
+```
+
+#### Messages
+- `TickMsg { id, tag }`
+
+#### Commands
+- `SpinnerModel::init()` returns the first tick command
+- `SpinnerModel::update(...)` returns the next tick command
+
+#### Configuration
+- `SpinnerModel::with_spinner(spinner)`
+- `SpinnerModel::spinner(...)` to swap styles
+- `style` for lipgloss styling
+
+#### Styling
+- `style` applies to the rendered frame
+
+#### Full Example
+```rust
+use bubbletea::Program;
+use bubbles::spinner::{SpinnerModel, spinners};
+
+fn main() -> Result<(), bubbletea::Error> {
+    let spinner = SpinnerModel::with_spinner(spinners::dot());
+    Program::new(spinner).run().map(|_| ())
+}
+```
+
+### progress
+
+#### Overview
+Animated progress bar with optional gradient fills.
+
+#### Quick Start
+```rust
+use bubbles::progress::Progress;
+
+let mut progress = Progress::new().width(40);
+let _ = progress.set_percent(0.75);
+```
+
+#### Messages
+- `FrameMsg { id, tag }`
+
+#### Commands
+- `set_percent` / `incr_percent` / `decr_percent` return a frame command
+- `Progress::update(...)` returns the next frame command while animating
+
+#### Configuration
+- `width(...)`, `fill_chars(...)`, `solid_fill(...)`
+- `with_gradient()` or `with_gradient_colors(...)`
+- `with_scaled_gradient(...)`
+- `without_percentage()`
+- `set_spring_options(frequency, damping)`
+
+#### Styling
+- `percentage_style` for the percentage text
+- `full_color` / `empty_color` (solid) or gradient colors
+
+#### Full Example
+```rust
+use bubbletea::{Cmd, Message, Model, Program};
+use bubbles::progress::Progress;
+
+struct StartMsg;
+
+struct App {
+    progress: Progress,
+}
+
+impl Model for App {
+    fn init(&self) -> Option<Cmd> {
+        Some(Cmd::new(|| Message::new(StartMsg)))
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        if msg.is::<StartMsg>() {
+            return self.progress.set_percent(0.75);
+        }
+        self.progress.update(msg)
+    }
+
+    fn view(&self) -> String {
+        self.progress.view()
+    }
+}
+
+fn main() -> Result<(), bubbletea::Error> {
+    let progress = Progress::new().width(40);
+    let app = App { progress };
+    Program::new(app).run().map(|_| ())
+}
+```
+
+### paginator
+
+#### Overview
+Pagination control for lists/tables with arabic or dot display.
+
+#### Quick Start
+```rust
+use bubbles::paginator::{Paginator, Type};
+
+let paginator = Paginator::new()
+    .display_type(Type::Dots)
+    .per_page(10)
+    .total_pages(5);
+```
+
+#### Messages
+- `KeyMsg` (uses `key_map.next_page` / `key_map.prev_page`)
+
+#### Commands
+- None (pure state updates)
+
+#### Configuration
+- `display_type(Type)`
+- `per_page(...)`, `total_pages(...)`
+- `active_dot`, `inactive_dot`, `arabic_format`
+- `key_map` for navigation
+
+#### Styling
+- Rendered dots/format strings; use lipgloss in your view if needed
+
+#### Full Example
+```rust
+use bubbletea::Program;
+use bubbles::paginator::{Paginator, Type};
+
+fn main() -> Result<(), bubbletea::Error> {
+    let paginator = Paginator::new()
+        .display_type(Type::Dots)
+        .per_page(10)
+        .total_pages(5);
+
+    Program::new(paginator).run().map(|_| ())
+}
+```
+
+### timer
+
+#### Overview
+Countdown timer that ticks down and emits a timeout message.
+
+#### Quick Start
+```rust
+use bubbles::timer::Timer;
+use std::time::Duration;
+
+let timer = Timer::new(Duration::from_secs(60));
+```
+
+#### Messages
+- `StartStopMsg { id, running }`
+- `TickMsg { id, timeout, tag }`
+- `TimeoutMsg { id }`
+
+#### Commands
+- `init()` returns the first tick command
+- `start()` / `stop()` / `toggle()` return a StartStop command
+- `update(...)` returns the next tick command, and batches a `TimeoutMsg` when time runs out
+
+#### Configuration
+- `Timer::new(timeout)`
+- `Timer::with_interval(timeout, interval)`
+
+#### Styling
+- None (render with your own lipgloss styles)
+
+#### Full Example
+```rust
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, quit};
+use bubbles::timer::{Timer, TimeoutMsg};
+use std::time::Duration;
+
+struct App {
+    timer: Timer,
+}
+
+impl Model for App {
+    fn init(&self) -> Option<Cmd> {
+        self.timer.init()
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        if msg.is::<TimeoutMsg>() {
+            return Some(quit());
+        }
+        if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+            if key.key_type == KeyType::Runes && key.runes == vec!['q'] {
+                return Some(quit());
+            }
+        }
+        self.timer.update(msg)
+    }
+
+    fn view(&self) -> String {
+        format!("Remaining: {:?}\nPress q to quit", self.timer.remaining())
+    }
+}
+
+fn main() -> Result<(), bubbletea::Error> {
+    let timer = Timer::new(Duration::from_secs(10));
+    let app = App { timer };
+    Program::new(app).run().map(|_| ())
+}
+```
+
+### stopwatch
+
+#### Overview
+Counts up from zero at a configured interval.
+
+#### Quick Start
+```rust
+use bubbles::stopwatch::Stopwatch;
+
+let stopwatch = Stopwatch::new();
+```
+
+#### Messages
+- `StartStopMsg { id, running }`
+- `TickMsg { id, tag }`
+- `ResetMsg { id }`
+
+#### Commands
+- `init()` returns a start/tick sequence
+- `start()` / `stop()` / `toggle()` / `reset()` return commands
+- `update(...)` returns the next tick command while running
+
+#### Configuration
+- `Stopwatch::new()`
+- `Stopwatch::with_interval(interval)`
+
+#### Styling
+- None (render with your own lipgloss styles)
+
+#### Full Example
+```rust
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, quit};
+use bubbles::stopwatch::Stopwatch;
+
+struct App {
+    sw: Stopwatch,
+}
+
+impl Model for App {
+    fn init(&self) -> Option<Cmd> {
+        self.sw.init()
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+            if key.key_type == KeyType::Runes && key.runes == vec!['q'] {
+                return Some(quit());
+            }
+            if key.key_type == KeyType::Runes && key.runes == vec![' '] {
+                return self.sw.toggle();
+            }
+            if key.key_type == KeyType::Runes && key.runes == vec!['r'] {
+                return self.sw.reset();
+            }
+        }
+        self.sw.update(msg)
+    }
+
+    fn view(&self) -> String {
+        format!(
+            "Elapsed: {:?}\nspace start/stop, r reset, q quit",
+            self.sw.elapsed()
+        )
+    }
+}
+
+fn main() -> Result<(), bubbletea::Error> {
+    let sw = Stopwatch::new();
+    let app = App { sw };
+    Program::new(app).run().map(|_| ())
+}
+```
+
+### viewport
+
+#### Overview
+Scrollable window over long content, with keyboard and mouse-wheel support.
+
+#### Quick Start
+```rust
+use bubbles::viewport::Viewport;
+
+let mut viewport = Viewport::new(40, 10);
+viewport.set_content("Line 1\nLine 2\nLine 3");
+```
+
+#### Messages
+- `KeyMsg` (page up/down, arrows, etc.)
+- `MouseMsg` (wheel scrolling, if enabled)
+
+#### Commands
+- None (pure state updates)
+
+#### Configuration
+- `Viewport::new(width, height)`
+- `set_content(...)`, `set_y_offset(...)`, `set_x_offset(...)`
+- `key_map`, `mouse_wheel_enabled`, `mouse_wheel_delta`, `style`
+
+#### Styling
+- `style` for the rendered window
+
+#### Full Example
+```rust
+use bubbletea::{Cmd, Message, Model, Program};
+use bubbles::viewport::Viewport;
+
+struct App {
+    viewport: Viewport,
+}
+
+impl Model for App {
+    fn init(&self) -> Option<Cmd> {
+        None
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        self.viewport.update(&msg);
+        None
+    }
+
+    fn view(&self) -> String {
+        self.viewport.view()
+    }
+}
+
+fn main() -> Result<(), bubbletea::Error> {
+    let content = (0..100).map(|i| format!("Line {}\n", i)).collect::<String>();
+    let mut viewport = Viewport::new(40, 10);
+    viewport.set_content(&content);
+
+    let app = App { viewport };
+    Program::new(app).run().map(|_| ())
+}
+```
+
+### help
+
+#### Overview
+Renders short or full help text for key bindings.
+
+#### Quick Start
+```rust
+use bubbles::help::Help;
+use bubbles::key::Binding;
+
+let help = Help::new();
+let quit = Binding::new().keys(&["q"]).help("q", "quit");
+let view = help.short_help_view(&[&quit]);
+```
+
+#### Messages
+- `ToggleFullHelpMsg`
+- `SetWidthMsg(usize)`
+- `SetBindingsMsg(Vec<Binding>)`
+
+#### Commands
+- None
+
+#### Configuration
+- `width(...)`, `show_all(...)`
+- `with_bindings(...)`, `set_bindings(...)`
+- separators and `ellipsis` strings
+
+#### Styling
+- `Styles` fields (`short_key`, `short_desc`, `full_key`, `full_desc`, etc.)
+
+#### Full Example
+```rust
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, quit};
+use bubbles::help::{Help, ToggleFullHelpMsg};
+use bubbles::key::Binding;
+
+struct App {
+    help: Help,
+}
+
+impl Model for App {
+    fn init(&self) -> Option<Cmd> {
+        None
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+            if key.key_type == KeyType::Runes && key.runes == vec!['q'] {
+                return Some(quit());
+            }
+            if key.key_type == KeyType::Runes && key.runes == vec!['?'] {
+                let _ = self.help.update(Message::new(ToggleFullHelpMsg));
+            }
+        }
+        None
+    }
+
+    fn view(&self) -> String {
+        let bindings: Vec<&Binding> = self.help.bindings().iter().collect();
+        self.help.view(&bindings)
+    }
+}
+
+fn main() -> Result<(), bubbletea::Error> {
+    let bindings = vec![
+        Binding::new().keys(&["q"]).help("q", "quit"),
+        Binding::new().keys(&["?"]).help("?", "toggle help"),
+    ];
+
+    let help = Help::new().with_bindings(bindings);
+    let app = App { help };
+    Program::new(app).run().map(|_| ())
+}
+```
+
+### textinput
+
+#### Overview
+Single-line text input with cursor, validation, and suggestions.
+
+#### Quick Start
+```rust
+use bubbles::textinput::TextInput;
+
+let mut input = TextInput::new();
+input.focus();
+input.placeholder = "Search...".to_string();
+```
+
+#### Messages
+- `KeyMsg`
+- `PasteMsg(String)` / `PasteErrMsg(String)`
+- Cursor blink messages from `cursor` (`InitialBlinkMsg`, `BlinkMsg`, `BlinkCanceledMsg`)
+
+#### Commands
+- `focus()` returns a cursor blink command
+- `update(...)` may return cursor blink commands
+
+#### Configuration
+- `prompt`, `placeholder`, `echo_mode`, `echo_character`
+- `char_limit`, `width`, `show_suggestions`
+- `key_map`, `set_value(...)`, `set_suggestions(...)`, `set_validate(...)`
+
+#### Styling
+- `prompt_style`, `text_style`, `placeholder_style`, `completion_style`
+- `cursor` styles (via `cursor.style` / `cursor.text_style`)
+
+#### Full Example
+```rust
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, quit};
+use bubbles::textinput::TextInput;
+
+struct App {
+    input: TextInput,
+}
+
+impl Model for App {
+    fn init(&self) -> Option<Cmd> {
+        self.input.init()
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+            if key.key_type == KeyType::Enter {
+                return Some(quit());
+            }
+        }
+        self.input.update(msg)
+    }
+
+    fn view(&self) -> String {
+        format!("{}\n(enter to quit)", self.input.view())
+    }
+}
+
+fn main() -> Result<(), bubbletea::Error> {
+    let mut input = TextInput::new();
+    input.prompt = "> ".to_string();
+    input.focus();
+
+    let app = App { input };
+    Program::new(app).run().map(|_| ())
+}
+```
+
+### textarea
+
+#### Overview
+Multi-line text editor with cursor, scrolling, and line numbers.
+
+#### Quick Start
+```rust
+use bubbles::textarea::TextArea;
+
+let mut textarea = TextArea::new();
+textarea.focus();
+textarea.set_height(10);
+```
+
+#### Messages
+- `KeyMsg`
+- `PasteMsg(String)` / `PasteErrMsg(String)`
+- Cursor blink messages from `cursor`
+- Viewport scroll messages (`KeyMsg`, `MouseMsg`) via embedded viewport
+
+#### Commands
+- `focus()` returns a cursor blink command
+- `update(...)` may return cursor blink commands
+
+#### Configuration
+- `prompt`, `placeholder`, `show_line_numbers`
+- `max_height`, `max_width`, `char_limit`
+- `key_map`, `set_value(...)`
+
+#### Styling
+- `focused_style` / `blurred_style` (prompt, text, cursor, line numbers)
+- `cursor` styles
+
+#### Full Example
+```rust
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, quit};
+use bubbles::textarea::TextArea;
+
+struct App {
+    textarea: TextArea,
+}
+
+impl Model for App {
+    fn init(&self) -> Option<Cmd> {
+        self.textarea.init()
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+            if key.key_type == KeyType::Runes && key.runes == vec!['q'] {
+                return Some(quit());
+            }
+        }
+        self.textarea.update(msg)
+    }
+
+    fn view(&self) -> String {
+        format!("{}\n(q to quit)", self.textarea.view())
+    }
+}
+
+fn main() -> Result<(), bubbletea::Error> {
+    let mut textarea = TextArea::new();
+    textarea.focus();
+
+    let app = App { textarea };
+    Program::new(app).run().map(|_| ())
+}
+```
+
+### table
+
+#### Overview
+Keyboard-navigable table for tabular data.
+
+#### Quick Start
+```rust
+use bubbles::table::{Column, Table};
+
+let columns = vec![Column::new("ID", 6), Column::new("Name", 20)];
+let rows = vec![vec!["1".into(), "Alice".into()]];
+let table = Table::new().columns(columns).rows(rows).focused(true);
+```
+
+#### Messages
+- `KeyMsg` (navigation via `key_map`)
+
+#### Commands
+- None
+
+#### Configuration
+- `columns(...)`, `rows(...)`
+- `width(...)`, `height(...)`
+- `focused(true/false)`
+- `styles` and `key_map`
+
+#### Styling
+- `styles.header`, `styles.cell`, `styles.selected`
+
+#### Full Example
+```rust
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, quit};
+use bubbles::table::{Column, Table};
+
+struct App {
+    table: Table,
+}
+
+impl Model for App {
+    fn init(&self) -> Option<Cmd> {
+        self.table.init()
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+            if key.key_type == KeyType::Runes && key.runes == vec!['q'] {
+                return Some(quit());
+            }
+        }
+        self.table.update(msg)
+    }
+
+    fn view(&self) -> String {
+        self.table.view()
+    }
+}
+
+fn main() -> Result<(), bubbletea::Error> {
+    let columns = vec![
+        Column::new("ID", 6),
+        Column::new("Name", 20),
+        Column::new("Status", 10),
+    ];
+    let rows = vec![
+        vec!["1".into(), "Alice".into(), "Active".into()],
+        vec!["2".into(), "Bob".into(), "Inactive".into()],
+    ];
+
+    let table = Table::new()
+        .columns(columns)
+        .rows(rows)
+        .width(40)
+        .height(10)
+        .focused(true);
+
+    let app = App { table };
+    Program::new(app).run().map(|_| ())
+}
+```
+
+### list
+
+#### Overview
+Filterable, paginated list with optional spinner and status bar.
+
+#### Quick Start
+```rust
+use bubbles::list::{DefaultDelegate, Item, List};
+
+#[derive(Clone)]
+struct MyItem(String);
+
+impl Item for MyItem {
+    fn filter_value(&self) -> &str {
+        &self.0
+    }
+}
+
+let items = vec![MyItem("Apple".into()), MyItem("Banana".into())];
+let list = List::new(items, DefaultDelegate::new(), 40, 10);
+```
+
+#### Messages
+- `KeyMsg` (navigation/filtering)
+- `StatusMessageTimeoutMsg`
+- `spinner::TickMsg` (when spinner is visible)
+- When filtering, messages are forwarded to the embedded `TextInput`
+
+#### Commands
+- `new_status_message(...)` returns a timeout command
+- `filter_input.update(...)` may return cursor blink commands
+- `spinner.update(...)` returns the next tick command
+
+#### Configuration
+- `title`, `show_title`, `show_filter`, `show_status_bar`, `show_help`
+- `filtering_enabled`, `infinite_scrolling`
+- `set_width(...)`, `set_height(...)`
+- `key_map`, `styles`, `status_message_lifetime`
+
+#### Styling
+- `styles.title`, `styles.status_bar`, `styles.pagination`, `styles.help`, etc.
+
+#### Full Example
+```rust
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, quit};
+use bubbles::list::{DefaultDelegate, Item, List};
+
+#[derive(Clone)]
+struct MyItem(String);
+
+impl Item for MyItem {
+    fn filter_value(&self) -> &str {
+        &self.0
+    }
+}
+
+struct App {
+    list: List<MyItem, DefaultDelegate>,
+}
+
+impl Model for App {
+    fn init(&self) -> Option<Cmd> {
+        self.list.init()
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+            if key.key_type == KeyType::Runes && key.runes == vec!['q'] {
+                return Some(quit());
+            }
+        }
+        self.list.update(msg)
+    }
+
+    fn view(&self) -> String {
+        self.list.view()
+    }
+}
+
+fn main() -> Result<(), bubbletea::Error> {
+    let items = vec![MyItem("Apple".into()), MyItem("Banana".into())];
+    let list = List::new(items, DefaultDelegate::new(), 40, 10);
+
+    let app = App { list };
+    Program::new(app).run().map(|_| ())
+}
+```
+
+### filepicker
+
+#### Overview
+File system browser for selecting files and directories.
+
+#### Quick Start
+```rust
+use bubbles::filepicker::FilePicker;
+
+let picker = FilePicker::new();
+```
+
+#### Messages
+- `ReadDirMsg { id, entries }`
+- `ReadDirErrMsg { id, error }`
+- `WindowSizeMsg` (auto height)
+- `KeyMsg` (navigation, open, select)
+
+#### Commands
+- `init()` returns a directory read command
+- `update(...)` returns a new read command when changing directories
+
+#### Configuration
+- `current_directory` (via `set_current_directory`)
+- `height`, `auto_height`
+- `allowed_types`, `dir_allowed`, `file_allowed`
+- `show_hidden`, `show_permissions`, `show_size`
+- `cursor_char`, `styles`, `key_map`
+
+#### Styling
+- `styles.cursor`, `styles.directory`, `styles.file`, `styles.selected`, etc.
+
+#### Full Example
+```rust
+use bubbletea::{Cmd, Message, Model, Program, quit};
+use bubbles::filepicker::FilePicker;
+
+struct App {
+    picker: FilePicker,
+    selected: Option<String>,
+}
+
+impl Model for App {
+    fn init(&self) -> Option<Cmd> {
+        self.picker.init()
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        if let Some(path) = self.picker.did_select_file(&msg) {
+            self.selected = Some(path.to_string_lossy().to_string());
+            return Some(quit());
+        }
+        self.picker.update(msg)
+    }
+
+    fn view(&self) -> String {
+        let mut out = self.picker.view();
+        if let Some(path) = &self.selected {
+            out.push_str(&format!("\nSelected: {path}"));
+        }
+        out
+    }
+}
+
+fn main() -> Result<(), bubbletea::Error> {
+    let picker = FilePicker::new();
+    let app = App {
+        picker,
+        selected: None,
+    };
+    Program::new(app).run().map(|_| ())
+}
+```
+
+## Migration Guide: Non-Model to Model Usage
+
+If you previously used components by manually calling `update` and `view` from your own code, you can migrate to the Model pattern in two steps:
+
+1. **Embed the component in your model**
+   ```rust
+   struct App { list: List<MyItem, DefaultDelegate> }
+   ```
+
+2. **Forward messages and commands**
+   ```rust
+   fn update(&mut self, msg: Message) -> Option<Cmd> {
+       self.list.update(msg)
+   }
+   ```
+
+When a component returns a `Cmd`, return it from your app so the event loop keeps running (e.g., cursor blink, spinner ticks, timer ticks).
+
+## FAQ
+
+**Q: My text input/textarea doesn't respond to keys.**
+A: Call `focus()` before running and forward `Message` values to `update`.
+
+**Q: My spinner/progress doesn't animate.**
+A: Make sure you return the command from `init()` or from `update(...)` so tick/frame messages are scheduled.
+
+**Q: My file picker stays empty.**
+A: Call `init()` so it returns a read-dir command, or trigger a read command after changing directories.
+
+**Q: Help view never toggles.**
+A: You must send `ToggleFullHelpMsg` from your own `update` logic when a key is pressed.
+
+## Performance Considerations
+
+- Prefer pagination (`Paginator` or `List`) over rendering massive lists every frame.
+- Keep viewport sizes bounded; rendering scales with width * height.
+- Reuse components and styles instead of rebuilding them on every update.
+- Avoid excessive styling in tight loops; precompute where possible.
+- For timers/spinners, keep tick rates reasonable to avoid unnecessary redraws.

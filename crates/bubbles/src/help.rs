@@ -507,9 +507,7 @@ mod tests {
             .keys(&["x"])
             .help("x", "something very very long");
 
-        let help = Help::new()
-            .width(20)
-            .with_bindings(vec![quit, save, other]);
+        let help = Help::new().width(20).with_bindings(vec![quit, save, other]);
         let view = Model::view(&help);
 
         // View should be truncated due to width constraint

@@ -1241,7 +1241,11 @@ mod tests {
         let paste_msg = Message::new(PasteMsg("hello world".to_string()));
         let _ = Model::update(&mut ta, paste_msg);
 
-        assert_eq!(ta.value(), "hello world", "TextArea should insert pasted text");
+        assert_eq!(
+            ta.value(),
+            "hello world",
+            "TextArea should insert pasted text"
+        );
     }
 
     #[test]
@@ -1270,7 +1274,11 @@ mod tests {
         let key_msg = Message::new(KeyMsg::from_char('H'));
         let _ = Model::update(&mut ta, key_msg);
 
-        assert_eq!(ta.value(), "H", "Focused textarea should insert typed character");
+        assert_eq!(
+            ta.value(),
+            "H",
+            "Focused textarea should insert typed character"
+        );
     }
 
     #[test]
