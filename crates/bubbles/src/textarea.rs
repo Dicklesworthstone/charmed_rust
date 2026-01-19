@@ -1057,11 +1057,7 @@ impl TextArea {
 impl Model for TextArea {
     /// Initialize the textarea and return a blink command if focused.
     fn init(&self) -> Option<Cmd> {
-        if self.focus {
-            Some(blink_cmd())
-        } else {
-            None
-        }
+        if self.focus { Some(blink_cmd()) } else { None }
     }
 
     /// Update the textarea state based on incoming messages.

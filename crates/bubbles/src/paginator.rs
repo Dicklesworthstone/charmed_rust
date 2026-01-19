@@ -390,4 +390,103 @@ mod tests {
 
         assert_eq!(p.set_total_pages_from_items(0), 2); // Doesn't change on 0
     }
+
+    // Model trait tests
+
+    #[test]
+    fn test_paginator_model_init_returns_none() {
+        let p = Paginator::new().total_pages(5);
+        assert!(p.init().is_none());
+    }
+
+    #[test]
+    fn test_paginator_model_update_returns_none() {
+        use bubbletea::KeyType;
+        let mut p = Paginator::new().total_pages(5);
+        let result = p.update(Message::new(KeyMsg::from_type(KeyType::Right)));
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_paginator_model_update_next_key() {
+        use bubbletea::KeyType;
+
+        let mut p = Paginator::new().total_pages(5);
+        assert_eq!(p.page(), 0);
+
+        // Simulate right arrow key
+        let key_msg = KeyMsg::from_type(KeyType::Right);
+        p.update(Message::new(key_msg));
+        assert_eq!(p.page(), 1);
+
+        // Simulate 'l' key
+        let key_msg = KeyMsg::from_char('l');
+        p.update(Message::new(key_msg));
+        assert_eq!(p.page(), 2);
+    }
+
+    #[test]
+    fn test_paginator_model_update_prev_key() {
+        use bubbletea::KeyType;
+
+        let mut p = Paginator::new().total_pages(5);
+        p.set_page(3);
+        assert_eq!(p.page(), 3);
+
+        // Simulate left arrow key
+        let key_msg = KeyMsg::from_type(KeyType::Left);
+        p.update(Message::new(key_msg));
+        assert_eq!(p.page(), 2);
+
+        // Simulate 'h' key
+        let key_msg = KeyMsg::from_char('h');
+        p.update(Message::new(key_msg));
+        assert_eq!(p.page(), 1);
+    }
+
+    #[test]
+    fn test_paginator_model_view_first_page() {
+        let p = Paginator::new().total_pages(5);
+        assert_eq!(p.view(), "1/5");
+    }
+
+    #[test]
+    fn test_paginator_model_view_middle_page() {
+        let mut p = Paginator::new().total_pages(5);
+        p.set_page(2);
+        assert_eq!(p.view(), "3/5");
+    }
+
+    #[test]
+    fn test_paginator_model_view_last_page() {
+        let mut p = Paginator::new().total_pages(5);
+        p.set_page(4);
+        assert_eq!(p.view(), "5/5");
+    }
+
+    #[test]
+    fn test_paginator_model_view_single_page() {
+        let p = Paginator::new().total_pages(1);
+        assert_eq!(p.view(), "1/1");
+    }
+
+    #[test]
+    fn test_paginator_model_view_dots_first_page() {
+        let p = Paginator::new().display_type(Type::Dots).total_pages(3);
+        assert_eq!(p.view(), "•○○");
+    }
+
+    #[test]
+    fn test_paginator_model_view_dots_middle_page() {
+        let mut p = Paginator::new().display_type(Type::Dots).total_pages(3);
+        p.set_page(1);
+        assert_eq!(p.view(), "○•○");
+    }
+
+    #[test]
+    fn test_paginator_model_view_dots_last_page() {
+        let mut p = Paginator::new().display_type(Type::Dots).total_pages(3);
+        p.set_page(2);
+        assert_eq!(p.view(), "○○•");
+    }
 }

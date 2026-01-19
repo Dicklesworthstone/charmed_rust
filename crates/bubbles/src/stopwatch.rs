@@ -366,4 +366,158 @@ mod tests {
         assert_eq!(format_duration(Duration::from_secs(90)), "1m30s");
         assert_eq!(format_duration(Duration::from_secs(3600)), "1h0m0s");
     }
+
+    // Model trait tests
+
+    #[test]
+    fn test_stopwatch_model_init_returns_cmd() {
+        let sw = Stopwatch::new();
+        // init() returns a command to start the stopwatch
+        assert!(sw.init().is_some());
+    }
+
+    #[test]
+    fn test_stopwatch_model_update_start_stop() {
+        let mut sw = Stopwatch::new();
+        assert!(!sw.running());
+
+        // Start via update
+        let msg = Message::new(StartStopMsg {
+            id: sw.id(),
+            running: true,
+        });
+        let result = sw.update(msg);
+        assert!(sw.running());
+        assert!(result.is_none()); // start/stop doesn't return a command
+
+        // Stop via update
+        let msg = Message::new(StartStopMsg {
+            id: sw.id(),
+            running: false,
+        });
+        let result = sw.update(msg);
+        assert!(!sw.running());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_stopwatch_model_update_tick_returns_cmd() {
+        let mut sw = Stopwatch::new();
+        sw.running = true;
+
+        let tick = Message::new(TickMsg {
+            id: sw.id(),
+            tag: 0,
+        });
+        let result = sw.update(tick);
+
+        // Tick returns a command to schedule the next tick
+        assert!(result.is_some());
+        assert_eq!(sw.elapsed(), Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_stopwatch_model_update_tick_when_stopped_returns_none() {
+        let mut sw = Stopwatch::new();
+        assert!(!sw.running());
+
+        let tick = Message::new(TickMsg {
+            id: sw.id(),
+            tag: 0,
+        });
+        let result = sw.update(tick);
+
+        // Tick when stopped returns None and doesn't update elapsed
+        assert!(result.is_none());
+        assert_eq!(sw.elapsed(), Duration::ZERO);
+    }
+
+    #[test]
+    fn test_stopwatch_model_update_reset() {
+        let mut sw = Stopwatch::new();
+        sw.elapsed = Duration::from_secs(100);
+        sw.running = true;
+
+        let msg = Message::new(ResetMsg { id: sw.id() });
+        let result = sw.update(msg);
+
+        assert_eq!(sw.elapsed(), Duration::ZERO);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_stopwatch_model_view_zero_time() {
+        let sw = Stopwatch::new();
+        assert_eq!(sw.view(), "0s");
+    }
+
+    #[test]
+    fn test_stopwatch_model_view_seconds_only() {
+        let mut sw = Stopwatch::new();
+        sw.elapsed = Duration::from_secs(45);
+        assert_eq!(sw.view(), "45s");
+    }
+
+    #[test]
+    fn test_stopwatch_model_view_minutes_seconds() {
+        let mut sw = Stopwatch::new();
+        sw.elapsed = Duration::from_secs(125);
+        assert_eq!(sw.view(), "2m5s");
+    }
+
+    #[test]
+    fn test_stopwatch_model_view_hours_minutes_seconds() {
+        let mut sw = Stopwatch::new();
+        sw.elapsed = Duration::from_secs(3665);
+        assert_eq!(sw.view(), "1h1m5s");
+    }
+
+    #[test]
+    fn test_stopwatch_model_view_with_milliseconds() {
+        let mut sw = Stopwatch::new();
+        // For times under 10 seconds with milliseconds, format shows decimal
+        sw.elapsed = Duration::from_millis(5500);
+        assert_eq!(sw.view(), "5.5s");
+    }
+
+    #[test]
+    fn test_stopwatch_model_very_long_duration() {
+        let mut sw = Stopwatch::new();
+        // Test 100 hours
+        sw.elapsed = Duration::from_secs(100 * 3600 + 30 * 60 + 15);
+        assert_eq!(sw.view(), "100h30m15s");
+    }
+
+    #[test]
+    fn test_stopwatch_model_tick_increments_tag() {
+        let mut sw = Stopwatch::new();
+        sw.running = true;
+        let initial_tag = sw.tag;
+
+        let tick = Message::new(TickMsg {
+            id: sw.id(),
+            tag: initial_tag,
+        });
+        sw.update(tick);
+
+        // Tag should increment after each tick
+        assert_eq!(sw.tag, initial_tag.wrapping_add(1));
+    }
+
+    #[test]
+    fn test_stopwatch_model_old_tag_rejected() {
+        let mut sw = Stopwatch::new();
+        sw.running = true;
+        sw.tag = 5; // Set current tag to 5
+
+        // Old tag (1) should be rejected when current tag is 5
+        let tick = Message::new(TickMsg {
+            id: sw.id(),
+            tag: 1,
+        });
+        let result = sw.update(tick);
+
+        assert!(result.is_none());
+        assert_eq!(sw.elapsed(), Duration::ZERO);
+    }
 }

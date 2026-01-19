@@ -419,4 +419,134 @@ mod tests {
         assert!(!should_render_column(&[&disabled]));
         assert!(should_render_column(&[&disabled, &enabled]));
     }
+
+    // Model trait tests
+
+    #[test]
+    fn test_help_model_init_returns_none() {
+        let help = Help::new();
+        assert!(Model::init(&help).is_none());
+    }
+
+    #[test]
+    fn test_help_model_toggle_full_help() {
+        let mut help = Help::new();
+        assert!(!help.show_all);
+
+        Model::update(&mut help, Message::new(ToggleFullHelpMsg));
+        assert!(help.show_all);
+
+        Model::update(&mut help, Message::new(ToggleFullHelpMsg));
+        assert!(!help.show_all);
+    }
+
+    #[test]
+    fn test_help_model_set_width() {
+        let mut help = Help::new();
+        assert_eq!(help.width, 0);
+
+        Model::update(&mut help, Message::new(SetWidthMsg(80)));
+        assert_eq!(help.width, 80);
+
+        Model::update(&mut help, Message::new(SetWidthMsg(120)));
+        assert_eq!(help.width, 120);
+    }
+
+    #[test]
+    fn test_help_model_set_bindings() {
+        let mut help = Help::new();
+        assert!(help.bindings().is_empty());
+
+        let bindings = vec![
+            Binding::new().keys(&["q"]).help("q", "quit"),
+            Binding::new().keys(&["ctrl+s"]).help("^s", "save"),
+        ];
+
+        Model::update(&mut help, Message::new(SetBindingsMsg(bindings)));
+        assert_eq!(help.bindings().len(), 2);
+    }
+
+    #[test]
+    fn test_help_model_view_short_mode() {
+        let quit = Binding::new().keys(&["q"]).help("q", "quit");
+        let save = Binding::new().keys(&["ctrl+s"]).help("^s", "save");
+
+        let help = Help::new().with_bindings(vec![quit, save]);
+        let view = Model::view(&help);
+
+        assert!(view.contains("q"));
+        assert!(view.contains("quit"));
+        assert!(view.contains("^s"));
+        assert!(view.contains("save"));
+    }
+
+    #[test]
+    fn test_help_model_view_full_mode() {
+        let quit = Binding::new().keys(&["q"]).help("q", "quit");
+        let save = Binding::new().keys(&["ctrl+s"]).help("^s", "save");
+
+        let help = Help::new().with_bindings(vec![quit, save]).show_all(true);
+        let view = Model::view(&help);
+
+        assert!(view.contains("q"));
+        assert!(view.contains("quit"));
+    }
+
+    #[test]
+    fn test_help_model_view_empty_bindings() {
+        let help = Help::new();
+        let view = Model::view(&help);
+        assert!(view.is_empty());
+    }
+
+    #[test]
+    fn test_help_model_view_respects_width() {
+        let quit = Binding::new().keys(&["q"]).help("q", "quit");
+        let save = Binding::new().keys(&["ctrl+s"]).help("^s", "save");
+        let other = Binding::new()
+            .keys(&["x"])
+            .help("x", "something very very long");
+
+        let help = Help::new()
+            .width(20)
+            .with_bindings(vec![quit, save, other]);
+        let view = Model::view(&help);
+
+        // View should be truncated due to width constraint
+        assert!(view.len() <= 30); // Account for styling overhead
+    }
+
+    #[test]
+    fn test_help_with_bindings_builder() {
+        let bindings = vec![
+            Binding::new().keys(&["q"]).help("q", "quit"),
+            Binding::new().keys(&["ctrl+s"]).help("^s", "save"),
+        ];
+
+        let help = Help::new().with_bindings(bindings);
+        assert_eq!(help.bindings().len(), 2);
+    }
+
+    #[test]
+    fn test_help_set_bindings_method() {
+        let mut help = Help::new();
+        help.set_bindings(vec![Binding::new().keys(&["q"]).help("q", "quit")]);
+        assert_eq!(help.bindings().len(), 1);
+    }
+
+    #[test]
+    fn test_help_model_satisfies_model_bounds() {
+        fn accepts_model<M: Model + Send + 'static>(_model: M) {}
+        let help = Help::new();
+        accepts_model(help);
+    }
+
+    #[test]
+    fn test_help_model_update_returns_none() {
+        let mut help = Help::new();
+        // All message types should return None (no commands)
+        assert!(Model::update(&mut help, Message::new(ToggleFullHelpMsg)).is_none());
+        assert!(Model::update(&mut help, Message::new(SetWidthMsg(80))).is_none());
+        assert!(Model::update(&mut help, Message::new(SetBindingsMsg(vec![]))).is_none());
+    }
 }
