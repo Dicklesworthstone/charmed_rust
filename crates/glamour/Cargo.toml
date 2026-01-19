@@ -18,11 +18,16 @@ syntect = { version = "5", optional = true, default-features = false, features =
     "default-fancy",  # Pure Rust regex engine (WASM compatible)
 ] }
 
+# Optional: serialization support
+serde = { version = "1.0", features = ["derive"], optional = true }
+
 [features]
 default = []
 # Enable syntax highlighting for code blocks. Adds ~2MB to binary size
 # due to embedded syntax definitions.
 syntax-highlighting = ["dep:syntect"]
+# Enable serde serialization for configuration types
+serde = ["dep:serde"]
 
 [dev-dependencies]
 criterion.workspace = true

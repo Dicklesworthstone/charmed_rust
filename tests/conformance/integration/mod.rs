@@ -12,6 +12,7 @@
 //! These tests verify that crates work together correctly without
 //! unexpected interactions.
 
+use crate::harness::strip_ansi;
 use bubbles::progress::Progress;
 use bubbles::spinner::{SpinnerModel, spinners};
 use bubbles::textinput::TextInput;
@@ -255,8 +256,9 @@ fn test_glamour_code_blocks() -> Result<(), String> {
     let renderer = Renderer::new().with_style(GlamourStyle::Dark);
     let output = renderer.render(markdown);
 
-    // Code should be present
-    if !output.contains("fn main") {
+    // Code should be present (strip ANSI since syntax highlighting splits tokens)
+    let plain = strip_ansi(&output);
+    if !plain.contains("fn main") {
         return Err("Code block content should be preserved".to_string());
     }
 

@@ -183,6 +183,9 @@ pub mod simulator;
 
 // Re-exports
 pub use command::{Cmd, batch, every, quit, sequence, set_window_title, tick, window_size};
+
+#[cfg(feature = "async")]
+pub use command::{AsyncCmd, every_async, tick_async};
 pub use key::{KeyMsg, KeyType, parse_sequence};
 pub use message::{
     BlurMsg, FocusMsg, InterruptMsg, Message, QuitMsg, ResumeMsg, SuspendMsg, WindowSizeMsg,
@@ -197,4 +200,7 @@ pub mod prelude {
     pub use crate::message::{Message, QuitMsg, WindowSizeMsg};
     pub use crate::mouse::{MouseAction, MouseButton, MouseMsg};
     pub use crate::program::{Model, Program};
+
+    #[cfg(feature = "async")]
+    pub use crate::command::{AsyncCmd, every_async, tick_async};
 }

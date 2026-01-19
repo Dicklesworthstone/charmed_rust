@@ -11,4 +11,5 @@ pub mod glamour;
 pub mod harmonica;
 pub mod huh;
 pub mod lipgloss;
+#[cfg(feature = "wish")]
 pub mod wish;

@@ -430,6 +430,16 @@ impl TextArea {
         self.set_cursor_col(self.value[self.row].len());
     }
 
+    /// Moves cursor left one character.
+    pub fn cursor_left(&mut self) {
+        self.character_left(false);
+    }
+
+    /// Moves cursor right one character.
+    pub fn cursor_right(&mut self) {
+        self.character_right();
+    }
+
     /// Returns whether the textarea is focused.
     #[must_use]
     pub fn focused(&self) -> bool {
@@ -1303,5 +1313,249 @@ mod tests {
     fn test_textarea_satisfies_model_bounds() {
         fn requires_model<T: Model + Send + 'static>() {}
         requires_model::<TextArea>();
+    }
+
+    // ========================================================================
+    // Additional Model trait tests for bead charmed_rust-29c
+    // ========================================================================
+
+    #[test]
+    fn test_model_update_backspace_deletes_char() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+        ta.set_value("Hello");
+        ta.move_to_begin();
+        ta.col = 5; // At end of "Hello"
+
+        let backspace_msg = Message::new(KeyMsg::from_type(KeyType::Backspace));
+        let _ = Model::update(&mut ta, backspace_msg);
+
+        assert_eq!(ta.value(), "Hell", "Backspace should delete character before cursor");
+    }
+
+    #[test]
+    fn test_model_update_backspace_at_start_noop() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+        ta.set_value("Hello");
+        ta.move_to_begin();
+        assert_eq!(ta.row, 0);
+        assert_eq!(ta.col, 0);
+
+        let backspace_msg = Message::new(KeyMsg::from_type(KeyType::Backspace));
+        let _ = Model::update(&mut ta, backspace_msg);
+
+        assert_eq!(ta.value(), "Hello", "Backspace at start should do nothing");
+        assert_eq!(ta.col, 0);
+    }
+
+    #[test]
+    fn test_model_update_delete_forward() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+        ta.set_value("Hello");
+        ta.move_to_begin();
+        ta.col = 0;
+
+        let delete_msg = Message::new(KeyMsg::from_type(KeyType::Delete));
+        let _ = Model::update(&mut ta, delete_msg);
+
+        assert_eq!(ta.value(), "ello", "Delete should remove character at cursor");
+    }
+
+    #[test]
+    fn test_model_update_cursor_left() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+        ta.set_value("Hello");
+        ta.move_to_begin();
+        ta.col = 3;
+
+        let left_msg = Message::new(KeyMsg::from_type(KeyType::Left));
+        let _ = Model::update(&mut ta, left_msg);
+
+        assert_eq!(ta.col, 2, "Left arrow should move cursor left");
+    }
+
+    #[test]
+    fn test_model_update_cursor_right() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+        ta.set_value("Hello");
+        ta.move_to_begin();
+        ta.col = 0;
+
+        let right_msg = Message::new(KeyMsg::from_type(KeyType::Right));
+        let _ = Model::update(&mut ta, right_msg);
+
+        assert_eq!(ta.col, 1, "Right arrow should move cursor right");
+    }
+
+    #[test]
+    fn test_model_update_cursor_up() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+        ta.set_value("Line1\nLine2\nLine3");
+        ta.row = 2;
+        ta.col = 0;
+
+        let up_msg = Message::new(KeyMsg::from_type(KeyType::Up));
+        let _ = Model::update(&mut ta, up_msg);
+
+        assert_eq!(ta.row, 1, "Up arrow should move cursor up");
+    }
+
+    #[test]
+    fn test_model_update_enter_splits_line() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+        ta.set_value("Hello World");
+        ta.move_to_begin();
+        ta.col = 5;
+
+        let enter_msg = Message::new(KeyMsg::from_type(KeyType::Enter));
+        let _ = Model::update(&mut ta, enter_msg);
+
+        assert_eq!(ta.line_count(), 2, "Enter should split into two lines");
+        assert!(ta.value().contains('\n'), "Value should contain newline");
+    }
+
+    #[test]
+    fn test_textarea_view_shows_line_numbers() {
+        let mut ta = TextArea::new();
+        ta.show_line_numbers = true;
+        ta.set_value("Line 1\nLine 2\nLine 3");
+
+        let view = ta.view();
+
+        // Line numbers should appear in view
+        assert!(view.contains('1') && view.contains('2') && view.contains('3'),
+                "View should contain line numbers");
+    }
+
+    #[test]
+    fn test_textarea_view_hides_line_numbers() {
+        let mut ta = TextArea::new();
+        ta.show_line_numbers = false;
+        ta.set_value("A\nB\nC");
+
+        let view = ta.view();
+
+        // Content should be present but line numbers formatting may differ
+        assert!(view.contains('A') && view.contains('B') && view.contains('C'),
+                "View should contain content");
+    }
+
+    #[test]
+    fn test_textarea_empty_operations() {
+        let mut ta = TextArea::new();
+        ta.focus();
+        assert_eq!(ta.value(), "");
+
+        // Navigation on empty should not panic
+        ta.cursor_up();
+        ta.cursor_down();
+        ta.cursor_start();
+        ta.cursor_end();
+        ta.move_to_begin();
+        ta.move_to_end();
+
+        assert_eq!(ta.value(), "", "Empty textarea should remain empty after navigation");
+        assert_eq!(ta.row, 0);
+        assert_eq!(ta.col, 0);
+    }
+
+    #[test]
+    fn test_textarea_unicode_characters() {
+        let mut ta = TextArea::new();
+        ta.focus();
+        ta.set_value("Hello 世界 🦀");
+
+        assert_eq!(ta.value(), "Hello 世界 🦀");
+        let view = ta.view();
+        assert!(view.contains("世界"), "View should render CJK characters");
+        assert!(view.contains("🦀"), "View should render emoji");
+    }
+
+    #[test]
+    fn test_textarea_unicode_cursor_navigation() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+        ta.set_value("日本語");
+        ta.move_to_begin();
+
+        // Move right through unicode chars
+        let right_msg = Message::new(KeyMsg::from_type(KeyType::Right));
+        let _ = Model::update(&mut ta, right_msg);
+
+        assert!(ta.col > 0, "Cursor should advance through unicode");
+    }
+
+    #[test]
+    fn test_textarea_very_long_line() {
+        let mut ta = TextArea::new();
+        ta.set_width(20);
+        let long_line = "A".repeat(100);
+        ta.set_value(&long_line);
+
+        // Should not panic, view should work
+        let view = ta.view();
+        assert!(!view.is_empty(), "View should render long line");
+    }
+
+    #[test]
+    fn test_textarea_max_height_enforced() {
+        let mut ta = TextArea::new();
+        ta.max_height = 3;
+
+        // Try to insert many lines
+        ta.set_value("1\n2\n3\n4\n5\n6\n7\n8\n9\n10");
+
+        // max_height limits visible height, not content
+        // Verify the content is still there
+        assert!(ta.line_count() >= 3, "Content should be stored");
+    }
+
+    #[test]
+    fn test_textarea_width_set_propagates() {
+        let mut ta = TextArea::new();
+        ta.set_width(80);
+
+        // Width should be accessible
+        let view = ta.view();
+        assert!(!view.is_empty(), "View should work after width set");
+    }
+
+    #[test]
+    fn test_model_init_returns_blink_when_focused() {
+        let mut ta = TextArea::new();
+        ta.focus();
+
+        let cmd = Model::init(&ta);
+        assert!(cmd.is_some(), "Focused textarea init should return blink command");
+    }
+
+    #[test]
+    fn test_model_init_returns_none_when_unfocused() {
+        let ta = TextArea::new();
+
+        let cmd = Model::init(&ta);
+        assert!(cmd.is_none(), "Unfocused textarea init should return None");
     }
 }

@@ -1,16 +1,17 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/harmonica",   # Smooth animations (standalone)
-    "crates/lipgloss",    # Style definitions (standalone)
-    "crates/charmed_log", # Logging (uses lipgloss)
-    "crates/bubbletea",   # TUI framework (uses lipgloss, harmonica)
-    "crates/glamour",     # Markdown rendering (uses lipgloss)
-    "crates/bubbles",     # TUI components (uses bubbletea, lipgloss)
-    "crates/huh",         # Forms/prompts (uses bubbletea, lipgloss, bubbles)
-    "crates/wish",        # SSH apps (uses bubbletea)
-    "crates/glow",        # Markdown reader CLI (uses all)
-    "tests/conformance",  # Conformance testing harness
+    "crates/harmonica",        # Smooth animations (standalone)
+    "crates/lipgloss",         # Style definitions (standalone)
+    "crates/charmed_log",      # Logging (uses lipgloss)
+    "crates/bubbletea-macros", # Proc-macros for bubbletea
+    "crates/bubbletea",        # TUI framework (uses lipgloss, harmonica)
+    "crates/glamour",          # Markdown rendering (uses lipgloss)
+    "crates/bubbles",          # TUI components (uses bubbletea, lipgloss)
+    "crates/huh",              # Forms/prompts (uses bubbletea, lipgloss, bubbles)
+    "crates/wish",             # SSH apps (uses bubbletea)
+    "crates/glow",             # Markdown reader CLI (uses all)
+    "tests/conformance",       # Conformance testing harness
 ]
 
 [workspace.package]
@@ -26,6 +27,7 @@ authors = ["Jeffrey Emanuel"]
 harmonica = { path = "crates/harmonica" }
 lipgloss = { path = "crates/lipgloss" }
 charmed_log = { path = "crates/charmed_log" }
+bubbletea-macros = { path = "crates/bubbletea-macros" }
 bubbletea = { path = "crates/bubbletea" }
 glamour = { path = "crates/glamour" }
 bubbles = { path = "crates/bubbles" }

@@ -20,11 +20,7 @@ A complete Rust port of [Charm's](https://charm.sh) TUI ecosystem: `bubbletea` (
 <div align="center">
 <h3>Quick Install</h3>
 
-```bash
-cargo add bubbletea lipgloss bubbles
-```
-
-**Or add to your `Cargo.toml`:**
+Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
@@ -32,6 +28,8 @@ bubbletea = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
 lipgloss = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
 bubbles = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
 ```
+
+*(crates.io release coming soon)*
 
 </div>
 
@@ -60,7 +58,7 @@ bubbles = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
 ## Quick Example
 
 ```rust
-use bubbletea::{Program, Model, Message, Cmd};
+use bubbletea::{Program, Model, Message, Cmd, KeyMsg, KeyCode};
 use lipgloss::Style;
 
 struct Counter { count: i32 }

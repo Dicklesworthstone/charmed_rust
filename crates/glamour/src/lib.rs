@@ -55,6 +55,12 @@ pub mod syntax;
 use lipgloss::Style as LipglossStyle;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use std::collections::HashMap;
+#[cfg(feature = "syntax-highlighting")]
+use std::collections::HashSet;
+
+// Conditional serde import
+#[cfg(all(feature = "syntax-highlighting", feature = "serde"))]
+use serde::{Deserialize, Serialize};
 
 /// Default width for word wrapping.
 const DEFAULT_WIDTH: usize = 80;
@@ -373,6 +379,142 @@ impl StyleTask {
     }
 }
 
+// ============================================================================
+// Syntax Highlighting Configuration (optional feature)
+// ============================================================================
+
+/// Configuration for syntax highlighting behavior.
+///
+/// This struct is only available when the `syntax-highlighting` feature is enabled.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use glamour::SyntaxThemeConfig;
+///
+/// let config = SyntaxThemeConfig::default()
+///     .theme("Solarized (dark)")
+///     .line_numbers(true);
+/// ```
+///
+/// # Serialization
+///
+/// When the `serde` feature is enabled, this struct can be serialized/deserialized:
+///
+/// ```toml
+/// # config.toml example
+/// [syntax]
+/// theme_name = "Solarized (dark)"
+/// line_numbers = true
+/// ```
+#[cfg(feature = "syntax-highlighting")]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct SyntaxThemeConfig {
+    /// Theme name (e.g., "base16-ocean.dark", "Solarized (dark)").
+    /// Use `SyntaxTheme::available_themes()` to see all options.
+    pub theme_name: String,
+    /// Whether to show line numbers in code blocks.
+    pub line_numbers: bool,
+    /// Custom language aliases (e.g., "rs" -> "rust").
+    /// These override the built-in aliases.
+    pub language_aliases: HashMap<String, String>,
+    /// Languages to never highlight (render as plain text).
+    pub disabled_languages: HashSet<String>,
+}
+
+#[cfg(feature = "syntax-highlighting")]
+impl Default for SyntaxThemeConfig {
+    fn default() -> Self {
+        Self {
+            theme_name: "base16-ocean.dark".to_string(),
+            line_numbers: false,
+            language_aliases: HashMap::new(),
+            disabled_languages: HashSet::new(),
+        }
+    }
+}
+
+#[cfg(feature = "syntax-highlighting")]
+impl SyntaxThemeConfig {
+    /// Creates a new syntax theme config with defaults.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the syntax highlighting theme.
+    ///
+    /// Available themes include:
+    /// - `base16-ocean.dark` (default)
+    /// - `base16-eighties.dark`
+    /// - `base16-mocha.dark`
+    /// - `InspiredGitHub`
+    /// - `Solarized (dark)`
+    /// - `Solarized (light)`
+    pub fn theme(mut self, name: impl Into<String>) -> Self {
+        self.theme_name = name.into();
+        self
+    }
+
+    /// Enables or disables line numbers in code blocks.
+    pub fn line_numbers(mut self, enabled: bool) -> Self {
+        self.line_numbers = enabled;
+        self
+    }
+
+    /// Adds a custom language alias.
+    ///
+    /// This allows mapping custom identifiers to languages.
+    /// For example, `("dockerfile", "docker")` would map the
+    /// `dockerfile` language hint to Docker syntax.
+    pub fn language_alias(mut self, alias: impl Into<String>, language: impl Into<String>) -> Self {
+        self.language_aliases.insert(alias.into(), language.into());
+        self
+    }
+
+    /// Disables highlighting for a specific language.
+    ///
+    /// Languages in this set will be rendered as plain text.
+    pub fn disable_language(mut self, lang: impl Into<String>) -> Self {
+        self.disabled_languages.insert(lang.into());
+        self
+    }
+
+    /// Validates that the configured theme exists.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the theme exists, or an error message if not.
+    pub fn validate(&self) -> Result<(), String> {
+        use crate::syntax::SyntaxTheme;
+
+        if SyntaxTheme::from_name(&self.theme_name).is_none() {
+            let available = SyntaxTheme::available_themes().join(", ");
+            return Err(format!(
+                "Unknown syntax theme '{}'. Available themes: {}",
+                self.theme_name, available
+            ));
+        }
+        Ok(())
+    }
+
+    /// Resolves a language identifier through custom aliases.
+    ///
+    /// If a custom alias exists, returns the mapped language.
+    /// Otherwise returns the original language.
+    pub fn resolve_language<'a>(&'a self, lang: &'a str) -> &'a str {
+        self.language_aliases
+            .get(lang)
+            .map(|s| s.as_str())
+            .unwrap_or(lang)
+    }
+
+    /// Checks if a language is disabled.
+    pub fn is_disabled(&self, lang: &str) -> bool {
+        self.disabled_languages.contains(lang)
+    }
+}
+
 /// Complete style configuration for rendering.
 #[derive(Debug, Clone, Default)]
 pub struct StyleConfig {
@@ -422,6 +564,10 @@ pub struct StyleConfig {
     pub definition_list: StyleBlock,
     pub definition_term: StylePrimitive,
     pub definition_description: StylePrimitive,
+
+    // Syntax highlighting configuration (optional feature)
+    #[cfg(feature = "syntax-highlighting")]
+    pub syntax_config: SyntaxThemeConfig,
 }
 
 impl StyleConfig {
@@ -440,6 +586,70 @@ impl StyleConfig {
             HeadingLevel::H5 => &self.h5,
             HeadingLevel::H6 => &self.h6,
         }
+    }
+
+    /// Sets the syntax highlighting theme.
+    ///
+    /// This method is only available when the `syntax-highlighting` feature is enabled.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let config = StyleConfig::default()
+    ///     .syntax_theme("Solarized (dark)");
+    /// ```
+    #[cfg(feature = "syntax-highlighting")]
+    pub fn syntax_theme(mut self, theme: impl Into<String>) -> Self {
+        self.syntax_config.theme_name = theme.into();
+        self
+    }
+
+    /// Enables or disables line numbers in code blocks.
+    ///
+    /// This method is only available when the `syntax-highlighting` feature is enabled.
+    #[cfg(feature = "syntax-highlighting")]
+    pub fn with_line_numbers(mut self, enabled: bool) -> Self {
+        self.syntax_config.line_numbers = enabled;
+        self
+    }
+
+    /// Adds a custom language alias.
+    ///
+    /// This allows mapping custom identifiers to languages.
+    ///
+    /// This method is only available when the `syntax-highlighting` feature is enabled.
+    #[cfg(feature = "syntax-highlighting")]
+    pub fn language_alias(mut self, alias: impl Into<String>, language: impl Into<String>) -> Self {
+        self.syntax_config.language_aliases.insert(alias.into(), language.into());
+        self
+    }
+
+    /// Disables syntax highlighting for a specific language.
+    ///
+    /// Languages in this set will be rendered as plain text.
+    ///
+    /// This method is only available when the `syntax-highlighting` feature is enabled.
+    #[cfg(feature = "syntax-highlighting")]
+    pub fn disable_language(mut self, lang: impl Into<String>) -> Self {
+        self.syntax_config.disabled_languages.insert(lang.into());
+        self
+    }
+
+    /// Sets the full syntax configuration.
+    ///
+    /// This method is only available when the `syntax-highlighting` feature is enabled.
+    #[cfg(feature = "syntax-highlighting")]
+    pub fn with_syntax_config(mut self, config: SyntaxThemeConfig) -> Self {
+        self.syntax_config = config;
+        self
+    }
+
+    /// Gets a reference to the syntax configuration.
+    ///
+    /// This method is only available when the `syntax-highlighting` feature is enabled.
+    #[cfg(feature = "syntax-highlighting")]
+    pub fn syntax(&self) -> &SyntaxThemeConfig {
+        &self.syntax_config
     }
 }
 
@@ -767,6 +977,88 @@ impl Renderer {
     pub fn render_bytes(&self, markdown: &[u8]) -> Result<String, std::str::Utf8Error> {
         let text = std::str::from_utf8(markdown)?;
         Ok(self.render(text))
+    }
+
+    /// Changes the syntax highlighting theme at runtime.
+    ///
+    /// This allows switching themes without creating a new Renderer instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `theme` - Theme name (e.g., "base16-ocean.dark", "Solarized (dark)")
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if the theme exists and was applied, or an error message if the theme
+    /// was not found.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use glamour::Renderer;
+    ///
+    /// let mut renderer = Renderer::new();
+    /// renderer.set_syntax_theme("Solarized (dark)")?;
+    /// let output = renderer.render("```rust\nfn main() {}\n```");
+    /// ```
+    #[cfg(feature = "syntax-highlighting")]
+    pub fn set_syntax_theme(&mut self, theme: impl Into<String>) -> Result<(), String> {
+        let theme_name = theme.into();
+
+        // Validate the theme exists before setting it
+        use crate::syntax::SyntaxTheme;
+        if SyntaxTheme::from_name(&theme_name).is_none() {
+            let available = SyntaxTheme::available_themes().join(", ");
+            return Err(format!(
+                "Unknown syntax theme '{}'. Available themes: {}",
+                theme_name, available
+            ));
+        }
+
+        self.options.styles.syntax_config.theme_name = theme_name;
+        Ok(())
+    }
+
+    /// Enables or disables line numbers in code blocks at runtime.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use glamour::Renderer;
+    ///
+    /// let mut renderer = Renderer::new();
+    /// renderer.set_line_numbers(true);
+    /// ```
+    #[cfg(feature = "syntax-highlighting")]
+    pub fn set_line_numbers(&mut self, enabled: bool) {
+        self.options.styles.syntax_config.line_numbers = enabled;
+    }
+
+    /// Returns a reference to the current syntax configuration.
+    ///
+    /// This method is only available when the `syntax-highlighting` feature is enabled.
+    #[cfg(feature = "syntax-highlighting")]
+    pub fn syntax_config(&self) -> &SyntaxThemeConfig {
+        &self.options.styles.syntax_config
+    }
+
+    /// Returns a mutable reference to the current syntax configuration.
+    ///
+    /// This allows runtime modification of all syntax highlighting settings.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use glamour::Renderer;
+    ///
+    /// let mut renderer = Renderer::new();
+    /// renderer.syntax_config_mut()
+    ///     .language_aliases
+    ///     .insert("rs".to_string(), "rust".to_string());
+    /// ```
+    #[cfg(feature = "syntax-highlighting")]
+    pub fn syntax_config_mut(&mut self) -> &mut SyntaxThemeConfig {
+        &mut self.options.styles.syntax_config
     }
 }
 
@@ -1240,6 +1532,7 @@ impl<'a> RenderContext<'a> {
 
     fn flush_code_block(&mut self) {
         let content = std::mem::take(&mut self.code_block_content);
+        let language = std::mem::take(&mut self.code_block_language);
         let style = &self.options.styles.code_block;
 
         self.output.push('\n');
@@ -1248,6 +1541,53 @@ impl<'a> RenderContext<'a> {
         let margin = style.block.margin.unwrap_or(0);
         let margin_str = " ".repeat(margin);
 
+        // Try syntax highlighting if feature is enabled and language is specified
+        #[cfg(feature = "syntax-highlighting")]
+        {
+            use crate::syntax::{highlight_code, LanguageDetector, SyntaxTheme};
+
+            let syntax_config = &self.options.styles.syntax_config;
+
+            if !language.is_empty() && !syntax_config.is_disabled(&language) {
+                // Resolve language through custom aliases
+                let resolved_lang = syntax_config.resolve_language(&language);
+
+                let detector = LanguageDetector::new();
+                if detector.is_supported(resolved_lang) {
+                    // Get theme from syntax config, code_block style, or use default
+                    let theme = SyntaxTheme::from_name(&syntax_config.theme_name)
+                        .or_else(|| {
+                            style
+                                .theme
+                                .as_ref()
+                                .and_then(|name| SyntaxTheme::from_name(name))
+                        })
+                        .unwrap_or_else(SyntaxTheme::default_dark);
+
+                    let highlighted = highlight_code(&content, resolved_lang, &theme);
+
+                    // Output with optional line numbers
+                    for (idx, line) in highlighted.lines().enumerate() {
+                        self.output.push_str(&margin_str);
+                        if syntax_config.line_numbers {
+                            // Format line number with right-aligned padding
+                            let line_num = idx + 1;
+                            self.output.push_str(&format!("{:4} │ ", line_num));
+                        }
+                        self.output.push_str(line);
+                        self.output.push('\n');
+                    }
+
+                    self.output.push('\n');
+                    return;
+                }
+            }
+        }
+
+        // Suppress unused variable warning when feature is disabled
+        let _ = &language;
+
+        // Fallback: no syntax highlighting
         for line in content.lines() {
             self.output.push_str(&margin_str);
             self.output.push_str(line);
@@ -1379,7 +1719,7 @@ impl<'a> RenderContext<'a> {
 
         // Output header row if present
         if let Some(header) = &self.table_header_row {
-            self.output.push(' '); // 1 space before content (margin adds 2 more)
+            self.output.push_str("   "); // 3 spaces to match Go output
             for (i, cell) in header.iter().enumerate() {
                 let alignment = self
                     .table_alignments
@@ -1407,6 +1747,7 @@ impl<'a> RenderContext<'a> {
             self.output.push('\n');
 
             // Output separator row
+            self.output.push_str("  "); // 2 spaces prefix to match Go output
             for i in 0..num_cols {
                 let sep_segment = row_sep.repeat(col_width + 1); // +1 for the leading space
                 self.output.push_str(&sep_segment);
@@ -1421,7 +1762,7 @@ impl<'a> RenderContext<'a> {
 
         // Output body rows
         for row in &self.table_rows {
-            self.output.push(' '); // 1 space before content (margin adds 2 more)
+            self.output.push_str("   "); // 3 spaces to match Go output
             for (i, cell) in row.iter().enumerate() {
                 let alignment = self
                     .table_alignments
@@ -1781,7 +2122,10 @@ mod tests {
     fn test_render_code_block() {
         let renderer = Renderer::new().with_style(Style::Ascii);
         let output = renderer.render("```rust\nfn main() {}\n```");
-        assert!(output.contains("fn main()"));
+        // With syntax highlighting, tokens may be split by ANSI codes
+        // So check for individual tokens instead of the full string
+        assert!(output.contains("fn"));
+        assert!(output.contains("main"));
     }
 
     #[test]
@@ -1804,5 +2148,246 @@ mod tests {
         let renderer = Renderer::new().with_style(Style::Ascii);
         let output = renderer.render("- [ ] todo\n- [x] done");
         assert!(output.contains("[ ]") || output.contains("todo"));
+    }
+
+    // ========================================================================
+    // Syntax Theme Config Tests (feature-gated)
+    // ========================================================================
+
+    #[cfg(feature = "syntax-highlighting")]
+    mod syntax_config_tests {
+        use super::*;
+
+        #[test]
+        fn test_syntax_theme_config_default() {
+            let config = SyntaxThemeConfig::default();
+            assert_eq!(config.theme_name, "base16-ocean.dark");
+            assert!(!config.line_numbers);
+            assert!(config.language_aliases.is_empty());
+            assert!(config.disabled_languages.is_empty());
+        }
+
+        #[test]
+        fn test_syntax_theme_config_builder() {
+            let config = SyntaxThemeConfig::new()
+                .theme("Solarized (dark)")
+                .line_numbers(true)
+                .language_alias("dockerfile", "docker")
+                .disable_language("text");
+
+            assert_eq!(config.theme_name, "Solarized (dark)");
+            assert!(config.line_numbers);
+            assert_eq!(
+                config.language_aliases.get("dockerfile"),
+                Some(&"docker".to_string())
+            );
+            assert!(config.disabled_languages.contains("text"));
+        }
+
+        #[test]
+        fn test_syntax_theme_config_resolve_language() {
+            let config = SyntaxThemeConfig::new()
+                .language_alias("rs", "rust")
+                .language_alias("dockerfile", "docker");
+
+            assert_eq!(config.resolve_language("rs"), "rust");
+            assert_eq!(config.resolve_language("dockerfile"), "docker");
+            assert_eq!(config.resolve_language("python"), "python"); // No alias
+        }
+
+        #[test]
+        fn test_syntax_theme_config_is_disabled() {
+            let config = SyntaxThemeConfig::new()
+                .disable_language("text")
+                .disable_language("plain");
+
+            assert!(config.is_disabled("text"));
+            assert!(config.is_disabled("plain"));
+            assert!(!config.is_disabled("rust"));
+        }
+
+        #[test]
+        fn test_syntax_theme_config_validate() {
+            let valid = SyntaxThemeConfig::new().theme("base16-ocean.dark");
+            assert!(valid.validate().is_ok());
+
+            let invalid = SyntaxThemeConfig::new().theme("nonexistent-theme");
+            assert!(invalid.validate().is_err());
+            let err = invalid.validate().unwrap_err();
+            assert!(err.contains("Unknown syntax theme"));
+            assert!(err.contains("nonexistent-theme"));
+        }
+
+        #[test]
+        fn test_style_config_syntax_methods() {
+            let config = StyleConfig::default()
+                .syntax_theme("Solarized (dark)")
+                .with_line_numbers(true)
+                .language_alias("rs", "rust")
+                .disable_language("text");
+
+            assert_eq!(config.syntax().theme_name, "Solarized (dark)");
+            assert!(config.syntax().line_numbers);
+            assert_eq!(
+                config.syntax().language_aliases.get("rs"),
+                Some(&"rust".to_string())
+            );
+            assert!(config.syntax().disabled_languages.contains("text"));
+        }
+
+        #[test]
+        fn test_style_config_with_syntax_config() {
+            let syntax_config = SyntaxThemeConfig::new()
+                .theme("InspiredGitHub")
+                .line_numbers(true);
+
+            let style_config = StyleConfig::default().with_syntax_config(syntax_config);
+
+            assert_eq!(style_config.syntax().theme_name, "InspiredGitHub");
+            assert!(style_config.syntax().line_numbers);
+        }
+
+        #[test]
+        fn test_render_with_line_numbers() {
+            let config = StyleConfig::default()
+                .with_line_numbers(true);
+            let renderer = Renderer::new().with_style_config(config);
+
+            let output = renderer.render("```rust\nfn main() {\n    println!(\"Hello\");\n}\n```");
+
+            // Should contain line numbers
+            assert!(output.contains("1 │"));
+            assert!(output.contains("2 │"));
+            assert!(output.contains("3 │"));
+        }
+
+        #[test]
+        fn test_render_with_disabled_language() {
+            let config = StyleConfig::default()
+                .disable_language("rust");
+            let renderer = Renderer::new().with_style_config(config);
+
+            let output = renderer.render("```rust\nfn main() {}\n```");
+
+            // Should NOT have ANSI codes since rust is disabled
+            // The output should just have the plain text
+            assert!(output.contains("fn main()"));
+        }
+
+        #[test]
+        fn test_render_with_language_alias() {
+            let config = StyleConfig::default()
+                .language_alias("rs", "rust");
+            let renderer = Renderer::new().with_style_config(config);
+
+            let output = renderer.render("```rs\nfn main() {}\n```");
+
+            // Should be highlighted as Rust (contains ANSI codes)
+            assert!(output.contains("fn"));
+            assert!(output.contains("main"));
+            assert!(output.contains('\x1b'));
+        }
+
+        #[test]
+        fn test_runtime_theme_switching() {
+            let mut renderer = Renderer::new();
+
+            // Default theme
+            let original_theme = renderer.syntax_config().theme_name.clone();
+            assert_eq!(original_theme, "base16-ocean.dark");
+
+            // Switch to a different theme
+            renderer.set_syntax_theme("Solarized (dark)").unwrap();
+            assert_eq!(renderer.syntax_config().theme_name, "Solarized (dark)");
+
+            // Render with new theme
+            let output = renderer.render("```rust\nfn main() {}\n```");
+            assert!(output.contains('\x1b')); // Should have ANSI codes
+        }
+
+        #[test]
+        fn test_runtime_theme_switching_invalid_theme() {
+            let mut renderer = Renderer::new();
+
+            let result = renderer.set_syntax_theme("nonexistent-theme-xyz");
+            assert!(result.is_err());
+
+            let err = result.unwrap_err();
+            assert!(err.contains("Unknown syntax theme"));
+            assert!(err.contains("nonexistent-theme-xyz"));
+            assert!(err.contains("Available themes"));
+
+            // Theme should not have changed
+            assert_eq!(renderer.syntax_config().theme_name, "base16-ocean.dark");
+        }
+
+        #[test]
+        fn test_runtime_line_numbers_toggle() {
+            let mut renderer = Renderer::new();
+
+            // Default should be off
+            assert!(!renderer.syntax_config().line_numbers);
+
+            // Enable line numbers
+            renderer.set_line_numbers(true);
+            assert!(renderer.syntax_config().line_numbers);
+
+            let output = renderer.render("```rust\nfn main() {}\n```");
+            assert!(output.contains("1 │"));
+
+            // Disable line numbers
+            renderer.set_line_numbers(false);
+            assert!(!renderer.syntax_config().line_numbers);
+        }
+
+        #[test]
+        fn test_syntax_config_mut() {
+            let mut renderer = Renderer::new();
+
+            // Modify config through mutable reference
+            renderer.syntax_config_mut().language_aliases.insert(
+                "myrs".to_string(),
+                "rust".to_string(),
+            );
+
+            let config = renderer.syntax_config();
+            assert_eq!(
+                config.language_aliases.get("myrs"),
+                Some(&"rust".to_string())
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod table_spacing_tests {
+    use super::*;
+
+    #[test]
+    fn test_table_spacing_matches_go() {
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let md = "| A | B |\n|---|---|\n| 1 | 2 |";
+        let output = renderer.render(md);
+        
+        // Print each line for debugging
+        for (i, line) in output.lines().enumerate() {
+            eprintln!("Line {}: {:?}", i, line);
+        }
+        
+        // Check header row starts with 3 spaces (after blank line)
+        let lines: Vec<&str> = output.lines().collect();
+        assert!(lines.len() >= 4, "Expected at least 4 lines");
+        
+        // Line 1 (index 1) should be the header row starting with "   "
+        assert!(lines[1].starts_with("   "), 
+            "Header row should start with 3 spaces, got: {:?}", lines[1]);
+        
+        // Line 2 (index 2) should be separator starting with "  " (2 spaces + dashes)
+        assert!(lines[2].starts_with("  ─"), 
+            "Separator row should start with '  ─', got: {:?}", lines[2]);
+        
+        // Line 3 (index 3) should be data row starting with "   "
+        assert!(lines[3].starts_with("   "), 
+            "Data row should start with 3 spaces, got: {:?}", lines[3]);
     }
 }

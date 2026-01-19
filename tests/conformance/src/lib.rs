@@ -51,6 +51,10 @@ pub mod integration;
 #[cfg(test)]
 mod benchmark_validation;
 
+// Benchmark e2e tests - verify full benchmark workflow
+#[cfg(test)]
+mod benchmark_e2e;
+
 // Re-export the crates under test for convenience
 pub use bubbles;
 pub use bubbletea;

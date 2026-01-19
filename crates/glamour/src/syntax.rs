@@ -26,7 +26,7 @@ use syntect::util::LinesWithEndings;
 /// This is loaded on first use to avoid startup overhead when syntax
 /// highlighting is not used.
 pub static SYNTAX_SET: LazyLock<SyntaxSet> =
-    LazyLock::new(|| SyntaxSet::load_defaults_newlines());
+    LazyLock::new(SyntaxSet::load_defaults_newlines);
 
 /// Lazily loaded theme set containing all default syntax themes.
 ///
@@ -93,10 +93,10 @@ impl LanguageDetector {
         // Try common aliases
         let canonical = Self::resolve_alias(&lang_lower);
 
-        if canonical != lang_lower {
-            if let Some(syntax) = SYNTAX_SET.find_syntax_by_token(canonical) {
-                return syntax;
-            }
+        if canonical != lang_lower
+            && let Some(syntax) = SYNTAX_SET.find_syntax_by_token(canonical)
+        {
+            return syntax;
         }
 
         // Try by file extension
@@ -1467,11 +1467,14 @@ mod tests {
 
     #[test]
     fn test_rgb_to_256_range() {
+        // Verify rgb_to_256 doesn't panic for various inputs
+        // and returns values in valid xterm-256 range (16-255)
         for r in [0u8, 64, 128, 192, 255] {
             for g in [0u8, 64, 128, 192, 255] {
                 for b in [0u8, 64, 128, 192, 255] {
                     let result = rgb_to_256(r, g, b);
-                    assert!(result <= 255);
+                    // Result should be in xterm-256 range (16=black through 255=white)
+                    assert!(result >= 16, "Color code {} should be >= 16", result);
                 }
             }
         }

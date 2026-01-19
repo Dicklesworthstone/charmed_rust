@@ -13,7 +13,7 @@ lipgloss = { path = "../../crates/lipgloss" }
 bubbletea = { path = "../../crates/bubbletea" }
 bubbles = { path = "../../crates/bubbles" }
 charmed_log = { path = "../../crates/charmed_log" }
-glamour = { path = "../../crates/glamour" }
+glamour = { path = "../../crates/glamour", features = ["syntax-highlighting"] }
 huh = { path = "../../crates/huh" }
 wish = { path = "../../crates/wish", optional = true }
 

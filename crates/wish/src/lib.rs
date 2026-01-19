@@ -61,7 +61,15 @@ use tokio::net::TcpListener;
 use tracing::{debug, error, info, warn};
 
 mod handler;
+pub mod auth;
+
 pub use handler::{RusshConfig, ServerState, WishHandler, WishHandlerFactory, run_stream};
+pub use auth::{
+    AuthContext, AuthHandler, AuthMethod, AuthResult, AuthorizedKey, AuthorizedKeysAuth,
+    AcceptAllAuth, AsyncCallbackAuth, AsyncPublicKeyAuth, CallbackAuth, CompositeAuth,
+    PasswordAuth, PublicKeyAuth, PublicKeyCallbackAuth, RateLimitedAuth, SessionId,
+    parse_authorized_keys,
+};
 
 // Re-export dependencies for convenience
 pub use bubbletea;
@@ -605,9 +613,12 @@ pub struct ServerOptions {
     pub middlewares: Vec<Middleware>,
     /// Main handler.
     pub handler: Option<Handler>,
-    /// Public key auth handler.
+    /// Trait-based authentication handler.
+    /// If set, takes precedence over the callback-based handlers.
+    pub auth_handler: Option<Arc<dyn AuthHandler>>,
+    /// Public key auth handler (callback-based, for backward compatibility).
     pub public_key_handler: Option<PublicKeyHandler>,
-    /// Password auth handler.
+    /// Password auth handler (callback-based, for backward compatibility).
     pub password_handler: Option<PasswordHandler>,
     /// Keyboard-interactive auth handler.
     pub keyboard_interactive_handler: Option<KeyboardInteractiveHandler>,
@@ -617,6 +628,10 @@ pub struct ServerOptions {
     pub max_timeout: Option<Duration>,
     /// Subsystem handlers.
     pub subsystem_handlers: HashMap<String, SubsystemHandler>,
+    /// Maximum authentication attempts before disconnection.
+    pub max_auth_attempts: u32,
+    /// Authentication rejection delay in milliseconds (timing attack mitigation).
+    pub auth_rejection_delay_ms: u64,
 }
 
 impl Default for ServerOptions {
@@ -630,12 +645,15 @@ impl Default for ServerOptions {
             host_key_pem: None,
             middlewares: Vec::new(),
             handler: None,
+            auth_handler: None,
             public_key_handler: None,
             password_handler: None,
             keyboard_interactive_handler: None,
             idle_timeout: None,
             max_timeout: None,
             subsystem_handlers: HashMap::new(),
+            max_auth_attempts: auth::DEFAULT_MAX_AUTH_ATTEMPTS,
+            auth_rejection_delay_ms: auth::DEFAULT_AUTH_REJECTION_DELAY_MS,
         }
     }
 }
@@ -719,6 +737,32 @@ pub fn with_host_key_path(path: impl Into<String>) -> ServerOption {
 pub fn with_host_key_pem(pem: Vec<u8>) -> ServerOption {
     Box::new(move |opts| {
         opts.host_key_pem = Some(pem);
+        Ok(())
+    })
+}
+
+/// Sets the trait-based authentication handler.
+///
+/// If set, this takes precedence over the callback-based handlers.
+pub fn with_auth_handler<H: AuthHandler + 'static>(handler: H) -> ServerOption {
+    Box::new(move |opts| {
+        opts.auth_handler = Some(Arc::new(handler));
+        Ok(())
+    })
+}
+
+/// Sets the maximum authentication attempts.
+pub fn with_max_auth_attempts(max: u32) -> ServerOption {
+    Box::new(move |opts| {
+        opts.max_auth_attempts = max;
+        Ok(())
+    })
+}
+
+/// Sets the authentication rejection delay in milliseconds.
+pub fn with_auth_rejection_delay(delay_ms: u64) -> ServerOption {
+    Box::new(move |opts| {
+        opts.auth_rejection_delay_ms = delay_ms;
         Ok(())
     })
 }
@@ -1007,6 +1051,26 @@ impl ServerBuilder {
         Fut: Future<Output = ()> + Send + 'static,
     {
         self.options.handler = Some(Arc::new(move |session| Box::pin(handler(session))));
+        self
+    }
+
+    /// Sets the trait-based authentication handler.
+    ///
+    /// If set, this takes precedence over the callback-based handlers.
+    pub fn auth_handler<H: AuthHandler + 'static>(mut self, handler: H) -> Self {
+        self.options.auth_handler = Some(Arc::new(handler));
+        self
+    }
+
+    /// Sets the maximum authentication attempts.
+    pub fn max_auth_attempts(mut self, max: u32) -> Self {
+        self.options.max_auth_attempts = max;
+        self
+    }
+
+    /// Sets the authentication rejection delay in milliseconds.
+    pub fn auth_rejection_delay(mut self, delay_ms: u64) -> Self {
+        self.options.auth_rejection_delay_ms = delay_ms;
         self
     }
 

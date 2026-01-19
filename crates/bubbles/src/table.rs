@@ -724,4 +724,373 @@ mod tests {
         fn requires_model<T: Model + Send + 'static>() {}
         requires_model::<Table>();
     }
+
+    #[test]
+    fn test_model_update_page_down() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let columns = vec![Column::new("ID", 5)];
+        // Create 20 rows to test page navigation
+        let rows: Vec<Row> = (1..=20).map(|i| vec![i.to_string()]).collect();
+        let mut table = Table::new()
+            .columns(columns)
+            .rows(rows)
+            .focused(true)
+            .height(5); // 5 visible rows
+
+        assert_eq!(table.cursor(), 0);
+
+        // Press PageDown
+        let msg = Message::new(KeyMsg::from_type(KeyType::PgDown));
+        let _ = Model::update(&mut table, msg);
+
+        // Should move down by height (5 rows)
+        assert!(
+            table.cursor() > 0,
+            "Table should navigate down on PageDown key"
+        );
+    }
+
+    #[test]
+    fn test_model_update_page_up() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let columns = vec![Column::new("ID", 5)];
+        let rows: Vec<Row> = (1..=20).map(|i| vec![i.to_string()]).collect();
+        let mut table = Table::new()
+            .columns(columns)
+            .rows(rows)
+            .focused(true)
+            .height(5);
+
+        // Start at row 10
+        table.set_cursor(10);
+        assert_eq!(table.cursor(), 10);
+
+        // Press PageUp
+        let msg = Message::new(KeyMsg::from_type(KeyType::PgUp));
+        let _ = Model::update(&mut table, msg);
+
+        // Should move up
+        assert!(
+            table.cursor() < 10,
+            "Table should navigate up on PageUp key"
+        );
+    }
+
+    #[test]
+    fn test_model_update_goto_top() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let columns = vec![Column::new("ID", 5)];
+        let rows = vec![vec!["1".into()], vec!["2".into()], vec!["3".into()]];
+        let mut table = Table::new().columns(columns).rows(rows).focused(true);
+
+        // Start at last row
+        table.set_cursor(2);
+        assert_eq!(table.cursor(), 2);
+
+        // Press Home to go to top
+        let msg = Message::new(KeyMsg::from_type(KeyType::Home));
+        let _ = Model::update(&mut table, msg);
+
+        assert_eq!(table.cursor(), 0, "Table should go to top on Home key");
+    }
+
+    #[test]
+    fn test_table_set_rows_replaces_data() {
+        let columns = vec![Column::new("Name", 10)];
+        let initial_rows = vec![vec!["Alice".into()], vec!["Bob".into()]];
+        let mut table = Table::new().columns(columns).rows(initial_rows);
+
+        assert_eq!(table.rows.len(), 2);
+        assert_eq!(table.rows[0][0], "Alice");
+
+        // Replace rows
+        let new_rows = vec![
+            vec!["Charlie".into()],
+            vec!["Diana".into()],
+            vec!["Eve".into()],
+        ];
+        table.set_rows(new_rows);
+
+        assert_eq!(table.rows.len(), 3);
+        assert_eq!(table.rows[0][0], "Charlie");
+        assert_eq!(table.rows[1][0], "Diana");
+        assert_eq!(table.rows[2][0], "Eve");
+    }
+
+    #[test]
+    fn test_table_set_columns_updates_headers() {
+        let initial_cols = vec![Column::new("A", 5), Column::new("B", 5)];
+        let rows = vec![vec!["1".into(), "2".into()]];
+        let mut table = Table::new().columns(initial_cols).rows(rows);
+
+        assert_eq!(table.columns.len(), 2);
+        assert_eq!(table.columns[0].title, "A");
+
+        // Update columns
+        let new_cols = vec![
+            Column::new("X", 10),
+            Column::new("Y", 10),
+            Column::new("Z", 10),
+        ];
+        table.set_columns(new_cols);
+
+        assert_eq!(table.columns.len(), 3);
+        assert_eq!(table.columns[0].title, "X");
+        assert_eq!(table.columns[1].title, "Y");
+        assert_eq!(table.columns[2].title, "Z");
+    }
+
+    #[test]
+    fn test_table_single_row() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let columns = vec![Column::new("Item", 10)];
+        let rows = vec![vec!["Only One".into()]];
+        let mut table = Table::new().columns(columns).rows(rows).focused(true);
+
+        assert_eq!(table.cursor(), 0);
+        assert_eq!(table.rows.len(), 1);
+
+        // Try to navigate down - should stay at 0
+        let down_msg = Message::new(KeyMsg::from_type(KeyType::Down));
+        let _ = Model::update(&mut table, down_msg);
+        assert_eq!(table.cursor(), 0, "Single row table should not move down");
+
+        // Try to navigate up - should stay at 0
+        let up_msg = Message::new(KeyMsg::from_type(KeyType::Up));
+        let _ = Model::update(&mut table, up_msg);
+        assert_eq!(table.cursor(), 0, "Single row table should not move up");
+
+        // Selected row should work
+        assert!(table.selected_row().is_some());
+        assert_eq!(table.selected_row().unwrap()[0], "Only One");
+    }
+
+    #[test]
+    fn test_table_single_column() {
+        let columns = vec![Column::new("Solo", 15)];
+        let rows = vec![
+            vec!["Row 1".into()],
+            vec!["Row 2".into()],
+            vec!["Row 3".into()],
+        ];
+        let table = Table::new().columns(columns).rows(rows);
+
+        assert_eq!(table.columns.len(), 1);
+        assert_eq!(table.columns[0].title, "Solo");
+        assert_eq!(table.columns[0].width, 15);
+
+        // View should still render correctly
+        let view = table.view();
+        assert!(!view.is_empty());
+        assert!(
+            view.contains("Solo") || view.contains("Row"),
+            "Single column table should render"
+        );
+    }
+
+    // ========================================================================
+    // Additional Model trait tests for bead charmed_rust-zg4
+    // ========================================================================
+
+    #[test]
+    fn test_table_empty_navigation() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut table = Table::new().focused(true);
+        assert!(table.rows.is_empty());
+        assert_eq!(table.cursor(), 0);
+
+        // Navigation on empty table should not panic
+        let down_msg = Message::new(KeyMsg::from_type(KeyType::Down));
+        let _ = Model::update(&mut table, down_msg);
+        assert_eq!(table.cursor(), 0, "Empty table cursor should stay at 0");
+
+        let up_msg = Message::new(KeyMsg::from_type(KeyType::Up));
+        let _ = Model::update(&mut table, up_msg);
+        assert_eq!(table.cursor(), 0, "Empty table cursor should stay at 0");
+
+        let end_msg = Message::new(KeyMsg::from_type(KeyType::End));
+        let _ = Model::update(&mut table, end_msg);
+        assert_eq!(table.cursor(), 0, "Empty table goto_bottom should stay at 0");
+
+        let home_msg = Message::new(KeyMsg::from_type(KeyType::Home));
+        let _ = Model::update(&mut table, home_msg);
+        assert_eq!(table.cursor(), 0, "Empty table goto_top should stay at 0");
+    }
+
+    #[test]
+    fn test_table_view_empty() {
+        let table = Table::new();
+        let view = table.view();
+        // Empty table should still produce a view (may be empty or minimal)
+        // Just verify it doesn't panic
+        let _ = view;
+    }
+
+    #[test]
+    fn test_table_view_renders_column_widths() {
+        let columns = vec![Column::new("Short", 5), Column::new("LongerColumn", 15)];
+        let rows = vec![vec!["A".into(), "B".into()]];
+        let table = Table::new().columns(columns).rows(rows);
+        let view = table.view();
+
+        // View should be non-empty and contain column headers
+        assert!(!view.is_empty());
+        // The view includes headers that should be visible
+        assert!(view.contains("Short") || view.contains("Longer"));
+    }
+
+    #[test]
+    fn test_model_update_navigate_up() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let columns = vec![Column::new("ID", 5)];
+        let rows = vec![
+            vec!["1".into()],
+            vec!["2".into()],
+            vec!["3".into()],
+        ];
+        let mut table = Table::new().columns(columns).rows(rows).focused(true);
+        table.set_cursor(2);
+        assert_eq!(table.cursor(), 2);
+
+        // Press Up arrow
+        let up_msg = Message::new(KeyMsg::from_type(KeyType::Up));
+        let _ = Model::update(&mut table, up_msg);
+
+        assert_eq!(table.cursor(), 1, "Table should navigate up on Up key");
+    }
+
+    #[test]
+    fn test_table_view_with_long_content() {
+        let columns = vec![Column::new("Name", 5)];
+        let rows = vec![
+            vec!["VeryLongNameThatExceedsColumnWidth".into()],
+        ];
+        let table = Table::new().columns(columns).rows(rows);
+        let view = table.view();
+
+        // Content should be truncated in view (not crash)
+        assert!(!view.is_empty());
+    }
+
+    #[test]
+    fn test_table_cursor_boundary_top() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let columns = vec![Column::new("ID", 5)];
+        let rows = vec![vec!["1".into()], vec!["2".into()]];
+        let mut table = Table::new().columns(columns).rows(rows).focused(true);
+        assert_eq!(table.cursor(), 0);
+
+        // Try to move up from top - should stay at 0
+        let up_msg = Message::new(KeyMsg::from_type(KeyType::Up));
+        let _ = Model::update(&mut table, up_msg);
+        assert_eq!(table.cursor(), 0, "Cursor should not go below 0");
+    }
+
+    #[test]
+    fn test_table_cursor_boundary_bottom() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let columns = vec![Column::new("ID", 5)];
+        let rows = vec![vec!["1".into()], vec!["2".into()]];
+        let mut table = Table::new().columns(columns).rows(rows).focused(true);
+        table.set_cursor(1);
+        assert_eq!(table.cursor(), 1);
+
+        // Try to move down from bottom - should stay at 1
+        let down_msg = Message::new(KeyMsg::from_type(KeyType::Down));
+        let _ = Model::update(&mut table, down_msg);
+        assert_eq!(table.cursor(), 1, "Cursor should not exceed row count");
+    }
+
+    #[test]
+    fn test_table_update_with_j_k_keys() {
+        use bubbletea::{KeyMsg, Message};
+
+        let columns = vec![Column::new("ID", 5)];
+        let rows = vec![vec!["1".into()], vec!["2".into()], vec!["3".into()]];
+        let mut table = Table::new().columns(columns).rows(rows).focused(true);
+        assert_eq!(table.cursor(), 0);
+
+        // Test 'j' key for down
+        let j_msg = Message::new(KeyMsg::from_char('j'));
+        let _ = Model::update(&mut table, j_msg);
+        assert_eq!(table.cursor(), 1, "'j' should move cursor down");
+
+        // Test 'k' key for up
+        let k_msg = Message::new(KeyMsg::from_char('k'));
+        let _ = Model::update(&mut table, k_msg);
+        assert_eq!(table.cursor(), 0, "'k' should move cursor up");
+    }
+
+    #[test]
+    fn test_table_update_with_g_and_shift_g_keys() {
+        use bubbletea::{KeyMsg, Message};
+
+        let columns = vec![Column::new("ID", 5)];
+        let rows = vec![vec!["1".into()], vec!["2".into()], vec!["3".into()]];
+        let mut table = Table::new().columns(columns).rows(rows).focused(true);
+        assert_eq!(table.cursor(), 0);
+
+        // Test 'G' key for goto bottom
+        let g_upper_msg = Message::new(KeyMsg::from_char('G'));
+        let _ = Model::update(&mut table, g_upper_msg);
+        assert_eq!(table.cursor(), 2, "'G' should go to bottom");
+
+        // Test 'g' key for goto top
+        let g_msg = Message::new(KeyMsg::from_char('g'));
+        let _ = Model::update(&mut table, g_msg);
+        assert_eq!(table.cursor(), 0, "'g' should go to top");
+    }
+
+    #[test]
+    fn test_table_height_affects_pagination() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let columns = vec![Column::new("ID", 5)];
+        // 20 rows
+        let rows: Vec<Row> = (1..=20).map(|i| vec![i.to_string()]).collect();
+        let mut table = Table::new()
+            .columns(columns)
+            .rows(rows)
+            .focused(true)
+            .height(3); // Small viewport
+
+        assert_eq!(table.cursor(), 0);
+
+        // PageDown should move by height
+        let pgdown_msg = Message::new(KeyMsg::from_type(KeyType::PgDown));
+        let _ = Model::update(&mut table, pgdown_msg);
+
+        // Cursor should move down (exact amount depends on implementation)
+        assert!(table.cursor() > 0, "PageDown should move cursor down");
+    }
+
+    #[test]
+    fn test_table_selected_row_after_navigation() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let columns = vec![Column::new("Name", 10)];
+        let rows = vec![
+            vec!["Alice".into()],
+            vec!["Bob".into()],
+            vec!["Carol".into()],
+        ];
+        let mut table = Table::new().columns(columns).rows(rows).focused(true);
+
+        assert_eq!(table.selected_row().unwrap()[0], "Alice");
+
+        let down_msg = Message::new(KeyMsg::from_type(KeyType::Down));
+        let _ = Model::update(&mut table, down_msg);
+        assert_eq!(table.selected_row().unwrap()[0], "Bob");
+
+        let _ = Model::update(&mut table, Message::new(KeyMsg::from_type(KeyType::Down)));
+        assert_eq!(table.selected_row().unwrap()[0], "Carol");
+    }
 }

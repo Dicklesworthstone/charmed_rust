@@ -89,19 +89,44 @@ struct SyntaxHighlightResult {
     actual_text: String,
 }
 
-/// Extract distinct foreground color numbers from ANSI-styled text
+/// Extract distinct foreground color identifiers from ANSI-styled text
+///
+/// Returns a set of color identifiers. For 256-color (38;5;N), returns the color number.
+/// For true color (38;2;R;G;B), returns a hash of the RGB values to ensure uniqueness.
+/// For basic ANSI colors (30-37, 90-97), returns the color number.
 fn extract_foreground_colors(text: &str) -> HashSet<u32> {
     let mut colors = HashSet::new();
     let spans = extract_styled_spans(text);
 
     for span in spans {
         if let Some(fg) = &span.foreground {
-            // Extract color number from formats like "38;5;252" or "31"
+            // Extract color from various formats:
+            // - "38;5;N" for 256-color mode
+            // - "38;2;R;G;B" for true color mode
+            // - "31" etc for basic ANSI colors
             if fg.starts_with("38;5;") {
+                // 256-color mode: 38;5;N
                 if let Ok(n) = fg[5..].parse::<u32>() {
                     colors.insert(n);
                 }
+            } else if fg.starts_with("38;2;") {
+                // True color mode: 38;2;R;G;B
+                // Parse RGB values and combine into a unique identifier
+                let parts: Vec<&str> = fg[5..].split(';').collect();
+                if parts.len() == 3 {
+                    if let (Ok(r), Ok(g), Ok(b)) = (
+                        parts[0].parse::<u32>(),
+                        parts[1].parse::<u32>(),
+                        parts[2].parse::<u32>(),
+                    ) {
+                        // Combine RGB into a unique number (offset to avoid collision with 256 colors)
+                        // Using a simple hash: 0x1000000 + (r << 16) + (g << 8) + b
+                        let color_id = 0x100_0000 + (r << 16) + (g << 8) + b;
+                        colors.insert(color_id);
+                    }
+                }
             } else if let Ok(n) = fg.parse::<u32>() {
+                // Basic ANSI colors (30-37, 90-97)
                 colors.insert(n);
             }
         }
@@ -112,14 +137,15 @@ fn extract_foreground_colors(text: &str) -> HashSet<u32> {
 
 /// Compare syntax highlighting between Go and Rust output
 ///
-/// Go glamour uses chroma for syntax highlighting, producing per-token colors:
-/// - Keywords (fn, func, if, for) get one color
-/// - Function names get another color
-/// - Strings get another color
-/// - Numbers, comments, types all have distinct colors
+/// Go glamour uses chroma for syntax highlighting, producing per-token colors.
+/// Rust glamour uses syntect for syntax highlighting.
 ///
-/// Rust glamour currently does NOT implement syntax highlighting.
-/// This function detects and documents the gap.
+/// Both should produce multi-colored output for code blocks with language hints,
+/// but the specific colors may differ due to different highlighter libraries and themes.
+///
+/// This function compares:
+/// 1. Text content (should always match)
+/// 2. Presence of syntax highlighting (both should have 3+ distinct colors)
 fn compare_syntax_highlighting(
     expected: &str,
     actual: &str,
@@ -146,13 +172,10 @@ fn compare_syntax_highlighting(
     let expected_colors = extract_foreground_colors(expected);
     let actual_colors = extract_foreground_colors(actual);
 
-    // Syntax highlighting gap: Go has multiple token colors, Rust typically has 0-1
-    // Go glamour typically uses colors like:
-    // - 39 (blue) for keywords
-    // - 42 (green) for function names
-    // - 173 (orange) for strings
-    // - 140 (purple) for special identifiers
-    // - 251/252 (gray) for regular text
+    // Syntax highlighting gap: detected when Go has highlighting but Rust doesn't
+    // Both Go (chroma) and Rust (syntect) should produce multiple distinct colors
+    // We consider highlighting adequate if either output has 3+ colors
+    // Note: Color VALUES will differ between chroma and syntect themes - that's acceptable
     let has_highlighting_gap = expected_colors.len() > 2 && actual_colors.len() <= 2;
 
     SyntaxHighlightResult {
@@ -419,7 +442,9 @@ mod tests {
         let result = render("```rust\nfn main() {}\n```", Style::Ascii);
         assert!(result.is_ok());
         let output = result.unwrap();
-        assert!(output.contains("fn main()"));
+        // Strip ANSI codes since syntax highlighting may split tokens
+        let plain = strip_ansi(&output);
+        assert!(plain.contains("fn main()"), "Code block should contain 'fn main()' but got: {}", plain);
     }
 
     /// Test that lists render
@@ -536,12 +561,12 @@ mod tests {
         assert!(plain.contains("code here"), "Should contain code content");
     }
 
-    /// Test syntax highlighting gap detection for Rust code
+    /// Test that Rust code blocks are syntax highlighted
     ///
-    /// This test documents the conformance gap: Go glamour produces
-    /// multi-colored syntax highlighting, while Rust glamour does not.
+    /// This test verifies that Rust glamour produces multi-colored syntax
+    /// highlighting for code blocks with language hints.
     #[test]
-    fn test_syntax_highlight_rust_gap_detection() {
+    fn test_syntax_highlight_rust_verification() {
         let rust_code = "```rust\nfn main() {\n    println!(\"Hello\");\n}\n```";
         let result = render(rust_code, Style::Dark);
         assert!(result.is_ok());
@@ -550,41 +575,37 @@ mod tests {
         // Extract colors from Rust output
         let colors = extract_foreground_colors(&output);
 
-        // Document the current state:
-        // Go glamour would have 4+ distinct colors for this code:
-        // - fn (keyword, color 39)
-        // - main (function, color 42)
-        // - println! (macro, color varies)
-        // - "Hello" (string, color 173)
-        // - {} () ; (punctuation, color 187)
-        //
-        // Rust glamour currently has 0-2 colors (no syntax highlighting)
+        // With syntax highlighting enabled, we expect multiple distinct colors:
+        // - fn (keyword)
+        // - main (function name)
+        // - println! (macro)
+        // - "Hello" (string)
+        // - {} () ; (punctuation)
         println!(
-            "Syntax highlighting gap test - Rust code block colors: {:?}",
+            "Syntax highlighting verification - Rust code block colors: {:?}",
             colors
         );
-        println!("Expected (Go): 4+ distinct token colors");
         println!(
-            "Actual (Rust): {} colors - {}",
+            "Actual: {} distinct colors - {}",
             colors.len(),
-            if colors.len() <= 2 {
-                "SYNTAX_HIGHLIGHT_GAP"
-            } else {
+            if colors.len() >= 3 {
                 "PASS"
+            } else {
+                "INSUFFICIENT_HIGHLIGHTING"
             }
         );
 
-        // This test passes but documents the gap
-        // When syntax highlighting is implemented, this assertion should be updated
+        // Verify syntax highlighting is working - should have 3+ distinct colors
         assert!(
-            colors.len() <= 2,
-            "Rust glamour currently does not implement syntax highlighting"
+            colors.len() >= 3,
+            "Rust glamour should produce syntax highlighted code with 3+ colors, got {}",
+            colors.len()
         );
     }
 
-    /// Test syntax highlighting gap detection for Go code
+    /// Test that Go code blocks are syntax highlighted
     #[test]
-    fn test_syntax_highlight_go_gap_detection() {
+    fn test_syntax_highlight_go_verification() {
         let go_code = "```go\nfunc main() {\n\tfmt.Println(\"Hello\")\n}\n```";
         let result = render(go_code, Style::Dark);
         assert!(result.is_ok());
@@ -593,28 +614,32 @@ mod tests {
         let colors = extract_foreground_colors(&output);
 
         println!(
-            "Syntax highlighting gap test - Go code block colors: {:?}",
+            "Syntax highlighting verification - Go code block colors: {:?}",
             colors
         );
-        println!("Expected (Go): 4+ distinct token colors");
         println!(
-            "Actual (Rust): {} colors - {}",
+            "Actual: {} distinct colors - {}",
             colors.len(),
-            if colors.len() <= 2 {
-                "SYNTAX_HIGHLIGHT_GAP"
-            } else {
+            if colors.len() >= 3 {
                 "PASS"
+            } else {
+                "INSUFFICIENT_HIGHLIGHTING"
             }
         );
 
-        // Document current state
+        // Verify syntax highlighting is working - should have 3+ distinct colors
         assert!(
-            colors.len() <= 2,
-            "Rust glamour currently does not implement syntax highlighting"
+            colors.len() >= 3,
+            "Go code blocks should be syntax highlighted with 3+ colors, got {}",
+            colors.len()
         );
     }
 
     /// Run syntax highlighting conformance tests against Go fixtures
+    ///
+    /// This test verifies that both Go and Rust output produce syntax-highlighted
+    /// code blocks. The specific colors may differ between chroma (Go) and syntect (Rust),
+    /// but both should have multiple distinct colors for language-hinted code blocks.
     #[test]
     fn test_syntax_highlight_conformance() {
         let mut loader = FixtureLoader::new();
@@ -635,6 +660,7 @@ mod tests {
             }
         };
 
+        let mut passes = Vec::new();
         let mut gaps = Vec::new();
         let mut text_failures = Vec::new();
 
@@ -643,12 +669,13 @@ mod tests {
                 let result = run_glamour_test_with_mode(fixture, CompareMode::SyntaxHighlight);
                 match result {
                     Ok(()) => {
-                        println!("  PASS: {} (text + syntax match)", test_name);
+                        passes.push(*test_name);
+                        println!("  PASS: {} (text + syntax highlighting present)", test_name);
                     }
                     Err(msg) if msg.starts_with("SYNTAX_HIGHLIGHT_GAP") => {
-                        gaps.push(*test_name);
+                        gaps.push((*test_name, msg.clone()));
                         println!(
-                            "  GAP:  {} (text matches, syntax highlighting differs)",
+                            "  GAP:  {} (text matches, but Rust lacks highlighting)",
                             test_name
                         );
                     }
@@ -664,28 +691,39 @@ mod tests {
 
         println!("\n=== Syntax Highlighting Conformance Summary ===");
         println!("  Code block tests: {}", code_tests.len());
+        println!("  Passes: {}", passes.len());
         println!("  Syntax highlight gaps: {}", gaps.len());
         println!("  Text content failures: {}", text_failures.len());
-
-        if !gaps.is_empty() {
-            println!("\nSyntax Highlighting Gaps (expected - Rust lacks syntax highlighting):");
-            for name in &gaps {
-                println!("  - {}", name);
-            }
-        }
 
         // Text content should always match
         assert!(
             text_failures.is_empty(),
-            "Text content should match even without syntax highlighting: {:?}",
+            "Text content should match: {:?}",
             text_failures
         );
 
-        // Syntax highlighting gap is expected until implemented
-        // This documents the gap rather than failing
-        println!(
-            "\nNote: {} syntax highlighting gaps detected (expected until implementation)",
-            gaps.len()
+        // With syntax highlighting implemented, we expect core languages to work properly.
+        // Known gaps:
+        // - "code_fenced_no_lang" - expected, no language hint
+        // - "code_fenced_json" - syntect highlights JSON less richly than chroma (2 vs 5 colors)
+        let expected_gaps = ["code_fenced_no_lang", "code_fenced_json"];
+        let unexpected_gaps: Vec<_> = gaps
+            .iter()
+            .filter(|(name, _)| !expected_gaps.contains(name))
+            .collect();
+
+        if !unexpected_gaps.is_empty() {
+            println!("\nUnexpected syntax highlighting gaps:");
+            for (name, msg) in &unexpected_gaps {
+                println!("  - {}: {}", name, msg);
+            }
+        }
+
+        // Core languages (Rust, Go, Python) must have syntax highlighting
+        assert!(
+            unexpected_gaps.is_empty(),
+            "Syntax highlighting should be present for core language code blocks: {:?}",
+            unexpected_gaps.iter().map(|(n, _)| n).collect::<Vec<_>>()
         );
     }
 }

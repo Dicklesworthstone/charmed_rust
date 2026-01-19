@@ -8,6 +8,9 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
+#[cfg(feature = "async")]
+use crate::command::CommandKind;
+
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind},
@@ -430,6 +433,253 @@ impl<M: Model> Program<M> {
 
         *last_view = view;
         Ok(())
+    }
+}
+
+// =============================================================================
+// Async Program Implementation (requires "async" feature)
+// =============================================================================
+
+#[cfg(feature = "async")]
+impl<M: Model> Program<M> {
+    /// Run the program using the tokio async runtime.
+    ///
+    /// This is the async version of `run()`. It uses tokio for command execution
+    /// and event handling, which is more efficient for I/O-bound operations.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use bubbletea::Program;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), bubbletea::Error> {
+    ///     let model = MyModel::new();
+    ///     let final_model = Program::new(model)
+    ///         .with_alt_screen()
+    ///         .run_async()
+    ///         .await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn run_async(self) -> Result<M, Error> {
+        let mut stdout = io::stdout();
+
+        // Save options for cleanup (since self will be moved)
+        let options = self.options.clone();
+
+        // Setup terminal
+        enable_raw_mode()?;
+
+        if options.alt_screen {
+            execute!(stdout, EnterAlternateScreen)?;
+        }
+
+        execute!(stdout, Hide)?;
+
+        if options.mouse_all_motion {
+            execute!(stdout, EnableMouseCapture)?;
+        } else if options.mouse_cell_motion {
+            execute!(stdout, EnableMouseCapture)?;
+        }
+
+        if options.report_focus {
+            execute!(stdout, event::EnableFocusChange)?;
+        }
+
+        if options.bracketed_paste {
+            execute!(stdout, event::EnableBracketedPaste)?;
+        }
+
+        // Run the async event loop
+        let result = self.event_loop_async(&mut stdout).await;
+
+        // Cleanup terminal
+        if options.bracketed_paste {
+            let _ = execute!(stdout, event::DisableBracketedPaste);
+        }
+
+        if options.report_focus {
+            let _ = execute!(stdout, event::DisableFocusChange);
+        }
+
+        if options.mouse_all_motion || options.mouse_cell_motion {
+            let _ = execute!(stdout, DisableMouseCapture);
+        }
+
+        let _ = execute!(stdout, Show);
+
+        if options.alt_screen {
+            let _ = execute!(stdout, LeaveAlternateScreen);
+        }
+
+        let _ = disable_raw_mode();
+
+        result
+    }
+
+    async fn event_loop_async(mut self, stdout: &mut io::Stdout) -> Result<M, Error> {
+        // Create async message channel
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<Message>(256);
+
+        // Get initial window size
+        let (width, height) = terminal::size()?;
+        let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
+
+        // Call init and handle initial command
+        if let Some(cmd) = self.model.init() {
+            self.handle_command_async(cmd.into(), tx.clone());
+        }
+
+        // Render initial view
+        let mut last_view = String::new();
+        self.render(stdout, &mut last_view)?;
+
+        // Frame timing
+        let frame_duration = Duration::from_secs_f64(1.0 / self.options.fps as f64);
+        let mut frame_interval = tokio::time::interval(frame_duration);
+
+        // Event loop
+        loop {
+            tokio::select! {
+                // Check for terminal events (using spawn_blocking for crossterm)
+                event_result = Self::poll_event_async() => {
+                    if let Some(event) = event_result? {
+                        match event {
+                            Event::Key(key_event) => {
+                                // Only handle key press events, not release
+                                if key_event.kind != KeyEventKind::Press {
+                                    continue;
+                                }
+
+                                let key_msg = from_crossterm_key(key_event.code, key_event.modifiers);
+
+                                // Handle Ctrl+C specially
+                                if key_msg.key_type == crate::KeyType::CtrlC {
+                                    let _ = tx.send(Message::new(InterruptMsg)).await;
+                                } else {
+                                    let _ = tx.send(Message::new(key_msg)).await;
+                                }
+                            }
+                            Event::Mouse(mouse_event) => {
+                                let mouse_msg = from_crossterm_mouse(mouse_event);
+                                let _ = tx.send(Message::new(mouse_msg)).await;
+                            }
+                            Event::Resize(width, height) => {
+                                let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
+                            }
+                            Event::FocusGained => {
+                                let _ = tx.send(Message::new(FocusMsg)).await;
+                            }
+                            Event::FocusLost => {
+                                let _ = tx.send(Message::new(BlurMsg)).await;
+                            }
+                            Event::Paste(text) => {
+                                // Send as a key message with paste flag
+                                let key_msg = KeyMsg {
+                                    key_type: crate::KeyType::Runes,
+                                    runes: text.chars().collect(),
+                                    alt: false,
+                                    paste: true,
+                                };
+                                let _ = tx.send(Message::new(key_msg)).await;
+                            }
+                        }
+                    }
+                }
+
+                // Process incoming messages
+                Some(msg) = rx.recv() => {
+                    // Check for quit message
+                    if msg.is::<QuitMsg>() {
+                        return Ok(self.model);
+                    }
+
+                    // Check for interrupt message (Ctrl+C)
+                    if msg.is::<InterruptMsg>() {
+                        return Ok(self.model);
+                    }
+
+                    // Handle batch message (already handled in handle_command_async)
+                    if msg.is::<BatchMsg>() {
+                        continue;
+                    }
+
+                    // Handle window title
+                    if let Some(title_msg) = msg.downcast_ref::<SetWindowTitleMsg>() {
+                        execute!(stdout, terminal::SetTitle(&title_msg.0))?;
+                        continue;
+                    }
+
+                    // Handle window size request
+                    if msg.is::<RequestWindowSizeMsg>() {
+                        let (width, height) = terminal::size()?;
+                        let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
+                        continue;
+                    }
+
+                    // Update model
+                    if let Some(cmd) = self.model.update(msg) {
+                        self.handle_command_async(cmd.into(), tx.clone());
+                    }
+
+                    // Render after processing message
+                    self.render(stdout, &mut last_view)?;
+                }
+
+                // Frame tick for rendering
+                _ = frame_interval.tick() => {
+                    // Periodic render check (in case we missed something)
+                }
+            }
+        }
+    }
+
+    /// Poll for terminal events asynchronously.
+    async fn poll_event_async() -> Result<Option<Event>, Error> {
+        // crossterm doesn't have native async support, so we use spawn_blocking
+        tokio::task::spawn_blocking(|| {
+            if event::poll(Duration::from_millis(10))? {
+                Ok(Some(event::read()?))
+            } else {
+                Ok(None)
+            }
+        })
+        .await
+        .map_err(|_| Error::Io(io::Error::other("task join error")))?
+    }
+
+    /// Handle a command asynchronously using tokio::spawn.
+    fn handle_command_async(&self, cmd: CommandKind, tx: tokio::sync::mpsc::Sender<Message>) {
+        tokio::spawn(async move {
+            if let Some(msg) = cmd.execute().await {
+                // Handle batch and sequence messages specially
+                if msg.is::<BatchMsg>() {
+                    if let Some(batch) = msg.downcast::<BatchMsg>() {
+                        for cmd in batch.0 {
+                            let tx_clone = tx.clone();
+                            tokio::spawn(async move {
+                                let cmd_kind: CommandKind = cmd.into();
+                                if let Some(msg) = cmd_kind.execute().await {
+                                    let _ = tx_clone.send(msg).await;
+                                }
+                            });
+                        }
+                    }
+                } else if msg.is::<SequenceMsg>() {
+                    if let Some(seq) = msg.downcast::<SequenceMsg>() {
+                        for cmd in seq.0 {
+                            let cmd_kind: CommandKind = cmd.into();
+                            if let Some(msg) = cmd_kind.execute().await {
+                                let _ = tx.send(msg).await;
+                            }
+                        }
+                    }
+                } else {
+                    let _ = tx.send(msg).await;
+                }
+            }
+        });
     }
 }
 

@@ -13,6 +13,19 @@ categories = ["command-line-interface", "asynchronous"]
 crossterm = "0.29"
 parking_lot = "0.12"
 
+# Async runtime (optional)
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"], optional = true }
+tokio-util = { version = "0.7", features = ["rt"], optional = true }
+futures = { version = "0.3", optional = true }
+
+# Optional: derive macros for Model trait
+bubbletea-macros = { path = "../bubbletea-macros", optional = true }
+
+[features]
+default = ["macros"]
+macros = ["dep:bubbletea-macros"]
+async = ["dep:tokio", "dep:tokio-util", "dep:futures"]
+
 [dev-dependencies]
 criterion.workspace = true
 bubbles = { path = "../bubbles" }
