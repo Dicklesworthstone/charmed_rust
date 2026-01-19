@@ -42,7 +42,7 @@ unicode-segmentation = "1.10"
 textwrap = "0.16"
 
 # Colors & Styling
-colored = "2.1"
+colored = "3.1"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -64,8 +64,8 @@ tokio = { version = "1.40", features = ["full"] }
 pulldown-cmark = "0.13"
 
 # SSH (for wish)
-russh = "0.46"
-russh-keys = "0.46"
+russh = "0.56"
+russh-keys = "0.49"
 
 # Regex
 regex = "1.11"
@@ -82,7 +82,7 @@ clap = { version = "4.5", features = ["derive", "env"] }
 indicatif = "0.17"
 
 # Dev dependencies
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 tempfile = "3.10"
 assert_cmd = "2.0"
 predicates = "3.1"
