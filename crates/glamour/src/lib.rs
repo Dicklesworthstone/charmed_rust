@@ -620,7 +620,9 @@ impl StyleConfig {
     /// This method is only available when the `syntax-highlighting` feature is enabled.
     #[cfg(feature = "syntax-highlighting")]
     pub fn language_alias(mut self, alias: impl Into<String>, language: impl Into<String>) -> Self {
-        self.syntax_config.language_aliases.insert(alias.into(), language.into());
+        self.syntax_config
+            .language_aliases
+            .insert(alias.into(), language.into());
         self
     }
 
@@ -1544,7 +1546,7 @@ impl<'a> RenderContext<'a> {
         // Try syntax highlighting if feature is enabled and language is specified
         #[cfg(feature = "syntax-highlighting")]
         {
-            use crate::syntax::{highlight_code, LanguageDetector, SyntaxTheme};
+            use crate::syntax::{LanguageDetector, SyntaxTheme, highlight_code};
 
             let syntax_config = &self.options.styles.syntax_config;
 
@@ -2249,8 +2251,7 @@ mod tests {
 
         #[test]
         fn test_render_with_line_numbers() {
-            let config = StyleConfig::default()
-                .with_line_numbers(true);
+            let config = StyleConfig::default().with_line_numbers(true);
             let renderer = Renderer::new().with_style_config(config);
 
             let output = renderer.render("```rust\nfn main() {\n    println!(\"Hello\");\n}\n```");
@@ -2263,8 +2264,7 @@ mod tests {
 
         #[test]
         fn test_render_with_disabled_language() {
-            let config = StyleConfig::default()
-                .disable_language("rust");
+            let config = StyleConfig::default().disable_language("rust");
             let renderer = Renderer::new().with_style_config(config);
 
             let output = renderer.render("```rust\nfn main() {}\n```");
@@ -2276,8 +2276,7 @@ mod tests {
 
         #[test]
         fn test_render_with_language_alias() {
-            let config = StyleConfig::default()
-                .language_alias("rs", "rust");
+            let config = StyleConfig::default().language_alias("rs", "rust");
             let renderer = Renderer::new().with_style_config(config);
 
             let output = renderer.render("```rs\nfn main() {}\n```");
@@ -2345,10 +2344,10 @@ mod tests {
             let mut renderer = Renderer::new();
 
             // Modify config through mutable reference
-            renderer.syntax_config_mut().language_aliases.insert(
-                "myrs".to_string(),
-                "rust".to_string(),
-            );
+            renderer
+                .syntax_config_mut()
+                .language_aliases
+                .insert("myrs".to_string(), "rust".to_string());
 
             let config = renderer.syntax_config();
             assert_eq!(
@@ -2381,22 +2380,38 @@ mod table_spacing_tests {
         // Line 3: "  ─" + separator (2 spaces from margin)
         // Line 4: "   " + data (3 spaces: 2 margin + 1 explicit)
         let lines: Vec<&str> = output.lines().collect();
-        assert!(lines.len() >= 5, "Expected at least 5 lines, got {}", lines.len());
+        assert!(
+            lines.len() >= 5,
+            "Expected at least 5 lines, got {}",
+            lines.len()
+        );
 
         // Line 1 should be blank styled line starting with "  " (margin only)
-        assert!(lines[1].starts_with("  "),
-            "Blank styled line should start with 2 spaces, got: {:?}", lines[1]);
+        assert!(
+            lines[1].starts_with("  "),
+            "Blank styled line should start with 2 spaces, got: {:?}",
+            lines[1]
+        );
 
         // Line 2 should be header row starting with "   " (3 spaces)
-        assert!(lines[2].starts_with("   "),
-            "Header row should start with 3 spaces, got: {:?}", lines[2]);
+        assert!(
+            lines[2].starts_with("   "),
+            "Header row should start with 3 spaces, got: {:?}",
+            lines[2]
+        );
 
         // Line 3 should be separator starting with "  ─" (2 spaces + dash)
-        assert!(lines[3].starts_with("  ─"),
-            "Separator row should start with '  ─', got: {:?}", lines[3]);
+        assert!(
+            lines[3].starts_with("  ─"),
+            "Separator row should start with '  ─', got: {:?}",
+            lines[3]
+        );
 
         // Line 4 should be data row starting with "   " (3 spaces)
-        assert!(lines[4].starts_with("   "),
-            "Data row should start with 3 spaces, got: {:?}", lines[4]);
+        assert!(
+            lines[4].starts_with("   "),
+            "Data row should start with 3 spaces, got: {:?}",
+            lines[4]
+        );
     }
 }
