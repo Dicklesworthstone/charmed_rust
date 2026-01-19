@@ -106,46 +106,46 @@ fn main() {
 ## The Crate Ecosystem
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Applications                              │
-│   glow (Markdown Reader)    huh (Interactive Forms)             │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-          ┌───────────────────┼───────────────────┐
-          ▼                   ▼                   ▼
+┌────────────────────────────────────────────────────────────┐
+│                       Applications                         │
+│  glow (Markdown Reader)    huh (Interactive Forms)         │
+└────────────────────────────────────────────────────────────┘
+                             │
+         ┌───────────────────┼───────────────────┐
+         ▼                   ▼                   ▼
 ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
-│    bubbles       │ │    glamour       │ │     wish         │
-│ (TUI Components) │ │ (Markdown)       │ │ (SSH Framework)  │
-│ - textinput      │ │ - themes         │ │ - middleware     │
-│ - list, table    │ │ - word wrap      │ │ - sessions       │
-│ - viewport       │ │ - syntax colors  │ │ - PTY support    │
-│ - spinner        │ │                  │ │                  │
-│ - filepicker     │ │                  │ │                  │
+│     bubbles      │ │     glamour      │ │      wish        │
+│ (TUI Components) │ │   (Markdown)     │ │ (SSH Framework)  │
+│  - textinput     │ │   - themes       │ │  - middleware    │
+│  - list, table   │ │   - word wrap    │ │  - sessions      │
+│  - viewport      │ │   - syntax       │ │  - PTY support   │
+│  - spinner       │ │                  │ │                  │
+│  - filepicker    │ │                  │ │                  │
 └──────────────────┘ └──────────────────┘ └──────────────────┘
-          │                   │                   │
-          └───────────────────┼───────────────────┘
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        bubbletea                                 │
-│              (Elm Architecture TUI Framework)                    │
-│   Model trait • Message passing • Commands • Event loop          │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-          ┌───────────────────┼───────────────────┐
-          ▼                   ▼                   ▼
+         │                   │                   │
+         └───────────────────┼───────────────────┘
+                             ▼
+┌────────────────────────────────────────────────────────────┐
+│                       bubbletea                            │
+│           (Elm Architecture TUI Framework)                 │
+│  Model trait • Message passing • Commands • Event loop     │
+└────────────────────────────────────────────────────────────┘
+                             │
+         ┌───────────────────┼───────────────────┐
+         ▼                   ▼                   ▼
 ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
-│    lipgloss      │ │    harmonica     │ │   charmed_log    │
-│ (Terminal CSS)   │ │ (Animations)     │ │ (Logging)        │
-│ - colors         │ │ - spring physics │ │ - text/json      │
-│ - borders        │ │ - projectile     │ │ - styled output  │
-│ - layout         │ │ - frame timing   │ │ - levels         │
+│     lipgloss     │ │    harmonica     │ │   charmed_log    │
+│  (Terminal CSS)  │ │   (Animations)   │ │    (Logging)     │
+│   - colors       │ │ - spring physics │ │   - text/json    │
+│   - borders      │ │ - projectile     │ │ - styled output  │
+│   - layout       │ │ - frame timing   │ │   - levels       │
 └──────────────────┘ └──────────────────┘ └──────────────────┘
-                              │
-                              ▼
-                     ┌──────────────────┐
-                     │    crossterm     │
-                     │ (Terminal I/O)   │
-                     └──────────────────┘
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │    crossterm     │
+                    │  (Terminal I/O)  │
+                    └──────────────────┘
 ```
 
 ### Crate Reference
