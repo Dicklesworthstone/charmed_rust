@@ -68,10 +68,10 @@ jobs:
 
             # Parse results for regressions
             WARNINGS=$(grep -c "Performance has regressed" benchmark-results.txt || echo "0")
-            CRITICAL=$(grep -E "change: \+[2-9][0-9]\.[0-9]+%|\+[1-9][0-9]{2,}\.[0-9]+%" benchmark-results.txt | wc -l || echo "0")
+            CRITICAL=$(grep -E -c "change: \\+[2-9][0-9]\\.[0-9]+%|\\+[1-9][0-9]{2,}\\.[0-9]+%" benchmark-results.txt || echo "0")
 
-            echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
-            echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+            echo "warnings=$WARNINGS" >> "$GITHUB_OUTPUT"
+            echo "critical=$CRITICAL" >> "$GITHUB_OUTPUT"
 
             # Create summary
             {
@@ -97,8 +97,8 @@ jobs:
             } > benchmark-summary.md
           else
             echo "No baseline found - this is the first benchmark run"
-            echo "warnings=0" >> $GITHUB_OUTPUT
-            echo "critical=0" >> $GITHUB_OUTPUT
+            echo "warnings=0" >> "$GITHUB_OUTPUT"
+            echo "critical=0" >> "$GITHUB_OUTPUT"
             {
               echo "## Benchmark Results"
               echo ""
