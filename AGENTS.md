@@ -287,52 +287,54 @@ A mail-like layer that lets coding agents coordinate asynchronously via MCP tool
 
 ---
 
-## Beads (bd) — Dependency-Aware Issue Tracking
+## Beads (br) — Dependency-Aware Issue Tracking
 
-Beads provides a lightweight, dependency-aware issue database and CLI (`bd`) for selecting "ready work," setting priorities, and tracking status. It complements MCP Agent Mail's messaging and file reservations.
+Beads provides a lightweight, dependency-aware issue database and CLI (`br`) for selecting "ready work," setting priorities, and tracking status. It complements MCP Agent Mail's messaging and file reservations.
+
+**Note:** `br` (beads_rust) is non-invasive and never executes git commands. You must run git commands manually after `br sync --flush-only`.
 
 ### Conventions
 
 - **Single source of truth:** Beads for task status/priority/dependencies; Agent Mail for conversation and audit
-- **Shared identifiers:** Use Beads issue ID (e.g., `bd-123`) as Mail `thread_id` and prefix subjects with `[bd-123]`
+- **Shared identifiers:** Use Beads issue ID (e.g., `br-123`) as Mail `thread_id` and prefix subjects with `[br-123]`
 - **Reservations:** When starting a task, call `file_reservation_paths()` with the issue ID in `reason`
 
 ### Typical Agent Flow
 
 1. **Pick ready work (Beads):**
    ```bash
-   bd ready --json  # Choose highest priority, no blockers
+   br ready --json  # Choose highest priority, no blockers
    ```
 
 2. **Reserve edit surface (Mail):**
    ```
-   file_reservation_paths(project_key, agent_name, ["crates/**"], ttl_seconds=3600, exclusive=true, reason="bd-123")
+   file_reservation_paths(project_key, agent_name, ["crates/**"], ttl_seconds=3600, exclusive=true, reason="br-123")
    ```
 
 3. **Announce start (Mail):**
    ```
-   send_message(..., thread_id="bd-123", subject="[bd-123] Start: <title>", ack_required=true)
+   send_message(..., thread_id="br-123", subject="[br-123] Start: <title>", ack_required=true)
    ```
 
 4. **Work and update:** Reply in-thread with progress
 
 5. **Complete and release:**
    ```bash
-   bd close bd-123 --reason "Completed"
+   br close br-123 --reason "Completed"
    ```
    ```
    release_file_reservations(project_key, agent_name, paths=["crates/**"])
    ```
-   Final Mail reply: `[bd-123] Completed` with summary
+   Final Mail reply: `[br-123] Completed` with summary
 
 ### Mapping Cheat Sheet
 
 | Concept | Value |
 |---------|-------|
-| Mail `thread_id` | `bd-###` |
-| Mail subject | `[bd-###] ...` |
-| File reservation `reason` | `bd-###` |
-| Commit messages | Include `bd-###` for traceability |
+| Mail `thread_id` | `br-###` |
+| Mail subject | `[br-###] ...` |
+| File reservation `reason` | `br-###` |
+| Commit messages | Include `br-###` for traceability |
 
 ---
 
@@ -615,30 +617,32 @@ This project uses [beads_viewer](https://github.com/Dicklesworthstone/beads_view
 bv
 
 # CLI commands for agents (use these instead)
-bd ready              # Show issues ready to work (no blockers)
-bd list --status=open # All open issues
-bd show <id>          # Full issue details with dependencies
-bd create --title="..." --type=task --priority=2
-bd update <id> --status=in_progress
-bd close <id> --reason="Completed"
-bd close <id1> <id2>  # Close multiple issues at once
-bd sync               # Commit and push changes
+br ready              # Show issues ready to work (no blockers)
+br list --status=open # All open issues
+br show <id>          # Full issue details with dependencies
+br create --title="..." --type=task --priority=2
+br update <id> --status=in_progress
+br close <id> --reason="Completed"
+br close <id1> <id2>  # Close multiple issues at once
+br sync --flush-only  # Export to JSONL
+git add .beads/       # Stage beads changes
+git commit -m "..."   # Commit beads state
 ```
 
 ### Workflow Pattern
 
-1. **Start**: Run `bd ready` to find actionable work
-2. **Claim**: Use `bd update <id> --status=in_progress`
+1. **Start**: Run `br ready` to find actionable work
+2. **Claim**: Use `br update <id> --status=in_progress`
 3. **Work**: Implement the task
-4. **Complete**: Use `bd close <id>`
-5. **Sync**: Always run `bd sync` at session end
+4. **Complete**: Use `br close <id>`
+5. **Sync**: Always run `br sync --flush-only` then `git add .beads/ && git commit` at session end
 
 ### Key Concepts
 
-- **Dependencies**: Issues can block other issues. `bd ready` shows only unblocked work.
+- **Dependencies**: Issues can block other issues. `br ready` shows only unblocked work.
 - **Priority**: P0=critical, P1=high, P2=medium, P3=low, P4=backlog (use numbers, not words)
 - **Types**: task, bug, feature, epic, question, docs
-- **Blocking**: `bd dep add <issue> <depends-on>` to add dependencies
+- **Blocking**: `br dep add <issue> <depends-on>` to add dependencies
 
 ### Session Protocol
 
@@ -647,19 +651,19 @@ bd sync               # Commit and push changes
 ```bash
 git status              # Check what changed
 git add <files>         # Stage code changes
-bd sync                 # Commit beads changes
-git commit -m "..."     # Commit code
-bd sync                 # Commit any new beads changes
+br sync --flush-only    # Export beads to JSONL
+git add .beads/         # Stage beads changes
+git commit -m "..."     # Commit code and beads
 git push                # Push to remote
 ```
 
 ### Best Practices
 
-- Check `bd ready` at session start to find available work
+- Check `br ready` at session start to find available work
 - Update status as you work (in_progress → closed)
-- Create new issues with `bd create` when you discover tasks
+- Create new issues with `br create` when you discover tasks
 - Use descriptive titles and set appropriate priority/type
-- Always `bd sync` before ending session
+- Always `br sync --flush-only` then commit `.beads/` before ending session
 
 <!-- end-bv-agent-instructions -->
 
@@ -675,7 +679,9 @@ git push                # Push to remote
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd sync
+   br sync --flush-only
+   git add .beads/
+   git commit -m "sync beads" --allow-empty
    git push
    git status  # MUST show "up to date with origin"
    ```
