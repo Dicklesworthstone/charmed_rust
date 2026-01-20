@@ -43,7 +43,7 @@ jobs:
 
       - name: Download baseline (for PRs)
         if: github.event_name == 'pull_request'
-        uses: dawidd6/action-download-artifact@80620a5d27ce0ae443b965134f7a0dc3cce81bd8 # v3.1.2
+        uses: dawidd6/action-download-artifact@07ab29fd4a977ae4d2b275087cf67563dfdf0295 # v9
         with:
           workflow: benchmarks.yml
           branch: ${{ github.base_ref }}
