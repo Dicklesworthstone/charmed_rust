@@ -47,11 +47,8 @@ impl App {
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
             match key.key_type {
                 KeyType::Runes => {
-                    if let Some(&ch) = key.runes.first() {
-                        match ch {
-                            'q' | 'Q' => return Some(quit()),
-                            _ => {}
-                        }
+                    if let Some(&('q' | 'Q')) = key.runes.first() {
+                        return Some(quit());
                     }
                 }
                 KeyType::CtrlC | KeyType::Esc => return Some(quit()),

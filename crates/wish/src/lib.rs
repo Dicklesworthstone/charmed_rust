@@ -1065,6 +1065,7 @@ impl Server {
     }
 
     /// Creates the russh server configuration.
+    #[allow(clippy::field_reassign_with_default)]
     fn create_russh_config(&self) -> Result<RusshConfig> {
         use russh::MethodSet;
         use russh::server::Config;
@@ -1373,6 +1374,7 @@ pub mod middleware {
         }
 
         /// Structured logger for connection events.
+        #[allow(clippy::too_many_arguments)]
         pub trait StructuredLogger: Send + Sync {
             fn log_connect(
                 &self,
@@ -1773,6 +1775,7 @@ pub mod middleware {
                 let now = Instant::now();
                 let mut cache = self.cache.write();
 
+                #[allow(clippy::manual_inspect)]
                 let state = cache
                     .get_mut(key)
                     .map(|state| {

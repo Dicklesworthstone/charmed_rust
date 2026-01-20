@@ -3,7 +3,7 @@
 //! Text input example demonstrating `#[derive(Model)]` with component composition.
 //!
 //! This example shows how to:
-//! - Use the bubbles TextInput component
+//! - Use the bubbles `TextInput` component
 //! - Handle focus and submission
 //! - Display user input with styling
 //!
@@ -49,12 +49,11 @@ impl App {
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
             match key.key_type {
                 KeyType::Enter => {
-                    if !self.submitted {
-                        self.name = self.input.value();
-                        self.submitted = true;
-                    } else {
+                    if self.submitted {
                         return Some(quit());
                     }
+                    self.name = self.input.value();
+                    self.submitted = true;
                 }
                 KeyType::CtrlC | KeyType::Esc => return Some(quit()),
                 _ => {}

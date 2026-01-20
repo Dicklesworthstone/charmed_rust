@@ -132,10 +132,10 @@ impl PublicKeyAuth {
         }
 
         // Check user-specific keys
-        if let Some(user_keys) = self.user_keys.get(username) {
-            if user_keys.iter().any(|k| k == key) {
-                return true;
-            }
+        if let Some(user_keys) = self.user_keys.get(username)
+            && user_keys.iter().any(|k| k == key)
+        {
+            return true;
         }
 
         false

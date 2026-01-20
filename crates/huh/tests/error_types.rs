@@ -3,7 +3,7 @@
 //! Tests verify:
 //! - Error variant creation
 //! - Display formatting
-//! - Clone and PartialEq derives
+//! - Clone and `PartialEq` derives
 //! - Helper methods
 //! - Result type alias
 
@@ -56,21 +56,21 @@ mod display_tests {
     #[test]
     fn test_user_aborted_display() {
         let e = FormError::UserAborted;
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert_eq!(msg, "user aborted");
     }
 
     #[test]
     fn test_timeout_display() {
         let e = FormError::Timeout;
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert_eq!(msg, "timeout");
     }
 
     #[test]
     fn test_validation_display() {
         let e = FormError::Validation("must be at least 8 characters".into());
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("validation error"));
         assert!(msg.contains("must be at least 8 characters"));
     }
@@ -78,7 +78,7 @@ mod display_tests {
     #[test]
     fn test_io_display() {
         let e = FormError::Io("stdin not a tty".into());
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("io error"));
         assert!(msg.contains("stdin not a tty"));
     }
@@ -86,7 +86,7 @@ mod display_tests {
     #[test]
     fn test_debug_impl() {
         let e = FormError::Validation("test".into());
-        let debug = format!("{:?}", e);
+        let debug = format!("{e:?}");
         assert!(debug.contains("Validation"));
     }
 }
@@ -169,6 +169,7 @@ mod result_tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::unnecessary_wraps)]
     fn test_result_alias_ok() {
         fn do_something() -> Result<String> {
             Ok("success".into())

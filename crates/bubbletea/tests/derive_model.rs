@@ -1,5 +1,13 @@
 //! Integration tests for the `#[derive(Model)]` macro.
 
+// Allow these lints for Model trait conformance in test models
+#![allow(clippy::unused_self)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::assigning_clones)]
+#![allow(clippy::needless_pass_by_ref_mut)]
+#![allow(clippy::unnecessary_wraps)]
+
 use bubbletea::{Cmd, Message};
 
 // Test: Basic derive with all required methods
@@ -256,12 +264,13 @@ fn test_no_state_tracking_for_counter() {
     let counter = Counter { count: 0 };
 
     // Counter has no #[state] fields, so __state_changed always returns false
-    let snapshot = counter.__snapshot_state();
-    assert!(!counter.__state_changed(&snapshot));
+    // __snapshot_state() returns () for models with no tracked fields
+    counter.__snapshot_state();
+    assert!(!counter.__state_changed(&()));
 
     let counter2 = Counter { count: 100 };
     // Even with different values, returns false since no fields are tracked
-    assert!(!counter2.__state_changed(&snapshot));
+    assert!(!counter2.__state_changed(&()));
 }
 
 #[test]
@@ -359,7 +368,7 @@ mod counter_app_e2e {
 
         // Test view reflects state
         let view = app.view();
-        assert!(view.contains("2"));
+        assert!(view.contains('2'));
 
         // Test reset
         app.update(Message::new(CounterMsg::Reset));
@@ -455,12 +464,13 @@ mod todo_app_e2e {
         }
 
         fn view(&self) -> String {
+            use std::fmt::Write;
             let mut output = String::from("Todo List\n\n");
 
             for (i, item) in self.items.iter().enumerate() {
                 let checkbox = if item.completed { "[x]" } else { "[ ]" };
                 let cursor = if i == self.selected { ">" } else { " " };
-                output.push_str(&format!("{} {} {}\n", cursor, checkbox, item.text));
+                let _ = writeln!(output, "{cursor} {checkbox} {}", item.text);
             }
 
             output
@@ -558,7 +568,7 @@ mod todo_app_e2e {
         assert!(!app2.__state_changed(&snapshot));
 
         // Different items SHOULD trigger change
-        let mut app3 = app.clone();
+        let mut app3 = app;
         app3.items.push(TodoItem {
             text: "New".into(),
             completed: false,
@@ -568,7 +578,7 @@ mod todo_app_e2e {
 
     impl Clone for TodoApp {
         fn clone(&self) -> Self {
-            TodoApp {
+            Self {
                 items: self.items.clone(),
                 selected: self.selected,
                 input_mode: self.input_mode,
@@ -649,15 +659,16 @@ mod form_app_e2e {
         }
 
         fn view(&self) -> String {
+            use std::fmt::Write;
             let mut output = String::from("Registration Form\n\n");
-            output.push_str(&format!("Name: {}\n", self.name));
-            output.push_str(&format!("Email: {}\n", self.email));
+            let _ = writeln!(output, "Name: {}", self.name);
+            let _ = writeln!(output, "Email: {}", self.email);
             output.push_str("Password: ****\n");
 
             if !self.errors.is_empty() {
                 output.push_str("\nErrors:\n");
                 for err in &self.errors {
-                    output.push_str(&format!("- {}\n", err));
+                    let _ = writeln!(output, "- {err}");
                 }
             }
 
@@ -785,13 +796,14 @@ mod nested_model_e2e {
         }
 
         fn view(&self) -> String {
+            use std::fmt::Write;
             let mut output = String::new();
 
             // Sidebar
             output.push_str("| Sidebar |\n");
             for (i, item) in self.sidebar.items.iter().enumerate() {
                 let marker = if i == self.sidebar.selected { ">" } else { " " };
-                output.push_str(&format!("{} {}\n", marker, item));
+                let _ = writeln!(output, "{marker} {item}");
             }
 
             // Main content
@@ -800,7 +812,7 @@ mod nested_model_e2e {
             output.push('\n');
 
             // Footer
-            output.push_str(&format!("\n| Status: {} |", self.footer.status));
+            let _ = write!(output, "\n| Status: {} |", self.footer.status);
 
             output
         }
@@ -942,9 +954,9 @@ mod async_pattern_e2e {
             if self.loading {
                 "Loading...".to_string()
             } else if let Some(ref err) = self.error {
-                format!("Error: {}", err)
+                format!("Error: {err}")
             } else if let Some(ref data) = self.data {
-                format!("Data: {}", data)
+                format!("Data: {data}")
             } else {
                 "No data".to_string()
             }

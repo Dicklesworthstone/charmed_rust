@@ -712,11 +712,12 @@ mod combination_tests {
         }
 
         fn update(&mut self, msg: Message) -> Option<bubbletea::Cmd> {
-            if let Some(key) = msg.downcast_ref::<KeyMsg>() {
-                if key.key_type == KeyType::Runes && key.runes == vec!['?'] {
-                    self.show_help = !self.show_help;
-                    return None;
-                }
+            if let Some(key) = msg.downcast_ref::<KeyMsg>()
+                && key.key_type == KeyType::Runes
+                && key.runes == vec!['?']
+            {
+                self.show_help = !self.show_help;
+                return None;
             }
 
             // Forward to input
@@ -880,7 +881,7 @@ mod performance_tests {
 
         // Create viewport with large content
         let content: String = (0..10000)
-            .map(|i| format!("Line {}", i))
+            .map(|i| format!("Line {i}"))
             .collect::<Vec<_>>()
             .join("\n");
 

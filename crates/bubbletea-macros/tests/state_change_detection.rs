@@ -3,6 +3,22 @@
 //! These tests verify that the generated state change detection code
 //! correctly identifies when model state has changed.
 
+// Allow needless_pass_by_ref_mut: Model trait requires &mut self for update()
+// even when implementation doesn't mutate.
+#![allow(clippy::needless_pass_by_ref_mut)]
+// Allow dead_code: test models have fields accessed via generated code
+#![allow(dead_code)]
+// Allow trivially_copy_pass_by_ref: custom eq function signature is determined by macro
+#![allow(clippy::trivially_copy_pass_by_ref)]
+// Allow unused_self: Model trait requires &self methods
+#![allow(clippy::unused_self)]
+// Allow missing_const_for_fn: Model trait methods cannot be const
+#![allow(clippy::missing_const_for_fn)]
+// Allow needless_pass_by_value: Model trait signature requires Message by value
+#![allow(clippy::needless_pass_by_value)]
+// Allow let_unit_value: NoStateModel.__snapshot_state() returns ()
+#![allow(clippy::let_unit_value)]
+
 use bubbletea::{Cmd, Message, Model};
 
 /// Helper to create approximate float equality

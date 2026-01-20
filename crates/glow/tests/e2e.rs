@@ -255,7 +255,7 @@ mod temp_file_tests {
     fn test_render_long_lines() {
         let mut temp = NamedTempFile::new().unwrap();
         let long_line = "word ".repeat(100);
-        writeln!(temp, "# Long Line Test\n\n{}", long_line).unwrap();
+        writeln!(temp, "# Long Line Test\n\n{long_line}").unwrap();
 
         let mut cmd = glow_cmd();
         cmd.arg(temp.path())

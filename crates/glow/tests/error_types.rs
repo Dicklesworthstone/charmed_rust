@@ -1,7 +1,9 @@
+#![allow(clippy::unnecessary_wraps)]
+
 //! Unit tests for glow error types.
 //!
 //! Tests verify:
-//! - Error variant creation (ParseError and FetchError)
+//! - Error variant creation (`ParseError` and `FetchError`)
 //! - Display formatting
 //! - Error chaining (source)
 //! - From implementations
@@ -43,21 +45,21 @@ mod parse_error_display_tests {
     #[test]
     fn test_invalid_format_display() {
         let e = ParseError::InvalidFormat;
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("invalid repository format"));
     }
 
     #[test]
     fn test_missing_owner_or_repo_display() {
         let e = ParseError::MissingOwnerOrRepo;
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("missing owner or repository name"));
     }
 
     #[test]
     fn test_debug_impl() {
         let e = ParseError::InvalidFormat;
-        let debug = format!("{:?}", e);
+        let debug = format!("{e:?}");
         assert!(debug.contains("InvalidFormat"));
     }
 }
@@ -104,7 +106,7 @@ mod fetch_error_creation_tests {
     #[test]
     fn test_rate_limited_with_reset() {
         let e = FetchError::RateLimited {
-            reset_at: Some(1700000000),
+            reset_at: Some(1_700_000_000),
         };
         assert!(matches!(e, FetchError::RateLimited { .. }));
     }
@@ -132,7 +134,7 @@ mod fetch_error_display_tests {
             status: 404,
             message: "Not Found".into(),
         };
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("API error"));
         assert!(msg.contains("404"));
         assert!(msg.contains("Not Found"));
@@ -147,7 +149,7 @@ mod fetch_error_display_tests {
                 status,
                 message: message.into(),
             };
-            let msg = format!("{}", e);
+            let msg = format!("{e}");
             assert!(msg.contains(&status.to_string()));
             assert!(msg.contains(message));
         }
@@ -156,7 +158,7 @@ mod fetch_error_display_tests {
     #[test]
     fn test_decode_error_display() {
         let e = FetchError::DecodeError("not valid base64".into());
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("decode error"));
         assert!(msg.contains("not valid base64"));
     }
@@ -164,9 +166,9 @@ mod fetch_error_display_tests {
     #[test]
     fn test_rate_limited_with_reset_display() {
         let e = FetchError::RateLimited {
-            reset_at: Some(1700000000),
+            reset_at: Some(1_700_000_000),
         };
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("rate limited"));
         assert!(msg.contains("1700000000"));
     }
@@ -174,7 +176,7 @@ mod fetch_error_display_tests {
     #[test]
     fn test_rate_limited_without_reset_display() {
         let e = FetchError::RateLimited { reset_at: None };
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("rate limited"));
         assert!(!msg.contains("resets at"));
     }
@@ -183,7 +185,7 @@ mod fetch_error_display_tests {
     fn test_cache_error_display() {
         let io_err = io::Error::new(io::ErrorKind::NotFound, "cache directory missing");
         let e = FetchError::CacheError(io_err);
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("cache error"));
         assert!(msg.contains("cache directory missing"));
     }
@@ -191,7 +193,7 @@ mod fetch_error_display_tests {
     #[test]
     fn test_debug_impl() {
         let e = FetchError::DecodeError("test".into());
-        let debug = format!("{:?}", e);
+        let debug = format!("{e:?}");
         assert!(debug.contains("DecodeError"));
     }
 }
@@ -231,7 +233,7 @@ mod fetch_error_from_tests {
 
     #[test]
     fn test_from_io_error() {
-        let io_err = io::Error::new(io::ErrorKind::Other, "test");
+        let io_err = io::Error::other("test");
         let e: FetchError = io_err.into();
         assert!(matches!(e, FetchError::CacheError(_)));
     }

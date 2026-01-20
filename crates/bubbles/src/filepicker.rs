@@ -1378,6 +1378,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::useless_vec)]
     fn test_filepicker_view_shows_directories_first() {
         // This test verifies that read_directory sorts directories before files
         // We test by creating entries in wrong order and checking the sort

@@ -45,9 +45,9 @@ mod display_tests {
 
     #[test]
     fn test_io_error_display() {
-        let io_err = io::Error::new(io::ErrorKind::Other, "terminal disconnected");
+        let io_err = io::Error::other("terminal disconnected");
         let e = Error::Io(io_err);
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
 
         assert!(msg.contains("terminal io error"));
         assert!(msg.contains("terminal disconnected"));
@@ -55,9 +55,9 @@ mod display_tests {
 
     #[test]
     fn test_debug_impl() {
-        let io_err = io::Error::new(io::ErrorKind::Other, "test error");
+        let io_err = io::Error::other("test error");
         let e = Error::Io(io_err);
-        let debug = format!("{:?}", e);
+        let debug = format!("{e:?}");
 
         assert!(debug.contains("Io"));
     }
@@ -78,7 +78,7 @@ mod chaining_tests {
 
     #[test]
     fn test_source_chain_walkable() {
-        let io_err = io::Error::new(io::ErrorKind::Other, "root cause");
+        let io_err = io::Error::other("root cause");
         let e = Error::Io(io_err);
 
         // Walk the error chain
@@ -98,7 +98,7 @@ mod from_tests {
 
     #[test]
     fn test_from_io_error() {
-        let io_err = io::Error::new(io::ErrorKind::Other, "test");
+        let io_err = io::Error::other("test");
         let e: Error = io_err.into();
 
         assert!(matches!(e, Error::Io(_)));
@@ -129,6 +129,7 @@ mod result_tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::unnecessary_wraps)]
     fn test_result_alias_ok() {
         fn do_something() -> Result<i32> {
             Ok(42)
@@ -140,7 +141,7 @@ mod result_tests {
     #[test]
     fn test_result_alias_err() {
         fn do_something() -> Result<i32> {
-            let io_err = io::Error::new(io::ErrorKind::Other, "failed");
+            let io_err = io::Error::other("failed");
             Err(Error::Io(io_err))
         }
 
@@ -155,7 +156,7 @@ mod result_tests {
         }
 
         fn inner() -> Result<()> {
-            let io_err = io::Error::new(io::ErrorKind::Other, "inner failed");
+            let io_err = io::Error::other("inner failed");
             Err(Error::Io(io_err))
         }
 

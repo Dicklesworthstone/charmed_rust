@@ -406,7 +406,7 @@ impl RusshHandler for WishHandler {
 
         let responses: Vec<String> = response
             .into_iter()
-            .flat_map(|r| r)
+            .flatten()
             .map(|bytes| String::from_utf8_lossy(bytes).to_string())
             .collect();
 
@@ -701,34 +701,34 @@ impl RusshHandler for WishHandler {
         );
 
         // Check if we have a handler for this subsystem
-        if let Some(handler) = self.server_state.options.subsystem_handlers.get(name) {
-            if let Some(state) = self.channels.get_mut(&channel) {
-                if state.started {
-                    session.channel_failure(channel);
-                    return Ok(());
-                }
-
-                state.session = state.session.clone().with_subsystem(name);
-                state.started = true;
-
-                let wish_session = state.session.clone();
-                let handler = handler.clone();
-                let connection_id = self.connection_id;
-                let subsystem_name = name.to_string();
-
-                tokio::spawn(async move {
-                    debug!(
-                        connection_id,
-                        subsystem = %subsystem_name,
-                        "Starting subsystem handler"
-                    );
-                    handler(wish_session).await;
-                    debug!(connection_id, "Subsystem handler completed");
-                });
-
-                session.channel_success(channel);
+        if let Some(handler) = self.server_state.options.subsystem_handlers.get(name)
+            && let Some(state) = self.channels.get_mut(&channel)
+        {
+            if state.started {
+                session.channel_failure(channel);
                 return Ok(());
             }
+
+            state.session = state.session.clone().with_subsystem(name);
+            state.started = true;
+
+            let wish_session = state.session.clone();
+            let handler = handler.clone();
+            let connection_id = self.connection_id;
+            let subsystem_name = name.to_string();
+
+            tokio::spawn(async move {
+                debug!(
+                    connection_id,
+                    subsystem = %subsystem_name,
+                    "Starting subsystem handler"
+                );
+                handler(wish_session).await;
+                debug!(connection_id, "Subsystem handler completed");
+            });
+
+            session.channel_success(channel);
+            return Ok(());
         }
 
         session.channel_failure(channel);

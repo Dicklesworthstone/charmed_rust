@@ -622,6 +622,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_blocking_result_via_spawn_blocking() {
+            #[allow(dead_code)]
             struct FileContent(String);
 
             let cmd = Cmd::blocking_result(
@@ -644,6 +645,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_blocking_result_error_in_async_context() {
+            #[allow(dead_code)]
             struct ErrorResult(String);
 
             let cmd = Cmd::blocking_result(
@@ -663,6 +665,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_async_cmd_with_io_error() {
+            #[allow(dead_code)]
             struct IoError(String);
 
             let cmd = AsyncCmd::new(|| async {
@@ -748,6 +751,7 @@ mod tests {
             use std::sync::Arc;
             use std::sync::atomic::{AtomicUsize, Ordering};
 
+            #[allow(dead_code)]
             struct CounterResult(usize);
 
             let counter = Arc::new(AtomicUsize::new(0));

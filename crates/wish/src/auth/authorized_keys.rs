@@ -177,6 +177,9 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, &'static str> {
     let mut output = Vec::with_capacity(input.len() * 3 / 4);
 
     let mut iter = input.iter().filter(|&&c| c != b'\n' && c != b'\r');
+    // Base64 decoding loop - processes 4 characters at a time with padding handling
+    // Loop structure is intentional for handling partial groups and '=' padding
+    #[allow(clippy::while_let_loop, clippy::redundant_guards)]
     loop {
         let a = match iter.next() {
             Some(&c) => decode_char(c)?,
@@ -407,10 +410,10 @@ fn expand_tilde(path: &Path) -> PathBuf {
 /// Expands `~` to the given home directory (for testability).
 fn expand_tilde_with_home(path: &Path, home: Option<&Path>) -> PathBuf {
     let path_str = path.to_string_lossy();
-    if path_str.starts_with("~/") {
-        if let Some(home_dir) = home {
-            return home_dir.join(&path_str[2..]);
-        }
+    if let Some(stripped) = path_str.strip_prefix("~/")
+        && let Some(home_dir) = home
+    {
+        return home_dir.join(stripped);
     }
     path.to_path_buf()
 }

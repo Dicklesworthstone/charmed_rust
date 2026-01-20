@@ -6,6 +6,9 @@
 //! Run with: `cargo run -p bubbletea --example counter`
 
 #![forbid(unsafe_code)]
+#![allow(clippy::unused_self)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::needless_pass_by_value)]
 
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, Program, quit};
 

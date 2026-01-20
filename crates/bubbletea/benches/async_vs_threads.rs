@@ -18,6 +18,7 @@ use bubbletea::AsyncCmd;
 // Helper Messages
 // =============================================================================
 
+#[allow(dead_code)]
 struct ResultMsg(i32);
 
 #[allow(dead_code)]
@@ -161,7 +162,7 @@ fn bench_async_many_commands_sequential(c: &mut Criterion) {
                         let cmd = AsyncCmd::new(move || async move { Message::new(ResultMsg(i)) });
                         let _ = cmd.execute().await;
                     }
-                })
+                });
             });
         });
     }
@@ -201,7 +202,7 @@ fn bench_async_concurrent_tasks(c: &mut Criterion) {
                         for handle in handles {
                             let _ = handle.await;
                         }
-                    })
+                    });
                 });
             },
         );
@@ -281,7 +282,7 @@ fn bench_spawn_blocking_comparison(c: &mut Criterion) {
                         for handle in handles {
                             let _ = handle.await;
                         }
-                    })
+                    });
                 });
             },
         );
@@ -295,6 +296,7 @@ fn bench_spawn_blocking_comparison(c: &mut Criterion) {
 // =============================================================================
 
 #[cfg(feature = "async")]
+#[allow(clippy::too_many_lines)]
 fn bench_blocking_commands(c: &mut Criterion) {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(4)
@@ -385,7 +387,7 @@ fn bench_blocking_commands(c: &mut Criterion) {
                 for handle in handles {
                     let _ = handle.await;
                 }
-            })
+            });
         });
     });
 
@@ -405,7 +407,7 @@ fn bench_blocking_commands(c: &mut Criterion) {
                 for handle in handles {
                     let _ = handle.await;
                 }
-            })
+            });
         });
     });
 
@@ -456,7 +458,7 @@ fn bench_rapid_spawning(c: &mut Criterion) {
                 for handle in handles {
                     let _ = handle.await;
                 }
-            })
+            });
         });
     });
 
@@ -490,7 +492,7 @@ fn bench_rapid_spawning(c: &mut Criterion) {
                 for handle in handles {
                     let _ = handle.await;
                 }
-            })
+            });
         });
     });
 

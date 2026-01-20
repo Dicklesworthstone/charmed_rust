@@ -404,15 +404,15 @@ impl FileBrowser {
 
     /// Navigates into the selected directory.
     pub fn enter_directory(&mut self) -> io::Result<bool> {
-        if let Some(entry) = self.selected_entry() {
-            if entry.is_directory() {
-                self.current_dir = entry.path.clone();
-                self.selected = 0;
-                self.scroll_offset = 0;
-                self.clear_filter();
-                self.scan()?;
-                return Ok(true);
-            }
+        if let Some(entry) = self.selected_entry()
+            && entry.is_directory()
+        {
+            self.current_dir = entry.path.clone();
+            self.selected = 0;
+            self.scroll_offset = 0;
+            self.clear_filter();
+            self.scan()?;
+            return Ok(true);
         }
         Ok(false)
     }

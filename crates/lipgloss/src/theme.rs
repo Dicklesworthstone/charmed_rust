@@ -417,11 +417,10 @@ impl ThemeContext {
         F: Fn(&Theme) + Send + Sync + 'static,
     {
         let id = ListenerId(self.next_listener_id.fetch_add(1, Ordering::Relaxed));
-        let mut listeners = self
-            .listeners
+        self.listeners
             .write()
-            .expect("theme listener lock poisoned");
-        listeners.insert(id, Arc::new(callback));
+            .expect("theme listener lock poisoned")
+            .insert(id, Arc::new(callback));
         debug!(theme.listener_id = id.0, "Theme listener registered");
         id
     }
@@ -521,6 +520,10 @@ impl AsyncThemeContext {
     }
 
     /// Await the next theme change.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sender has been dropped.
     pub async fn changed(&mut self) -> Result<(), tokio::sync::watch::error::RecvError> {
         self.receiver.changed().await
     }

@@ -62,6 +62,7 @@ impl CompositeAuth {
     }
 
     /// Adds an authentication handler.
+    #[allow(clippy::should_implement_trait)]
     pub fn add<H: AuthHandler + 'static>(mut self, handler: H) -> Self {
         self.handlers.push(Arc::new(handler));
         self

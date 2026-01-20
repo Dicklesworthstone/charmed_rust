@@ -318,8 +318,8 @@ mod help_tests {
         let help = Help::new();
         let binding1 = Binding::new().keys(&["q"]).help("q", "quit");
         let binding2 = Binding::new().keys(&["?", "h"]).help("?/h", "help");
-        let bindings: Vec<&Binding> = vec![&binding1, &binding2];
-        let view = help.short_help_view(&bindings);
+        let binding_list: Vec<&Binding> = vec![&binding1, &binding2];
+        let view = help.short_help_view(&binding_list);
         assert!(!view.is_empty(), "Help should render key bindings");
     }
 
@@ -559,8 +559,12 @@ mod viewport_tests {
 
     #[test]
     fn test_viewport_scrolling() {
+        use std::fmt::Write;
         let mut viewport = Viewport::new(80, 3);
-        let content: String = (1..=20).map(|i| format!("Line {i}\n")).collect();
+        let content: String = (1..=20).fold(String::new(), |mut s, i| {
+            let _ = writeln!(s, "Line {i}");
+            s
+        });
         viewport.set_content(&content);
 
         let initial_y = viewport.y_offset();
@@ -595,7 +599,7 @@ mod combination_tests {
     use super::*;
 
     /// Test that multiple components can be composed in an application.
-    /// This simulates a form with TextInput and Help.
+    /// This simulates a form with `TextInput` and `Help`.
     #[test]
     fn test_textinput_with_help_composition() {
         struct FormModel {
@@ -616,11 +620,11 @@ mod combination_tests {
             fn view(&self) -> String {
                 let binding1 = Binding::new().keys(&["enter"]).help("enter", "submit");
                 let binding2 = Binding::new().keys(&["esc"]).help("esc", "cancel");
-                let bindings: Vec<&Binding> = vec![&binding1, &binding2];
+                let binding_list: Vec<&Binding> = vec![&binding1, &binding2];
                 format!(
                     "{}\n\n{}",
                     self.input.view(),
-                    self.help.short_help_view(&bindings)
+                    self.help.short_help_view(&binding_list)
                 )
             }
         }

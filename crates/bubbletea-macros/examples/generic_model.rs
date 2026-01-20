@@ -6,6 +6,10 @@
 //! Run with: `cargo run -p bubbletea-macros --example generic_model`
 
 #![forbid(unsafe_code)]
+#![allow(dead_code)]
+#![allow(clippy::unused_self)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::needless_pass_by_value)]
 
 use std::fmt::Display;
 

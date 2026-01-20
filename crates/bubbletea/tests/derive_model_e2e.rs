@@ -2,7 +2,13 @@
 //!
 //! These tests verify the macro works correctly in practice with real TUI application patterns.
 
+// Allow these lints for Model trait conformance in test models
+#![allow(clippy::unused_self)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::needless_pass_by_value)]
+
 use bubbletea::{Cmd, Message};
+use std::fmt::Write;
 
 // ============================================================================
 // Test 1: Full Counter Application Lifecycle
@@ -53,7 +59,7 @@ impl CounterApp {
                 }
                 CounterMsg::SetValue(v) => {
                     self.count = *v;
-                    self.last_action = format!("set to {}", v);
+                    self.last_action = format!("set to {v}");
                 }
             }
         }
@@ -234,13 +240,13 @@ impl TodoApp {
             for (idx, item) in self.items.iter().enumerate() {
                 let cursor = if idx == self.selected_idx { ">" } else { " " };
                 let checkbox = if item.completed { "[x]" } else { "[ ]" };
-                output.push_str(&format!("{} {} {}\n", cursor, checkbox, item.text));
+                let _ = writeln!(output, "{cursor} {checkbox} {}", item.text);
             }
         }
 
         let completed = self.items.iter().filter(|i| i.completed).count();
         let total = self.items.len();
-        output.push_str(&format!("\n{}/{} completed", completed, total));
+        let _ = write!(output, "\n{completed}/{total} completed");
 
         output
     }
@@ -369,11 +375,11 @@ impl RegistrationForm {
         if let Some(form_msg) = msg.downcast_ref::<FormMsg>() {
             match form_msg {
                 FormMsg::SetName(n) => {
-                    self.name = n.clone();
+                    self.name.clone_from(n);
                     self.dirty = true;
                 }
                 FormMsg::SetEmail(e) => {
-                    self.email = e.clone();
+                    self.email.clone_from(e);
                     self.dirty = true;
                 }
                 FormMsg::SetAge(a) => {
@@ -409,7 +415,7 @@ impl RegistrationForm {
         }
 
         if let Some(age) = self.age {
-            if age < 13 || age > 120 {
+            if !(13..=120).contains(&age) {
                 errors.push("Age must be between 13 and 120".to_string());
             }
         } else {
@@ -422,17 +428,18 @@ impl RegistrationForm {
     fn view(&self) -> String {
         let mut output = String::from("== Registration Form ==\n\n");
 
-        output.push_str(&format!("Name:  {}\n", self.name));
-        output.push_str(&format!("Email: {}\n", self.email));
-        output.push_str(&format!(
-            "Age:   {}\n",
+        let _ = writeln!(output, "Name:  {}", self.name);
+        let _ = writeln!(output, "Email: {}", self.email);
+        let _ = writeln!(
+            output,
+            "Age:   {}",
             self.age.map(|a| a.to_string()).unwrap_or_default()
-        ));
+        );
 
         if !self.errors.is_empty() {
             output.push_str("\nErrors:\n");
             for err in &self.errors {
-                output.push_str(&format!("  - {}\n", err));
+                let _ = writeln!(output, "  - {err}");
             }
         }
 
@@ -584,14 +591,15 @@ impl Dashboard {
         for (idx, item) in self.menu_items.iter().enumerate() {
             let cursor = if idx == self.selected_menu { ">" } else { " " };
             let status = if item.enabled { "+" } else { "-" };
-            output.push_str(&format!("{} [{}] {}\n", cursor, status, item.label));
+            let _ = writeln!(output, "{cursor} [{status}] {}", item.label);
         }
 
-        output.push_str(&format!("\nContent: {}\n", self.content));
-        output.push_str(&format!(
+        let _ = writeln!(output, "\nContent: {}", self.content);
+        let _ = write!(
+            output,
             "Status: [{}] {}",
             self.status.level, self.status.message
-        ));
+        );
 
         output
     }
@@ -661,6 +669,8 @@ fn test_dashboard_complex_state() {
 // Test 5: Custom Equality with State
 // ============================================================================
 
+// Custom eq function must take references per the macro's eq callback signature
+#[allow(clippy::trivially_copy_pass_by_ref)]
 fn float_approx_eq(a: &f64, b: &f64) -> bool {
     (a - b).abs() < 0.01
 }
@@ -690,6 +700,11 @@ impl ProgressTracker {
 
     fn view(&self) -> String {
         let bar_width = 20;
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            clippy::cast_precision_loss
+        )]
         let filled = ((self.progress * bar_width as f64) as usize).min(bar_width);
         let empty = bar_width - filled;
         format!(
@@ -753,5 +768,5 @@ fn test_progress_view_rendering() {
     let view = tracker.view();
     assert!(view.contains("Installing"));
     assert!(view.contains("75%"));
-    assert!(view.contains("="));
+    assert!(view.contains('='));
 }

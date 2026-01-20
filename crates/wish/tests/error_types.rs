@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_wraps)]
+
 //! Unit tests for wish error types.
 //!
 //! Tests verify:
@@ -67,7 +69,7 @@ mod display_tests {
     fn test_io_error_display() {
         let io_err = io::Error::new(io::ErrorKind::PermissionDenied, "access denied");
         let e = Error::Io(io_err);
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("io error"));
         assert!(msg.contains("access denied"));
     }
@@ -75,7 +77,7 @@ mod display_tests {
     #[test]
     fn test_ssh_error_display() {
         let e = Error::Ssh("handshake failed".into());
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("ssh error"));
         assert!(msg.contains("handshake failed"));
     }
@@ -83,7 +85,7 @@ mod display_tests {
     #[test]
     fn test_key_error_display() {
         let e = Error::Key("invalid pem format".into());
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("key error"));
         assert!(msg.contains("invalid pem format"));
     }
@@ -91,14 +93,14 @@ mod display_tests {
     #[test]
     fn test_authentication_failed_display() {
         let e = Error::AuthenticationFailed;
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("authentication failed"));
     }
 
     #[test]
     fn test_configuration_error_display() {
         let e = Error::Configuration("missing host key".into());
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("configuration error"));
         assert!(msg.contains("missing host key"));
     }
@@ -106,7 +108,7 @@ mod display_tests {
     #[test]
     fn test_session_error_display() {
         let e = Error::Session("channel closed".into());
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("session error"));
         assert!(msg.contains("channel closed"));
     }
@@ -115,14 +117,14 @@ mod display_tests {
     fn test_addr_parse_error_display() {
         let addr_err: AddrParseError = "not-an-addr".parse::<std::net::SocketAddr>().unwrap_err();
         let e = Error::AddrParse(addr_err);
-        let msg = format!("{}", e);
+        let msg = format!("{e}");
         assert!(msg.contains("address parse error"));
     }
 
     #[test]
     fn test_debug_impl() {
         let e = Error::Ssh("test".into());
-        let debug = format!("{:?}", e);
+        let debug = format!("{e:?}");
         assert!(debug.contains("Ssh"));
     }
 }
@@ -175,7 +177,7 @@ mod from_tests {
 
     #[test]
     fn test_from_io_error() {
-        let io_err = io::Error::new(io::ErrorKind::Other, "test");
+        let io_err = io::Error::other("test");
         let e: Error = io_err.into();
         assert!(matches!(e, Error::Io(_)));
     }

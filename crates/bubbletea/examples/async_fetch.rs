@@ -1,4 +1,7 @@
 #![forbid(unsafe_code)]
+#![allow(clippy::unused_self)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::needless_pass_by_value)]
 
 //! Async runtime example demonstrating `#[derive(Model)]` with the async feature.
 //!

@@ -1,10 +1,10 @@
-//! Unit tests for charmed_log error types.
+//! Unit tests for `charmed_log` error types.
 //!
 //! Tests verify:
 //! - Error creation
 //! - Display formatting
 //! - Clone derive
-//! - FromStr integration
+//! - `FromStr` integration
 //! - Result type alias
 
 use charmed_log::{Level, ParseLevelError, ParseResult};
@@ -28,7 +28,7 @@ mod creation_tests {
 
         for input in invalid_inputs {
             let result = Level::from_str(input);
-            assert!(result.is_err(), "Expected error for input: {}", input);
+            assert!(result.is_err(), "Expected error for input: {input}");
         }
     }
 }
@@ -40,7 +40,7 @@ mod display_tests {
     fn test_display_contains_invalid_value() {
         let result = Level::from_str("badlevel");
         let e = result.unwrap_err();
-        let msg = format!("{}", e);
+        let msg = e.to_string();
         assert!(msg.contains("invalid level"));
         assert!(msg.contains("badlevel"));
     }
@@ -49,7 +49,7 @@ mod display_tests {
     fn test_display_with_empty_string() {
         let result = Level::from_str("");
         let e = result.unwrap_err();
-        let msg = format!("{}", e);
+        let msg = e.to_string();
         assert!(msg.contains("invalid level"));
     }
 
@@ -57,7 +57,7 @@ mod display_tests {
     fn test_debug_impl() {
         let result = Level::from_str("xyz");
         let e = result.unwrap_err();
-        let debug = format!("{:?}", e);
+        let debug = format!("{e:?}");
         assert!(debug.contains("ParseLevelError"));
     }
 }
@@ -95,7 +95,7 @@ mod valid_levels_tests {
 
         for level in valid {
             let result = Level::from_str(level);
-            assert!(result.is_ok(), "Expected OK for level: {}", level);
+            assert!(result.is_ok(), "Expected OK for level: {level}");
         }
     }
 
@@ -105,7 +105,7 @@ mod valid_levels_tests {
 
         for level in valid {
             let result = Level::from_str(level);
-            assert!(result.is_ok(), "Expected OK for level: {}", level);
+            assert!(result.is_ok(), "Expected OK for level: {level}");
         }
     }
 
@@ -115,7 +115,7 @@ mod valid_levels_tests {
 
         for level in valid {
             let result = Level::from_str(level);
-            assert!(result.is_ok(), "Expected OK for level: {}", level);
+            assert!(result.is_ok(), "Expected OK for level: {level}");
         }
     }
 }
@@ -126,7 +126,7 @@ mod result_tests {
     #[test]
     fn test_parse_result_ok() {
         fn parse_level(s: &str) -> ParseResult<Level> {
-            Ok(Level::from_str(s)?)
+            Level::from_str(s)
         }
 
         let result = parse_level("info");
@@ -136,7 +136,7 @@ mod result_tests {
     #[test]
     fn test_parse_result_err() {
         fn parse_level(s: &str) -> ParseResult<Level> {
-            Ok(Level::from_str(s)?)
+            Level::from_str(s)
         }
 
         let result = parse_level("invalid");
@@ -150,7 +150,7 @@ mod result_tests {
         }
 
         fn inner() -> ParseResult<Level> {
-            Ok(Level::from_str("bad")?)
+            Level::from_str("bad")
         }
 
         let result = outer();

@@ -785,7 +785,7 @@ pub fn highlight_code(code: &str, language: &str, theme: &SyntaxTheme) -> String
                         && trimmed.chars().any(is_json_punctuation)
                     {
                         render_with_json_punctuation(
-                            &lip_style,
+                            lip_style,
                             punctuation_style,
                             trimmed,
                             &mut output,
@@ -1158,6 +1158,8 @@ mod tests {
 
     #[test]
     fn test_default_impl() {
+        // Testing Default trait impl specifically
+        #[allow(clippy::default_constructed_unit_structs)]
         let detector = LanguageDetector::default();
         assert!(detector.is_supported("rust"));
     }
@@ -1566,13 +1568,13 @@ mod tests {
     #[test]
     fn test_rgb_to_256_primary_colors() {
         let red = rgb_to_256(255, 0, 0);
-        assert!(red >= 16 && red <= 231);
+        assert!((16..=231).contains(&red));
 
         let green = rgb_to_256(0, 255, 0);
-        assert!(green >= 16 && green <= 231);
+        assert!((16..=231).contains(&green));
 
         let blue = rgb_to_256(0, 0, 255);
-        assert!(blue >= 16 && blue <= 231);
+        assert!((16..=231).contains(&blue));
     }
 
     #[test]

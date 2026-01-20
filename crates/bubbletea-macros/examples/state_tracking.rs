@@ -9,6 +9,11 @@
 //! Run with: `cargo run -p bubbletea-macros --example state_tracking`
 
 #![forbid(unsafe_code)]
+#![allow(dead_code)]
+#![allow(clippy::trivially_copy_pass_by_ref)]
+#![allow(clippy::unused_self)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::needless_pass_by_value)]
 
 use std::time::Instant;
 
@@ -23,7 +28,7 @@ fn float_approx_eq(a: &f64, b: &f64) -> bool {
 /// App demonstrating various state tracking options.
 #[derive(bubbletea::Model)]
 struct StateDemo {
-    /// Basic state tracking using PartialEq.
+    /// Basic state tracking using `PartialEq`.
     #[state]
     counter: i32,
 
@@ -69,7 +74,7 @@ impl StateDemo {
                             // Index controls
                             'j' | 'J' => self.selected_index = (self.selected_index + 1).min(9),
                             'k' | 'K' => {
-                                self.selected_index = self.selected_index.saturating_sub(1)
+                                self.selected_index = self.selected_index.saturating_sub(1);
                             }
 
                             'q' | 'Q' => return Some(quit()),

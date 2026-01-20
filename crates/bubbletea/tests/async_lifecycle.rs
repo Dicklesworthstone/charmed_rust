@@ -7,6 +7,10 @@
 //! - Message ordering guarantees
 
 #![cfg(feature = "async")]
+// Test simulator doesn't need Send futures - it's single-threaded test infrastructure
+#![allow(clippy::future_not_send)]
+// Test helper methods don't need const
+#![allow(clippy::missing_const_for_fn)]
 
 use bubbletea::{AsyncCmd, Cmd, Message, Model, quit};
 use std::sync::Arc;
@@ -236,7 +240,7 @@ impl<M: Model> AsyncProgramSimulator<M> {
                             break;
                         }
                     }
-                    _ = tokio::time::sleep(Duration::from_millis(10)) => {
+                    () = tokio::time::sleep(Duration::from_millis(10)) => {
                         break;
                     }
                 }
@@ -245,6 +249,7 @@ impl<M: Model> AsyncProgramSimulator<M> {
     }
 
     /// Execute a command and queue resulting message.
+    #[allow(clippy::unused_async)] // async kept for API consistency
     async fn execute_command(&self, cmd: Cmd) {
         let tx = self.tx.clone();
         tokio::spawn(async move {

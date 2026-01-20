@@ -147,6 +147,7 @@ struct ReadmeResponse {
     content: String,
     encoding: String,
     #[serde(default)]
+    #[allow(dead_code)]
     name: String,
 }
 
@@ -264,10 +265,10 @@ impl GitHubFetcher {
     /// Fetch the README for a repository.
     pub fn fetch_readme(&self, repo: &RepoRef) -> Result<String, FetchError> {
         // Check cache first (unless force refresh)
-        if !self.config.force_refresh {
-            if let Some(cached) = self.get_cached(repo)? {
-                return Ok(cached);
-            }
+        if !self.config.force_refresh
+            && let Some(cached) = self.get_cached(repo)?
+        {
+            return Ok(cached);
         }
 
         // Build API URL

@@ -191,11 +191,11 @@ impl SessionManager {
     ///
     /// This task periodically scans for stale sessions and removes them.
     pub fn start_cleanup_task(self: &Arc<Self>) {
-        if let Some(handle) = self.cleanup_handle.read().as_ref() {
-            if !handle.is_finished() {
-                debug!("Session cleanup task already running");
-                return;
-            }
+        if let Some(handle) = self.cleanup_handle.read().as_ref()
+            && !handle.is_finished()
+        {
+            debug!("Session cleanup task already running");
+            return;
         }
 
         let manager = Arc::clone(self);

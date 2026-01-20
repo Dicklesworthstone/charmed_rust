@@ -1,6 +1,6 @@
 //! Syntax highlighting example
 //!
-//! Run with: cargo run -p glamour --features syntax-highlighting --example syntax_highlighting
+//! Run with: `cargo run -p glamour --features syntax-highlighting --example syntax_highlighting`
 
 use glamour::{Renderer, Style, StyleConfig, render};
 
@@ -62,14 +62,14 @@ console.log(doubled);
     // Render with default theme
     println!("--- Default Theme (base16-ocean.dark) ---\n");
     let output = render(markdown, Style::Dark).unwrap();
-    println!("{}", output);
+    println!("{output}");
 
     // Render with Solarized theme
     println!("\n--- Solarized (dark) Theme ---\n");
     let config = StyleConfig::default().syntax_theme("Solarized (dark)");
     let renderer = Renderer::new().with_style_config(config);
     let output = renderer.render(markdown);
-    println!("{}", output);
+    println!("{output}");
 
     // Render with line numbers
     println!("\n--- With Line Numbers ---\n");
@@ -78,5 +78,5 @@ console.log(doubled);
         .with_line_numbers(true);
     let renderer = Renderer::new().with_style_config(config);
     let output = renderer.render(markdown);
-    println!("{}", output);
+    println!("{output}");
 }

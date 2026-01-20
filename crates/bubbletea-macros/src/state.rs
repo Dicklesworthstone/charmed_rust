@@ -341,8 +341,10 @@ mod tests {
         let field_ident = Ident::new("progress", proc_macro2::Span::call_site());
         let field_ty: syn::Type = syn::parse_quote!(f64);
 
-        let mut args = StateFieldArgs::default();
-        args.eq = Some(syn::parse_quote!(float_approx_eq));
+        let args = StateFieldArgs {
+            eq: Some(syn::parse_quote!(float_approx_eq)),
+            ..StateFieldArgs::default()
+        };
 
         let fields = vec![make_field(&field_ident, &field_ty, args)];
         let output = generate_state_snapshot(&struct_name, &fields);
@@ -358,8 +360,10 @@ mod tests {
         let field_ident = Ident::new("selected", proc_macro2::Span::call_site());
         let field_ty: syn::Type = syn::parse_quote!(usize);
 
-        let mut args = StateFieldArgs::default();
-        args.debug = true;
+        let args = StateFieldArgs {
+            debug: true,
+            ..StateFieldArgs::default()
+        };
 
         let fields = vec![make_field(&field_ident, &field_ty, args)];
         let output = generate_state_snapshot(&struct_name, &fields);
@@ -375,9 +379,11 @@ mod tests {
         let field_ident = Ident::new("progress", proc_macro2::Span::call_site());
         let field_ty: syn::Type = syn::parse_quote!(f64);
 
-        let mut args = StateFieldArgs::default();
-        args.eq = Some(syn::parse_quote!(float_approx_eq));
-        args.debug = true;
+        let args = StateFieldArgs {
+            eq: Some(syn::parse_quote!(float_approx_eq)),
+            debug: true,
+            ..StateFieldArgs::default()
+        };
 
         let fields = vec![make_field(&field_ident, &field_ty, args)];
         let output = generate_state_snapshot(&struct_name, &fields);

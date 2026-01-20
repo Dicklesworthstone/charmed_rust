@@ -36,16 +36,16 @@ async fn main() -> Result<(), wish::Error> {
         .handler(|session| async move {
             // Print a greeting
             println(&session, "Hello from Wish SSH server!");
-            println(&session, &format!("You are: {}", session.user()));
+            println(&session, format!("You are: {}", session.user()));
             println(
                 &session,
-                &format!("Connected from: {}", session.remote_addr()),
+                format!("Connected from: {}", session.remote_addr()),
             );
 
             if let (Some(pty), true) = session.pty() {
                 println(
                     &session,
-                    &format!(
+                    format!(
                         "Terminal: {} ({}x{})",
                         pty.term, pty.window.width, pty.window.height
                     ),

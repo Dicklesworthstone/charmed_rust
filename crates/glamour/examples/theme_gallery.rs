@@ -1,6 +1,6 @@
 //! Theme gallery - preview all available syntax highlighting themes
 //!
-//! Run with: cargo run -p glamour --features syntax-highlighting --example theme_gallery
+//! Run with: `cargo run -p glamour --features syntax-highlighting --example theme_gallery`
 
 use glamour::{Renderer, StyleConfig};
 
@@ -38,13 +38,13 @@ fn main() {
         println!("{}\n", "=".repeat(60));
 
         for theme_name in themes {
-            println!("Theme: {}", theme_name);
+            println!("Theme: {theme_name}");
             println!("{}", "-".repeat(40));
 
             let config = StyleConfig::default().syntax_theme(theme_name);
             let renderer = Renderer::new().with_style_config(config);
             let output = renderer.render(sample_code);
-            println!("{}", output);
+            println!("{output}");
             println!();
         }
     }
