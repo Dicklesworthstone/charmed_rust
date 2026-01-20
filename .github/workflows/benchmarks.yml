@@ -38,8 +38,10 @@ jobs:
 
       - name: Run benchmarks
         run: |
+          # Build all benchmark targets
           cargo bench --workspace --no-run
-          cargo bench --workspace -- --save-baseline pr
+          # Run only Criterion-based benchmarks (avoid lib targets that don't support --save-baseline)
+          cargo bench -p bubbles -p bubbletea -p glamour -p lipgloss --benches -- --save-baseline pr
 
       - name: Download baseline (for PRs)
         if: github.event_name == 'pull_request'
@@ -63,8 +65,8 @@ jobs:
             mkdir -p target/criterion
             cp -r target/criterion-baseline/* target/criterion/ 2>/dev/null || true
 
-            # Run comparison benchmarks
-            cargo bench --workspace -- --baseline main 2>&1 | tee benchmark-results.txt
+            # Run comparison benchmarks (only Criterion-based benchmarks)
+            cargo bench -p bubbles -p bubbletea -p glamour -p lipgloss --benches -- --baseline main 2>&1 | tee benchmark-results.txt
 
             # Parse results for regressions
             WARNINGS=$(grep -c "Performance has regressed" benchmark-results.txt || echo "0")
@@ -108,7 +110,7 @@ jobs:
               echo "<summary>Current Benchmark Results</summary>"
               echo ""
               echo '```'
-              cargo bench --workspace 2>&1 | head -200
+              cargo bench -p bubbles -p bubbletea -p glamour -p lipgloss --benches 2>&1 | head -200
               echo '```'
               echo "</details>"
             } > benchmark-summary.md
@@ -168,8 +170,8 @@ jobs:
       - name: Save baseline (on push to main)
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         run: |
-          # Run benchmarks and save as baseline
-          cargo bench --workspace -- --save-baseline main
+          # Run benchmarks and save as baseline (only Criterion-based benchmarks)
+          cargo bench -p bubbles -p bubbletea -p glamour -p lipgloss --benches -- --save-baseline main
 
           # Copy criterion data for artifact
           mkdir -p criterion-baseline
