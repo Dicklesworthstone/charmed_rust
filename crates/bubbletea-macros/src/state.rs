@@ -61,9 +61,8 @@ pub fn generate_state_snapshot(struct_name: &Ident, fields: &[StateField<'_>]) -
                 /// (No fields are tracked, returns unit.)
                 #[doc(hidden)]
                 #[inline]
-                pub fn __snapshot_state(&self) -> () {
-                    ()
-                }
+                #[allow(clippy::unused_unit)]
+                pub fn __snapshot_state(&self) {}
             }
         };
     }
@@ -192,9 +191,8 @@ pub fn generate_state_snapshot_with_generics(
                 /// (No fields are tracked, returns unit.)
                 #[doc(hidden)]
                 #[inline]
-                pub fn __snapshot_state(&self) -> () {
-                    ()
-                }
+                #[allow(clippy::unused_unit)]
+                pub fn __snapshot_state(&self) {}
             }
         };
     }
