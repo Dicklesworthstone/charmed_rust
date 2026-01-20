@@ -40,8 +40,8 @@ jobs:
         run: |
           # Build all benchmark targets
           cargo bench --workspace --no-run
-          # Run only Criterion-based benchmarks (avoid lib targets that don't support --save-baseline)
-          cargo bench -p bubbles -p bubbletea -p glamour -p lipgloss --benches -- --save-baseline pr
+          # Run only named Criterion benchmarks (--benches still runs lib targets)
+          cargo bench --bench bubbles_benchmarks --bench bubbletea_benchmarks --bench glamour_benchmarks --bench lipgloss_benchmarks -- --save-baseline pr
 
       - name: Download baseline (for PRs)
         if: github.event_name == 'pull_request'
@@ -65,8 +65,8 @@ jobs:
             mkdir -p target/criterion
             cp -r target/criterion-baseline/* target/criterion/ 2>/dev/null || true
 
-            # Run comparison benchmarks (only Criterion-based benchmarks)
-            cargo bench -p bubbles -p bubbletea -p glamour -p lipgloss --benches -- --baseline main 2>&1 | tee benchmark-results.txt
+            # Run comparison benchmarks (only named Criterion benchmarks)
+            cargo bench --bench bubbles_benchmarks --bench bubbletea_benchmarks --bench glamour_benchmarks --bench lipgloss_benchmarks -- --baseline main 2>&1 | tee benchmark-results.txt
 
             # Parse results for regressions
             WARNINGS=$(grep -c "Performance has regressed" benchmark-results.txt || echo "0")
@@ -110,7 +110,7 @@ jobs:
               echo "<summary>Current Benchmark Results</summary>"
               echo ""
               echo '```'
-              cargo bench -p bubbles -p bubbletea -p glamour -p lipgloss --benches 2>&1 | head -200
+              cargo bench --bench bubbles_benchmarks --bench bubbletea_benchmarks --bench glamour_benchmarks --bench lipgloss_benchmarks 2>&1 | head -200
               echo '```'
               echo "</details>"
             } > benchmark-summary.md
@@ -170,8 +170,8 @@ jobs:
       - name: Save baseline (on push to main)
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         run: |
-          # Run benchmarks and save as baseline (only Criterion-based benchmarks)
-          cargo bench -p bubbles -p bubbletea -p glamour -p lipgloss --benches -- --save-baseline main
+          # Run benchmarks and save as baseline (only named Criterion benchmarks)
+          cargo bench --bench bubbles_benchmarks --bench bubbletea_benchmarks --bench glamour_benchmarks --bench lipgloss_benchmarks -- --save-baseline main
 
           # Copy criterion data for artifact
           mkdir -p criterion-baseline
