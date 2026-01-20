@@ -10,6 +10,7 @@ use std::io::Write;
 use tempfile::{NamedTempFile, TempDir};
 
 /// Get a Command for the glow binary.
+#[allow(deprecated)]
 fn glow_cmd() -> Command {
     Command::cargo_bin("glow").unwrap()
 }
