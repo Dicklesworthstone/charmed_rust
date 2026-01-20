@@ -2016,6 +2016,95 @@ pub mod prelude {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct DenyLimiter;
+
+    impl middleware::ratelimiter::RateLimiter for DenyLimiter {
+        fn allow(
+            &self,
+            _session: &Session,
+        ) -> std::result::Result<(), middleware::ratelimiter::RateLimitError> {
+            Err(middleware::ratelimiter::RateLimitError)
+        }
+    }
+
+    fn record_middleware(label: &'static str, events: Arc<Mutex<Vec<&'static str>>>) -> Middleware {
+        Arc::new(move |next| {
+            let events = events.clone();
+            Arc::new(move |session| {
+                let next = next.clone();
+                let events = events.clone();
+                Box::pin(async move {
+                    {
+                        let mut guard = events.lock().expect("events lock");
+                        guard.push(label);
+                    }
+                    next(session).await;
+                })
+            })
+        })
+    }
+
+    #[derive(Clone)]
+    struct TestLogger {
+        entries: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl middleware::logging::Logger for TestLogger {
+        fn log(&self, format: &str, args: &[&dyn fmt::Display]) {
+            let mut msg = format.to_string();
+            for arg in args {
+                if let Some(pos) = msg.find("{}") {
+                    msg.replace_range(pos..pos + 2, &arg.to_string());
+                }
+            }
+            self.entries.lock().expect("logger entries").push(msg);
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct TestStructuredLogger {
+        connects: Arc<Mutex<Vec<(String, SocketAddr, bool)>>>,
+        disconnects: Arc<Mutex<Vec<(String, SocketAddr)>>>,
+    }
+
+    impl middleware::logging::StructuredLogger for TestStructuredLogger {
+        fn log_connect(
+            &self,
+            _level: tracing::Level,
+            user: &str,
+            remote_addr: &SocketAddr,
+            public_key: bool,
+            _command: &[String],
+            _term: &str,
+            _width: u32,
+            _height: u32,
+            _client_version: &str,
+        ) {
+            self.connects.lock().expect("structured connects").push((
+                user.to_string(),
+                *remote_addr,
+                public_key,
+            ));
+        }
+
+        fn log_disconnect(
+            &self,
+            _level: tracing::Level,
+            user: &str,
+            remote_addr: &SocketAddr,
+            _duration: Duration,
+        ) {
+            self.disconnects
+                .lock()
+                .expect("structured disconnects")
+                .push((user.to_string(), *remote_addr));
+        }
+    }
 
     #[test]
     fn test_window_default() {
@@ -2290,5 +2379,429 @@ mod tests {
 
         let err = Error::Configuration("bad config".to_string());
         assert!(err.to_string().contains("configuration error"));
+    }
+
+    #[tokio::test]
+    async fn test_session_recv_with_input_channel() {
+        let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
+        let ctx = Context::new("testuser", addr, addr);
+        let session = Session::new(ctx);
+
+        assert!(session.recv().await.is_none());
+
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        session.set_input_receiver(rx);
+        tx.send(b"ping".to_vec()).await.unwrap();
+
+        let received = session.recv().await;
+        assert_eq!(received, Some(b"ping".to_vec()));
+    }
+
+    #[test]
+    fn test_session_send_message() {
+        let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
+        let ctx = Context::new("testuser", addr, addr);
+        let session = Session::new(ctx);
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        session.set_message_sender(tx);
+        session.send_message(Message::new(42u32));
+
+        let msg = rx.recv_timeout(Duration::from_millis(50)).unwrap();
+        assert!(msg.is::<u32>());
+        assert_eq!(msg.downcast::<u32>().unwrap(), 42);
+    }
+
+    #[tokio::test]
+    async fn test_compose_middleware_order() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let middlewares = vec![
+            record_middleware("first", events.clone()),
+            record_middleware("second", events.clone()),
+        ];
+        let composed = compose_middleware(middlewares);
+
+        let handler = handler({
+            let events = events.clone();
+            move |_session| {
+                let events = events.clone();
+                async move {
+                    let mut guard = events.lock().expect("events lock");
+                    guard.push("handler");
+                }
+            }
+        });
+
+        let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
+        let ctx = Context::new("test", addr, addr);
+        let session = Session::new(ctx);
+
+        composed(handler)(session).await;
+
+        let events = events.lock().expect("events lock");
+        assert_eq!(&*events, &["first", "second", "handler"]);
+    }
+
+    #[tokio::test]
+    async fn test_activeterm_middleware_blocks_without_pty() {
+        let called = Arc::new(AtomicUsize::new(0));
+        let mw = middleware::activeterm::middleware();
+        let handler = handler({
+            let called = called.clone();
+            move |_session| {
+                let called = called.clone();
+                async move {
+                    called.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        });
+
+        let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
+        let ctx = Context::new("test", addr, addr);
+        let mut session = Session::new(ctx);
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        session.set_output_sender(tx);
+
+        mw(handler)(session).await;
+
+        assert_eq!(called.load(Ordering::SeqCst), 0);
+
+        match rx.try_recv() {
+            Ok(SessionOutput::Stdout(data)) => {
+                assert_eq!(data, b"Requires an active PTY\r\n");
+            }
+            _ => panic!("Expected PTY warning"),
+        }
+
+        match rx.try_recv() {
+            Ok(SessionOutput::Exit(code)) => assert_eq!(code, 1),
+            _ => panic!("Expected exit code"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_accesscontrol_middleware_allows_command() {
+        let called = Arc::new(AtomicUsize::new(0));
+        let mw = middleware::accesscontrol::middleware(vec!["git".to_string()]);
+        let handler = handler({
+            let called = called.clone();
+            move |_session| {
+                let called = called.clone();
+                async move {
+                    called.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        });
+
+        let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
+        let ctx = Context::new("test", addr, addr);
+        let session = Session::new(ctx).with_command(vec!["git".to_string()]);
+
+        mw(handler)(session).await;
+
+        assert_eq!(called.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn test_accesscontrol_middleware_blocks_command() {
+        let called = Arc::new(AtomicUsize::new(0));
+        let mw = middleware::accesscontrol::middleware(vec!["git".to_string()]);
+        let handler = handler({
+            let called = called.clone();
+            move |_session| {
+                let called = called.clone();
+                async move {
+                    called.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        });
+
+        let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
+        let ctx = Context::new("test", addr, addr);
+        let mut session = Session::new(ctx).with_command(vec!["rm".to_string()]);
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        session.set_output_sender(tx);
+
+        mw(handler)(session).await;
+
+        assert_eq!(called.load(Ordering::SeqCst), 0);
+
+        match rx.try_recv() {
+            Ok(SessionOutput::Stdout(data)) => {
+                assert_eq!(data, b"Command is not allowed: rm\r\n");
+            }
+            _ => panic!("Expected access control message"),
+        }
+
+        match rx.try_recv() {
+            Ok(SessionOutput::Exit(code)) => assert_eq!(code, 1),
+            _ => panic!("Expected exit code"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_comment_middleware_appends_message() {
+        let mw = middleware::comment::middleware("done");
+        let handler = handler(|session| async move {
+            print(&session, "work");
+        });
+
+        let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
+        let ctx = Context::new("test", addr, addr);
+        let mut session = Session::new(ctx);
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        session.set_output_sender(tx);
+
+        mw(handler)(session).await;
+
+        match rx.try_recv() {
+            Ok(SessionOutput::Stdout(data)) => assert_eq!(data, b"work"),
+            _ => panic!("Expected handler output"),
+        }
+        match rx.try_recv() {
+            Ok(SessionOutput::Stdout(data)) => assert_eq!(data, b"done\r\n"),
+            _ => panic!("Expected comment output"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_elapsed_middleware_outputs_timing() {
+        let mw = middleware::elapsed::middleware_with_format("elapsed=%v");
+        let handler = handler(|_session| async move {});
+
+        let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
+        let ctx = Context::new("test", addr, addr);
+        let mut session = Session::new(ctx);
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        session.set_output_sender(tx);
+
+        mw(handler)(session).await;
+
+        match rx.try_recv() {
+            Ok(SessionOutput::Stdout(data)) => {
+                let msg = String::from_utf8_lossy(&data);
+                assert!(msg.contains("elapsed="));
+            }
+            _ => panic!("Expected elapsed output"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ratelimiter_middleware_rejects() {
+        let called = Arc::new(AtomicUsize::new(0));
+        let mw = middleware::ratelimiter::middleware(DenyLimiter);
+        let handler = handler({
+            let called = called.clone();
+            move |_session| {
+                let called = called.clone();
+                async move {
+                    called.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        });
+
+        let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
+        let ctx = Context::new("test", addr, addr);
+        let mut session = Session::new(ctx);
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        session.set_output_sender(tx);
+
+        mw(handler)(session).await;
+
+        assert_eq!(called.load(Ordering::SeqCst), 0);
+
+        match rx.try_recv() {
+            Ok(SessionOutput::Stderr(data)) => {
+                assert_eq!(
+                    data,
+                    middleware::ratelimiter::ERR_RATE_LIMIT_EXCEEDED.as_bytes()
+                );
+            }
+            _ => panic!("Expected rate limit error"),
+        }
+
+        match rx.try_recv() {
+            Ok(SessionOutput::Exit(code)) => assert_eq!(code, 1),
+            _ => panic!("Expected exit"),
+        }
+
+        match rx.try_recv() {
+            Ok(SessionOutput::Close) => {}
+            _ => panic!("Expected close"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_logging_middleware_with_custom_logger() {
+        let entries = Arc::new(Mutex::new(Vec::new()));
+        let logger = TestLogger {
+            entries: entries.clone(),
+        };
+
+        let mw = middleware::logging::middleware_with_logger(logger);
+        let handler = handler(|_session| async move {});
+
+        let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
+        let ctx = Context::new("alice", addr, addr);
+        let session = Session::new(ctx);
+
+        mw(handler)(session).await;
+
+        let entries = entries.lock().expect("logger entries");
+        assert_eq!(entries.len(), 2);
+        assert!(entries[0].contains("connect"));
+        assert!(entries[1].contains("disconnect"));
+    }
+
+    #[tokio::test]
+    async fn test_structured_logging_middleware_with_custom_logger() {
+        let logger = TestStructuredLogger::default();
+        let mw = middleware::logging::structured_middleware_with_logger(
+            logger.clone(),
+            tracing::Level::INFO,
+        );
+        let handler = handler(|_session| async move {});
+
+        let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
+        let ctx = Context::new("alice", addr, addr);
+        let session = Session::new(ctx).with_public_key(PublicKey::new("ssh-ed25519", vec![1]));
+
+        mw(handler)(session).await;
+
+        let connects = logger.connects.lock().expect("connects");
+        assert_eq!(connects.len(), 1);
+        assert_eq!(connects[0].0, "alice");
+        assert_eq!(connects[0].1, addr);
+        assert!(connects[0].2);
+
+        let disconnects = logger.disconnects.lock().expect("disconnects");
+        assert_eq!(disconnects.len(), 1);
+        assert_eq!(disconnects[0].0, "alice");
+        assert_eq!(disconnects[0].1, addr);
+    }
+
+    #[tokio::test]
+    async fn test_recover_middleware_runs_inner_before_next() {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let inner = record_middleware("inner", events.clone());
+        let mw = middleware::recover::middleware_with_middlewares(vec![inner]);
+
+        let handler = handler({
+            let events = events.clone();
+            move |_session| {
+                let events = events.clone();
+                async move {
+                    let mut guard = events.lock().expect("events lock");
+                    guard.push("handler");
+                }
+            }
+        });
+
+        let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
+        let ctx = Context::new("test", addr, addr);
+        let session = Session::new(ctx);
+
+        mw(handler)(session).await;
+
+        let events = events.lock().expect("events lock");
+        assert_eq!(&*events, &["inner", "handler"]);
+    }
+
+    #[test]
+    fn test_server_option_auth_and_subsystem() {
+        let mut opts = ServerOptions::default();
+
+        with_auth_handler(AcceptAllAuth::new())(&mut opts).unwrap();
+        with_max_auth_attempts(3)(&mut opts).unwrap();
+        with_auth_rejection_delay(250)(&mut opts).unwrap();
+        with_public_key_auth(|_ctx, _key| true)(&mut opts).unwrap();
+        with_password_auth(|_ctx, _pw| true)(&mut opts).unwrap();
+        with_keyboard_interactive_auth(|_ctx, _resp, _prompts, _echos| vec!["ok".to_string()])(
+            &mut opts,
+        )
+        .unwrap();
+        with_host_key_path("/tmp/host_key")(&mut opts).unwrap();
+        with_host_key_pem(b"pem".to_vec())(&mut opts).unwrap();
+        with_banner_handler(|ctx| format!("hello {}", ctx.user()))(&mut opts).unwrap();
+        with_middleware(middleware::comment::middleware("hi"))(&mut opts).unwrap();
+        with_subsystem("sftp", |_session| async move {})(&mut opts).unwrap();
+
+        assert!(opts.auth_handler.is_some());
+        assert_eq!(opts.max_auth_attempts, 3);
+        assert_eq!(opts.auth_rejection_delay_ms, 250);
+        assert!(opts.public_key_handler.is_some());
+        assert!(opts.password_handler.is_some());
+        assert!(opts.keyboard_interactive_handler.is_some());
+        assert_eq!(opts.host_key_path.as_deref(), Some("/tmp/host_key"));
+        assert_eq!(opts.host_key_pem.as_deref(), Some(b"pem".as_slice()));
+        assert!(opts.banner_handler.is_some());
+        assert_eq!(opts.middlewares.len(), 1);
+        assert!(opts.subsystem_handlers.contains_key("sftp"));
+    }
+
+    #[test]
+    fn test_server_builder_auth_settings() {
+        let server = ServerBuilder::new()
+            .address("127.0.0.1:2222")
+            .max_auth_attempts(5)
+            .auth_rejection_delay(123)
+            .public_key_auth(|_ctx, _key| true)
+            .password_auth(|_ctx, _pw| true)
+            .keyboard_interactive_auth(|_ctx, _resp, _prompts, _echos| vec![])
+            .subsystem("sftp", |_session| async move {})
+            .build()
+            .unwrap();
+
+        assert_eq!(server.options().max_auth_attempts, 5);
+        assert_eq!(server.options().auth_rejection_delay_ms, 123);
+        assert!(server.options().public_key_handler.is_some());
+        assert!(server.options().password_handler.is_some());
+        assert!(server.options().keyboard_interactive_handler.is_some());
+        assert!(server.options().subsystem_handlers.contains_key("sftp"));
+    }
+
+    #[test]
+    fn test_create_russh_config_methods_from_auth_handler() {
+        use russh::MethodSet;
+
+        struct PasswordOnly;
+
+        #[async_trait::async_trait]
+        impl AuthHandler for PasswordOnly {
+            fn supported_methods(&self) -> Vec<AuthMethod> {
+                vec![AuthMethod::Password]
+            }
+        }
+
+        let server = ServerBuilder::new()
+            .auth_handler(PasswordOnly)
+            .build()
+            .unwrap();
+        let config = server.create_russh_config().unwrap();
+
+        assert!(config.methods.contains(MethodSet::PASSWORD));
+        assert!(!config.methods.contains(MethodSet::PUBLICKEY));
+    }
+
+    #[test]
+    fn test_create_russh_config_methods_from_callbacks() {
+        use russh::MethodSet;
+
+        let server = ServerBuilder::new()
+            .public_key_auth(|_ctx, _key| true)
+            .password_auth(|_ctx, _pw| true)
+            .build()
+            .unwrap();
+
+        let config = server.create_russh_config().unwrap();
+
+        assert!(config.methods.contains(MethodSet::PUBLICKEY));
+        assert!(config.methods.contains(MethodSet::PASSWORD));
+        assert!(!config.methods.contains(MethodSet::KEYBOARD_INTERACTIVE));
     }
 }

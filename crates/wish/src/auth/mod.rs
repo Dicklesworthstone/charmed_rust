@@ -192,6 +192,23 @@ impl<H: AuthHandler + Send + Sync> AuthHandler for RateLimitedAuth<H> {
 mod tests {
     use super::*;
     use std::net::SocketAddr;
+    use std::time::Duration;
+
+    struct RejectAuth;
+
+    #[async_trait::async_trait]
+    impl AuthHandler for RejectAuth {}
+
+    struct PartialAuth;
+
+    #[async_trait::async_trait]
+    impl AuthHandler for PartialAuth {
+        async fn auth_password(&self, _ctx: &AuthContext, _password: &str) -> AuthResult {
+            AuthResult::Partial {
+                next_methods: vec![AuthMethod::PublicKey],
+            }
+        }
+    }
 
     #[test]
     fn test_session_id() {
@@ -217,6 +234,35 @@ mod tests {
         assert!(matches!(result, AuthResult::Accept));
     }
 
+    #[tokio::test]
+    async fn test_composite_auth_rejects_all() {
+        let auth = CompositeAuth::new().add(RejectAuth);
+
+        let addr: SocketAddr = "127.0.0.1:22".parse().unwrap();
+        let ctx = AuthContext::new("testuser", addr, SessionId(1));
+
+        let result = auth.auth_password(&ctx, "password").await;
+        assert!(matches!(result, AuthResult::Reject));
+    }
+
+    #[tokio::test]
+    async fn test_composite_auth_partial() {
+        let auth = CompositeAuth::new()
+            .add(PartialAuth)
+            .add(AcceptAllAuth::new());
+
+        let addr: SocketAddr = "127.0.0.1:22".parse().unwrap();
+        let ctx = AuthContext::new("testuser", addr, SessionId(1));
+
+        let result = auth.auth_password(&ctx, "password").await;
+        match result {
+            AuthResult::Partial { next_methods } => {
+                assert_eq!(next_methods, vec![AuthMethod::PublicKey]);
+            }
+            _ => panic!("Expected partial auth result"),
+        }
+    }
+
     #[test]
     fn test_rate_limited_auth_settings() {
         let inner = AcceptAllAuth::new();
@@ -226,5 +272,21 @@ mod tests {
 
         assert_eq!(auth.rejection_delay_ms, 200);
         assert_eq!(auth.max_attempts(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_rate_limited_auth_delay_on_reject() {
+        let inner = RejectAuth;
+        let auth = RateLimitedAuth::new(inner).with_rejection_delay(20);
+
+        let addr: SocketAddr = "127.0.0.1:22".parse().unwrap();
+        let ctx = AuthContext::new("testuser", addr, SessionId(1));
+
+        let start = tokio::time::Instant::now();
+        let result = auth.auth_password(&ctx, "password").await;
+        let elapsed = start.elapsed();
+
+        assert!(matches!(result, AuthResult::Reject));
+        assert!(elapsed >= Duration::from_millis(15));
     }
 }

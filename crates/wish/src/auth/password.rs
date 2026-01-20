@@ -303,6 +303,7 @@ mod tests {
     use super::super::SessionId;
     use super::*;
     use std::net::SocketAddr;
+    use std::sync::Arc;
 
     fn make_context(username: &str) -> AuthContext {
         let addr: SocketAddr = "127.0.0.1:22".parse().unwrap();
@@ -377,5 +378,26 @@ mod tests {
         assert_eq!(auth.user_count(), 2);
         assert!(auth.has_user("user1"));
         assert!(auth.has_user("user2"));
+    }
+
+    #[tokio::test]
+    async fn test_async_callback_auth() {
+        let auth = AsyncCallbackAuth::new(Arc::new(|ctx: &AuthContext, password: &str| {
+            let username = ctx.username().to_string();
+            let password = password.to_string();
+            let fut: std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>> =
+                Box::pin(async move { username == "admin" && password == "secret" });
+            fut
+        }));
+
+        let ctx = make_context("admin");
+        assert!(matches!(
+            auth.auth_password(&ctx, "secret").await,
+            AuthResult::Accept
+        ));
+        assert!(matches!(
+            auth.auth_password(&ctx, "wrong").await,
+            AuthResult::Reject
+        ));
     }
 }

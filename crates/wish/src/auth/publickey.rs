@@ -237,6 +237,7 @@ mod tests {
     use super::super::SessionId;
     use super::*;
     use std::net::SocketAddr;
+    use std::sync::Arc;
 
     fn make_context(username: &str) -> AuthContext {
         let addr: SocketAddr = "127.0.0.1:22".parse().unwrap();
@@ -343,5 +344,29 @@ mod tests {
         ];
         let auth = PublicKeyAuth::new().add_keys(keys);
         assert_eq!(auth.global_key_count(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_async_publickey_auth() {
+        let auth = AsyncPublicKeyAuth::new(Arc::new(|ctx: &AuthContext, key: &PublicKey| {
+            let username = ctx.username().to_string();
+            let key_type = key.key_type.clone();
+            let fut: std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>> =
+                Box::pin(async move { username == "alice" && key_type == "ssh-ed25519" });
+            fut
+        }));
+
+        let ctx = make_context("alice");
+        let key = make_key("ssh-ed25519", b"keydata");
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &key).await,
+            AuthResult::Accept
+        ));
+
+        let key = make_key("ssh-rsa", b"keydata");
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &key).await,
+            AuthResult::Reject
+        ));
     }
 }

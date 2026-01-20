@@ -420,7 +420,16 @@ fn expand_tilde_with_home(path: &Path, home: Option<&Path>) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    use super::super::SessionId;
     use super::*;
+    use std::collections::HashMap;
+    use std::net::SocketAddr;
+    use std::sync::Arc;
+
+    fn make_context(username: &str) -> AuthContext {
+        let addr: SocketAddr = "127.0.0.1:22".parse().unwrap();
+        AuthContext::new(username, addr, SessionId(1))
+    }
 
     #[test]
     fn test_parse_simple_key() {
@@ -527,5 +536,85 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHUFrQ== user3@example.com
         // Test with tilde but no home
         let expanded = expand_tilde_with_home(Path::new("~/.ssh/authorized_keys"), None);
         assert_eq!(expanded, PathBuf::from("~/.ssh/authorized_keys"));
+    }
+
+    #[test]
+    fn test_authorized_key_to_public_key() {
+        let ak = AuthorizedKey {
+            key_type: "ssh-ed25519".to_string(),
+            key_data: "AAAA".to_string(),
+            key_bytes: vec![1, 2, 3],
+            comment: Some("user@example.com".to_string()),
+            options: vec!["no-pty".to_string()],
+        };
+
+        let pk = ak.to_public_key();
+        assert_eq!(pk.key_type, "ssh-ed25519");
+        assert_eq!(pk.data, vec![1, 2, 3]);
+        assert_eq!(pk.comment, Some("user@example.com".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_authorized_keys_auth_uses_cached_keys() {
+        let ak = AuthorizedKey {
+            key_type: "ssh-ed25519".to_string(),
+            key_data: "AAAA".to_string(),
+            key_bytes: vec![1, 2, 3],
+            comment: None,
+            options: vec![],
+        };
+
+        let cache = HashMap::from([(String::new(), vec![ak.clone()])]);
+        let auth = AuthorizedKeysAuth {
+            keys_path: PathBuf::from("/ignored"),
+            per_user: false,
+            cache: Arc::new(RwLock::new(cache)),
+        };
+
+        let ctx = make_context("alice");
+        let key = PublicKey::new("ssh-ed25519", vec![1, 2, 3]);
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &key).await,
+            AuthResult::Accept
+        ));
+
+        let wrong_key = PublicKey::new("ssh-ed25519", vec![9, 9, 9]);
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &wrong_key).await,
+            AuthResult::Reject
+        ));
+        assert_eq!(auth.cached_key_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_authorized_keys_auth_per_user_cache() {
+        let ak = AuthorizedKey {
+            key_type: "ssh-ed25519".to_string(),
+            key_data: "AAAA".to_string(),
+            key_bytes: vec![4, 5, 6],
+            comment: None,
+            options: vec![],
+        };
+
+        let cache = HashMap::from([("alice".to_string(), vec![ak.clone()])]);
+        let auth = AuthorizedKeysAuth {
+            keys_path: PathBuf::from("/ignored/%u"),
+            per_user: true,
+            cache: Arc::new(RwLock::new(cache)),
+        };
+
+        let ctx = make_context("alice");
+        let key = PublicKey::new("ssh-ed25519", vec![4, 5, 6]);
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &key).await,
+            AuthResult::Accept
+        ));
+
+        let ctx = make_context("bob");
+        assert!(matches!(
+            auth.auth_publickey(&ctx, &key).await,
+            AuthResult::Reject
+        ));
+        assert_eq!(auth.cached_key_count(), 1);
     }
 }

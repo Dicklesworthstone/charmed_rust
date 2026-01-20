@@ -25,10 +25,10 @@ proptest! {
         // We set total pages from items to ensure consistent state for slice calc
         p.set_total_pages_from_items(item_count);
         let (start, end) = p.get_slice_bounds(item_count);
-        
+
         prop_assert!(start <= end);
         prop_assert!(end <= item_count);
-        
+
         // Items on page should match slice difference
         let count = p.items_on_page(item_count);
         prop_assert_eq!(count, end - start);
@@ -49,11 +49,11 @@ proptest! {
         // View generation should not panic and return non-empty string
         let view = p.view();
         prop_assert!(!view.is_empty());
-        
+
         // Incremental updates should respect bounds
         p.incr_percent(0.1);
         prop_assert!(p.percent() <= 1.0);
-        
+
         p.decr_percent(0.1);
         prop_assert!(p.percent() >= 0.0);
     }
@@ -83,11 +83,11 @@ proptest! {
         // View generation should not panic
         let view = input.view();
         prop_assert!(!view.is_empty()); // Should at least contain prompt
-        
+
         // Cursor movement invariants
         input.cursor_start();
         prop_assert_eq!(input.position(), 0);
-        
+
         input.cursor_end();
         prop_assert_eq!(input.position(), char_count);
     }
