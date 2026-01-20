@@ -268,6 +268,29 @@ impl Pager {
         self.search.current = 0;
         self.viewport.set_y_offset(self.search.matches[0]);
     }
+
+    fn goto_last_match_before_current(&mut self) {
+        if self.search.matches.is_empty() {
+            return;
+        }
+        let current_line = self.viewport.y_offset();
+        let mut last_match = None;
+        for (i, &line) in self.search.matches.iter().enumerate() {
+            if line <= current_line {
+                last_match = Some((i, line));
+            } else {
+                break;
+            }
+        }
+        if let Some((i, line)) = last_match {
+            self.search.current = i;
+            self.viewport.set_y_offset(line);
+            return;
+        }
+        self.search.current = self.search.matches.len() - 1;
+        let line = self.search.matches[self.search.current];
+        self.viewport.set_y_offset(line);
+    }
 }
 
 impl Model for Pager {
@@ -316,7 +339,7 @@ impl Model for Pager {
                                 self.goto_first_match_from_current();
                             } else {
                                 // For backward search, find last match before current
-                                self.goto_prev_match();
+                                self.goto_last_match_before_current();
                             }
                             self.mode = InputMode::Normal;
                             return None;
