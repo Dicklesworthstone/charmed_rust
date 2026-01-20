@@ -39,7 +39,7 @@ jobs:
       - name: Run benchmarks
         run: |
           cargo bench --workspace --no-run
-          cargo bench --workspace -- --noplot --save-baseline pr
+          cargo bench --workspace -- --save-baseline pr
 
       - name: Download baseline (for PRs)
         if: github.event_name == 'pull_request'
@@ -64,7 +64,7 @@ jobs:
             cp -r target/criterion-baseline/* target/criterion/ 2>/dev/null || true
 
             # Run comparison benchmarks
-            cargo bench --workspace -- --noplot --baseline main 2>&1 | tee benchmark-results.txt
+            cargo bench --workspace -- --baseline main 2>&1 | tee benchmark-results.txt
 
             # Parse results for regressions
             WARNINGS=$(grep -c "Performance has regressed" benchmark-results.txt || echo "0")
@@ -108,7 +108,7 @@ jobs:
               echo "<summary>Current Benchmark Results</summary>"
               echo ""
               echo '```'
-              cargo bench --workspace -- --noplot 2>&1 | head -200
+              cargo bench --workspace 2>&1 | head -200
               echo '```'
               echo "</details>"
             } > benchmark-summary.md
@@ -169,7 +169,7 @@ jobs:
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         run: |
           # Run benchmarks and save as baseline
-          cargo bench --workspace -- --noplot --save-baseline main
+          cargo bench --workspace -- --save-baseline main
 
           # Copy criterion data for artifact
           mkdir -p criterion-baseline
