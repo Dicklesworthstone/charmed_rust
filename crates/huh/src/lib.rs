@@ -524,7 +524,6 @@ pub fn theme_charm() -> Theme {
 pub fn theme_dracula() -> Theme {
     let mut t = theme_base();
 
-    let _background = "#282a36";
     let selection = "#44475a";
     let foreground = "#f8f8f2";
     let comment = "#6272a4";
@@ -1183,7 +1182,7 @@ impl Input {
     /// Sets the initial value.
     pub fn value(mut self, value: impl Into<String>) -> Self {
         self.value = value.into();
-        self.cursor_pos = self.value.len();
+        self.cursor_pos = self.value.chars().count();
         self
     }
 
@@ -1331,11 +1330,20 @@ impl Field for Input {
             }
 
             // Handle character input
+            // Note: cursor_pos is a character index (not byte index) for proper Unicode support
             match key_msg.key_type {
                 KeyType::Runes => {
                     for c in &key_msg.runes {
-                        if self.char_limit == 0 || self.value.len() < self.char_limit {
-                            self.value.insert(self.cursor_pos, *c);
+                        let char_count = self.value.chars().count();
+                        if self.char_limit == 0 || char_count < self.char_limit {
+                            // Convert character position to byte position for insertion
+                            let byte_pos = self
+                                .value
+                                .char_indices()
+                                .nth(self.cursor_pos)
+                                .map(|(i, _)| i)
+                                .unwrap_or(self.value.len());
+                            self.value.insert(byte_pos, *c);
                             self.cursor_pos += 1;
                         }
                     }
@@ -1343,12 +1351,23 @@ impl Field for Input {
                 KeyType::Backspace => {
                     if self.cursor_pos > 0 {
                         self.cursor_pos -= 1;
-                        self.value.remove(self.cursor_pos);
+                        // Convert character position to byte position for removal
+                        if let Some((byte_pos, _)) =
+                            self.value.char_indices().nth(self.cursor_pos)
+                        {
+                            self.value.remove(byte_pos);
+                        }
                     }
                 }
                 KeyType::Delete => {
-                    if self.cursor_pos < self.value.len() {
-                        self.value.remove(self.cursor_pos);
+                    let char_count = self.value.chars().count();
+                    if self.cursor_pos < char_count {
+                        // Convert character position to byte position for removal
+                        if let Some((byte_pos, _)) =
+                            self.value.char_indices().nth(self.cursor_pos)
+                        {
+                            self.value.remove(byte_pos);
+                        }
                     }
                 }
                 KeyType::Left => {
@@ -1357,7 +1376,8 @@ impl Field for Input {
                     }
                 }
                 KeyType::Right => {
-                    if self.cursor_pos < self.value.len() {
+                    let char_count = self.value.chars().count();
+                    if self.cursor_pos < char_count {
                         self.cursor_pos += 1;
                     }
                 }
@@ -1365,7 +1385,7 @@ impl Field for Input {
                     self.cursor_pos = 0;
                 }
                 KeyType::End => {
-                    self.cursor_pos = self.value.len();
+                    self.cursor_pos = self.value.chars().count();
                 }
                 _ => {}
             }
@@ -3377,5 +3397,115 @@ mod tests {
         multi.update(&toggle_msg);
         // Should still be 2 due to limit
         assert_eq!(multi.get_selected_values().len(), 2);
+    }
+
+    #[test]
+    fn test_input_unicode_cursor_handling() {
+        // Test that cursor position works correctly with multi-byte UTF-8 characters
+        let mut input = Input::new().value("café"); // 'é' is 2 bytes in UTF-8
+
+        // Focus to enable updates
+        input.focus();
+
+        // cursor_pos should be at end (4 characters, not 5 bytes)
+        assert_eq!(input.cursor_pos, 4);
+        assert_eq!(input.value.chars().count(), 4);
+
+        // Press End to ensure cursor is at end
+        let end_msg = Message::new(KeyMsg {
+            key_type: KeyType::End,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        input.update(&end_msg);
+        assert_eq!(input.cursor_pos, 4);
+
+        // Press Left to move before 'é'
+        let left_msg = Message::new(KeyMsg {
+            key_type: KeyType::Left,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        input.update(&left_msg);
+        assert_eq!(input.cursor_pos, 3);
+
+        // Press Backspace to delete 'f'
+        let backspace_msg = Message::new(KeyMsg {
+            key_type: KeyType::Backspace,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        input.update(&backspace_msg);
+        assert_eq!(input.get_string_value(), "caé");
+        assert_eq!(input.cursor_pos, 2);
+
+        // Insert a character at current position
+        let insert_msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: vec!['ñ'], // Another multi-byte char
+            alt: false,
+            paste: false,
+        });
+        input.update(&insert_msg);
+        assert_eq!(input.get_string_value(), "cañé");
+        assert_eq!(input.cursor_pos, 3);
+
+        // Delete character at cursor (should delete 'é')
+        let delete_msg = Message::new(KeyMsg {
+            key_type: KeyType::Delete,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        input.update(&delete_msg);
+        assert_eq!(input.get_string_value(), "cañ");
+
+        // Home should move to position 0
+        let home_msg = Message::new(KeyMsg {
+            key_type: KeyType::Home,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        input.update(&home_msg);
+        assert_eq!(input.cursor_pos, 0);
+    }
+
+    #[test]
+    fn test_input_char_limit_with_unicode() {
+        // Test that char_limit counts characters, not bytes
+        let mut input = Input::new().char_limit(5);
+        input.focus();
+
+        // Insert 5 multi-byte characters (each would be 2+ bytes in UTF-8)
+        let chars = ['日', '本', '語', '文', '字']; // 5 Japanese characters
+        for c in chars {
+            let msg = Message::new(KeyMsg {
+                key_type: KeyType::Runes,
+                runes: vec![c],
+                alt: false,
+                paste: false,
+            });
+            input.update(&msg);
+        }
+
+        // Should have exactly 5 characters (not blocked due to byte count)
+        assert_eq!(input.value.chars().count(), 5);
+        assert_eq!(input.get_string_value(), "日本語文字");
+
+        // Try to add one more - should be blocked by char limit
+        let msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: vec!['!'],
+            alt: false,
+            paste: false,
+        });
+        input.update(&msg);
+
+        // Should still be 5 characters
+        assert_eq!(input.value.chars().count(), 5);
     }
 }

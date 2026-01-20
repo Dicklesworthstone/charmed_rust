@@ -589,8 +589,9 @@ fn read_directory(path: &Path, show_hidden: bool) -> std::io::Result<Vec<DirEntr
 
         let metadata = entry.metadata()?;
         let file_type = entry.file_type()?;
+        let is_symlink = file_type.is_symlink();
 
-        let mode = format_mode(&metadata);
+        let mode = format_mode(&metadata, is_symlink);
 
         entries.push(DirEntry {
             name,
@@ -614,13 +615,13 @@ fn read_directory(path: &Path, show_hidden: bool) -> std::io::Result<Vec<DirEntr
 
 /// Formats file permissions as a string.
 #[cfg(unix)]
-fn format_mode(metadata: &std::fs::Metadata) -> String {
+fn format_mode(metadata: &std::fs::Metadata, is_symlink: bool) -> String {
     use std::os::unix::fs::PermissionsExt;
     let mode = metadata.permissions().mode();
 
     let file_type = if metadata.is_dir() {
         'd'
-    } else if metadata.file_type().is_symlink() {
+    } else if is_symlink {
         'l'
     } else {
         '-'
@@ -649,8 +650,14 @@ fn format_mode(metadata: &std::fs::Metadata) -> String {
 }
 
 #[cfg(not(unix))]
-fn format_mode(metadata: &std::fs::Metadata) -> String {
-    let file_type = if metadata.is_dir() { 'd' } else { '-' };
+fn format_mode(metadata: &std::fs::Metadata, is_symlink: bool) -> String {
+    let file_type = if metadata.is_dir() {
+        'd'
+    } else if is_symlink {
+        'l'
+    } else {
+        '-'
+    };
     let readonly = if metadata.permissions().readonly() {
         "r--"
     } else {
