@@ -604,7 +604,12 @@ mod tests {
         };
         let result = validate_init_signature(&sig);
         assert!(result.is_err());
-        assert!(result.unwrap_err().message.contains("no additional parameters"));
+        assert!(
+            result
+                .unwrap_err()
+                .message
+                .contains("no additional parameters")
+        );
     }
 
     #[test]

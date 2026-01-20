@@ -363,15 +363,17 @@ impl Projectile {
     /// ```
     #[inline]
     pub fn update(&mut self) -> Point {
-        // Update velocity based on acceleration (Semi-Implicit Euler)
-        self.vel.x += self.acc.x * self.delta_time;
-        self.vel.y += self.acc.y * self.delta_time;
-        self.vel.z += self.acc.z * self.delta_time;
-
-        // Update position based on NEW velocity
+        // Update position based on current velocity (Explicit Euler)
+        // This matches Go's harmonica behavior: position is updated first,
+        // then velocity is updated for the next frame
         self.pos.x += self.vel.x * self.delta_time;
         self.pos.y += self.vel.y * self.delta_time;
         self.pos.z += self.vel.z * self.delta_time;
+
+        // Update velocity based on acceleration
+        self.vel.x += self.acc.x * self.delta_time;
+        self.vel.y += self.acc.y * self.delta_time;
+        self.vel.z += self.acc.z * self.delta_time;
 
         self.pos
     }

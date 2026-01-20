@@ -61,15 +61,17 @@ impl StateDemo {
                             // Counter controls
                             '+' | '=' => self.counter = self.counter.saturating_add(1),
                             '-' | '_' => self.counter = self.counter.saturating_sub(1),
-                            
+
                             // Progress controls (increments by 0.05)
                             '.' => self.progress = (self.progress + 0.05).min(1.0),
                             ',' => self.progress = (self.progress - 0.05).max(0.0),
-                            
+
                             // Index controls
                             'j' | 'J' => self.selected_index = (self.selected_index + 1).min(9),
-                            'k' | 'K' => self.selected_index = self.selected_index.saturating_sub(1),
-                            
+                            'k' | 'K' => {
+                                self.selected_index = self.selected_index.saturating_sub(1)
+                            }
+
                             'q' | 'Q' => return Some(quit()),
                             _ => {}
                         }
@@ -78,7 +80,7 @@ impl StateDemo {
                 KeyType::CtrlC | KeyType::Esc => return Some(quit()),
                 _ => {}
             }
-            
+
             // Update non-tracked fields
             self.message_count += 1;
             self.last_update = Some(Instant::now());
@@ -98,10 +100,7 @@ impl StateDemo {
              ,/. : Change progress\n\
              j/k : Change index\n\
              q   : Quit",
-            self.counter,
-            self.progress,
-            self.selected_index,
-            self.message_count
+            self.counter, self.progress, self.selected_index, self.message_count
         )
     }
 }

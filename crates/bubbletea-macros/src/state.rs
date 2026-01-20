@@ -302,11 +302,7 @@ mod tests {
     use super::*;
     use crate::attributes::StateFieldArgs;
 
-    fn make_field<'a>(
-        ident: &'a Ident,
-        ty: &'a syn::Type,
-        args: StateFieldArgs,
-    ) -> StateField<'a> {
+    fn make_field<'a>(ident: &'a Ident, ty: &'a syn::Type, args: StateFieldArgs) -> StateField<'a> {
         StateField { ident, ty, args }
     }
 
@@ -327,7 +323,11 @@ mod tests {
         let field_ident = Ident::new("count", proc_macro2::Span::call_site());
         let field_ty: syn::Type = syn::parse_quote!(i32);
 
-        let fields = vec![make_field(&field_ident, &field_ty, StateFieldArgs::default())];
+        let fields = vec![make_field(
+            &field_ident,
+            &field_ty,
+            StateFieldArgs::default(),
+        )];
         let output = generate_state_snapshot(&struct_name, &fields);
         let output_str = output.to_string();
 
@@ -386,11 +386,20 @@ mod tests {
         let output_str = output.to_string();
 
         // Should have custom equality function
-        assert!(output_str.contains("float_approx_eq"), "Should use custom eq function");
+        assert!(
+            output_str.contains("float_approx_eq"),
+            "Should use custom eq function"
+        );
         // Should have debug logging
-        assert!(output_str.contains("eprintln !"), "Should have debug logging");
+        assert!(
+            output_str.contains("eprintln !"),
+            "Should have debug logging"
+        );
         // Should NOT have != for PartialEq
-        assert!(!output_str.contains("!= __prev"), "Should not use PartialEq");
+        assert!(
+            !output_str.contains("!= __prev"),
+            "Should not use PartialEq"
+        );
 
         // Print for debugging
         println!("Generated code for combined eq+debug:\n{}", output_str);

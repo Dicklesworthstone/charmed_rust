@@ -385,9 +385,7 @@ impl Table {
         }
 
         // Render only the visible rows
-        let rendered: Vec<String> = (self.start..self.end)
-            .map(|i| self.render_row(i))
-            .collect();
+        let rendered: Vec<String> = (self.start..self.end).map(|i| self.render_row(i)).collect();
 
         self.viewport.set_content(&rendered.join("\n"));
     }
@@ -487,20 +485,20 @@ fn pad_string(s: &str, width: usize) -> String {
 /// Truncates a string to the given width, adding ellipsis if needed.
 fn truncate_string(s: &str, width: usize) -> String {
     use unicode_width::UnicodeWidthStr;
-    
+
     if UnicodeWidthStr::width(s) <= width {
         return s.to_string();
     }
-    
+
     if width == 0 {
         return String::new();
     }
-    
+
     // We need to truncate to width - 1 (for ellipsis)
     let target_width = width.saturating_sub(1);
     let mut current_width = 0;
     let mut result = String::new();
-    
+
     for c in s.chars() {
         let w = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
         if current_width + w > target_width {
@@ -509,7 +507,7 @@ fn truncate_string(s: &str, width: usize) -> String {
         result.push(c);
         current_width += w;
     }
-    
+
     format!("{}…", result)
 }
 

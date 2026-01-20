@@ -308,11 +308,20 @@ mod tests {
         let output_str = output.to_string();
 
         // Should use custom equality with debug logging
-        assert!(output_str.contains("float_eq"), "Should contain custom eq function");
-        assert!(output_str.contains("eprintln !"), "Should contain debug logging");
+        assert!(
+            output_str.contains("float_eq"),
+            "Should contain custom eq function"
+        );
+        assert!(
+            output_str.contains("eprintln !"),
+            "Should contain debug logging"
+        );
 
         // The change detection should be properly structured
-        assert!(output_str.contains("__changed"), "Should use __changed variable");
+        assert!(
+            output_str.contains("__changed"),
+            "Should use __changed variable"
+        );
     }
 
     #[test]
@@ -330,11 +339,20 @@ mod tests {
         let output_str = output.to_string();
 
         // Print for debugging
-        eprintln!("Generated code for multiple combined eq+debug:\n{}", output_str);
+        eprintln!(
+            "Generated code for multiple combined eq+debug:\n{}",
+            output_str
+        );
 
         // Should use both custom equality functions
-        assert!(output_str.contains("float_eq"), "Should contain float_eq function");
-        assert!(output_str.contains("str_eq"), "Should contain str_eq function");
+        assert!(
+            output_str.contains("float_eq"),
+            "Should contain float_eq function"
+        );
+        assert!(
+            output_str.contains("str_eq"),
+            "Should contain str_eq function"
+        );
 
         // The state_changed method should use || to combine checks
         assert!(output_str.contains("||"), "Should combine checks with OR");
@@ -492,8 +510,11 @@ mod tests {
         let output_str = output.to_string();
 
         // Should handle multiple generics and lifetimes
-        assert!(output_str
-            .contains("impl < 'a , T , U > :: bubbletea :: Model for MultiGeneric < 'a , T , U >"));
+        assert!(
+            output_str.contains(
+                "impl < 'a , T , U > :: bubbletea :: Model for MultiGeneric < 'a , T , U >"
+            )
+        );
     }
 
     #[test]

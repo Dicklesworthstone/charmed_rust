@@ -25,10 +25,7 @@ pub enum MacroError {
     },
 
     /// Duplicate method attribute found.
-    DuplicateMethod {
-        method: &'static str,
-        span: Span,
-    },
+    DuplicateMethod { method: &'static str, span: Span },
 
     /// Method has wrong signature.
     WrongSignature {
@@ -75,7 +72,11 @@ impl MacroError {
     }
 
     /// Creates a missing method error with helpful suggestion.
-    pub fn missing_method(method: &'static str, struct_name: impl Into<String>, span: Span) -> Self {
+    pub fn missing_method(
+        method: &'static str,
+        struct_name: impl Into<String>,
+        span: Span,
+    ) -> Self {
         Self::MissingMethod {
             method,
             struct_name: struct_name.into(),
@@ -189,7 +190,9 @@ impl MacroError {
                 )
             }
 
-            Self::UnsupportedItem { expected, found, .. } => {
+            Self::UnsupportedItem {
+                expected, found, ..
+            } => {
                 format!("#[derive(Model)] can only be applied to {expected}, found {found}")
             }
 
@@ -368,11 +371,7 @@ impl ErrorAccumulator {
         }
 
         // Combine all error messages
-        let combined: Vec<TokenStream> = self
-            .errors
-            .iter()
-            .map(|e| e.to_compile_error())
-            .collect();
+        let combined: Vec<TokenStream> = self.errors.iter().map(|e| e.to_compile_error()).collect();
 
         quote_spanned! {self.errors[0].span()=>
             #(#combined)*

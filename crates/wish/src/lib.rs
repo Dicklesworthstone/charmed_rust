@@ -1066,8 +1066,8 @@ impl Server {
 
     /// Creates the russh server configuration.
     fn create_russh_config(&self) -> Result<RusshConfig> {
-        use russh::server::Config;
         use russh::MethodSet;
+        use russh::server::Config;
         use russh_keys::key::KeyPair;
 
         let mut config = Config::default();
@@ -1081,8 +1081,7 @@ impl Server {
         }
 
         config.max_auth_attempts = self.options.max_auth_attempts as usize;
-        config.auth_rejection_time =
-            Duration::from_millis(self.options.auth_rejection_delay_ms);
+        config.auth_rejection_time = Duration::from_millis(self.options.auth_rejection_delay_ms);
 
         let mut methods = MethodSet::empty();
         if let Some(handler) = &self.options.auth_handler {

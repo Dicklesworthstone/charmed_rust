@@ -12,7 +12,7 @@ use std::fmt::Display;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, Program, quit};
 
 /// Generic container model that can hold any displayable value.
-/// 
+///
 /// The type parameter `T` must implement:
 /// - `Clone` - for state snapshot creation
 /// - `PartialEq` - for change detection
@@ -26,7 +26,7 @@ where
 {
     #[state]
     value: T,
-    
+
     #[state]
     label: String,
 }

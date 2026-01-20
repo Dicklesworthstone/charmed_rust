@@ -1187,11 +1187,11 @@ mod tests {
         // pos=0. offset=0. offset_right=?
         // w=0. 'a'(1) -> w=1. '😀'(2) -> w=3. 'b'(1) -> w=4 > 3. Break.
         // offset_right should be 2 ("a😀").
-        
+
         // Force overflow update
-        input.set_cursor(0); 
+        input.set_cursor(0);
         // internal update triggers handle_overflow
-        
+
         // Can't check internal state easily without exposing or deducing from view
         // But let's check view length
         let view = input.view();

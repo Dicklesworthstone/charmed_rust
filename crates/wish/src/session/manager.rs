@@ -1,13 +1,13 @@
 //! Session manager for tracking and cleaning up SSH sessions.
 
 use super::handle::{SessionHandle, SessionInfo};
-use crate::auth::SessionId;
 use crate::Error;
+use crate::auth::SessionId;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
@@ -330,11 +330,15 @@ mod tests {
         };
         let manager = SessionManager::new(config);
 
-        let (id, _rx) = manager.create_session("alice".to_string(), test_addr()).unwrap();
+        let (id, _rx) = manager
+            .create_session("alice".to_string(), test_addr())
+            .unwrap();
         assert_eq!(id.0, 1);
         assert_eq!(manager.session_count(), 1);
 
-        let (id2, _rx2) = manager.create_session("bob".to_string(), test_addr()).unwrap();
+        let (id2, _rx2) = manager
+            .create_session("bob".to_string(), test_addr())
+            .unwrap();
         assert_eq!(id2.0, 2);
         assert_eq!(manager.session_count(), 2);
     }
@@ -347,8 +351,12 @@ mod tests {
         };
         let manager = SessionManager::new(config);
 
-        let _s1 = manager.create_session("user1".to_string(), test_addr()).unwrap();
-        let _s2 = manager.create_session("user2".to_string(), test_addr()).unwrap();
+        let _s1 = manager
+            .create_session("user1".to_string(), test_addr())
+            .unwrap();
+        let _s2 = manager
+            .create_session("user2".to_string(), test_addr())
+            .unwrap();
 
         // Third session should fail
         let result = manager.create_session("user3".to_string(), test_addr());
@@ -360,7 +368,9 @@ mod tests {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config);
 
-        let (id, _rx) = manager.create_session("test".to_string(), test_addr()).unwrap();
+        let (id, _rx) = manager
+            .create_session("test".to_string(), test_addr())
+            .unwrap();
         assert_eq!(manager.session_count(), 1);
 
         manager.remove_session(id);
@@ -372,8 +382,12 @@ mod tests {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config);
 
-        let (_id1, _rx1) = manager.create_session("alice".to_string(), test_addr()).unwrap();
-        let (_id2, _rx2) = manager.create_session("bob".to_string(), test_addr()).unwrap();
+        let (_id1, _rx1) = manager
+            .create_session("alice".to_string(), test_addr())
+            .unwrap();
+        let (_id2, _rx2) = manager
+            .create_session("bob".to_string(), test_addr())
+            .unwrap();
 
         let sessions = manager.get_sessions();
         assert_eq!(sessions.len(), 2);
@@ -388,7 +402,9 @@ mod tests {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config);
 
-        let (id, _rx) = manager.create_session("test".to_string(), test_addr()).unwrap();
+        let (id, _rx) = manager
+            .create_session("test".to_string(), test_addr())
+            .unwrap();
 
         // Update activity
         manager.update_activity(id);
@@ -403,7 +419,9 @@ mod tests {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config);
 
-        let (id, _rx) = manager.create_session("test".to_string(), test_addr()).unwrap();
+        let (id, _rx) = manager
+            .create_session("test".to_string(), test_addr())
+            .unwrap();
 
         manager.add_channel(id);
         manager.add_channel(id);
@@ -421,8 +439,9 @@ mod tests {
         let config = SessionConfig::default();
         let manager = SessionManager::new(config);
 
-        let (id, mut shutdown_rx) =
-            manager.create_session("test".to_string(), test_addr()).unwrap();
+        let (id, mut shutdown_rx) = manager
+            .create_session("test".to_string(), test_addr())
+            .unwrap();
         assert_eq!(manager.session_count(), 1);
 
         // Signal shutdown
@@ -447,7 +466,9 @@ mod tests {
         let manager = SessionManager::new(config);
 
         // Create a session
-        let (id, _rx) = manager.create_session("test".to_string(), test_addr()).unwrap();
+        let (id, _rx) = manager
+            .create_session("test".to_string(), test_addr())
+            .unwrap();
         assert_eq!(manager.session_count(), 1);
 
         // Wait for session to become stale
@@ -471,13 +492,17 @@ mod tests {
         let manager = SessionManager::new(config);
 
         // Create first session (will become stale)
-        let (id1, _rx1) = manager.create_session("stale".to_string(), test_addr()).unwrap();
+        let (id1, _rx1) = manager
+            .create_session("stale".to_string(), test_addr())
+            .unwrap();
 
         // Wait a bit
         std::thread::sleep(Duration::from_millis(100));
 
         // Create second session (will stay active due to recent creation)
-        let (id2, _rx2) = manager.create_session("active".to_string(), test_addr()).unwrap();
+        let (id2, _rx2) = manager
+            .create_session("active".to_string(), test_addr())
+            .unwrap();
 
         assert_eq!(manager.session_count(), 2);
 
@@ -497,8 +522,12 @@ mod tests {
         let manager = SessionManager::new(config);
 
         // Create sessions
-        let (_id1, _rx1) = manager.create_session("user1".to_string(), test_addr()).unwrap();
-        let (_id2, _rx2) = manager.create_session("user2".to_string(), test_addr()).unwrap();
+        let (_id1, _rx1) = manager
+            .create_session("user1".to_string(), test_addr())
+            .unwrap();
+        let (_id2, _rx2) = manager
+            .create_session("user2".to_string(), test_addr())
+            .unwrap();
         assert_eq!(manager.session_count(), 2);
 
         // Perform graceful shutdown with a short timeout

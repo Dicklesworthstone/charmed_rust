@@ -24,8 +24,8 @@
 
 use std::fmt;
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{self, MapAccess, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Color profile indicating terminal color capabilities.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -222,8 +222,8 @@ impl<'de> Visitor<'de> for ColorVisitor {
     }
 
     fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
-        let value = u8::try_from(v)
-            .map_err(|_| E::custom(format!("ANSI color must be 0-255, got {v}")))?;
+        let value =
+            u8::try_from(v).map_err(|_| E::custom(format!("ANSI color must be 0-255, got {v}")))?;
         Ok(Color::new(value.to_string()))
     }
 
@@ -270,9 +270,7 @@ fn parse_color_str(s: &str) -> Result<Color, String> {
     }
 
     let has_hash = raw.starts_with('#');
-    let has_hex_alpha = raw
-        .chars()
-        .any(|c| matches!(c, 'a'..='f' | 'A'..='F'));
+    let has_hex_alpha = raw.chars().any(|c| matches!(c, 'a'..='f' | 'A'..='F'));
 
     if has_hash || has_hex_alpha {
         let hex = raw.trim_start_matches('#');
@@ -292,8 +290,8 @@ fn parse_color_str(s: &str) -> Result<Color, String> {
         let value: u16 = raw
             .parse()
             .map_err(|_| format!("invalid ANSI color '{raw}'"))?;
-        let value = u8::try_from(value)
-            .map_err(|_| format!("ANSI color must be 0-255, got {value}"))?;
+        let value =
+            u8::try_from(value).map_err(|_| format!("ANSI color must be 0-255, got {value}"))?;
         return Ok(Color::new(value.to_string()));
     }
 

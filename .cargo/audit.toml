@@ -1,0 +1,13 @@
+# Security audit configuration
+# See: https://github.com/rustsec/rustsec/blob/main/cargo-audit/audit.toml.example
+
+[advisories]
+# Ignore advisories that have no fix available
+ignore = [
+    # rsa: Marvin Attack potential key recovery through timing sidechannels
+    # No fixed upgrade available - comes from ssh-key -> russh -> wish dependency
+    "RUSTSEC-2023-0071",
+]
+
+# Also ignore unmaintained crate warnings (not security vulnerabilities)
+informational_warnings = ["unmaintained"]

@@ -8,14 +8,14 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bubbletea::{KeyMsg, Message, WindowSizeMsg, parse_sequence};
 use parking_lot::RwLock;
 use russh::MethodSet;
 use russh::server::{Auth, Handler as RusshHandler, Msg, Session as RusshSession};
 use russh::{Channel, ChannelId};
+use russh_keys::PublicKeyBase64;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info, trace, warn};
-use bubbletea::{KeyMsg, Message, WindowSizeMsg, parse_sequence};
-use russh_keys::PublicKeyBase64;
 
 use crate::{
     AuthContext, AuthMethod, AuthResult, Context, Error, Handler, Pty, PublicKey, ServerOptions,
@@ -165,11 +165,7 @@ impl WishHandler {
                 AuthMethod::HostBased => set |= MethodSet::HOSTBASED,
             }
         }
-        if set.is_empty() {
-            None
-        } else {
-            Some(set)
-        }
+        if set.is_empty() { None } else { Some(set) }
     }
 
     fn map_auth_result(result: AuthResult) -> Auth {
@@ -417,7 +413,9 @@ impl RusshHandler for WishHandler {
         if let Some(handler) = self.server_state.options.auth_handler.clone() {
             let ctx = self.next_auth_context(user);
             let response_text = responses.join("\n");
-            let result = handler.auth_keyboard_interactive(&ctx, &response_text).await;
+            let result = handler
+                .auth_keyboard_interactive(&ctx, &response_text)
+                .await;
             if result.is_accepted() {
                 info!(
                     connection_id = self.connection_id,
@@ -793,7 +791,8 @@ impl RusshHandler for WishHandler {
         if let Some(state) = self.channels.get(&channel) {
             // Forward raw data to input_tx (legacy/stream support)
             // We use try_send to avoid blocking the handler if the app isn't reading input
-            if let Err(mpsc::error::TrySendError::Full(_)) = state.input_tx.try_send(data.to_vec()) {
+            if let Err(mpsc::error::TrySendError::Full(_)) = state.input_tx.try_send(data.to_vec())
+            {
                 warn!(
                     connection_id = self.connection_id,
                     channel = ?channel,

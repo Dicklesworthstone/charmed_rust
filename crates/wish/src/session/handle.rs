@@ -2,8 +2,8 @@
 
 use crate::auth::SessionId;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::oneshot;
 
@@ -58,8 +58,7 @@ impl SessionHandle {
             // No activity recorded, use session start time
             self.started_at.elapsed()
         } else {
-            let activity_instant =
-                self.started_at + Duration::from_millis(activity_offset_ms);
+            let activity_instant = self.started_at + Duration::from_millis(activity_offset_ms);
             activity_instant.elapsed()
         }
     }
@@ -76,11 +75,11 @@ impl SessionHandle {
 
     /// Decrements the channel count.
     pub fn remove_channel(&self) {
-        let _ = self.channel_count.fetch_update(
-            Ordering::Relaxed,
-            Ordering::Relaxed,
-            |count| count.checked_sub(1),
-        );
+        let _ = self
+            .channel_count
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |count| {
+                count.checked_sub(1)
+            });
     }
 
     /// Returns the current channel count.

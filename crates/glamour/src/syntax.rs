@@ -652,7 +652,9 @@ fn is_default_foreground(style: &SynStyle, theme: &SyntaxTheme) -> bool {
     }
 
     match theme.foreground_color() {
-        Some((r, g, b)) => style.foreground.r == r && style.foreground.g == g && style.foreground.b == b,
+        Some((r, g, b)) => {
+            style.foreground.r == r && style.foreground.g == g && style.foreground.b == b
+        }
         None => false,
     }
 }
@@ -679,7 +681,13 @@ fn json_punctuation_style(theme: &SyntaxTheme) -> LipglossStyle {
     let base = theme.foreground_color().unwrap_or((180, 180, 180));
     let delta = theme
         .background_color()
-        .map(|(r, g, b)| if relative_luminance(r, g, b) < 0.5 { 40 } else { -40 })
+        .map(|(r, g, b)| {
+            if relative_luminance(r, g, b) < 0.5 {
+                40
+            } else {
+                -40
+            }
+        })
         .unwrap_or(-40);
 
     let mut adjusted = (
@@ -776,7 +784,12 @@ pub fn highlight_code(code: &str, language: &str, theme: &SyntaxTheme) -> String
                         && is_default_foreground(&syn_style, theme)
                         && trimmed.chars().any(is_json_punctuation)
                     {
-                        render_with_json_punctuation(&lip_style, punctuation_style, trimmed, &mut output);
+                        render_with_json_punctuation(
+                            &lip_style,
+                            punctuation_style,
+                            trimmed,
+                            &mut output,
+                        );
                     } else {
                         output.push_str(&lip_style.render(trimmed));
                     }

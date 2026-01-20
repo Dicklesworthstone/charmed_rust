@@ -1272,7 +1272,7 @@ impl Input {
     fn display_value(&self) -> String {
         match self.echo_mode {
             EchoMode::Normal => self.value.clone(),
-            EchoMode::Password => "•".repeat(self.value.len()),
+            EchoMode::Password => "•".repeat(self.value.chars().count()),
             EchoMode::None => String::new(),
         }
     }
@@ -1352,8 +1352,7 @@ impl Field for Input {
                     if self.cursor_pos > 0 {
                         self.cursor_pos -= 1;
                         // Convert character position to byte position for removal
-                        if let Some((byte_pos, _)) =
-                            self.value.char_indices().nth(self.cursor_pos)
+                        if let Some((byte_pos, _)) = self.value.char_indices().nth(self.cursor_pos)
                         {
                             self.value.remove(byte_pos);
                         }
@@ -1363,8 +1362,7 @@ impl Field for Input {
                     let char_count = self.value.chars().count();
                     if self.cursor_pos < char_count {
                         // Convert character position to byte position for removal
-                        if let Some((byte_pos, _)) =
-                            self.value.char_indices().nth(self.cursor_pos)
+                        if let Some((byte_pos, _)) = self.value.char_indices().nth(self.cursor_pos)
                         {
                             self.value.remove(byte_pos);
                         }
@@ -1429,7 +1427,10 @@ impl Field for Input {
             output.push_str(&styles.error_indicator.render(""));
         }
 
-        styles.base.width(self.width.try_into().unwrap_or(u16::MAX)).render(&output)
+        styles
+            .base
+            .width(self.width.try_into().unwrap_or(u16::MAX))
+            .render(&output)
     }
 
     fn focus(&mut self) -> Option<Cmd> {
@@ -1768,7 +1769,10 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for Select<T>
             output.push_str(&styles.error_indicator.render(""));
         }
 
-        styles.base.width(self.width.try_into().unwrap_or(u16::MAX)).render(&output)
+        styles
+            .base
+            .width(self.width.try_into().unwrap_or(u16::MAX))
+            .render(&output)
     }
 
     fn focus(&mut self) -> Option<Cmd> {
@@ -2158,7 +2162,10 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for MultiSele
             output.push_str(&styles.error_indicator.render(""));
         }
 
-        styles.base.width(self.width.try_into().unwrap_or(u16::MAX)).render(&output)
+        styles
+            .base
+            .width(self.width.try_into().unwrap_or(u16::MAX))
+            .render(&output)
     }
 
     fn focus(&mut self) -> Option<Cmd> {
@@ -2388,7 +2395,10 @@ impl Field for Confirm {
             output.push_str(&styles.focused_button.render(&self.negative));
         }
 
-        styles.base.width(self.width.try_into().unwrap_or(u16::MAX)).render(&output)
+        styles
+            .base
+            .width(self.width.try_into().unwrap_or(u16::MAX))
+            .render(&output)
     }
 
     fn focus(&mut self) -> Option<Cmd> {
@@ -2573,7 +2583,10 @@ impl Field for Note {
             output.push_str(&styles.description.render(&self.description));
         }
 
-        styles.base.width(self.width.try_into().unwrap_or(u16::MAX)).render(&output)
+        styles
+            .base
+            .width(self.width.try_into().unwrap_or(u16::MAX))
+            .render(&output)
     }
 
     fn focus(&mut self) -> Option<Cmd> {
@@ -2786,7 +2799,11 @@ impl Model for Group {
             }
         }
 
-        theme.group.base.width(self.width.try_into().unwrap_or(u16::MAX)).render(&output)
+        theme
+            .group
+            .base
+            .width(self.width.try_into().unwrap_or(u16::MAX))
+            .render(&output)
     }
 }
 

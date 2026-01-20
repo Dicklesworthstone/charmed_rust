@@ -38,7 +38,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
@@ -417,7 +417,10 @@ impl ThemeContext {
         F: Fn(&Theme) + Send + Sync + 'static,
     {
         let id = ListenerId(self.next_listener_id.fetch_add(1, Ordering::Relaxed));
-        let mut listeners = self.listeners.write().expect("theme listener lock poisoned");
+        let mut listeners = self
+            .listeners
+            .write()
+            .expect("theme listener lock poisoned");
         listeners.insert(id, Arc::new(callback));
         debug!(theme.listener_id = id.0, "Theme listener registered");
         id
@@ -425,7 +428,10 @@ impl ThemeContext {
 
     /// Remove a listener by id.
     pub fn remove_listener(&self, id: ListenerId) {
-        let mut listeners = self.listeners.write().expect("theme listener lock poisoned");
+        let mut listeners = self
+            .listeners
+            .write()
+            .expect("theme listener lock poisoned");
         if listeners.remove(&id).is_some() {
             debug!(theme.listener_id = id.0, "Theme listener removed");
         }
@@ -1462,8 +1468,8 @@ pub enum ThemeSaveError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
     fn test_theme_dark_default() {

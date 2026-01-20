@@ -31,10 +31,10 @@
 use lipgloss::{Color, Style};
 use std::collections::HashMap;
 use std::fmt;
-use thiserror::Error;
 use std::io::{self, Write};
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
+use thiserror::Error;
 
 /// Log level for filtering messages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

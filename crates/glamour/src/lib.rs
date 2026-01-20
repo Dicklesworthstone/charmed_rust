@@ -1605,8 +1605,8 @@ impl<'a> RenderContext<'a> {
     fn flush_table(&mut self) {
         use crate::table::{
             ASCII_BORDER, BorderPosition, ColumnWidthConfig, HeaderStyle, ParsedTable,
-            ROUNDED_BORDER, TableCell, calculate_column_widths, render_data_row,
-            render_header_row, render_horizontal_border,
+            ROUNDED_BORDER, TableCell, calculate_column_widths, render_data_row, render_header_row,
+            render_horizontal_border,
         };
 
         // Collect all rows (header + body) to count columns
@@ -1718,7 +1718,8 @@ impl<'a> RenderContext<'a> {
             self.output.push('\n');
 
             // Header separator
-            let sep = render_horizontal_border(widths, &border, BorderPosition::Middle, cell_padding);
+            let sep =
+                render_horizontal_border(widths, &border, BorderPosition::Middle, cell_padding);
             if !sep.is_empty() {
                 self.output.push_str(&lipgloss.render(&sep));
                 self.output.push('\n');
@@ -1737,7 +1738,8 @@ impl<'a> RenderContext<'a> {
         }
 
         // Bottom border
-        let bottom = render_horizontal_border(widths, &border, BorderPosition::Bottom, cell_padding);
+        let bottom =
+            render_horizontal_border(widths, &border, BorderPosition::Bottom, cell_padding);
         if !bottom.is_empty() {
             self.output.push_str(&lipgloss.render(&bottom));
             self.output.push('\n');
@@ -1790,7 +1792,11 @@ impl<'a> RenderContext<'a> {
         for word in text.split_whitespace() {
             if current_line.is_empty() {
                 current_line.push_str(word);
-            } else if unicode_width::UnicodeWidthStr::width(current_line.as_str()) + 1 + unicode_width::UnicodeWidthStr::width(word) <= width {
+            } else if unicode_width::UnicodeWidthStr::width(current_line.as_str())
+                + 1
+                + unicode_width::UnicodeWidthStr::width(word)
+                <= width
+            {
                 current_line.push(' ');
                 current_line.push_str(word);
             } else {
@@ -2820,19 +2826,19 @@ mod table_spacing_tests {
         // Line 4: "  " + Separator (├)
         // Line 5: "  " + Data (│ 1 │ 2 │)
         // Line 6: "  " + Bottom (╰)
-        
+
         assert!(lines.len() >= 6, "Expected at least 6 lines with borders");
 
         // Verify margin (2 spaces) and borders
         // Note: lipgloss adds colors, so we check for presence of border chars
         assert!(lines[2].contains('╭'), "Should have top border");
         assert!(lines[2].starts_with("  "), "Should have margin");
-        
+
         assert!(lines[3].contains('│'), "Should have vertical border");
         assert!(lines[3].contains('A'), "Should have content");
-        
+
         assert!(lines[4].contains('├'), "Should have middle separator");
-        
+
         assert!(lines[6].contains('╰'), "Should have bottom border");
     }
 
@@ -2849,46 +2855,51 @@ mod table_spacing_tests {
         let output_large = renderer_large.render(markdown);
 
         // Find the top border line (ASCII style uses + and -)
-        let small_top = output_small.lines()
+        let small_top = output_small
+            .lines()
             .find(|l| l.contains('+') && l.contains('-'))
             .expect("Could not find top border in small output");
 
-        let large_top = output_large.lines()
+        let large_top = output_large
+            .lines()
             .find(|l| l.contains('+') && l.contains('-'))
             .expect("Could not find top border in large output");
 
-        // With equal column distribution and max width constraint, 
-        // the larger width allows columns to expand if content allows, 
-        // but here content is short. 
+        // With equal column distribution and max width constraint,
+        // the larger width allows columns to expand if content allows,
+        // but here content is short.
         // HOWEVER, our calculate_column_widths logic calculates width based on CONTENT.
         // It only *shrinks* if it exceeds max_width. It doesn't *expand* to fill max_width arbitrarily
         // unless we forced it to.
         //
-        // Wait, if it doesn't expand, then word_wrap setting shouldn't change the table width 
+        // Wait, if it doesn't expand, then word_wrap setting shouldn't change the table width
         // if the content fits in both!
-        // 
+        //
         // The old test asserted `assert_ne`.
         // The old implementation `col_width = available_width / num_cols` FORCED expansion to fill width.
         // The new implementation `calculate_column_widths` fits to content (plus padding).
-        // 
+        //
         // If we want "full width" tables, we need to enable that in `ColumnWidthConfig`.
         // `table.rs` logic:
         // Step 1: Measure content.
         // Step 4: Shrink if > max_table_width.
         //
-        // It does NOT expand to fill max_width. This is generally preferred for terminal tables 
+        // It does NOT expand to fill max_width. This is generally preferred for terminal tables
         // (don't waste space).
-        // 
-        // So the test expectation that "width changes with word_wrap" is FALSE for small content 
+        //
+        // So the test expectation that "width changes with word_wrap" is FALSE for small content
         // under the new (better) logic.
-        // 
-        // I should update the test to verify it *doesn't* exceed the small wrap, 
+        //
+        // I should update the test to verify it *doesn't* exceed the small wrap,
         // or verify that it shrinks when content is huge.
-        
+
         let width_small = small_top.chars().count();
         let width_large = large_top.chars().count();
-        
+
         assert!(width_small <= 40, "Small table should fit in 40 chars");
-        assert_eq!(width_small, width_large, "Table should be compact (content-sized) when it fits");
+        assert_eq!(
+            width_small, width_large,
+            "Table should be compact (content-sized) when it fits"
+        );
     }
 }

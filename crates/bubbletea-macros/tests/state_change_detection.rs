@@ -132,7 +132,10 @@ fn test_custom_equality_within_tolerance() {
 
     let snapshot = model.__snapshot_state();
     model.progress = 0.505; // Within 0.01 tolerance
-    assert!(!model.__state_changed(&snapshot), "Small change should be ignored");
+    assert!(
+        !model.__state_changed(&snapshot),
+        "Small change should be ignored"
+    );
 }
 
 #[test]
@@ -141,7 +144,10 @@ fn test_custom_equality_beyond_tolerance() {
 
     let snapshot = model.__snapshot_state();
     model.progress = 0.6; // Beyond 0.01 tolerance
-    assert!(model.__state_changed(&snapshot), "Large change should be detected");
+    assert!(
+        model.__state_changed(&snapshot),
+        "Large change should be detected"
+    );
 }
 
 // Test with skip attribute
@@ -177,10 +183,16 @@ fn test_skipped_field_ignored() {
 
     let snapshot = model.__snapshot_state();
     model.skipped = 100;
-    assert!(!model.__state_changed(&snapshot), "Skipped field should not trigger change");
+    assert!(
+        !model.__state_changed(&snapshot),
+        "Skipped field should not trigger change"
+    );
 
     model.tracked = 100;
-    assert!(model.__state_changed(&snapshot), "Tracked field should trigger change");
+    assert!(
+        model.__state_changed(&snapshot),
+        "Tracked field should trigger change"
+    );
 }
 
 // Test with no state fields
@@ -211,7 +223,10 @@ fn test_no_state_fields_always_returns_false() {
 
     let snapshot = model.__snapshot_state();
     model.data = "changed".to_string();
-    assert!(!model.__state_changed(&snapshot), "Model with no #[state] fields should never report changes");
+    assert!(
+        !model.__state_changed(&snapshot),
+        "Model with no #[state] fields should never report changes"
+    );
 }
 
 // Test with generic type

@@ -187,8 +187,7 @@ mod wish_error_categorization {
         let _: Error = io_err.into();
 
         // From<AddrParseError>
-        let addr_err: std::net::AddrParseError =
-            "bad".parse::<std::net::SocketAddr>().unwrap_err();
+        let addr_err: std::net::AddrParseError = "bad".parse::<std::net::SocketAddr>().unwrap_err();
         let _: Error = addr_err.into();
     }
 }
