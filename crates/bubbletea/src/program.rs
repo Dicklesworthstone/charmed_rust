@@ -287,9 +287,9 @@ impl<M: Model> Program<M> {
 
     /// Set the target frames per second.
     ///
-    /// Default is 60 FPS. Maximum is 120 FPS.
+    /// Default is 60 FPS. Valid range is 1-120 FPS.
     pub fn with_fps(mut self, fps: u32) -> Self {
-        self.options.fps = fps.min(120);
+        self.options.fps = fps.clamp(1, 120);
         self
     }
 
@@ -971,5 +971,12 @@ mod tests {
         let model = TestModel { count: 0 };
         let program = Program::new(model).with_fps(200);
         assert_eq!(program.options.fps, 120); // Capped at 120
+    }
+
+    #[test]
+    fn test_program_fps_min() {
+        let model = TestModel { count: 0 };
+        let program = Program::new(model).with_fps(0);
+        assert_eq!(program.options.fps, 1); // Clamped to minimum of 1 to avoid division by zero
     }
 }

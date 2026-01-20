@@ -1120,8 +1120,6 @@ impl Style {
 
         // Top border
         if edges.top {
-            let _top_width =
-                content_width + if edges.left { 1 } else { 0 } + if edges.right { 1 } else { 0 };
             let mut top_line = String::new();
             if edges.left {
                 top_line.push_str(&style_border(
@@ -1135,19 +1133,16 @@ impl Style {
             } else {
                 &border.top
             };
-            let repeat_count = content_width
-                .saturating_sub(if edges.left { 0 } else { 0 })
-                .saturating_sub(if edges.right { 0 } else { 0 });
             top_line.push_str(&style_border(
-                &horizontal.repeat(repeat_count.max(1)),
+                &horizontal.repeat(content_width.max(1)),
                 &self.border_fg[0],
                 &self.border_bg[0],
             ));
             if edges.right {
                 top_line.push_str(&style_border(
                     &border.top_right,
-                    &self.border_fg[1],
-                    &self.border_bg[1],
+                    &self.border_fg[0],
+                    &self.border_bg[0],
                 ));
             }
             result.push(top_line);
@@ -1189,19 +1184,16 @@ impl Style {
             } else {
                 &border.bottom
             };
-            let repeat_count = content_width
-                .saturating_sub(if edges.left { 0 } else { 0 })
-                .saturating_sub(if edges.right { 0 } else { 0 });
             bottom_line.push_str(&style_border(
-                &horizontal.repeat(repeat_count.max(1)),
+                &horizontal.repeat(content_width.max(1)),
                 &self.border_fg[2],
                 &self.border_bg[2],
             ));
             if edges.right {
                 bottom_line.push_str(&style_border(
                     &border.bottom_right,
-                    &self.border_fg[1],
-                    &self.border_bg[1],
+                    &self.border_fg[2],
+                    &self.border_bg[2],
                 ));
             }
             result.push(bottom_line);
