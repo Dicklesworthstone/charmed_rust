@@ -290,6 +290,7 @@ dependencies = [
  "harmonica",
  "lipgloss",
  "parking_lot",
+ "proptest",
  "regex",
  "unicode-segmentation",
  "unicode-width 0.2.2",
