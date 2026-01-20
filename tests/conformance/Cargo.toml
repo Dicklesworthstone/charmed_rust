@@ -28,7 +28,7 @@ parking_lot = "0.12"       # Thread-safe primitives
 once_cell = "1"            # Lazy statics
 
 [dev-dependencies]
-criterion = "0.5"          # Benchmarking
+criterion = "0.8"          # Benchmarking
 proptest = "1"             # Property testing
 tempfile = "3"             # Temp directories
 
