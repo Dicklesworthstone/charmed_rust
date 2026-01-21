@@ -836,6 +836,42 @@ pub const NO_BORDER: TableBorder = TableBorder {
     right_t: "",
 };
 
+/// Minimal border - only internal separators (matches Go glamour's default).
+///
+/// This style renders tables without outer edges, showing only:
+/// - Vertical column separators between cells
+/// - Horizontal separator between header and body
+/// - Cross junction at separator intersections
+pub const MINIMAL_BORDER: TableBorder = TableBorder {
+    top_left: "",
+    top_right: "",
+    bottom_left: "",
+    bottom_right: "",
+    horizontal: "─",
+    vertical: "│",
+    cross: "┼",
+    top_t: "",
+    bottom_t: "",
+    left_t: "",
+    right_t: "",
+};
+
+/// Minimal ASCII border - only internal separators using ASCII-style characters.
+/// Uses Unicode horizontal (─) but ASCII vertical (|) to match Go glamour ASCII style.
+pub const MINIMAL_ASCII_BORDER: TableBorder = TableBorder {
+    top_left: "",
+    top_right: "",
+    bottom_left: "",
+    bottom_right: "",
+    horizontal: "─", // Unicode horizontal to match Go
+    vertical: "|",
+    cross: "|", // Go uses "|" as cross in ASCII mode
+    top_t: "",
+    bottom_t: "",
+    left_t: "",
+    right_t: "",
+};
+
 /// Position of a horizontal border line within the table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BorderPosition {
@@ -1008,6 +1044,98 @@ pub fn render_data_row(
     }
 
     result
+}
+
+/// Render a data row without outer borders (minimal style, matches Go glamour).
+///
+/// This renders only internal column separators, not outer left/right borders.
+///
+/// # Arguments
+///
+/// * `cells` - The cells to render
+/// * `widths` - Column content widths (not including padding)
+/// * `border` - Border character set (uses vertical for internal separators)
+/// * `cell_padding` - Padding on each side of cell content
+///
+/// # Example
+///
+/// ```rust
+/// use glamour::table::{render_minimal_row, TableCell, MINIMAL_BORDER};
+/// use pulldown_cmark::Alignment;
+///
+/// let cells = vec![
+///     TableCell::new("Alice", Alignment::Left),
+///     TableCell::new("30", Alignment::Right),
+/// ];
+/// let widths = vec![5, 3];
+/// let result = render_minimal_row(&cells, &widths, &MINIMAL_BORDER, 1);
+/// assert_eq!(result, " Alice │  30 ");
+/// ```
+#[must_use]
+pub fn render_minimal_row(
+    cells: &[TableCell],
+    widths: &[usize],
+    border: &TableBorder,
+    cell_padding: usize,
+) -> String {
+    if cells.is_empty() {
+        return String::new();
+    }
+
+    let padding = " ".repeat(cell_padding);
+    let mut parts = Vec::new();
+
+    for (i, cell) in cells.iter().enumerate() {
+        let width = widths.get(i).copied().unwrap_or(0);
+        let padded = pad_content(&cell.content, width, cell.alignment);
+        parts.push(format!("{}{}{}", padding, padded, padding));
+    }
+
+    // Handle missing cells (if row has fewer cells than widths)
+    for width in widths.iter().skip(cells.len()) {
+        parts.push(format!("{}{}{}", padding, " ".repeat(*width), padding));
+    }
+
+    parts.join(border.vertical)
+}
+
+/// Render a horizontal separator without outer edges (minimal style).
+///
+/// This renders only the internal separator line without left/right corners.
+///
+/// # Arguments
+///
+/// * `widths` - Column content widths
+/// * `border` - Border character set
+/// * `cell_padding` - Padding on each side of cell content
+///
+/// # Example
+///
+/// ```rust
+/// use glamour::table::{render_minimal_separator, MINIMAL_BORDER};
+///
+/// let widths = vec![5, 3];
+/// let result = render_minimal_separator(&widths, &MINIMAL_BORDER, 1);
+/// assert_eq!(result, "───────┼─────");
+/// ```
+#[must_use]
+pub fn render_minimal_separator(
+    widths: &[usize],
+    border: &TableBorder,
+    cell_padding: usize,
+) -> String {
+    if widths.is_empty() || border.horizontal.is_empty() {
+        return String::new();
+    }
+
+    let padding_width = cell_padding * 2;
+    let mut parts = Vec::new();
+
+    for width in widths {
+        parts.push(border.horizontal.repeat(width + padding_width));
+    }
+
+    parts.join(border.cross)
 }
 
 /// Render a complete table with borders.

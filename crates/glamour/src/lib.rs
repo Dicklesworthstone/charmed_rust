@@ -1604,9 +1604,8 @@ impl<'a> RenderContext<'a> {
 
     fn flush_table(&mut self) {
         use crate::table::{
-            ASCII_BORDER, BorderPosition, ColumnWidthConfig, HeaderStyle, ParsedTable,
-            ROUNDED_BORDER, TableCell, calculate_column_widths, render_data_row, render_header_row,
-            render_horizontal_border,
+            ColumnWidthConfig, MINIMAL_ASCII_BORDER, MINIMAL_BORDER, ParsedTable, TableCell,
+            calculate_column_widths, render_minimal_row, render_minimal_separator,
         };
 
         // Collect all rows (header + body) to count columns
@@ -1653,8 +1652,8 @@ impl<'a> RenderContext<'a> {
             return;
         }
 
-        // Determine border style
-        // If column separator is "|", assume ASCII style. Otherwise ROUNDED.
+        // Determine border style - use minimal borders to match Go glamour
+        // Go glamour only renders internal separators (no outer borders)
         let col_sep = self
             .options
             .styles
@@ -1663,9 +1662,9 @@ impl<'a> RenderContext<'a> {
             .as_deref()
             .unwrap_or("│");
         let border = if col_sep == "|" {
-            ASCII_BORDER
+            MINIMAL_ASCII_BORDER
         } else {
-            ROUNDED_BORDER
+            MINIMAL_BORDER
         };
 
         // Calculate column widths
@@ -1678,9 +1677,10 @@ impl<'a> RenderContext<'a> {
         let max_width = self.options.word_wrap.saturating_sub(2 * margin);
         let cell_padding = 1;
 
+        // Use border_width=0 for minimal style since we don't have outer borders
         let width_config = ColumnWidthConfig::new()
             .cell_padding(cell_padding)
-            .border_width(1)
+            .border_width(1) // Internal separators still take 1 char width
             .max_table_width(max_width);
 
         let column_widths = calculate_column_widths(&parsed_table, &width_config);
@@ -1692,58 +1692,31 @@ impl<'a> RenderContext<'a> {
         // Just a newline with background if set
         self.output.push('\n');
 
-        // Top border
-        let top = render_horizontal_border(widths, &border, BorderPosition::Top, cell_padding);
-        if !top.is_empty() {
-            self.output.push_str(&lipgloss.render(&top));
-            self.output.push('\n');
-        }
+        // No top border - Go glamour doesn't render outer borders
 
-        // Header row
+        // Header row (rendered without outer borders)
         if !parsed_table.header.is_empty() {
-            // Default to bold header for non-ASCII
-            let mut header_style = HeaderStyle::new();
-            if col_sep != "|" {
-                header_style = header_style.bold();
-            }
-
-            let rendered_header = render_header_row(
-                &parsed_table.header,
-                widths,
-                &border,
-                cell_padding,
-                Some(&header_style),
-            );
+            let rendered_header =
+                render_minimal_row(&parsed_table.header, widths, &border, cell_padding);
             self.output.push_str(&lipgloss.render(&rendered_header));
             self.output.push('\n');
 
-            // Header separator
-            let sep =
-                render_horizontal_border(widths, &border, BorderPosition::Middle, cell_padding);
+            // Header separator (internal only)
+            let sep = render_minimal_separator(widths, &border, cell_padding);
             if !sep.is_empty() {
                 self.output.push_str(&lipgloss.render(&sep));
                 self.output.push('\n');
             }
         }
 
-        // Body rows
+        // Body rows (rendered without outer borders)
         for row in parsed_table.rows.iter() {
-            let rendered_row = render_data_row(row, widths, &border, cell_padding);
+            let rendered_row = render_minimal_row(row, widths, &border, cell_padding);
             self.output.push_str(&lipgloss.render(&rendered_row));
             self.output.push('\n');
-
-            // Optional row separator (if configured in style) or if we want grid style
-            // For now, we only put separators if it's explicitly set in style, but TableRenderConfig isn't fully available here.
-            // We'll stick to standard table style (no internal row separators usually).
         }
 
-        // Bottom border
-        let bottom =
-            render_horizontal_border(widths, &border, BorderPosition::Bottom, cell_padding);
-        if !bottom.is_empty() {
-            self.output.push_str(&lipgloss.render(&bottom));
-            self.output.push('\n');
-        }
+        // No bottom border - Go glamour doesn't render outer borders
 
         self.output.push('\n');
     }
