@@ -18,9 +18,11 @@
 9. [Crate: huh](#9-crate-huh)
 10. [Crate: wish](#10-crate-wish)
 11. [Crate: glow](#11-crate-glow)
-12. [Error Handling Strategy](#12-error-handling-strategy)
-13. [Testing Strategy](#13-testing-strategy)
-14. [Performance Guidelines](#14-performance-guidelines)
+12. [Crate: charmed-wasm](#12-crate-charmed-wasm)
+13. [Crate: bubbletea-macros](#13-crate-bubbletea-macros)
+14. [Error Handling Strategy](#14-error-handling-strategy)
+15. [Testing Strategy](#15-testing-strategy)
+16. [Performance Guidelines](#16-performance-guidelines)
 
 ---
 
@@ -37,13 +39,15 @@ charmed_rust/
 ├── crates/
 │   ├── harmonica/                # Phase 1: Spring physics
 │   ├── lipgloss/                 # Phase 1: Terminal styling
+│   ├── bubbletea-macros/         # Proc-macros for bubbletea
 │   ├── bubbletea/                # Phase 2: TUI framework
 │   ├── charmed_log/              # Phase 2: Logging
 │   ├── glamour/                  # Phase 3: Markdown rendering
 │   ├── bubbles/                  # Phase 4: Components
 │   ├── huh/                      # Phase 5: Forms
 │   ├── wish/                     # Phase 5: SSH apps
-│   └── glow/                     # Phase 5: CLI binary
+│   ├── glow/                     # Phase 5: CLI binary
+│   └── charmed-wasm/             # WASM bindings for lipgloss
 ├── examples/                     # Cross-crate examples
 ├── benches/                      # Benchmarks
 └── tests/                        # Integration tests
@@ -57,6 +61,7 @@ resolver = "3"
 members = [
     "crates/harmonica",
     "crates/lipgloss",
+    "crates/bubbletea-macros",
     "crates/bubbletea",
     "crates/charmed_log",
     "crates/glamour",
@@ -64,6 +69,7 @@ members = [
     "crates/huh",
     "crates/wish",
     "crates/glow",
+    "crates/charmed-wasm",
 ]
 
 [workspace.package]
@@ -984,7 +990,38 @@ fn main() -> Result<()> {
 
 ---
 
-## 12. Error Handling Strategy
+## 12. Crate: charmed-wasm
+
+**Purpose:** WASM bindings for lipgloss styling in web contexts.
+
+**Dependencies:** lipgloss, wasm-bindgen (plus optional wee_alloc)
+
+### Architecture
+
+- Expose a JS-friendly API that mirrors lipgloss style builders and layout
+  helpers (join/placement utilities).
+- Keep output semantics identical to native lipgloss for equivalent inputs,
+  with capability detection disabled in WASM.
+- Provide a minimal `version()` and `isReady()` API for diagnostics.
+
+---
+
+## 13. Crate: bubbletea-macros
+
+**Purpose:** Proc-macro helpers for bubbletea to reduce Model boilerplate.
+
+**Dependencies:** proc-macro crate only (compile-time)
+
+### Architecture
+
+- `#[derive(Model)]` generates a `Model` trait impl that delegates to inherent
+  `init`, `update`, and `view` methods.
+- Optional `#[state]` tracking emits snapshot and diff helpers for render
+  decisions but must not mutate user state.
+
+---
+
+## 14. Error Handling Strategy
 
 ### Per-Crate Error Types
 
@@ -1040,7 +1077,7 @@ pub enum Error {
 
 ---
 
-## 13. Testing Strategy
+## 15. Testing Strategy
 
 ### Unit Tests (Inline)
 
@@ -1120,7 +1157,7 @@ proptest! {
 
 ---
 
-## 14. Performance Guidelines
+## 16. Performance Guidelines
 
 ### Memory Efficiency
 

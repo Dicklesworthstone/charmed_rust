@@ -62,6 +62,16 @@ Charmed Rust is a comprehensive port of **all 9 of Charm's terminal UI libraries
 | `wish` | `legacy_wish/` | SSH app framework | ~1,200 |
 | `glow` | `legacy_glow/` | Markdown reader CLI | ~900 |
 
+### Auxiliary Crates (Non-Go Ports)
+
+These crates are not direct Go ports but live in the workspace to support
+the ecosystem:
+
+| Crate | Source | Purpose | Est. LoC |
+|-------|--------|---------|----------|
+| `bubbletea-macros` | N/A | Proc-macro helpers for bubbletea | ~300 |
+| `charmed-wasm` | N/A | WASM bindings for lipgloss | ~200 |
+
 ---
 
 ## Dependency Graph
@@ -93,6 +103,9 @@ glow ─► glamour
      ─► bubbletea
      ─► lipgloss
      ─► bubbles
+
+bubbletea-macros (proc-macro; compile-time only)
+charmed-wasm ─► lipgloss
 ```
 
 ---
