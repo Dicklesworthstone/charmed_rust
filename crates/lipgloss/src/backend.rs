@@ -15,13 +15,20 @@
 //! let styled = backend.apply_bold("Hello");
 //! ```
 
-use crate::color::{ColorProfile, TerminalColor};
+use crate::color::{ansi256_to_rgb, ColorProfile, TerminalColor};
+use crate::style::Style;
+use std::collections::{BTreeMap, HashMap};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 /// Trait for output rendering backends.
 ///
 /// Backends are responsible for converting style attributes into their
 /// native representation (ANSI escape codes, HTML/CSS, etc.).
 pub trait OutputBackend: Send + Sync {
+    /// Render the given content with the provided style.
+    fn render(&self, content: &str, style: &Style) -> String;
+
     /// Apply bold styling to content.
     fn apply_bold(&self, content: &str) -> String;
 
@@ -75,6 +82,11 @@ pub trait OutputBackend: Send + Sync {
 
     /// Strip any backend-specific markup from content, returning plain text.
     fn strip_markup(&self, content: &str) -> String;
+
+    /// Join multiple rendered segments with a separator.
+    fn join(&self, segments: &[String], separator: &str) -> String {
+        segments.join(separator)
+    }
 }
 
 /// ANSI terminal backend - renders using ANSI escape codes.
@@ -101,6 +113,9 @@ impl AnsiBackend {
 }
 
 impl OutputBackend for AnsiBackend {
+    fn render(&self, content: &str, style: &Style) -> String {
+        style.render(content)
+    }
     fn apply_bold(&self, content: &str) -> String {
         format!("{}{}{}", Self::BOLD, content, Self::RESET)
     }
@@ -187,6 +202,9 @@ impl PlainBackend {
 }
 
 impl OutputBackend for PlainBackend {
+    fn render(&self, content: &str, style: &Style) -> String {
+        strip_ansi(&style.render(content))
+    }
     fn apply_bold(&self, content: &str) -> String {
         content.to_string()
     }
