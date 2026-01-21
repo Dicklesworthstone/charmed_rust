@@ -8,17 +8,22 @@ authors.workspace = true
 description = "Style definitions for terminal applications with support for colors, borders, and layout"
 
 [dependencies]
-crossterm = "0.29"
+# Core dependencies (always included)
 unicode-width = "0.1"
-colored = "2.1"
 bitflags = "2.4"
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
 thiserror = { workspace = true }
-serde_yaml = { workspace = true, optional = true }
 tracing = { workspace = true }
+
+# Optional dependencies
+serde_yaml = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["sync"] }
+
+# Native-only dependencies (not needed for WASM)
+crossterm = { version = "0.29", optional = true }
+colored = { version = "2.1", optional = true }
 
 [dev-dependencies]
 criterion.workspace = true
@@ -31,5 +36,14 @@ harness = false
 workspace = true
 
 [features]
+# Default includes native terminal support
+default = ["native"]
+
+# Native terminal support (crossterm, colored, env vars, file I/O)
+native = ["dep:crossterm", "dep:colored"]
+
+# YAML serialization support
 yaml = ["serde_yaml"]
+
+# Async support with tokio
 tokio = ["dep:tokio"]

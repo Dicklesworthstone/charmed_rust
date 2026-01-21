@@ -40,8 +40,10 @@ use crate::style::Style;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
+#[cfg(feature = "native")]
 use std::fs;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+#[cfg(feature = "native")]
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
@@ -1389,6 +1391,10 @@ impl Theme {
     ///
     /// # Errors
     /// Returns `ThemeLoadError` if reading, parsing, or validation fails.
+    ///
+    /// # Availability
+    /// This method is only available with the `native` feature (not on WASM).
+    #[cfg(feature = "native")]
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, ThemeLoadError> {
         let path = path.as_ref();
         let content = fs::read_to_string(path)?;
@@ -1439,6 +1445,10 @@ impl Theme {
     ///
     /// # Errors
     /// Returns `ThemeSaveError` if serialization or writing fails.
+    ///
+    /// # Availability
+    /// This method is only available with the `native` feature (not on WASM).
+    #[cfg(feature = "native")]
     pub fn to_file(&self, path: impl AsRef<Path>) -> Result<(), ThemeSaveError> {
         let path = path.as_ref();
         let content = match path.extension().and_then(|e| e.to_str()) {

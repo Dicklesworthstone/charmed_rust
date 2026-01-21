@@ -1,4 +1,9 @@
 //! Terminal renderer with color profile detection.
+//!
+//! This module provides terminal capability detection for rendering styled output.
+//! On native targets with the `native` feature, it detects terminal capabilities
+//! from environment variables. On WASM or without the native feature, it uses
+//! sensible defaults.
 
 use std::io::Write;
 use std::sync::OnceLock;
@@ -9,7 +14,7 @@ use crate::color::ColorProfile;
 static DEFAULT_RENDERER: OnceLock<Renderer> = OnceLock::new();
 
 /// Terminal renderer for lipgloss styles.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Renderer {
     color_profile: ColorProfile,
     has_dark_background: bool,
@@ -34,6 +39,10 @@ impl Renderer {
     }
 
     /// Detect terminal capabilities.
+    ///
+    /// On native targets with the `native` feature, this inspects environment
+    /// variables like `COLORTERM`, `TERM`, `NO_COLOR`, and `COLORFGBG`.
+    /// On WASM or without the native feature, it returns sensible defaults.
     pub fn detect() -> Self {
         let color_profile = detect_color_profile();
         let has_dark_background = detect_dark_background();
@@ -76,7 +85,8 @@ pub fn default_renderer() -> &'static Renderer {
     DEFAULT_RENDERER.get_or_init(Renderer::detect)
 }
 
-/// Detect the terminal's color profile from environment.
+/// Detect the terminal's color profile from environment (native only).
+#[cfg(feature = "native")]
 fn detect_color_profile() -> ColorProfile {
     // Check COLORTERM for truecolor support
     if let Ok(colorterm) = std::env::var("COLORTERM") {
@@ -107,7 +117,17 @@ fn detect_color_profile() -> ColorProfile {
     ColorProfile::TrueColor
 }
 
-/// Detect if the terminal has a dark background.
+/// Detect the terminal's color profile (non-native fallback).
+///
+/// Without the native feature, we default to TrueColor since most
+/// modern environments support it.
+#[cfg(not(feature = "native"))]
+fn detect_color_profile() -> ColorProfile {
+    ColorProfile::TrueColor
+}
+
+/// Detect if the terminal has a dark background (native only).
+#[cfg(feature = "native")]
 fn detect_dark_background() -> bool {
     // Check COLORFGBG environment variable (format: "fg;bg")
     if let Ok(colorfgbg) = std::env::var("COLORFGBG") {
@@ -121,6 +141,15 @@ fn detect_dark_background() -> bool {
     }
 
     // Default to dark background (most common for terminals)
+    true
+}
+
+/// Detect if the terminal has a dark background (non-native fallback).
+///
+/// Without the native feature, we default to dark background which
+/// is the most common case.
+#[cfg(not(feature = "native"))]
+fn detect_dark_background() -> bool {
     true
 }
 
@@ -155,5 +184,13 @@ mod tests {
 
         r.set_has_dark_background(false);
         assert!(!r.has_dark_background());
+    }
+
+    #[test]
+    fn test_renderer_clone() {
+        let r1 = Renderer::new();
+        let r2 = r1.clone();
+        assert_eq!(r1.color_profile(), r2.color_profile());
+        assert_eq!(r1.has_dark_background(), r2.has_dark_background());
     }
 }
