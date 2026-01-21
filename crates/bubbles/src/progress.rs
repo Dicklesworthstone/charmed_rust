@@ -322,7 +322,14 @@ impl Progress {
             return String::new();
         }
         let percent = percent.clamp(0.0, 1.0) * 100.0;
-        format!(" {:3.0}%", percent)
+        // Use the configurable percent_format field, replacing the placeholder
+        // Supports {:3.0} (default) and {} (simple) format placeholders
+        let formatted = format!("{:3.0}", percent);
+        if self.percent_format.contains("{:3.0}") {
+            self.percent_format.replace("{:3.0}", &formatted)
+        } else {
+            self.percent_format.replace("{}", &formatted)
+        }
     }
 }
 
