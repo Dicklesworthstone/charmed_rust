@@ -669,12 +669,30 @@ impl<M: Model> Program<M> {
         let cancel_token = CancellationToken::new();
         let task_tracker = TaskTracker::new();
 
-        // Forward external messages
+        // Forward external messages using tokio's blocking thread pool
+        // This is tracked for graceful shutdown and respects cancellation
         if let Some(ext_rx) = self.external_rx.take() {
             let tx_clone = tx.clone();
-            thread::spawn(move || {
-                while let Ok(msg) = ext_rx.recv() {
-                    let _ = tx_clone.blocking_send(msg);
+            let cancel_clone = cancel_token.clone();
+            task_tracker.spawn_blocking(move || {
+                // Use recv_timeout to periodically check for cancellation
+                let timeout = Duration::from_millis(100);
+                loop {
+                    if cancel_clone.is_cancelled() {
+                        break;
+                    }
+                    match ext_rx.recv_timeout(timeout) {
+                        Ok(msg) => {
+                            let _ = tx_clone.blocking_send(msg);
+                        }
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                            // Continue loop to check cancellation
+                        }
+                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                            // Channel closed, exit
+                            break;
+                        }
+                    }
                 }
             });
         }
