@@ -22,11 +22,11 @@
 
 use wasm_bindgen::prelude::*;
 
+use crate::Border;
 use crate::backend::HtmlBackend;
 use crate::color::Color;
 use crate::position::Position;
 use crate::style::Style;
-use crate::Border;
 
 /// Initialize the lipgloss WASM module.
 ///
@@ -560,9 +560,7 @@ mod tests {
 
     #[test]
     fn test_js_style_border_all_sides() {
-        let style = JsStyle::new()
-            .border_style("rounded")
-            .border_all();
+        let style = JsStyle::new().border_style("rounded").border_all();
         let rendered = style.render("Bordered");
         assert!(rendered.contains("Bordered"));
     }
@@ -580,25 +578,25 @@ mod tests {
     #[test]
     fn test_js_style_alignment() {
         let left = JsStyle::new().width(20).align_left();
-        assert!(left.render("L").contains("L"));
+        assert!(left.render("L").contains('L'));
 
         let center = JsStyle::new().width(20).align_center();
-        assert!(center.render("C").contains("C"));
+        assert!(center.render("C").contains('C'));
 
         let right = JsStyle::new().width(20).align_right();
-        assert!(right.render("R").contains("R"));
+        assert!(right.render("R").contains('R'));
     }
 
     #[test]
     fn test_js_style_alignment_numeric() {
         let left = JsStyle::new().width(20).align_horizontal(0.0);
-        assert!(left.render("L").contains("L"));
+        assert!(left.render("L").contains('L'));
 
         let center = JsStyle::new().width(20).align_horizontal(0.5);
-        assert!(center.render("C").contains("C"));
+        assert!(center.render("C").contains('C'));
 
         let right = JsStyle::new().width(20).align_horizontal(1.0);
-        assert!(right.render("R").contains("R"));
+        assert!(right.render("R").contains('R'));
     }
 
     #[test]
@@ -645,9 +643,7 @@ mod tests {
     #[test]
     fn test_border_style_unknown_defaults() {
         // Unknown border style should default to normal
-        let style = JsStyle::new()
-            .border_style("unknown_style")
-            .border_all();
+        let style = JsStyle::new().border_style("unknown_style").border_all();
         let rendered = style.render("Test");
         assert!(rendered.contains("Test"));
     }
@@ -656,9 +652,7 @@ mod tests {
     fn test_all_border_presets() {
         let presets = ["normal", "rounded", "thick", "double", "hidden", "ascii"];
         for preset in presets {
-            let style = JsStyle::new()
-                .border_style(preset)
-                .border_all();
+            let style = JsStyle::new().border_style(preset).border_all();
             let rendered = style.render(&format!("{} border", preset));
             assert!(rendered.contains("border"));
         }

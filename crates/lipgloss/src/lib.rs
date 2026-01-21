@@ -169,7 +169,10 @@ pub use theme::{
 
 // WASM bindings (only available with the "wasm" feature)
 #[cfg(feature = "wasm")]
-pub use wasm::{JsColor, JsStyle, join_horizontal as wasm_join_horizontal, join_vertical as wasm_join_vertical, new_style as wasm_new_style, place as wasm_place};
+pub use wasm::{
+    JsColor, JsStyle, join_horizontal as wasm_join_horizontal, join_vertical as wasm_join_vertical,
+    new_style as wasm_new_style, place as wasm_place,
+};
 
 /// Prelude module for convenient imports.
 pub mod prelude {

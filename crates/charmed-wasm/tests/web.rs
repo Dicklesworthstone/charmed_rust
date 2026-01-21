@@ -139,7 +139,11 @@ fn test_all_border_styles() {
             .border_style(style_name)
             .border_all();
         let result = style.render("Test");
-        assert!(result.contains("Test"), "Border style {} failed", style_name);
+        assert!(
+            result.contains("Test"),
+            "Border style {} failed",
+            style_name
+        );
     }
 }
 
@@ -206,9 +210,7 @@ fn test_numeric_alignment() {
 #[wasm_bindgen_test]
 fn test_padding_variants() {
     // All sides
-    let all = charmed_wasm::new_style()
-        .padding_all(2)
-        .render("Padded");
+    let all = charmed_wasm::new_style().padding_all(2).render("Padded");
     assert!(all.contains("Padded"));
 
     // Vertical/Horizontal
@@ -227,9 +229,7 @@ fn test_padding_variants() {
 #[wasm_bindgen_test]
 fn test_margin_variants() {
     // All sides
-    let all = charmed_wasm::new_style()
-        .margin_all(1)
-        .render("Margin");
+    let all = charmed_wasm::new_style().margin_all(1).render("Margin");
     assert!(all.contains("Margin"));
 
     // Vertical/Horizontal
@@ -277,15 +277,11 @@ fn test_reverse_style() {
 #[wasm_bindgen_test]
 fn test_dimensions() {
     // Test fixed width
-    let wide = charmed_wasm::new_style()
-        .width(50)
-        .render("Wide");
+    let wide = charmed_wasm::new_style().width(50).render("Wide");
     assert!(wide.contains("Wide"));
 
     // Test fixed height
-    let tall = charmed_wasm::new_style()
-        .height(3)
-        .render("Tall");
+    let tall = charmed_wasm::new_style().height(3).render("Tall");
     assert!(tall.contains("Tall"));
 
     // Test both
@@ -309,25 +305,21 @@ fn test_multiline_content() {
 
 #[wasm_bindgen_test]
 fn test_empty_content() {
-    let empty = charmed_wasm::new_style()
-        .padding_all(1)
-        .render("");
+    let empty = charmed_wasm::new_style().padding_all(1).render("");
     // Should not panic, may contain padding spaces
     assert!(empty.len() >= 0);
 }
 
 #[wasm_bindgen_test]
 fn test_special_characters() {
-    let special = charmed_wasm::new_style()
-        .render("<script>alert('xss')</script>");
+    let special = charmed_wasm::new_style().render("<script>alert('xss')</script>");
     // Content should be preserved
     assert!(special.contains("script"));
 }
 
 #[wasm_bindgen_test]
 fn test_unicode_content() {
-    let unicode = charmed_wasm::new_style()
-        .render("Hello, World!");
+    let unicode = charmed_wasm::new_style().render("Hello, World!");
     assert!(unicode.contains("World"));
 }
 
@@ -342,7 +334,8 @@ fn test_join_horizontal_alignment() {
     assert!(top.contains("X"));
 
     // Center alignment
-    let center = charmed_wasm::join_horizontal(0.5, vec![left.clone().into(), right.clone().into()]);
+    let center =
+        charmed_wasm::join_horizontal(0.5, vec![left.clone().into(), right.clone().into()]);
     assert!(center.contains("A"));
     assert!(center.contains("X"));
 
@@ -358,7 +351,8 @@ fn test_join_vertical_alignment() {
     let long = charmed_wasm::new_style().render("Much Longer Text");
 
     // Left alignment
-    let left_aligned = charmed_wasm::join_vertical(0.0, vec![short.clone().into(), long.clone().into()]);
+    let left_aligned =
+        charmed_wasm::join_vertical(0.0, vec![short.clone().into(), long.clone().into()]);
     assert!(left_aligned.contains("Short"));
     assert!(left_aligned.contains("Much Longer Text"));
 
@@ -419,9 +413,7 @@ fn test_string_height_edge_cases() {
 #[wasm_bindgen_test]
 fn test_style_render_ansi() {
     // Test ANSI render mode (for terminal-like displays)
-    let style = charmed_wasm::new_style()
-        .foreground("#ff0000")
-        .bold();
+    let style = charmed_wasm::new_style().foreground("#ff0000").bold();
     let ansi = style.render_ansi("ANSI Output");
     // Should contain the text
     assert!(ansi.contains("ANSI Output"));
@@ -444,11 +436,7 @@ fn test_complex_layout() {
         .faint()
         .render("Footer");
 
-    let layout = charmed_wasm::join_vertical(0.5, vec![
-        header.into(),
-        body.into(),
-        footer.into(),
-    ]);
+    let layout = charmed_wasm::join_vertical(0.5, vec![header.into(), body.into(), footer.into()]);
 
     assert!(layout.contains("Header"));
     assert!(layout.contains("Body content"));

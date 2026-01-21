@@ -9,7 +9,7 @@
 
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{window, Document, Element, HtmlElement};
+use web_sys::{Document, Element, HtmlElement, window};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -29,7 +29,9 @@ fn create_test_container(id: &str) -> Element {
 
     // Add some basic styling
     if let Some(html_element) = container.dyn_ref::<HtmlElement>() {
-        let _ = html_element.style().set_property("font-family", "monospace");
+        let _ = html_element
+            .style()
+            .set_property("font-family", "monospace");
         let _ = html_element.style().set_property("white-space", "pre-wrap");
     }
 
@@ -52,9 +54,7 @@ fn cleanup_container(id: &str) {
 fn test_style_renders_to_dom() {
     let container = create_test_container("test-style-dom");
 
-    let style = charmed_wasm::new_style()
-        .foreground("#ff0000")
-        .bold();
+    let style = charmed_wasm::new_style().foreground("#ff0000").bold();
 
     let html = style.render("Red Bold Text");
     container.set_inner_html(&html);
@@ -84,11 +84,8 @@ fn test_multiple_styles_in_dom() {
         .faint()
         .render("Footer");
 
-    let combined = charmed_wasm::join_vertical(0.0, vec![
-        header.into(),
-        body.into(),
-        footer.into(),
-    ]);
+    let combined =
+        charmed_wasm::join_vertical(0.0, vec![header.into(), body.into(), footer.into()]);
 
     container.set_inner_html(&combined);
 
@@ -141,11 +138,8 @@ fn test_complex_layout_in_dom() {
         .width(20)
         .render("  View");
 
-    let menu = charmed_wasm::join_vertical(0.0, vec![
-        selected.into(),
-        normal.into(),
-        disabled.into(),
-    ]);
+    let menu =
+        charmed_wasm::join_vertical(0.0, vec![selected.into(), normal.into(), disabled.into()]);
 
     container.set_inner_html(&menu);
 
@@ -179,8 +173,12 @@ fn test_rapid_dom_updates() {
 
     // Simulate rapid updates like in a live editor
     for i in 0..50 {
-        let style = charmed_wasm::new_style()
-            .foreground(&format!("#{:02x}{:02x}{:02x}", i * 5, 100, 200 - i * 4));
+        let style = charmed_wasm::new_style().foreground(&format!(
+            "#{:02x}{:02x}{:02x}",
+            i * 5,
+            100,
+            200 - i * 4
+        ));
 
         let html = style.render(&format!("Update {}", i));
         container.set_inner_html(&html);
@@ -250,8 +248,7 @@ fn test_html_special_chars() {
     let container = create_test_container("test-special");
 
     // Test that special HTML characters are handled
-    let style = charmed_wasm::new_style()
-        .render("<script>alert('xss')</script>");
+    let style = charmed_wasm::new_style().render("<script>alert('xss')</script>");
 
     container.set_inner_html(&style);
 
@@ -289,19 +286,19 @@ fn test_dashboard_layout() {
         .foreground("#f39c12")
         .render("Pending: 42");
 
-    let stats = charmed_wasm::join_horizontal(0.5, vec![
-        stat1.into(),
-        "  ".to_string().into(),
-        stat2.into(),
-        "  ".to_string().into(),
-        stat3.into(),
-    ]);
+    let stats = charmed_wasm::join_horizontal(
+        0.5,
+        vec![
+            stat1.into(),
+            "  ".to_string().into(),
+            stat2.into(),
+            "  ".to_string().into(),
+            stat3.into(),
+        ],
+    );
 
-    let dashboard = charmed_wasm::join_vertical(0.5, vec![
-        title.into(),
-        "".to_string().into(),
-        stats.into(),
-    ]);
+    let dashboard =
+        charmed_wasm::join_vertical(0.5, vec![title.into(), "".to_string().into(), stats.into()]);
 
     let boxed = charmed_wasm::new_style()
         .border_style("rounded")
@@ -333,11 +330,10 @@ fn test_card_component() {
         .foreground("#aaaaaa")
         .render("This is the card body with some content.");
 
-    let card_content = charmed_wasm::join_vertical(0.0, vec![
-        card_title.into(),
-        "".to_string().into(),
-        card_body.into(),
-    ]);
+    let card_content = charmed_wasm::join_vertical(
+        0.0,
+        vec![card_title.into(), "".to_string().into(), card_body.into()],
+    );
 
     let card = charmed_wasm::new_style()
         .border_style("rounded")
