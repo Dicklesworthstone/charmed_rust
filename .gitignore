@@ -30,3 +30,6 @@ Thumbs.db
 .bv/
 charmed_rust_illustration.png
 ._charmed_rust_illustration.png
+
+# NTM agent coordination
+.ntm/
