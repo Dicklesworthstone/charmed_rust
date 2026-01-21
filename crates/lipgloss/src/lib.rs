@@ -136,6 +136,7 @@
 //! let style = Style::new().padding((1, 2, 3, 4));
 //! ```
 
+pub mod backend;
 pub mod border;
 pub mod color;
 pub mod position;
@@ -144,6 +145,7 @@ pub mod style;
 pub mod theme;
 
 // Re-exports
+pub use backend::{AnsiBackend, DefaultBackend, OutputBackend, PlainBackend, default_backend};
 pub use border::{Border, BorderEdges};
 pub use color::{
     AdaptiveColor, AnsiColor, Color, ColorProfile, CompleteAdaptiveColor, CompleteColor, NoColor,
@@ -155,12 +157,14 @@ pub use style::Style;
 #[cfg(feature = "tokio")]
 pub use theme::AsyncThemeContext;
 pub use theme::{
-    CatppuccinFlavor, ColorSlot, ListenerId, Theme, ThemeChangeListener, ThemeColors, ThemeContext,
-    ThemePreset, ThemeRole, global_theme, set_global_preset, set_global_theme,
+    CachedThemedStyle, CatppuccinFlavor, ColorSlot, ColorTransform, ListenerId, Theme,
+    ThemeChangeListener, ThemeColors, ThemeContext, ThemePreset, ThemeRole, ThemedColor,
+    ThemedStyle, global_theme, set_global_preset, set_global_theme,
 };
 
 /// Prelude module for convenient imports.
 pub mod prelude {
+    pub use crate::backend::{AnsiBackend, DefaultBackend, OutputBackend, PlainBackend};
     pub use crate::border::Border;
     pub use crate::color::{AdaptiveColor, Color, ColorProfile, NoColor};
     pub use crate::position::{Position, Sides};
@@ -169,8 +173,9 @@ pub mod prelude {
     #[cfg(feature = "tokio")]
     pub use crate::theme::AsyncThemeContext;
     pub use crate::theme::{
-        CatppuccinFlavor, ColorSlot, ListenerId, Theme, ThemeChangeListener, ThemeColors,
-        ThemeContext, ThemePreset, ThemeRole, global_theme, set_global_preset, set_global_theme,
+        CachedThemedStyle, CatppuccinFlavor, ColorSlot, ColorTransform, ListenerId, Theme,
+        ThemeChangeListener, ThemeColors, ThemeContext, ThemePreset, ThemeRole, ThemedColor,
+        ThemedStyle, global_theme, set_global_preset, set_global_theme,
     };
 }
 

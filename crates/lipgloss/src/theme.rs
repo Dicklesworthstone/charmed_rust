@@ -32,7 +32,10 @@
 //!     .background_color(theme.colors().background.clone());
 //! ```
 
-use crate::color::{AdaptiveColor, Color};
+use crate::border::Border;
+use crate::color::{AdaptiveColor, Color, ansi256_to_rgb};
+use crate::position::{Position, Sides};
+use crate::renderer::Renderer;
 use crate::style::Style;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -367,6 +370,16 @@ pub struct ThemeContext {
     next_listener_id: Arc<AtomicU64>,
 }
 
+impl fmt::Debug for ThemeContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ThemeContext")
+            .field("current", &"<RwLock<Theme>>")
+            .field("listeners", &format!("{} listeners", self.listeners.read().map(|l| l.len()).unwrap_or(0)))
+            .field("next_listener_id", &self.next_listener_id)
+            .finish()
+    }
+}
+
 impl ThemeContext {
     /// Create a new context with the provided theme.
     pub fn new(initial: Theme) -> Self {
@@ -474,6 +487,644 @@ pub fn set_global_theme(theme: Theme) {
 /// Replace the global theme using a preset.
 pub fn set_global_preset(preset: ThemePreset) {
     GLOBAL_THEME_CONTEXT.set_preset(preset);
+}
+
+// -----------------------------------------------------------------------------
+// Themed Styles (auto-resolve colors from ThemeContext)
+// -----------------------------------------------------------------------------
+
+/// A style that automatically resolves colors from the current theme.
+#[derive(Clone, Debug)]
+pub struct ThemedStyle {
+    context: Arc<ThemeContext>,
+    foreground: Option<ThemedColor>,
+    background: Option<ThemedColor>,
+    border_foreground: Option<ThemedColor>,
+    border_background: Option<ThemedColor>,
+    base_style: Style,
+}
+
+/// Color that can be fixed, sourced from a theme slot, or computed.
+#[derive(Clone, Debug)]
+pub enum ThemedColor {
+    /// Fixed color value.
+    Fixed(Color),
+    /// Color resolved from theme at render time.
+    Slot(ColorSlot),
+    /// Computed color based on a theme slot.
+    Computed(ColorSlot, ColorTransform),
+}
+
+/// Transformations applied to theme colors at resolve time.
+#[derive(Clone, Copy, Debug)]
+pub enum ColorTransform {
+    /// Lighten by 0.0-1.0.
+    Lighten(f32),
+    /// Darken by 0.0-1.0.
+    Darken(f32),
+    /// Increase saturation by 0.0-1.0.
+    Saturate(f32),
+    /// Decrease saturation by 0.0-1.0.
+    Desaturate(f32),
+    /// Apply alpha (approximated for terminal colors).
+    Alpha(f32),
+}
+
+impl ThemedStyle {
+    /// Create a new themed style with a context.
+    pub fn new(context: Arc<ThemeContext>) -> Self {
+        Self {
+            context,
+            foreground: None,
+            background: None,
+            border_foreground: None,
+            border_background: None,
+            base_style: Style::new(),
+        }
+    }
+
+    /// Create from the global theme context.
+    pub fn global() -> Self {
+        Self::new(Arc::new(global_theme().clone()))
+    }
+
+    /// Resolve the themed style to a concrete Style using the current theme.
+    pub fn resolve(&self) -> Style {
+        let theme = match catch_unwind(AssertUnwindSafe(|| self.context.current())) {
+            Ok(theme) => theme,
+            Err(_) => {
+                warn!("themed_style.resolve called without a valid theme context");
+                return self.base_style.clone();
+            }
+        };
+
+        let mut style = self.base_style.clone();
+
+        if let Some(ref fg) = self.foreground {
+            let color = self.resolve_color(fg, &theme);
+            style = style.foreground_color(color);
+        }
+        if let Some(ref bg) = self.background {
+            let color = self.resolve_color(bg, &theme);
+            style = style.background_color(color);
+        }
+        if let Some(ref bfg) = self.border_foreground {
+            let color = self.resolve_color(bfg, &theme);
+            style = style.border_foreground(color.0);
+        }
+        if let Some(ref bbg) = self.border_background {
+            let color = self.resolve_color(bbg, &theme);
+            style = style.border_background(color.0);
+        }
+
+        style
+    }
+
+    /// Render text with the themed style (resolves at call time).
+    pub fn render(&self, text: &str) -> String {
+        self.resolve().render(text)
+    }
+
+    fn resolve_color(&self, themed: &ThemedColor, theme: &Theme) -> Color {
+        match themed {
+            ThemedColor::Fixed(color) => {
+                debug!(themed_style.resolve = true, color_kind = "fixed", color = %color.0);
+                color.clone()
+            }
+            ThemedColor::Slot(slot) => {
+                let color = theme.get(*slot);
+                debug!(
+                    themed_style.resolve = true,
+                    color_kind = "slot",
+                    color_slot = ?slot,
+                    color = %color.0
+                );
+                color
+            }
+            ThemedColor::Computed(slot, transform) => {
+                let base = theme.get(*slot);
+                let color = transform.apply(base.clone());
+                debug!(
+                    themed_style.resolve = true,
+                    color_kind = "computed",
+                    color_slot = ?slot,
+                    transform = ?transform,
+                    color = %color.0
+                );
+                color
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Theme-aware color setters
+    // ---------------------------------------------------------------------
+
+    /// Set foreground to a theme color slot.
+    pub fn foreground(mut self, slot: ColorSlot) -> Self {
+        self.foreground = Some(ThemedColor::Slot(slot));
+        self
+    }
+
+    /// Set foreground to a fixed color (ignores theme).
+    pub fn foreground_fixed(mut self, color: impl Into<Color>) -> Self {
+        self.foreground = Some(ThemedColor::Fixed(color.into()));
+        self
+    }
+
+    /// Set foreground to a computed theme color.
+    pub fn foreground_computed(mut self, slot: ColorSlot, transform: ColorTransform) -> Self {
+        self.foreground = Some(ThemedColor::Computed(slot, transform));
+        self
+    }
+
+    /// Clear any themed foreground.
+    pub fn no_foreground(mut self) -> Self {
+        self.foreground = None;
+        self.base_style = self.base_style.no_foreground();
+        self
+    }
+
+    /// Set background to a theme color slot.
+    pub fn background(mut self, slot: ColorSlot) -> Self {
+        self.background = Some(ThemedColor::Slot(slot));
+        self
+    }
+
+    /// Set background to a fixed color (ignores theme).
+    pub fn background_fixed(mut self, color: impl Into<Color>) -> Self {
+        self.background = Some(ThemedColor::Fixed(color.into()));
+        self
+    }
+
+    /// Set background to a computed theme color.
+    pub fn background_computed(mut self, slot: ColorSlot, transform: ColorTransform) -> Self {
+        self.background = Some(ThemedColor::Computed(slot, transform));
+        self
+    }
+
+    /// Clear any themed background.
+    pub fn no_background(mut self) -> Self {
+        self.background = None;
+        self.base_style = self.base_style.no_background();
+        self
+    }
+
+    /// Set border foreground to a theme color slot.
+    pub fn border_foreground(mut self, slot: ColorSlot) -> Self {
+        self.border_foreground = Some(ThemedColor::Slot(slot));
+        self
+    }
+
+    /// Set border foreground to a fixed color.
+    pub fn border_foreground_fixed(mut self, color: impl Into<Color>) -> Self {
+        self.border_foreground = Some(ThemedColor::Fixed(color.into()));
+        self
+    }
+
+    /// Set border foreground to a computed theme color.
+    pub fn border_foreground_computed(
+        mut self,
+        slot: ColorSlot,
+        transform: ColorTransform,
+    ) -> Self {
+        self.border_foreground = Some(ThemedColor::Computed(slot, transform));
+        self
+    }
+
+    /// Set border background to a theme color slot.
+    pub fn border_background(mut self, slot: ColorSlot) -> Self {
+        self.border_background = Some(ThemedColor::Slot(slot));
+        self
+    }
+
+    /// Set border background to a fixed color.
+    pub fn border_background_fixed(mut self, color: impl Into<Color>) -> Self {
+        self.border_background = Some(ThemedColor::Fixed(color.into()));
+        self
+    }
+
+    /// Set border background to a computed theme color.
+    pub fn border_background_computed(
+        mut self,
+        slot: ColorSlot,
+        transform: ColorTransform,
+    ) -> Self {
+        self.border_background = Some(ThemedColor::Computed(slot, transform));
+        self
+    }
+
+    // ---------------------------------------------------------------------
+    // Delegated non-color style methods
+    // ---------------------------------------------------------------------
+
+    /// Set the underlying string value for this style.
+    pub fn set_string(mut self, s: impl Into<String>) -> Self {
+        self.base_style = self.base_style.set_string(s);
+        self
+    }
+
+    /// Get the underlying string value.
+    pub fn value(&self) -> &str {
+        self.base_style.value()
+    }
+
+    /// Enable bold text.
+    pub fn bold(mut self) -> Self {
+        self.base_style = self.base_style.bold();
+        self
+    }
+
+    /// Enable italic text.
+    pub fn italic(mut self) -> Self {
+        self.base_style = self.base_style.italic();
+        self
+    }
+
+    /// Enable underline text.
+    pub fn underline(mut self) -> Self {
+        self.base_style = self.base_style.underline();
+        self
+    }
+
+    /// Enable strikethrough text.
+    pub fn strikethrough(mut self) -> Self {
+        self.base_style = self.base_style.strikethrough();
+        self
+    }
+
+    /// Enable reverse video.
+    pub fn reverse(mut self) -> Self {
+        self.base_style = self.base_style.reverse();
+        self
+    }
+
+    /// Enable blinking.
+    pub fn blink(mut self) -> Self {
+        self.base_style = self.base_style.blink();
+        self
+    }
+
+    /// Enable faint text.
+    pub fn faint(mut self) -> Self {
+        self.base_style = self.base_style.faint();
+        self
+    }
+
+    /// Toggle underline spaces.
+    pub fn underline_spaces(mut self, v: bool) -> Self {
+        self.base_style = self.base_style.underline_spaces(v);
+        self
+    }
+
+    /// Toggle strikethrough spaces.
+    pub fn strikethrough_spaces(mut self, v: bool) -> Self {
+        self.base_style = self.base_style.strikethrough_spaces(v);
+        self
+    }
+
+    /// Set fixed width.
+    pub fn width(mut self, w: u16) -> Self {
+        self.base_style = self.base_style.width(w);
+        self
+    }
+
+    /// Set fixed height.
+    pub fn height(mut self, h: u16) -> Self {
+        self.base_style = self.base_style.height(h);
+        self
+    }
+
+    /// Set maximum width.
+    pub fn max_width(mut self, w: u16) -> Self {
+        self.base_style = self.base_style.max_width(w);
+        self
+    }
+
+    /// Set maximum height.
+    pub fn max_height(mut self, h: u16) -> Self {
+        self.base_style = self.base_style.max_height(h);
+        self
+    }
+
+    /// Set both horizontal and vertical alignment.
+    pub fn align(mut self, p: Position) -> Self {
+        self.base_style = self.base_style.align(p);
+        self
+    }
+
+    /// Set horizontal alignment.
+    pub fn align_horizontal(mut self, p: Position) -> Self {
+        self.base_style = self.base_style.align_horizontal(p);
+        self
+    }
+
+    /// Set vertical alignment.
+    pub fn align_vertical(mut self, p: Position) -> Self {
+        self.base_style = self.base_style.align_vertical(p);
+        self
+    }
+
+    /// Set padding.
+    pub fn padding(mut self, sides: impl Into<Sides<u16>>) -> Self {
+        self.base_style = self.base_style.padding(sides);
+        self
+    }
+
+    /// Set padding top.
+    pub fn padding_top(mut self, n: u16) -> Self {
+        self.base_style = self.base_style.padding_top(n);
+        self
+    }
+
+    /// Set padding right.
+    pub fn padding_right(mut self, n: u16) -> Self {
+        self.base_style = self.base_style.padding_right(n);
+        self
+    }
+
+    /// Set padding bottom.
+    pub fn padding_bottom(mut self, n: u16) -> Self {
+        self.base_style = self.base_style.padding_bottom(n);
+        self
+    }
+
+    /// Set padding left.
+    pub fn padding_left(mut self, n: u16) -> Self {
+        self.base_style = self.base_style.padding_left(n);
+        self
+    }
+
+    /// Set margin.
+    pub fn margin(mut self, sides: impl Into<Sides<u16>>) -> Self {
+        self.base_style = self.base_style.margin(sides);
+        self
+    }
+
+    /// Set margin top.
+    pub fn margin_top(mut self, n: u16) -> Self {
+        self.base_style = self.base_style.margin_top(n);
+        self
+    }
+
+    /// Set margin right.
+    pub fn margin_right(mut self, n: u16) -> Self {
+        self.base_style = self.base_style.margin_right(n);
+        self
+    }
+
+    /// Set margin bottom.
+    pub fn margin_bottom(mut self, n: u16) -> Self {
+        self.base_style = self.base_style.margin_bottom(n);
+        self
+    }
+
+    /// Set margin left.
+    pub fn margin_left(mut self, n: u16) -> Self {
+        self.base_style = self.base_style.margin_left(n);
+        self
+    }
+
+    /// Set margin background (fixed color).
+    pub fn margin_background(mut self, color: impl Into<String>) -> Self {
+        self.base_style = self.base_style.margin_background(color);
+        self
+    }
+
+    /// Set border style.
+    pub fn border(mut self, border: Border) -> Self {
+        self.base_style = self.base_style.border(border);
+        self
+    }
+
+    /// Set border style (alias).
+    pub fn border_style(mut self, border: Border) -> Self {
+        self.base_style = self.base_style.border_style(border);
+        self
+    }
+
+    /// Enable or disable top border.
+    pub fn border_top(mut self, v: bool) -> Self {
+        self.base_style = self.base_style.border_top(v);
+        self
+    }
+
+    /// Enable or disable right border.
+    pub fn border_right(mut self, v: bool) -> Self {
+        self.base_style = self.base_style.border_right(v);
+        self
+    }
+
+    /// Enable or disable bottom border.
+    pub fn border_bottom(mut self, v: bool) -> Self {
+        self.base_style = self.base_style.border_bottom(v);
+        self
+    }
+
+    /// Enable or disable left border.
+    pub fn border_left(mut self, v: bool) -> Self {
+        self.base_style = self.base_style.border_left(v);
+        self
+    }
+
+    /// Inline mode.
+    pub fn inline(mut self) -> Self {
+        self.base_style = self.base_style.inline();
+        self
+    }
+
+    /// Set tab width.
+    pub fn tab_width(mut self, n: i8) -> Self {
+        self.base_style = self.base_style.tab_width(n);
+        self
+    }
+
+    /// Apply a transform function to the rendered string.
+    pub fn transform<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&str) -> String + Send + Sync + 'static,
+    {
+        self.base_style = self.base_style.transform(f);
+        self
+    }
+
+    /// Set the renderer.
+    pub fn renderer(mut self, r: Arc<Renderer>) -> Self {
+        self.base_style = self.base_style.renderer(r);
+        self
+    }
+
+    /// Check if a property is set on the base style.
+    pub fn is_set(&self, prop: crate::style::Props) -> bool {
+        self.base_style.is_set(prop)
+    }
+}
+
+impl ColorTransform {
+    fn apply(self, color: Color) -> Color {
+        let (r, g, b) = if let Some((r, g, b)) = color.as_rgb() {
+            (r, g, b)
+        } else if let Some(n) = color.as_ansi() {
+            ansi256_to_rgb(n)
+        } else {
+            return color;
+        };
+
+        let (h, mut s, mut l) = rgb_to_hsl(r, g, b);
+        let amount = |v: f32| v.max(0.0).min(1.0);
+
+        match self {
+            ColorTransform::Lighten(a) => l = (l + amount(a)).min(1.0),
+            ColorTransform::Darken(a) => l = (l - amount(a)).max(0.0),
+            ColorTransform::Saturate(a) => s = (s + amount(a)).min(1.0),
+            ColorTransform::Desaturate(a) => s = (s - amount(a)).max(0.0),
+            ColorTransform::Alpha(a) => {
+                let a = amount(a);
+                l = (l * a).min(1.0);
+            }
+        }
+
+        let (nr, ng, nb) = hsl_to_rgb(h, s, l);
+        Color::from(format!("#{:02x}{:02x}{:02x}", nr, ng, nb))
+    }
+}
+
+fn rgb_to_hsl(r: u8, g: u8, b: u8) -> (f32, f32, f32) {
+    let r = r as f32 / 255.0;
+    let g = g as f32 / 255.0;
+    let b = b as f32 / 255.0;
+
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let l = (max + min) / 2.0;
+
+    if (max - min).abs() < f32::EPSILON {
+        return (0.0, 0.0, l);
+    }
+
+    let d = max - min;
+    let s = if l > 0.5 {
+        d / (2.0 - max - min)
+    } else {
+        d / (max + min)
+    };
+
+    let mut h = if (max - r).abs() < f32::EPSILON {
+        (g - b) / d + if g < b { 6.0 } else { 0.0 }
+    } else if (max - g).abs() < f32::EPSILON {
+        (b - r) / d + 2.0
+    } else {
+        (r - g) / d + 4.0
+    };
+
+    h /= 6.0;
+    (h * 360.0, s, l)
+}
+
+fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
+    if s == 0.0 {
+        let v = (l * 255.0).round() as u8;
+        return (v, v, v);
+    }
+
+    let h = h / 360.0;
+    let q = if l < 0.5 {
+        l * (1.0 + s)
+    } else {
+        l + s - l * s
+    };
+    let p = 2.0 * l - q;
+
+    fn hue_to_rgb(p: f32, q: f32, mut t: f32) -> f32 {
+        if t < 0.0 {
+            t += 1.0;
+        }
+        if t > 1.0 {
+            t -= 1.0;
+        }
+        if t < 1.0 / 6.0 {
+            return p + (q - p) * 6.0 * t;
+        }
+        if t < 1.0 / 2.0 {
+            return q;
+        }
+        if t < 2.0 / 3.0 {
+            return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
+        }
+        p
+    }
+
+    let r = hue_to_rgb(p, q, h + 1.0 / 3.0);
+    let g = hue_to_rgb(p, q, h);
+    let b = hue_to_rgb(p, q, h - 1.0 / 3.0);
+
+    (
+        (r * 255.0).round() as u8,
+        (g * 255.0).round() as u8,
+        (b * 255.0).round() as u8,
+    )
+}
+
+/// Cached themed style that invalidates on theme changes.
+pub struct CachedThemedStyle {
+    themed: ThemedStyle,
+    cache: Arc<RwLock<Option<Style>>>,
+    listener_id: ListenerId,
+}
+
+impl CachedThemedStyle {
+    /// Create a cached themed style.
+    pub fn new(themed: ThemedStyle) -> Self {
+        let cache = Arc::new(RwLock::new(None));
+        let cache_ref = Arc::clone(&cache);
+        let listener_id = themed.context.on_change(move |_theme| {
+            if let Ok(mut guard) = cache_ref.write() {
+                *guard = None;
+            }
+            trace!("cached_themed_style cache invalidated");
+        });
+
+        Self {
+            themed,
+            cache,
+            listener_id,
+        }
+    }
+
+    /// Resolve with caching.
+    pub fn resolve(&self) -> Style {
+        if let Ok(cache) = self.cache.read() {
+            if let Some(style) = cache.as_ref() {
+                trace!("cached_themed_style cache hit");
+                return style.clone();
+            }
+        }
+
+        trace!("cached_themed_style cache miss");
+        let resolved = self.themed.resolve();
+        if let Ok(mut cache) = self.cache.write() {
+            *cache = Some(resolved.clone());
+        }
+        resolved
+    }
+
+    /// Render text using the cached themed style.
+    pub fn render(&self, text: &str) -> String {
+        self.resolve().render(text)
+    }
+
+    /// Manually invalidate the cache.
+    pub fn invalidate(&self) {
+        if let Ok(mut cache) = self.cache.write() {
+            *cache = None;
+        }
+    }
+}
+
+impl Drop for CachedThemedStyle {
+    fn drop(&mut self) {
+        self.themed.context.remove_listener(self.listener_id);
+    }
 }
 
 /// Async theme context backed by a tokio watch channel.
@@ -1471,6 +2122,7 @@ pub enum ThemeSaveError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::renderer::Renderer;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -1721,5 +2373,42 @@ mod tests {
             assert!(!c.text.0.is_empty(), "{}: text empty", theme.name());
             assert!(!c.error.0.is_empty(), "{}: error empty", theme.name());
         }
+    }
+
+    #[test]
+    fn test_color_transform_lighten_darken() {
+        let black = Color::from("#000000");
+        let lighter = ColorTransform::Lighten(0.2).apply(black);
+        assert_eq!(lighter.0, "#333333");
+
+        let white = Color::from("#ffffff");
+        let darker = ColorTransform::Darken(0.2).apply(white);
+        assert_eq!(darker.0, "#cccccc");
+    }
+
+    #[test]
+    fn test_color_transform_desaturate_and_alpha() {
+        let red = Color::from("#ff0000");
+        let gray = ColorTransform::Desaturate(1.0).apply(red);
+        assert_eq!(gray.0, "#808080");
+
+        let white = Color::from("#ffffff");
+        let alpha = ColorTransform::Alpha(0.5).apply(white);
+        assert_eq!(alpha.0, "#808080");
+    }
+
+    #[test]
+    fn test_cached_themed_style_invalidation() {
+        let ctx = Arc::new(ThemeContext::from_preset(ThemePreset::Dark));
+        let themed = ThemedStyle::new(Arc::clone(&ctx))
+            .background(ColorSlot::Background)
+            .renderer(Arc::new(Renderer::DEFAULT));
+        let cached = CachedThemedStyle::new(themed);
+
+        let first = cached.render("x");
+        ctx.set_preset(ThemePreset::Light);
+        let second = cached.render("x");
+
+        assert_ne!(first, second);
     }
 }
