@@ -2,7 +2,7 @@
 //!
 //! Terminal UI components for the web, compiled to WebAssembly.
 //!
-//! This crate provides WebAssembly bindings for the charmed_rust library,
+//! This crate provides WebAssembly bindings for the `charmed_rust` library,
 //! allowing you to use lipgloss styling in web applications.
 //!
 //! ## Quick Start (JavaScript)
@@ -59,14 +59,16 @@ use wasm_bindgen::prelude::*;
 pub use lipgloss::wasm::*;
 
 /// Module version information.
+#[must_use]
 #[wasm_bindgen(js_name = "version")]
 pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
 /// Check if the module is properly initialized.
+#[must_use]
 #[wasm_bindgen(js_name = "isReady")]
-pub fn is_ready() -> bool {
+pub const fn is_ready() -> bool {
     true
 }
 

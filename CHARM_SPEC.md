@@ -9,6 +9,19 @@ If any detail here conflicts with the deeper per-crate algorithm specs in
 low-level behavior. This spec defines the user-facing contract and system-wide
 rules that implementations must uphold.
 
+## 0. Authority and Precedence
+
+Order of authority for behavioral requirements:
+
+1. `EXISTING_CHARM_STRUCTURE_AND_ARCHITECTURE.md` (per-crate algorithm specs)
+2. `CHARM_SPEC.md` (cross-crate behavioral contract)
+3. Conformance fixtures and harness in `tests/conformance`
+4. Public API docs and examples (README + crate docs)
+5. Implementation details (code)
+
+If conflicts exist, follow the highest-ranked source and update the others to
+match.
+
 ## 1. Scope and Goals
 
 - Provide a complete Rust port of Charm's Go TUI ecosystem with idiomatic Rust
@@ -52,6 +65,8 @@ Crate dependency rules must follow the workspace graph:
 - huh -> bubbletea, lipgloss, bubbles
 - wish -> bubbletea
 - glow -> glamour, bubbletea, lipgloss, bubbles
+- charmed-wasm -> lipgloss (bindings for web/WASM)
+- bubbletea-macros (proc-macro helper for bubbletea; compile-time only)
 
 Cross-crate APIs must stay stable and composable. Components are expected to be
 used as bubbletea Models whenever interactive behavior is required.
@@ -103,6 +118,16 @@ Behavioral contract:
   restore terminal state.
 - Optional async runtime (`run_async`) must preserve the same semantics while
   using tokio for async command execution and event handling.
+
+### 5.3a bubbletea-macros
+
+Purpose: Derive macro to reduce `Model` boilerplate.
+
+Behavioral contract:
+- The generated `Model` impl must delegate to the user's inherent `init`,
+  `update`, and `view` methods without semantic changes.
+- Optional state tracking (`#[state]`) only affects render scheduling and must
+  not mutate or reorder user state.
 
 ### 5.4 charmed_log
 
@@ -171,6 +196,16 @@ Behavioral contract:
 - Renders markdown via glamour with theme selection and optional pager mode.
 - Pager behavior must support scrolling, search, and help overlay.
 - CLI flags must be stable and documented in README.
+
+### 5.10 charmed-wasm
+
+Purpose: WebAssembly bindings for lipgloss styling.
+
+Behavioral contract:
+- Exposes a stable JS API for style construction, layout helpers, and utility
+  functions mirroring lipgloss behavior.
+- Must render identically to native lipgloss for equivalent inputs, modulo the
+  lack of terminal capability detection in WASM.
 
 ## 6. Environment and Configuration
 
