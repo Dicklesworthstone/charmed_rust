@@ -376,7 +376,13 @@ impl fmt::Debug for ThemeContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ThemeContext")
             .field("current", &"<RwLock<Theme>>")
-            .field("listeners", &format!("{} listeners", self.listeners.read().map(|l| l.len()).unwrap_or(0)))
+            .field(
+                "listeners",
+                &format!(
+                    "{} listeners",
+                    self.listeners.read().map(|l| l.len()).unwrap_or(0)
+                ),
+            )
             .field("next_listener_id", &self.next_listener_id)
             .finish()
     }
@@ -552,33 +558,31 @@ impl ThemedStyle {
 
     /// Resolve the themed style to a concrete Style using the current theme.
     pub fn resolve(&self) -> Style {
-        let theme = match catch_unwind(AssertUnwindSafe(|| self.context.current())) {
-            Ok(theme) => theme,
-            Err(_) => {
-                warn!("themed_style.resolve called without a valid theme context");
-                return self.base_style.clone();
-            }
+        let Ok(theme) = catch_unwind(AssertUnwindSafe(|| self.context.current())) else {
+            warn!("themed_style.resolve called without a valid theme context");
+            return self.base_style.clone();
         };
 
         let mut style = self.base_style.clone();
 
         if let Some(ref fg) = self.foreground {
-            let color = self.resolve_color(fg, &theme);
+            let color = Self::resolve_color(fg, &theme);
             style = style.foreground_color(color);
         }
         if let Some(ref bg) = self.background {
-            let color = self.resolve_color(bg, &theme);
+            let color = Self::resolve_color(bg, &theme);
             style = style.background_color(color);
         }
         if let Some(ref bfg) = self.border_foreground {
-            let color = self.resolve_color(bfg, &theme);
+            let color = Self::resolve_color(bfg, &theme);
             style = style.border_foreground(color.0);
         }
         if let Some(ref bbg) = self.border_background {
-            let color = self.resolve_color(bbg, &theme);
+            let color = Self::resolve_color(bbg, &theme);
             style = style.border_background(color.0);
         }
 
+        drop(theme);
         style
     }
 
@@ -587,7 +591,7 @@ impl ThemedStyle {
         self.resolve().render(text)
     }
 
-    fn resolve_color(&self, themed: &ThemedColor, theme: &Theme) -> Color {
+    fn resolve_color(themed: &ThemedColor, theme: &Theme) -> Color {
         match themed {
             ThemedColor::Fixed(color) => {
                 debug!(themed_style.resolve = true, color_kind = "fixed", color = %color.0);
@@ -605,7 +609,7 @@ impl ThemedStyle {
             }
             ThemedColor::Computed(slot, transform) => {
                 let base = theme.get(*slot);
-                let color = transform.apply(base.clone());
+                let color = transform.apply(base);
                 debug!(
                     themed_style.resolve = true,
                     color_kind = "computed",
@@ -962,6 +966,7 @@ impl ThemedStyle {
     }
 }
 
+#[allow(clippy::many_single_char_names)]
 impl ColorTransform {
     fn apply(self, color: Color) -> Color {
         let (r, g, b) = if let Some((r, g, b)) = color.as_rgb() {
@@ -973,7 +978,7 @@ impl ColorTransform {
         };
 
         let (h, mut s, mut l) = rgb_to_hsl(r, g, b);
-        let amount = |v: f32| v.max(0.0).min(1.0);
+        let amount = |v: f32| v.clamp(0.0, 1.0);
 
         match self {
             ColorTransform::Lighten(a) => l = (l + amount(a)).min(1.0),
@@ -991,6 +996,7 @@ impl ColorTransform {
     }
 }
 
+#[allow(clippy::many_single_char_names)]
 fn rgb_to_hsl(r: u8, g: u8, b: u8) -> (f32, f32, f32) {
     let r = r as f32 / 255.0;
     let g = g as f32 / 255.0;
@@ -998,7 +1004,7 @@ fn rgb_to_hsl(r: u8, g: u8, b: u8) -> (f32, f32, f32) {
 
     let max = r.max(g).max(b);
     let min = r.min(g).min(b);
-    let l = (max + min) / 2.0;
+    let l = f32::midpoint(max, min);
 
     if (max - min).abs() < f32::EPSILON {
         return (0.0, 0.0, l);
@@ -1023,6 +1029,7 @@ fn rgb_to_hsl(r: u8, g: u8, b: u8) -> (f32, f32, f32) {
     (h * 360.0, s, l)
 }
 
+#[allow(clippy::many_single_char_names, clippy::suboptimal_flops)]
 fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
     if s == 0.0 {
         let v = (l * 255.0).round() as u8;

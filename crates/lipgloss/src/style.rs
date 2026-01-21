@@ -805,10 +805,6 @@ impl Style {
         self.bg_color.as_deref()
     }
 
-    pub(crate) fn margin_background_color_ref(&self) -> Option<&dyn TerminalColor> {
-        self.margin_bg_color.as_deref()
-    }
-
     pub(crate) fn border_style_ref(&self) -> &Border {
         &self.border_style
     }
@@ -817,19 +813,15 @@ impl Style {
         self.border_fg.get(index).and_then(|c| c.as_deref())
     }
 
-    pub(crate) fn border_bg_ref(&self, index: usize) -> Option<&dyn TerminalColor> {
-        self.border_bg.get(index).and_then(|c| c.as_deref())
-    }
-
-    pub(crate) fn padding(&self) -> Sides<u16> {
+    pub(crate) fn get_padding(&self) -> Sides<u16> {
         self.padding
     }
 
-    pub(crate) fn margin(&self) -> Sides<u16> {
+    pub(crate) fn get_margin(&self) -> Sides<u16> {
         self.margin
     }
 
-    pub(crate) fn width(&self) -> Option<u16> {
+    pub(crate) fn get_width(&self) -> Option<u16> {
         if self.props.contains(Props::WIDTH) {
             Some(self.width)
         } else {
@@ -837,7 +829,7 @@ impl Style {
         }
     }
 
-    pub(crate) fn height(&self) -> Option<u16> {
+    pub(crate) fn get_height(&self) -> Option<u16> {
         if self.props.contains(Props::HEIGHT) {
             Some(self.height)
         } else {
@@ -845,15 +837,11 @@ impl Style {
         }
     }
 
-    pub(crate) fn align_horizontal(&self) -> Position {
+    pub(crate) fn get_align_horizontal(&self) -> Position {
         self.align_horizontal
     }
 
-    pub(crate) fn align_vertical(&self) -> Position {
-        self.align_vertical
-    }
-
-    pub(crate) fn tab_width(&self) -> i8 {
+    pub(crate) fn get_tab_width(&self) -> i8 {
         self.tab_width
     }
 

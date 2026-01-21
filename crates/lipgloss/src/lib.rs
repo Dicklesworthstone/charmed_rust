@@ -145,7 +145,9 @@ pub mod style;
 pub mod theme;
 
 // Re-exports
-pub use backend::{AnsiBackend, DefaultBackend, OutputBackend, PlainBackend, default_backend};
+pub use backend::{
+    AnsiBackend, DefaultBackend, HtmlBackend, OutputBackend, PlainBackend, default_backend,
+};
 pub use border::{Border, BorderEdges};
 pub use color::{
     AdaptiveColor, AnsiColor, Color, ColorProfile, CompleteAdaptiveColor, CompleteColor, NoColor,
@@ -164,7 +166,9 @@ pub use theme::{
 
 /// Prelude module for convenient imports.
 pub mod prelude {
-    pub use crate::backend::{AnsiBackend, DefaultBackend, OutputBackend, PlainBackend};
+    pub use crate::backend::{
+        AnsiBackend, DefaultBackend, HtmlBackend, OutputBackend, PlainBackend,
+    };
     pub use crate::border::Border;
     pub use crate::color::{AdaptiveColor, Color, ColorProfile, NoColor};
     pub use crate::position::{Position, Sides};
