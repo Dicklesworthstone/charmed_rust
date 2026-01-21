@@ -68,6 +68,7 @@ pub fn version() -> String {
 /// Check if the module is properly initialized.
 #[must_use]
 #[wasm_bindgen(js_name = "isReady")]
+#[allow(clippy::missing_const_for_fn)] // wasm_bindgen doesn't support const fn
 pub fn is_ready() -> bool {
     true
 }

@@ -214,6 +214,7 @@ impl JsStyle {
     ///
     /// Available styles: "normal", "rounded", "thick", "double", "hidden", "ascii"
     #[wasm_bindgen(js_name = "borderStyle")]
+    #[allow(clippy::match_same_arms)] // explicit listing of all styles is clearer than combining with default
     pub fn border_style(self, style: &str) -> Self {
         let border = match style {
             "normal" => Border::normal(),
@@ -360,7 +361,10 @@ pub struct JsColor {
 #[wasm_bindgen]
 impl JsColor {
     /// Create a color from a hex string (e.g., "#ff00ff" or "ff00ff").
+    ///
+    /// This function currently always succeeds as color parsing is permissive.
     #[wasm_bindgen(js_name = "fromHex")]
+    #[allow(clippy::missing_errors_doc)]
     pub fn from_hex(hex: &str) -> Result<JsColor, JsValue> {
         let color: Color = hex.into();
         Ok(JsColor { inner: color })
