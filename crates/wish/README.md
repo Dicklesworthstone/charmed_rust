@@ -54,7 +54,7 @@ Connect with: `ssh -p 2222 localhost`
 ### Serving a BubbleTea Application
 
 ```rust
-use bubbletea::{Model, Cmd, tea};
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model};
 use wish::{ServerBuilder, Session};
 use wish::middleware::logging;
 
@@ -64,20 +64,32 @@ struct Counter {
 }
 
 impl Model for Counter {
-    type Message = CounterMsg;
+    fn init(&self) -> Option<Cmd> {
+        None
+    }
 
-    fn update(&mut self, msg: Self::Message) -> Cmd<Self::Message> {
-        match msg {
-            CounterMsg::Increment => self.count += 1,
-            CounterMsg::Decrement => self.count -= 1,
-            CounterMsg::Quit => return tea::quit(),
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+            match key.key_type {
+                KeyType::Runes => {
+                    if key.runes == vec!['+'] || key.runes == vec!['k'] {
+                        self.count += 1;
+                    } else if key.runes == vec!['-'] || key.runes == vec!['j'] {
+                        self.count -= 1;
+                    } else if key.runes == vec!['q'] {
+                        return Some(bubbletea::quit());
+                    }
+                }
+                KeyType::CtrlC => return Some(bubbletea::quit()),
+                _ => {}
+            }
         }
-        Cmd::none()
+        None
     }
 
     fn view(&self) -> String {
         format!(
-            "Hello, {}!\n\nCount: {}\n\n[+] increment  [-] decrement  [q] quit",
+            "Hello, {}!\n\nCount: {}\n\n[+/k] increment  [-/j] decrement  [q] quit",
             self.user, self.count
         )
     }
