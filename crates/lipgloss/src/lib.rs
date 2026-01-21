@@ -144,6 +144,9 @@ pub mod renderer;
 pub mod style;
 pub mod theme;
 
+#[cfg(feature = "wasm")]
+pub mod wasm;
+
 // Re-exports
 pub use backend::{
     AnsiBackend, DefaultBackend, HtmlBackend, OutputBackend, PlainBackend, default_backend,
@@ -164,6 +167,10 @@ pub use theme::{
     ThemedStyle, global_theme, set_global_preset, set_global_theme,
 };
 
+// WASM bindings (only available with the "wasm" feature)
+#[cfg(feature = "wasm")]
+pub use wasm::{JsColor, JsStyle, join_horizontal as wasm_join_horizontal, join_vertical as wasm_join_vertical, new_style as wasm_new_style, place as wasm_place};
+
 /// Prelude module for convenient imports.
 pub mod prelude {
     pub use crate::backend::{
@@ -181,6 +188,8 @@ pub mod prelude {
         ThemeChangeListener, ThemeColors, ThemeContext, ThemePreset, ThemeRole, ThemedColor,
         ThemedStyle, global_theme, set_global_preset, set_global_theme,
     };
+    #[cfg(feature = "wasm")]
+    pub use crate::wasm::{JsColor, JsStyle};
 }
 
 // Convenience constructors

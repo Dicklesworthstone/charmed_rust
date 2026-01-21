@@ -1,0 +1,45 @@
+# Custom Theme Example
+#
+# This file demonstrates how to define a custom theme for lipgloss.
+# Load this theme in your application with:
+#
+#   let theme = Theme::from_file("custom-theme.toml")?;
+#
+# Themes can also be defined in JSON or YAML format.
+
+name = "Cyberpunk"
+is_dark = true
+
+[meta]
+description = "A neon-inspired dark theme with electric colors"
+author = "Charmed Contributors"
+version = "1.0.0"
+
+[colors]
+# Core background and foreground
+background = "#0d0d1a"
+foreground = "#e0e0ff"
+
+# Accent colors - these are the main colors users see
+primary = "#00ffff"      # Cyan - main accent
+secondary = "#ff00ff"    # Magenta - secondary accent
+accent = "#ffff00"       # Yellow - highlights
+
+# Semantic colors - for status messages
+success = "#00ff00"      # Bright green
+warning = "#ff9900"      # Orange
+error = "#ff0066"        # Hot pink
+info = "#00aaff"         # Sky blue
+
+# UI colors
+muted = "#606080"        # Dimmed text
+border = "#404060"       # UI borders
+selection = "#1a1a3e"    # Selected items
+surface = "#1a1a2e"      # Elevated surfaces (cards, modals)
+
+# Custom colors - accessible via theme.colors().get_custom("name")
+[colors.custom]
+neon_pink = "#ff1493"
+neon_blue = "#00bfff"
+neon_green = "#39ff14"
+matrix_green = "#00ff41"

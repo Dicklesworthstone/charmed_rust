@@ -11,6 +11,9 @@ members = [
     "advanced/form",
     "advanced/markdown-viewer",
     "advanced/multi-component",
+    "themes/theme-switcher",
+    "themes/theme-preview",
+    "themes/themed-counter",
     "e2e-tests",
 ]
 

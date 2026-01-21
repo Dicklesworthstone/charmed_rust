@@ -445,6 +445,67 @@ let layout = join_vertical(Position::Left, &[&header, body]);
 let centered = place(80, 24, Position::Center, Position::Center, "Centered!");
 ```
 
+### Theming
+
+lipgloss includes a theming system for consistent colors across your application:
+
+```rust
+use lipgloss::{ThemePreset, ThemedStyle, ColorSlot, ThemeContext};
+use std::sync::Arc;
+
+// Use a built-in preset
+let ctx = Arc::new(ThemeContext::from_preset(ThemePreset::Dracula));
+
+// Create styles that use semantic color slots
+let title = ThemedStyle::new(ctx.clone())
+    .foreground(ColorSlot::Primary)
+    .bold();
+
+let error = ThemedStyle::new(ctx.clone())
+    .foreground(ColorSlot::Error);
+
+println!("{}", title.render("Welcome!"));
+println!("{}", error.render("Something went wrong"));
+
+// Switch themes at runtime - styles update automatically
+ctx.set_preset(ThemePreset::Nord);
+```
+
+**Built-in Themes:**
+- `Dark` / `Light` - Default themes
+- `Dracula` - Popular purple-tinted dark theme
+- `Nord` - Arctic-inspired palette
+- `Catppuccin` - Pastel themes (Latte, Frappe, Macchiato, Mocha)
+
+**Semantic Color Slots:**
+
+| Slot | Purpose |
+|------|---------|
+| `Background` | Main background |
+| `Foreground` | Default text |
+| `Primary` | Buttons, links, headings |
+| `Error` | Error messages |
+| `Success` | Confirmations |
+| `Warning` | Alerts |
+| `Muted` | Disabled/placeholder text |
+| `Border` | UI borders |
+
+Load custom themes from files:
+
+```rust
+use lipgloss::Theme;
+
+// From TOML, JSON, or YAML
+let theme = Theme::from_file("~/.config/myapp/theme.toml")?;
+
+// Validate accessibility
+if !theme.check_contrast_aa(ColorSlot::Foreground, ColorSlot::Background) {
+    eprintln!("Warning: Poor contrast ratio");
+}
+```
+
+See [Theming Tutorial](docs/theming-tutorial.md) for complete documentation.
+
 ---
 
 ## bubbles Components

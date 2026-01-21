@@ -1,0 +1,47 @@
+[package]
+name = "charmed-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Terminal UI components for the web - lipgloss styling compiled to WebAssembly"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["console_error_panic_hook"]
+# Enable console_error_panic_hook for better error messages in browser
+console_error_panic_hook = ["dep:console_error_panic_hook"]
+# Enable wee_alloc for smaller binary size (trades performance for size)
+wee_alloc = ["dep:wee_alloc"]
+
+[dependencies]
+# WASM bindings
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "console",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "Node",
+    "Window",
+]}
+
+# Re-export lipgloss with wasm feature
+lipgloss = { path = "../lipgloss", default-features = false, features = ["wasm"] }
+
+# Better error messages in browser
+console_error_panic_hook = { version = "0.1", optional = true }
+
+# Smaller binary size (optional)
+wee_alloc = { version = "0.4", optional = true }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[lints]
+workspace = true

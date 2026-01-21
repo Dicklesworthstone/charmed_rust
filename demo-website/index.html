@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>charmed_rust - Terminal UI for the Web</title>
+  <meta name="description" content="Beautiful terminal UI styling with lipgloss, now in your browser via WebAssembly">
+  <link rel="stylesheet" href="/styles/main.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <h1 class="logo">charmed_rust</h1>
+      <p class="tagline">Beautiful terminal UIs, now in your browser</p>
+      <nav class="nav">
+        <a href="#live-editor">Live Editor</a>
+        <a href="#examples">Examples</a>
+        <a href="#api">API Reference</a>
+        <a href="https://github.com/Dicklesworthstone/charmed_rust" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero-content">
+          <h2>Terminal styling meets the web</h2>
+          <p>Use the same expressive styling API from lipgloss to create beautiful terminal-inspired UIs in any web application.</p>
+          <div class="hero-buttons">
+            <a href="#live-editor" class="btn btn-primary">Try the Editor</a>
+            <a href="https://www.npmjs.com/package/@charmed/wasm" class="btn btn-secondary" target="_blank" rel="noopener">npm install</a>
+          </div>
+        </div>
+        <div class="hero-demo" id="hero-terminal">
+          <!-- Dynamic content inserted by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Live Editor Section -->
+    <section id="live-editor" class="section">
+      <div class="container">
+        <h2 class="section-title">Live Style Editor</h2>
+        <p class="section-subtitle">Write code and see the styled output instantly</p>
+
+        <div class="editor-container">
+          <div class="editor-panel">
+            <div class="panel-header">
+              <span class="panel-title">Code</span>
+              <select id="example-select" class="example-select">
+                <option value="">Select an example...</option>
+              </select>
+            </div>
+            <textarea id="code-input" class="code-input" spellcheck="false" placeholder="// Enter your code here...
+// Example:
+newStyle()
+  .foreground('#ff6b6b')
+  .bold()
+  .render('Hello, World!')"></textarea>
+          </div>
+
+          <div class="preview-panel">
+            <div class="panel-header">
+              <span class="panel-title">Output</span>
+              <button id="copy-output" class="btn-small">Copy HTML</button>
+            </div>
+            <div class="terminal" id="terminal-preview">
+              <div class="terminal-header">
+                <span class="terminal-button red"></span>
+                <span class="terminal-button yellow"></span>
+                <span class="terminal-button green"></span>
+                <span class="terminal-title">output</span>
+              </div>
+              <pre class="terminal-output" id="output"></pre>
+            </div>
+          </div>
+        </div>
+
+        <div id="error-display" class="error-display hidden"></div>
+      </div>
+    </section>
+
+    <!-- Examples Gallery -->
+    <section id="examples" class="section section-alt">
+      <div class="container">
+        <h2 class="section-title">Examples</h2>
+        <p class="section-subtitle">Click any example to load it in the editor</p>
+
+        <div class="examples-grid" id="examples-gallery">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </section>
+
+    <!-- API Reference -->
+    <section id="api" class="section">
+      <div class="container">
+        <h2 class="section-title">Quick API Reference</h2>
+
+        <div class="api-cards">
+          <div class="api-card">
+            <h3>Style Methods</h3>
+            <ul>
+              <li><code>.foreground(color)</code> - Set text color</li>
+              <li><code>.background(color)</code> - Set background color</li>
+              <li><code>.bold()</code> - Make text bold</li>
+              <li><code>.italic()</code> - Make text italic</li>
+              <li><code>.underline()</code> - Add underline</li>
+              <li><code>.padding(t, r, b, l)</code> - Add padding</li>
+              <li><code>.margin(t, r, b, l)</code> - Add margin</li>
+            </ul>
+          </div>
+
+          <div class="api-card">
+            <h3>Border Methods</h3>
+            <ul>
+              <li><code>.borderStyle(name)</code> - Set border style</li>
+              <li><code>.borderAll()</code> - Enable all borders</li>
+              <li><code>.borderTop()</code> - Enable top border</li>
+              <li><code>.borderBottom()</code> - Enable bottom border</li>
+              <li><code>.borderLeft()</code> - Enable left border</li>
+              <li><code>.borderRight()</code> - Enable right border</li>
+            </ul>
+          </div>
+
+          <div class="api-card">
+            <h3>Layout Methods</h3>
+            <ul>
+              <li><code>.width(n)</code> - Set fixed width</li>
+              <li><code>.height(n)</code> - Set fixed height</li>
+              <li><code>.alignLeft()</code> - Align content left</li>
+              <li><code>.alignCenter()</code> - Align content center</li>
+              <li><code>.alignRight()</code> - Align content right</li>
+            </ul>
+          </div>
+
+          <div class="api-card">
+            <h3>Utility Functions</h3>
+            <ul>
+              <li><code>newStyle()</code> - Create new style</li>
+              <li><code>joinHorizontal(pos, items)</code> - Join horizontally</li>
+              <li><code>joinVertical(pos, items)</code> - Join vertically</li>
+              <li><code>place(w, h, hPos, vPos, s)</code> - Place in container</li>
+              <li><code>stringWidth(s)</code> - Get visible width</li>
+              <li><code>stringHeight(s)</code> - Get line count</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>
+        <a href="https://github.com/Dicklesworthstone/charmed_rust">GitHub</a> |
+        <a href="https://crates.io/crates/lipgloss">crates.io</a> |
+        <a href="https://www.npmjs.com/package/@charmed/wasm">npm</a>
+      </p>
+      <p class="copyright">charmed_rust - A Rust port of Charm's TUI libraries</p>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
