@@ -68,7 +68,7 @@ pub fn version() -> String {
 /// Check if the module is properly initialized.
 #[must_use]
 #[wasm_bindgen(js_name = "isReady")]
-pub const fn is_ready() -> bool {
+pub fn is_ready() -> bool {
     true
 }
 
