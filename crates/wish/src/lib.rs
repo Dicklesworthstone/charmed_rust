@@ -178,7 +178,7 @@ pub enum Error {
 
 /// A specialized [`Result`] type for wish operations.
 ///
-/// This type alias defaults to [`Error`] as the error type.
+/// This type alias defaults to [`enum@Error`] as the error type.
 pub type Result<T> = std::result::Result<T, Error>;
 
 // -----------------------------------------------------------------------------
