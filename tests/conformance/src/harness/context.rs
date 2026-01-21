@@ -8,7 +8,7 @@
 use std::fmt::Debug;
 
 use super::comparison::{CompareResult, OutputComparator};
-use super::fixtures::FixtureLoader;
+use super::fixtures::{FixtureError, FixtureLoader, FixtureResult, TestFixture};
 use super::logging::TestLogger;
 use super::traits::TestResult;
 
@@ -53,7 +53,20 @@ impl TestContext {
     /// Set the current test name
     pub fn with_test_name(mut self, name: &str) -> Self {
         self.test_name = name.to_string();
+        self.logger.set_test_name(name);
         self
+    }
+
+    /// Update the current test name (updates logger context too)
+    pub fn set_test_name(&mut self, name: &str) {
+        self.test_name = name.to_string();
+        self.logger.set_test_name(name);
+    }
+
+    /// Clear the current test name (clears logger context)
+    pub fn clear_test_name(&mut self) {
+        self.test_name.clear();
+        self.logger.clear_test_name();
     }
 
     /// Get a reference to the logger
@@ -66,9 +79,33 @@ impl TestContext {
         &self.fixtures
     }
 
+    /// Get a mutable reference to the fixture loader
+    pub fn fixtures_mut(&mut self) -> &mut FixtureLoader {
+        &mut self.fixtures
+    }
+
     /// Get a reference to the comparator
     pub fn comparator(&self) -> &OutputComparator {
         &self.comparator
+    }
+
+    /// Load a specific fixture by crate and test name
+    pub fn fixture(&mut self, crate_name: &str, test_name: &str) -> FixtureResult<&TestFixture> {
+        self.fixtures.get_test(crate_name, test_name)
+    }
+
+    /// Load the fixture matching the current test name
+    pub fn fixture_for_current_test(
+        &mut self,
+        crate_name: &str,
+    ) -> FixtureResult<&TestFixture> {
+        if self.test_name.is_empty() {
+            return Err(FixtureError::TestNotFound {
+                crate_name: crate_name.to_string(),
+                test_name: "<unset>".to_string(),
+            });
+        }
+        self.fixtures.get_test(crate_name, &self.test_name)
     }
 
     /// Log an input being tested

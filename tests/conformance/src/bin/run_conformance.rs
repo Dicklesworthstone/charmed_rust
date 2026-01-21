@@ -261,10 +261,9 @@ fn print_ci(results: &[TestResult]) {
     }
 }
 
-/// Simple timestamp without external dependencies
+/// Generate an RFC3339 timestamp for the current time
 fn chrono_lite_timestamp() -> String {
-    // Use a simple format since we don't have chrono
-    "2026-01-18T00:00:00Z".to_string()
+    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
 fn main() {

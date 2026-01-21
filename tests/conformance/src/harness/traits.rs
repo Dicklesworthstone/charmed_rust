@@ -1,14 +1,14 @@
 //! ConformanceTest - Trait for implementing conformance tests
 //!
 //! Defines the interface that all conformance tests must implement.
-//!
-//! TODO: Full implementation pending (charmed_rust-5x5.1.6)
+
+use serde::Serialize;
 
 use super::benchmark::{BenchContext, BenchResult};
 use super::context::TestContext;
 
 /// Category of conformance test
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum TestCategory {
     /// Unit test - single function or behavior
     Unit,
@@ -33,7 +33,8 @@ impl TestCategory {
 }
 
 /// Result of a conformance test
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "lowercase")]
 pub enum TestResult {
     /// Test passed
     Pass,

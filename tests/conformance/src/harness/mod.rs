@@ -32,5 +32,5 @@ pub use fixtures::{
     TestFixture,
 };
 pub use logging::{LogLevel, TestLogger};
-pub use runner::TestRunner;
+pub use runner::{ReportConfig, ReportGenerator, TestRunResult, TestRunner, TestSummary};
 pub use traits::{ConformanceTest, TestCategory, TestResult};
