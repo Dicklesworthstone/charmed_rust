@@ -95,10 +95,7 @@ impl TestContext {
     }
 
     /// Load the fixture matching the current test name
-    pub fn fixture_for_current_test(
-        &mut self,
-        crate_name: &str,
-    ) -> FixtureResult<&TestFixture> {
+    pub fn fixture_for_current_test(&mut self, crate_name: &str) -> FixtureResult<&TestFixture> {
         if self.test_name.is_empty() {
             return Err(FixtureError::TestNotFound {
                 crate_name: crate_name.to_string(),

@@ -307,14 +307,8 @@ impl ReportGenerator {
 
         for crate_name in crate_names {
             let crate_results = &by_crate[crate_name];
-            let pass = crate_results
-                .iter()
-                .filter(|r| r.result.is_pass())
-                .count();
-            let fail = crate_results
-                .iter()
-                .filter(|r| r.result.is_fail())
-                .count();
+            let pass = crate_results.iter().filter(|r| r.result.is_pass()).count();
+            let fail = crate_results.iter().filter(|r| r.result.is_fail()).count();
             let skip = crate_results
                 .iter()
                 .filter(|r| r.result.is_skipped())
@@ -337,9 +331,7 @@ impl ReportGenerator {
                 for result in crate_results.iter() {
                     let (icon, msg) = match &result.result {
                         TestResult::Pass => ("  ✓", String::new()),
-                        TestResult::Fail { reason } => {
-                            ("  ✗", format!(" FAILED: {}", reason))
-                        }
+                        TestResult::Fail { reason } => ("  ✗", format!(" FAILED: {}", reason)),
                         TestResult::Skipped { reason } => {
                             ("  ○", format!(" (skipped: {})", reason))
                         }
@@ -419,10 +411,7 @@ impl ReportGenerator {
 
         for crate_name in crate_names {
             let crate_results = &by_crate[crate_name];
-            let failures = crate_results
-                .iter()
-                .filter(|r| r.result.is_fail())
-                .count();
+            let failures = crate_results.iter().filter(|r| r.result.is_fail()).count();
             let skipped = crate_results
                 .iter()
                 .filter(|r| r.result.is_skipped())
