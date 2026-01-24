@@ -426,7 +426,11 @@ impl Session {
 
     /// Sets the input receiver.
     pub fn set_input_receiver(&self, rx: tokio::sync::mpsc::Receiver<Vec<u8>>) {
-        *self.input_rx.blocking_lock() = Some(rx);
+        // Use tokio::task::block_in_place to safely run blocking operations
+        // within an async context, or use the blocking_lock when not in async
+        tokio::task::block_in_place(|| {
+            *self.input_rx.blocking_lock() = Some(rx);
+        });
     }
 
     /// Receives input from the client.
@@ -2381,7 +2385,7 @@ mod tests {
         assert!(err.to_string().contains("configuration error"));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_session_recv_with_input_channel() {
         let addr: SocketAddr = "127.0.0.1:2222".parse().unwrap();
         let ctx = Context::new("testuser", addr, addr);

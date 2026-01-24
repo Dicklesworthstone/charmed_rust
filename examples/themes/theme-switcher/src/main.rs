@@ -10,9 +10,7 @@
 use std::sync::Arc;
 
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, Program, quit};
-use lipgloss::{
-    Border, CatppuccinFlavor, ColorSlot, ThemeContext, ThemePreset, ThemedStyle,
-};
+use lipgloss::{Border, CatppuccinFlavor, ColorSlot, ThemeContext, ThemePreset, ThemedStyle};
 
 /// Available themes for cycling
 const THEME_PRESETS: &[(&str, ThemePreset)] = &[
@@ -20,8 +18,14 @@ const THEME_PRESETS: &[(&str, ThemePreset)] = &[
     ("Light", ThemePreset::Light),
     ("Dracula", ThemePreset::Dracula),
     ("Nord", ThemePreset::Nord),
-    ("Catppuccin Mocha", ThemePreset::Catppuccin(CatppuccinFlavor::Mocha)),
-    ("Catppuccin Latte", ThemePreset::Catppuccin(CatppuccinFlavor::Latte)),
+    (
+        "Catppuccin Mocha",
+        ThemePreset::Catppuccin(CatppuccinFlavor::Mocha),
+    ),
+    (
+        "Catppuccin Latte",
+        ThemePreset::Catppuccin(CatppuccinFlavor::Latte),
+    ),
 ];
 
 /// Application styles that auto-update when theme changes
@@ -42,16 +46,11 @@ impl Styles {
             title: ThemedStyle::new(ctx.clone())
                 .foreground(ColorSlot::Primary)
                 .bold(),
-            theme_name: ThemedStyle::new(ctx.clone())
-                .foreground(ColorSlot::Secondary),
-            sample_primary: ThemedStyle::new(ctx.clone())
-                .foreground(ColorSlot::Primary),
-            sample_success: ThemedStyle::new(ctx.clone())
-                .foreground(ColorSlot::Success),
-            sample_warning: ThemedStyle::new(ctx.clone())
-                .foreground(ColorSlot::Warning),
-            sample_error: ThemedStyle::new(ctx.clone())
-                .foreground(ColorSlot::Error),
+            theme_name: ThemedStyle::new(ctx.clone()).foreground(ColorSlot::Secondary),
+            sample_primary: ThemedStyle::new(ctx.clone()).foreground(ColorSlot::Primary),
+            sample_success: ThemedStyle::new(ctx.clone()).foreground(ColorSlot::Success),
+            sample_warning: ThemedStyle::new(ctx.clone()).foreground(ColorSlot::Warning),
+            sample_error: ThemedStyle::new(ctx.clone()).foreground(ColorSlot::Error),
             help: ThemedStyle::new(ctx.clone())
                 .foreground(ColorSlot::TextMuted)
                 .italic(),
@@ -135,8 +134,12 @@ impl App {
 
         let samples = format!(
             "{}\n{}\n{}\n{}",
-            self.styles.sample_primary.render("Primary: The quick brown fox"),
-            self.styles.sample_success.render("Success: Operation completed"),
+            self.styles
+                .sample_primary
+                .render("Primary: The quick brown fox"),
+            self.styles
+                .sample_success
+                .render("Success: Operation completed"),
             self.styles.sample_warning.render("Warning: Disk space low"),
             self.styles.sample_error.render("Error: Connection failed"),
         );

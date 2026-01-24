@@ -135,9 +135,10 @@ impl Counter {
 
         let counter_display = counter_style.render(&self.count.to_string());
 
-        let help = self.styles.help.render(
-            "[+/-] change | [r] reset | [t/Tab] theme | [q] quit",
-        );
+        let help = self
+            .styles
+            .help
+            .render("[+/-] change | [r] reset | [t/Tab] theme | [q] quit");
 
         // Combine content and wrap in container
         let content = format!("{}\n\n{}\n\n{}", title, counter_display, help);

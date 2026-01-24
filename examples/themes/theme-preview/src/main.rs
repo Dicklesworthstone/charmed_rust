@@ -15,10 +15,22 @@ const PRESETS: &[(&str, ThemePreset)] = &[
     ("Light", ThemePreset::Light),
     ("Dracula", ThemePreset::Dracula),
     ("Nord", ThemePreset::Nord),
-    ("Catppuccin Mocha", ThemePreset::Catppuccin(CatppuccinFlavor::Mocha)),
-    ("Catppuccin Macchiato", ThemePreset::Catppuccin(CatppuccinFlavor::Macchiato)),
-    ("Catppuccin Frappe", ThemePreset::Catppuccin(CatppuccinFlavor::Frappe)),
-    ("Catppuccin Latte", ThemePreset::Catppuccin(CatppuccinFlavor::Latte)),
+    (
+        "Catppuccin Mocha",
+        ThemePreset::Catppuccin(CatppuccinFlavor::Mocha),
+    ),
+    (
+        "Catppuccin Macchiato",
+        ThemePreset::Catppuccin(CatppuccinFlavor::Macchiato),
+    ),
+    (
+        "Catppuccin Frappe",
+        ThemePreset::Catppuccin(CatppuccinFlavor::Frappe),
+    ),
+    (
+        "Catppuccin Latte",
+        ThemePreset::Catppuccin(CatppuccinFlavor::Latte),
+    ),
 ];
 
 /// Semantic color slots to display
