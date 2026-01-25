@@ -1953,7 +1953,8 @@ fn run_viewport_test(fixture: &TestFixture) -> Result<(), String> {
     }
 
     // View comparison - strip ANSI and compare text content
-    // Note: Go pads lines to width, Rust doesn't, so we compare stripped versions
+    // Note: Go pads lines to width; Rust may also pad based on viewport sizing,
+    // so compare stripped text and trim trailing whitespace for parity.
     if let Some(ref expected_view) = expected.view {
         let actual_view = viewport.view();
         let stripped_actual = strip_ansi(&actual_view);

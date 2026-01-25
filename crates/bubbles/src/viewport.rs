@@ -18,6 +18,7 @@
 use crate::key::{Binding, matches};
 use bubbletea::{Cmd, KeyMsg, Message, Model, MouseMsg};
 use lipgloss::Style;
+use unicode_width::UnicodeWidthChar;
 
 /// Key bindings for viewport navigation.
 #[derive(Debug, Clone)]
@@ -116,7 +117,7 @@ impl Viewport {
         self.longest_line_width = self
             .lines
             .iter()
-            .map(|l| l.chars().count())
+            .map(|l| visible_width(l))
             .max()
             .unwrap_or(0);
 
@@ -210,19 +211,33 @@ impl Viewport {
 
     /// Returns the maximum Y offset.
     fn max_y_offset(&self) -> usize {
-        self.lines.len().saturating_sub(self.height)
+        self.lines.len().saturating_sub(self.content_height())
     }
 
     /// Returns the currently visible lines.
-    fn visible_lines(&self) -> &[String] {
+    fn visible_lines(&self) -> Vec<String> {
         if self.lines.is_empty() {
-            return &[];
+            return Vec::new();
+        }
+
+        let content_height = self.content_height();
+        if content_height == 0 {
+            return Vec::new();
         }
 
         let top = self.y_offset.min(self.lines.len());
-        let bottom = (self.y_offset + self.height).min(self.lines.len());
+        let bottom = top.saturating_add(content_height).min(self.lines.len());
 
-        &self.lines[top..bottom]
+        let visible = &self.lines[top..bottom];
+        let content_width = self.content_width();
+        if (self.x_offset == 0 && self.longest_line_width <= content_width) || content_width == 0 {
+            return visible.to_vec();
+        }
+
+        visible
+            .iter()
+            .map(|line| cut_line(line, self.x_offset, content_width))
+            .collect()
     }
 
     /// Scrolls down by the given number of lines.
@@ -315,12 +330,24 @@ impl Viewport {
         }
 
         if let Some(mouse) = msg.downcast_ref::<MouseMsg>() {
-            if !self.mouse_wheel_enabled {
+            if !self.mouse_wheel_enabled || mouse.action != bubbletea::MouseAction::Press {
                 return;
             }
             match mouse.button {
-                bubbletea::MouseButton::WheelUp => self.scroll_up(self.mouse_wheel_delta),
-                bubbletea::MouseButton::WheelDown => self.scroll_down(self.mouse_wheel_delta),
+                bubbletea::MouseButton::WheelUp => {
+                    if mouse.shift {
+                        self.scroll_left(self.horizontal_step);
+                    } else {
+                        self.scroll_up(self.mouse_wheel_delta);
+                    }
+                }
+                bubbletea::MouseButton::WheelDown => {
+                    if mouse.shift {
+                        self.scroll_right(self.horizontal_step);
+                    } else {
+                        self.scroll_down(self.mouse_wheel_delta);
+                    }
+                }
                 bubbletea::MouseButton::WheelLeft => self.scroll_left(self.horizontal_step),
                 bubbletea::MouseButton::WheelRight => self.scroll_right(self.horizontal_step),
                 _ => {}
@@ -331,25 +358,47 @@ impl Viewport {
     /// Renders the viewport content.
     #[must_use]
     pub fn view(&self) -> String {
-        let content_height = self.height;
-        let mut lines: Vec<String> = Vec::with_capacity(content_height);
-
-        // Get visible content
-        for line in self.visible_lines() {
-            // Apply horizontal offset and width limit
-            let chars: Vec<char> = line.chars().collect();
-            let start = self.x_offset.min(chars.len());
-            let end = (self.x_offset + self.width).min(chars.len());
-            let visible: String = chars[start..end].iter().collect();
-            lines.push(visible);
+        let mut width = self.width;
+        if let Some(style_width) = self.style.get_width()
+            && style_width > 0
+        {
+            width = width.min(style_width as usize);
         }
 
-        // Pad with empty lines if needed
-        while lines.len() < content_height {
-            lines.push(String::new());
+        let mut height = self.height;
+        if let Some(style_height) = self.style.get_height()
+            && style_height > 0
+        {
+            height = height.min(style_height as usize);
         }
 
-        self.style.render(&lines.join("\n"))
+        let frame_width = self.style.get_horizontal_frame_size();
+        let frame_height = self.style.get_vertical_frame_size();
+        let content_width = width.saturating_sub(frame_width);
+        let content_height = height.saturating_sub(frame_height);
+        let lines = self.visible_lines();
+        let contents = if content_width == 0 || content_height == 0 {
+            String::new()
+        } else {
+            let content_style = Style::new()
+                .width(as_u16(content_width))
+                .height(as_u16(content_height))
+                .max_width(as_u16(content_width))
+                .max_height(as_u16(content_height));
+            content_style.render(&lines.join("\n"))
+        };
+
+        self.style.render(&contents)
+    }
+
+    fn content_width(&self) -> usize {
+        self.width
+            .saturating_sub(self.style.get_horizontal_frame_size())
+    }
+
+    fn content_height(&self) -> usize {
+        self.height
+            .saturating_sub(self.style.get_vertical_frame_size())
     }
 }
 
@@ -369,6 +418,70 @@ impl Model for Viewport {
     fn view(&self) -> String {
         Viewport::view(self)
     }
+}
+
+fn as_u16(value: usize) -> u16 {
+    value.min(u16::MAX as usize) as u16
+}
+
+fn visible_width(s: &str) -> usize {
+    let mut width = 0;
+    let mut in_escape = false;
+
+    for c in s.chars() {
+        if c == '\x1b' {
+            in_escape = true;
+            continue;
+        }
+        if in_escape {
+            if c == 'm' {
+                in_escape = false;
+            }
+            continue;
+        }
+        width += UnicodeWidthChar::width(c).unwrap_or(0);
+    }
+
+    width
+}
+
+fn cut_line(line: &str, start: usize, width: usize) -> String {
+    if width == 0 {
+        return String::new();
+    }
+
+    let end = start.saturating_add(width);
+    let mut result = String::new();
+    let mut in_escape = false;
+    let mut visible = 0;
+
+    for c in line.chars() {
+        if c == '\x1b' {
+            in_escape = true;
+            result.push(c);
+            continue;
+        }
+        if in_escape {
+            result.push(c);
+            if c == 'm' {
+                in_escape = false;
+            }
+            continue;
+        }
+
+        let cw = UnicodeWidthChar::width(c).unwrap_or(0);
+        if visible + cw <= start {
+            visible += cw;
+            continue;
+        }
+        if visible >= end {
+            break;
+        }
+        result.push(c);
+        visible += cw;
+    }
+
+    result
 }
 
 #[cfg(test)]
@@ -453,6 +566,24 @@ mod tests {
     }
 
     #[test]
+    fn test_viewport_view_pads_to_dimensions() {
+        let mut v = Viewport::new(4, 2);
+        v.set_content("a");
+        assert_eq!(v.view(), "a   \n    ");
+    }
+
+    #[test]
+    fn test_viewport_frame_affects_visible_height() {
+        let mut v = Viewport::new(10, 5);
+        v.style = Style::new().padding(1);
+        v.set_content("1\n2\n3\n4\n5\n6");
+        assert_eq!(v.visible_line_count(), 3);
+
+        v.goto_bottom();
+        assert_eq!(v.y_offset(), 3);
+    }
+
+    #[test]
     fn test_viewport_horizontal_scroll() {
         let mut v = Viewport::new(10, 5);
         v.set_horizontal_step(5);
@@ -465,6 +596,51 @@ mod tests {
 
         v.scroll_left(3);
         assert_eq!(v.x_offset(), 2);
+    }
+
+    #[test]
+    fn test_viewport_horizontal_scroll_uses_display_width() {
+        let mut v = Viewport::new(4, 1);
+        v.set_content("日本語abc");
+        v.set_x_offset(2);
+        assert_eq!(v.view(), "本語");
+    }
+
+    #[test]
+    fn test_viewport_mouse_wheel_shift_scrolls_horizontal() {
+        let mut v = Viewport::new(10, 2);
+        v.set_content("This is a very long line that exceeds the width");
+        v.set_horizontal_step(2);
+
+        let down_shift = MouseMsg {
+            button: bubbletea::MouseButton::WheelDown,
+            shift: true,
+            ..MouseMsg::default()
+        };
+        v.update(&Message::new(down_shift));
+        assert_eq!(v.x_offset(), 2);
+
+        let up_shift = MouseMsg {
+            button: bubbletea::MouseButton::WheelUp,
+            shift: true,
+            ..MouseMsg::default()
+        };
+        v.update(&Message::new(up_shift));
+        assert_eq!(v.x_offset(), 0);
+    }
+
+    #[test]
+    fn test_viewport_mouse_wheel_ignores_release() {
+        let mut v = Viewport::new(10, 2);
+        v.set_content("1\n2\n3\n4");
+
+        let release = MouseMsg {
+            button: bubbletea::MouseButton::WheelDown,
+            action: bubbletea::MouseAction::Release,
+            ..MouseMsg::default()
+        };
+        v.update(&Message::new(release));
+        assert_eq!(v.y_offset(), 0);
     }
 
     #[test]
