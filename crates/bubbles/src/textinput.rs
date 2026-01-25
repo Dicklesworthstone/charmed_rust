@@ -285,6 +285,7 @@ impl TextInput {
             self.set_cursor(self.value.len());
         }
         self.handle_overflow();
+        self.update_suggestions();
     }
 
     /// Returns the current value as a string.
@@ -336,7 +337,9 @@ impl TextInput {
     /// Resets the input to empty.
     pub fn reset(&mut self) {
         self.value.clear();
+        self.err = self.do_validate(&self.value);
         self.set_cursor(0);
+        self.update_suggestions();
     }
 
     /// Sets the suggestions list.
@@ -997,6 +1000,22 @@ mod tests {
     }
 
     #[test]
+    fn test_textinput_reset_clears_error_and_suggestions() {
+        let mut input = TextInput::new();
+        input.show_suggestions = true;
+        input.set_suggestions(&["apple", "apricot"]);
+        input.set_validate(|v| (!v.is_empty()).then(|| "err".to_string()));
+
+        input.set_value("ap");
+        assert!(input.err.is_some());
+        assert!(!input.matched_suggestions().is_empty());
+
+        input.reset();
+        assert!(input.err.is_none());
+        assert!(input.matched_suggestions().is_empty());
+    }
+
+    #[test]
     fn test_textinput_char_limit() {
         let mut input = TextInput::new();
         input.char_limit = 5;
@@ -1036,6 +1055,18 @@ mod tests {
         assert_eq!(input.matched_suggestions().len(), 2);
         assert!(input.matched_suggestions().contains(&"apple".to_string()));
         assert!(input.matched_suggestions().contains(&"apricot".to_string()));
+    }
+
+    #[test]
+    fn test_textinput_set_value_updates_suggestions() {
+        let mut input = TextInput::new();
+        input.show_suggestions = true;
+        input.set_suggestions(&["apple", "banana"]);
+
+        input.set_value("ap");
+
+        assert_eq!(input.matched_suggestions().len(), 1);
+        assert!(input.matched_suggestions().contains(&"apple".to_string()));
     }
 
     #[test]

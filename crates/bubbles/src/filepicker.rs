@@ -279,9 +279,7 @@ impl FilePicker {
     /// Sets the height of the file picker.
     pub fn set_height(&mut self, height: usize) {
         self.height = height;
-        if self.max > self.height.saturating_sub(1) {
-            self.max = self.min + self.height.saturating_sub(1);
-        }
+        self.clamp_viewport();
     }
 
     /// Sets the allowed file types.
@@ -330,6 +328,38 @@ impl FilePicker {
         self.allowed_types.iter().any(|ext| name.ends_with(ext))
     }
 
+    /// Returns whether the given entry can be selected.
+    fn is_selectable(&self, entry: &DirEntry) -> bool {
+        if entry.is_dir {
+            self.dir_allowed
+        } else {
+            self.file_allowed && self.can_select(&entry.name)
+        }
+    }
+
+    /// Keeps selection and viewport within bounds for the current file list.
+    fn clamp_viewport(&mut self) {
+        let len = self.files.len();
+        if len == 0 {
+            self.selected = 0;
+            self.min = 0;
+            self.max = 0;
+            return;
+        }
+
+        if self.selected >= len {
+            self.selected = len.saturating_sub(1);
+        }
+
+        let height = self.height.max(1);
+        self.min = self.min.min(self.selected);
+        self.max = self.min + height.saturating_sub(1);
+        if self.max >= len {
+            self.max = len.saturating_sub(1);
+            self.min = self.max.saturating_sub(height.saturating_sub(1));
+        }
+    }
+
     /// Pushes current view state to the navigation stack.
     fn push_view(&mut self) {
         self.selected_stack.push(self.selected);
@@ -355,10 +385,10 @@ impl FilePicker {
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
             let key_str = key.to_string();
             if matches(&key_str, &[&self.key_map.select])
-                && let Some(path) = &self.path
-                && self.can_select(path.to_str().unwrap_or(""))
+                && let Some(entry) = self.files.get(self.selected)
+                && self.is_selectable(entry)
             {
-                return Some(path.clone());
+                return Some(entry.path.clone());
             }
         }
         None
@@ -369,10 +399,10 @@ impl FilePicker {
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
             let key_str = key.to_string();
             if matches(&key_str, &[&self.key_map.select])
-                && let Some(path) = &self.path
-                && !self.can_select(path.to_str().unwrap_or(""))
+                && let Some(entry) = self.files.get(self.selected)
+                && !self.is_selectable(entry)
             {
-                return Some(path.clone());
+                return Some(entry.path.clone());
             }
         }
         None
@@ -386,7 +416,7 @@ impl FilePicker {
                 return None;
             }
             self.files = read_msg.entries.clone();
-            self.max = self.max.max(self.height.saturating_sub(1));
+            self.clamp_viewport();
             return None;
         }
 
@@ -395,7 +425,7 @@ impl FilePicker {
             if self.auto_height {
                 self.height = (size.height as usize).saturating_sub(5);
             }
-            self.max = self.height.saturating_sub(1);
+            self.clamp_viewport();
             return None;
         }
 
@@ -484,8 +514,12 @@ impl FilePicker {
                 let entry = &self.files[self.selected];
                 let is_dir = entry.is_dir;
 
+                if is_select {
+                    self.path = None;
+                }
+
                 // Check if we can select this
-                if is_select && ((!is_dir && self.file_allowed) || (is_dir && self.dir_allowed)) {
+                if is_select && self.is_selectable(entry) {
                     self.path = Some(entry.path.clone());
                 }
 
@@ -518,7 +552,7 @@ impl FilePicker {
                 continue;
             }
 
-            let disabled = !self.can_select(&entry.name) && !entry.is_dir;
+            let disabled = !self.is_selectable(entry);
 
             if i == self.selected {
                 // Selected row
@@ -924,6 +958,48 @@ mod tests {
     }
 
     #[test]
+    fn test_filepicker_read_dir_clamps_selection() {
+        use bubbletea::Message;
+
+        let mut fp = FilePicker::new();
+        fp.height = 5;
+        fp.selected = 10;
+        fp.min = 8;
+        fp.max = 12;
+
+        let read_msg = ReadDirMsg {
+            id: fp.id(),
+            entries: vec![
+                DirEntry {
+                    name: "file1.txt".to_string(),
+                    path: PathBuf::from("/tmp/file1.txt"),
+                    is_dir: false,
+                    is_symlink: false,
+                    size: 100,
+                    mode: "-rw-r--r--".to_string(),
+                },
+                DirEntry {
+                    name: "file2.txt".to_string(),
+                    path: PathBuf::from("/tmp/file2.txt"),
+                    is_dir: false,
+                    is_symlink: false,
+                    size: 200,
+                    mode: "-rw-r--r--".to_string(),
+                },
+            ],
+        };
+
+        let _ = Model::update(&mut fp, Message::new(read_msg));
+
+        assert!(
+            fp.selected < fp.files.len(),
+            "Selection should clamp to list"
+        );
+        assert!(fp.min <= fp.selected && fp.selected <= fp.max);
+        assert!(fp.max < fp.files.len());
+    }
+
+    #[test]
     fn test_model_update_ignores_wrong_id() {
         use bubbletea::Message;
 
@@ -1009,6 +1085,66 @@ mod tests {
         assert!(fp.can_select("readme.txt"));
         assert!(!fp.can_select("image.png"));
         assert!(!fp.can_select("document.pdf"));
+    }
+
+    #[test]
+    fn test_filepicker_select_respects_allowed_types() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut fp = FilePicker::new();
+        fp.set_allowed_types(vec![".txt".to_string()]);
+        fp.files = vec![DirEntry {
+            name: "image.png".to_string(),
+            path: PathBuf::from("/tmp/image.png"),
+            is_dir: false,
+            is_symlink: false,
+            size: 100,
+            mode: "-rw-r--r--".to_string(),
+        }];
+        fp.selected = 0;
+
+        let msg = Message::new(KeyMsg::from_type(KeyType::Enter));
+        let _ = Model::update(&mut fp, msg);
+
+        assert!(
+            fp.selected_path().is_none(),
+            "Disallowed file should not be selected"
+        );
+        assert_eq!(
+            fp.did_select_disabled_file(&Message::new(KeyMsg::from_type(KeyType::Enter))),
+            Some(PathBuf::from("/tmp/image.png")),
+            "Selecting a disallowed file should be reported as disabled"
+        );
+    }
+
+    #[test]
+    fn test_filepicker_select_dir_when_disallowed_reports_disabled() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut fp = FilePicker::new();
+        fp.dir_allowed = false;
+        fp.files = vec![DirEntry {
+            name: "subdir".to_string(),
+            path: PathBuf::from("/tmp/subdir"),
+            is_dir: true,
+            is_symlink: false,
+            size: 4096,
+            mode: "drwxr-xr-x".to_string(),
+        }];
+        fp.selected = 0;
+
+        let msg = Message::new(KeyMsg::from_type(KeyType::Enter));
+        let _ = Model::update(&mut fp, msg);
+
+        assert!(
+            fp.selected_path().is_none(),
+            "Disallowed dir should not be selected"
+        );
+        assert_eq!(
+            fp.did_select_disabled_file(&Message::new(KeyMsg::from_type(KeyType::Enter))),
+            Some(PathBuf::from("/tmp/subdir")),
+            "Selecting a disallowed dir should be reported as disabled"
+        );
     }
 
     #[test]

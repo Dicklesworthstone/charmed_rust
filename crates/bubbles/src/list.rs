@@ -436,6 +436,7 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         self.items = items;
         self.filtered_indices = (0..len).collect();
         self.paginator.set_total_pages_from_items(len);
+        self.paginator.set_page(0);
         self.cursor = 0;
     }
 
@@ -525,6 +526,7 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         self.filter_state = FilterState::Unfiltered;
         self.filtered_indices = (0..self.items.len()).collect();
         self.paginator.set_total_pages_from_items(self.items.len());
+        self.paginator.set_page(0);
         self.cursor = 0;
     }
 
@@ -546,6 +548,7 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         self.filtered_indices = ranks.iter().map(|r| r.index).collect();
         self.paginator
             .set_total_pages_from_items(self.filtered_indices.len());
+        self.paginator.set_page(0);
         self.cursor = 0;
         self.filter_state = FilterState::FilterApplied;
     }
@@ -606,6 +609,12 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
     #[must_use]
     pub fn height(&self) -> usize {
         self.height
+    }
+
+    /// Returns a reference to the paginator.
+    #[must_use]
+    pub fn paginator(&self) -> &Paginator {
+        &self.paginator
     }
 
     /// Updates pagination based on height and delegate.
@@ -730,25 +739,17 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
 
         // Status bar
         if self.show_status_bar {
-            let status = self.status_message.as_deref().unwrap_or_else(|| {
+            let status = if let Some(status) = self.status_message.as_deref() {
+                status.to_string()
+            } else {
                 let count = self.filtered_indices.len();
                 if count == 1 {
-                    "1 item"
+                    format!("1 {}", self.item_name_singular)
                 } else {
-                    "" // Will be replaced below
+                    format!("{} {}", count, self.item_name_plural)
                 }
-            });
-
-            if status.is_empty() {
-                let count = self.filtered_indices.len();
-                sections.push(
-                    self.styles
-                        .status_bar
-                        .render(&format!("{} {}", count, self.item_name_plural)),
-                );
-            } else {
-                sections.push(self.styles.status_bar.render(status));
-            }
+            };
+            sections.push(self.styles.status_bar.render(&status));
         }
 
         // Pagination
@@ -952,6 +953,39 @@ mod tests {
     }
 
     #[test]
+    fn test_list_status_message_uses_singular_name() {
+        let items = vec![TestItem {
+            name: "Apple".into(),
+        }];
+        let mut list = List::new(items, DefaultDelegate::new(), 80, 6);
+        list.item_name_singular = "fruit".to_string();
+        list.item_name_plural = "fruits".to_string();
+
+        let view = list.view();
+        assert!(view.contains("1 fruit"));
+    }
+
+    #[test]
+    fn test_list_apply_filter_resets_page() {
+        let mut list = List::new(test_items(), DefaultDelegate::new(), 80, 5);
+        list.paginator.set_page(2);
+
+        list.set_filter_value("a");
+
+        assert_eq!(list.paginator.page(), 0);
+    }
+
+    #[test]
+    fn test_list_reset_filter_resets_page() {
+        let mut list = List::new(test_items(), DefaultDelegate::new(), 80, 5);
+        list.paginator.set_page(3);
+
+        list.reset_filter();
+
+        assert_eq!(list.paginator.page(), 0);
+    }
+
+    #[test]
     fn test_list_spinner() {
         let mut list = List::new(test_items(), DefaultDelegate::new(), 80, 24);
 
@@ -1050,5 +1084,38 @@ mod tests {
         fn accepts_model<M: Model + Send + 'static>(_model: M) {}
         let list = List::new(test_items(), DefaultDelegate::new(), 80, 24);
         accepts_model(list);
+    }
+
+    #[test]
+    fn test_list_pagination_calculation() {
+        // Test pagination calculation: available_height = height - 4 (chrome overhead)
+        // items_per_page = available_height / (item_height + spacing)
+        //
+        // Note: Rust uses a fixed 4-line chrome overhead (title, status, help, pagination)
+        // while Go dynamically calculates actual rendered heights of each section.
+        // This may result in different items_per_page values between implementations.
+        let list = List::new(test_items(), DefaultDelegate::new(), 80, 10);
+        // With height=10, chrome=4, available=6, item_height=1, per_page=6
+        assert_eq!(list.paginator().get_per_page(), 6);
+    }
+
+    #[test]
+    fn test_list_paginator_accessor() {
+        let list = List::new(test_items(), DefaultDelegate::new(), 80, 24);
+        // Verify paginator accessor returns valid reference
+        assert!(list.paginator().get_per_page() > 0);
+        assert_eq!(list.paginator().page(), 0);
+    }
+
+    #[test]
+    fn test_list_pagination_with_many_items() {
+        let items: Vec<TestItem> = (1..=50)
+            .map(|i| TestItem {
+                name: format!("Item {}", i),
+            })
+            .collect();
+        let list = List::new(items, DefaultDelegate::new(), 80, 10);
+        // With 50 items, per_page=6, total_pages should be 9 (50/6 rounded up)
+        assert_eq!(list.paginator().get_total_pages(), 9);
     }
 }

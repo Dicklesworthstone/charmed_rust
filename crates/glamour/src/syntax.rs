@@ -780,13 +780,18 @@ pub fn highlight_code(code: &str, language: &str, theme: &SyntaxTheme) -> String
                     // (lipgloss render may strip trailing whitespace)
                     let ends_with_newline = text.ends_with('\n');
                     let trimmed = text.trim_end_matches('\n');
-                    if let Some(punctuation_style) = json_punct_style.as_ref()
-                        && is_default_foreground(&syn_style, theme)
-                        && trimmed.chars().any(is_json_punctuation)
-                    {
+
+                    let use_json_style = if json_punct_style.is_some() {
+                        is_default_foreground(&syn_style, theme)
+                            && trimmed.chars().any(is_json_punctuation)
+                    } else {
+                        false
+                    };
+
+                    if use_json_style {
                         render_with_json_punctuation(
                             lip_style,
-                            punctuation_style,
+                            json_punct_style.as_ref().unwrap(),
                             trimmed,
                             &mut output,
                         );
