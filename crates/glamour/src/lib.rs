@@ -676,6 +676,8 @@ pub enum Style {
     Light,
     /// Pink accent style.
     Pink,
+    /// Tokyo Night theme style (soft purple/blue).
+    TokyoNight,
     /// No TTY style (for non-terminal output).
     NoTty,
     /// Auto-detect based on terminal.
@@ -691,6 +693,7 @@ impl Style {
             Style::Dracula => dracula_style(),
             Style::Light => light_style(),
             Style::Pink => pink_style(),
+            Style::TokyoNight => tokyo_night_style(),
         }
     }
 }
@@ -916,8 +919,12 @@ pub fn dracula_style() -> StyleConfig {
                     .color("#f8f8f2"),
             )
             .margin(DEFAULT_MARGIN),
-        block_quote: StyleBlock::new().indent(1).indent_token("│ "),
-        list: StyleList::new().level_indent(DEFAULT_LIST_INDENT),
+        block_quote: StyleBlock::new()
+            .style(StylePrimitive::new().color("#f1fa8c").italic(true))
+            .indent(DEFAULT_MARGIN),
+        list: StyleList::new()
+            .block(StyleBlock::new().style(StylePrimitive::new().color("#f8f8f2")))
+            .level_indent(DEFAULT_MARGIN),
         heading: StyleBlock::new().style(
             StylePrimitive::new()
                 .block_suffix("\n")
@@ -930,35 +937,88 @@ pub fn dracula_style() -> StyleConfig {
         h3: StyleBlock::new().style(StylePrimitive::new().prefix("### ")),
         h4: StyleBlock::new().style(StylePrimitive::new().prefix("#### ")),
         h5: StyleBlock::new().style(StylePrimitive::new().prefix("##### ")),
-        h6: StyleBlock::new().style(StylePrimitive::new().prefix("###### ").bold(false)),
+        h6: StyleBlock::new().style(StylePrimitive::new().prefix("###### ")),
         strikethrough: StylePrimitive::new().crossed_out(true),
         emph: StylePrimitive::new().italic(true).color("#f1fa8c"),
         strong: StylePrimitive::new().bold(true).color("#ffb86c"),
         horizontal_rule: StylePrimitive::new()
-            .color("#6272a4")
+            .color("#6272A4")
             .format("\n--------\n"),
         item: StylePrimitive::new().block_prefix("• "),
-        enumeration: StylePrimitive::new().block_prefix(". "),
+        enumeration: StylePrimitive::new().block_prefix(". ").color("#8be9fd"),
         task: StyleTask::new().ticked("[✓] ").unticked("[ ] "),
         link: StylePrimitive::new().color("#8be9fd").underline(true),
-        link_text: StylePrimitive::new().color("#ff79c6").bold(true),
-        image: StylePrimitive::new().color("#ff79c6").underline(true),
+        link_text: StylePrimitive::new().color("#ff79c6"),
+        image: StylePrimitive::new().color("#8be9fd").underline(true),
         image_text: StylePrimitive::new()
-            .color("#6272a4")
+            .color("#ff79c6")
             .format("Image: {{.text}} →"),
-        code: StyleBlock::new().style(
-            StylePrimitive::new()
-                .prefix(" ")
-                .suffix(" ")
-                .color("#50fa7b")
-                .background_color("#44475a"),
-        ),
+        code: StyleBlock::new().style(StylePrimitive::new().color("#50fa7b")),
         code_block: StyleCodeBlock::new().block(
             StyleBlock::new()
-                .style(StylePrimitive::new().color("#f8f8f2"))
+                .style(StylePrimitive::new().color("#ffb86c"))
                 .margin(DEFAULT_MARGIN),
         ),
-        definition_description: StylePrimitive::new().block_prefix("\n→ "),
+        definition_description: StylePrimitive::new().block_prefix("\n🠶 "),
+        ..Default::default()
+    }
+}
+
+/// Creates the Tokyo Night style configuration.
+///
+/// Tokyo Night theme colors:
+/// - Text: #a9b1d6 (soft gray-blue)
+/// - Heading: #bb9af7 (soft purple)
+/// - Code: #9ece6a (green)
+/// - Link: #7aa2f7 (blue)
+pub fn tokyo_night_style() -> StyleConfig {
+    StyleConfig {
+        document: StyleBlock::new()
+            .style(
+                StylePrimitive::new()
+                    .block_prefix("\n")
+                    .block_suffix("\n")
+                    .color("#a9b1d6"),
+            )
+            .margin(DEFAULT_MARGIN),
+        block_quote: StyleBlock::new().indent(1).indent_token("│ "),
+        list: StyleList::new()
+            .block(StyleBlock::new().style(StylePrimitive::new().color("#a9b1d6")))
+            .level_indent(DEFAULT_LIST_INDENT),
+        heading: StyleBlock::new().style(
+            StylePrimitive::new()
+                .block_suffix("\n")
+                .color("#bb9af7")
+                .bold(true),
+        ),
+        h1: StyleBlock::new().style(StylePrimitive::new().prefix("# ").bold(true)),
+        h2: StyleBlock::new().style(StylePrimitive::new().prefix("## ")),
+        h3: StyleBlock::new().style(StylePrimitive::new().prefix("### ")),
+        h4: StyleBlock::new().style(StylePrimitive::new().prefix("#### ")),
+        h5: StyleBlock::new().style(StylePrimitive::new().prefix("##### ")),
+        h6: StyleBlock::new().style(StylePrimitive::new().prefix("###### ")),
+        strikethrough: StylePrimitive::new().crossed_out(true),
+        emph: StylePrimitive::new().italic(true),
+        strong: StylePrimitive::new().bold(true),
+        horizontal_rule: StylePrimitive::new()
+            .color("#565f89")
+            .format("\n--------\n"),
+        item: StylePrimitive::new().block_prefix("• "),
+        enumeration: StylePrimitive::new().block_prefix(". ").color("#7aa2f7"),
+        task: StyleTask::new().ticked("[✓] ").unticked("[ ] "),
+        link: StylePrimitive::new().color("#7aa2f7").underline(true),
+        link_text: StylePrimitive::new().color("#2ac3de"),
+        image: StylePrimitive::new().color("#7aa2f7").underline(true),
+        image_text: StylePrimitive::new()
+            .color("#2ac3de")
+            .format("Image: {{.text}} →"),
+        code: StyleBlock::new().style(StylePrimitive::new().color("#9ece6a")),
+        code_block: StyleCodeBlock::new().block(
+            StyleBlock::new()
+                .style(StylePrimitive::new().color("#ff9e64"))
+                .margin(DEFAULT_MARGIN),
+        ),
+        definition_description: StylePrimitive::new().block_prefix("\n🠶 "),
         ..Default::default()
     }
 }

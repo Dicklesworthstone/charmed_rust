@@ -1226,6 +1226,14 @@ impl ServerBuilder {
         self
     }
 
+    /// Sets the main handler from a pre-wrapped [`Handler`].
+    ///
+    /// Use this when you already have a `Handler` (e.g., from the [`handler`] function).
+    pub fn handler_arc(mut self, handler: Handler) -> Self {
+        self.options.handler = Some(handler);
+        self
+    }
+
     /// Sets the trait-based authentication handler.
     ///
     /// If set, this takes precedence over the callback-based handlers.

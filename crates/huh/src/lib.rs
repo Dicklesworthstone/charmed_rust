@@ -627,7 +627,7 @@ pub fn theme_catppuccin() -> Theme {
     let text = "#cdd6f4";
     let subtext1 = "#bac2de";
     let subtext0 = "#a6adc8";
-    let overlay1 = "#7f849c";
+    let _overlay1 = "#7f849c";
     let overlay0 = "#6c7086";
     let green = "#a6e3a1";
     let red = "#f38ba8";
@@ -5446,9 +5446,29 @@ mod tests {
         assert!(keymap.transpose_character_backward.enabled());
 
         // Verify expected key bindings
-        assert!(keymap.uppercase_word_forward.get_keys().contains(&"alt+u".to_string()));
-        assert!(keymap.lowercase_word_forward.get_keys().contains(&"alt+l".to_string()));
-        assert!(keymap.capitalize_word_forward.get_keys().contains(&"alt+c".to_string()));
-        assert!(keymap.transpose_character_backward.get_keys().contains(&"ctrl+t".to_string()));
+        assert!(
+            keymap
+                .uppercase_word_forward
+                .get_keys()
+                .contains(&"alt+u".to_string())
+        );
+        assert!(
+            keymap
+                .lowercase_word_forward
+                .get_keys()
+                .contains(&"alt+l".to_string())
+        );
+        assert!(
+            keymap
+                .capitalize_word_forward
+                .get_keys()
+                .contains(&"alt+c".to_string())
+        );
+        assert!(
+            keymap
+                .transpose_character_backward
+                .get_keys()
+                .contains(&"ctrl+t".to_string())
+        );
     }
 }

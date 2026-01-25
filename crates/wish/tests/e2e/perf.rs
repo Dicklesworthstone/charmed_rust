@@ -1,7 +1,6 @@
 use std::io::Write;
 use std::sync::{
-    Arc,
-    Mutex,
+    Arc, Mutex,
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use std::time::Instant;
@@ -9,7 +8,7 @@ use std::time::Instant;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, WindowSizeMsg};
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 
-use super::common::{SshClient, TestServer, ssh_available, LONG_TIMEOUT, TEST_USER};
+use super::common::{LONG_TIMEOUT, SshClient, TEST_USER, TestServer, ssh_available};
 use wish::{AcceptAllAuth, ServerBuilder};
 
 #[tokio::test]

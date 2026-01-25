@@ -86,10 +86,7 @@ impl LogCapture {
     }
 
     pub fn entries(&self) -> Vec<String> {
-        self.entries
-            .lock()
-            .expect("log capture lock")
-            .clone()
+        self.entries.lock().expect("log capture lock").clone()
     }
 }
 
@@ -224,10 +221,7 @@ impl SshClient {
     }
 }
 
-async fn run_with_timeout(
-    mut cmd: TokioCommand,
-    timeout_duration: Duration,
-) -> io::Result<Output> {
+async fn run_with_timeout(mut cmd: TokioCommand, timeout_duration: Duration) -> io::Result<Output> {
     let output = timeout(timeout_duration, cmd.output())
         .await
         .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "ssh command timed out"))??;

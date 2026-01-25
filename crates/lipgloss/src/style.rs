@@ -1872,9 +1872,7 @@ mod tests {
 
     #[test]
     fn test_transform_with_other_styles() {
-        let style = Style::new()
-            .bold()
-            .transform(|s| s.to_uppercase());
+        let style = Style::new().bold().transform(|s| s.to_uppercase());
 
         // Transform is applied to content
         let rendered = style.render("hello");

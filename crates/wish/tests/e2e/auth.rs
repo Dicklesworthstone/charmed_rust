@@ -2,7 +2,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use super::common::{
-    SshClient, TestServer, handler_with_message, ssh_available, ssh_keygen_available, TEST_USER,
+    SshClient, TEST_USER, TestServer, handler_with_message, ssh_available, ssh_keygen_available,
 };
 use wish::{AuthorizedKeysAuth, PasswordAuth, ServerBuilder};
 
@@ -16,7 +16,7 @@ async fn test_password_auth() {
     let server = TestServer::start(
         ServerBuilder::new()
             .auth_handler(PasswordAuth::new().add_user(TEST_USER, "secret"))
-            .handler(handler_with_message("password ok")),
+            .handler_arc(handler_with_message("password ok")),
     )
     .await;
 
@@ -29,10 +29,7 @@ async fn test_password_auth() {
         )
         .await
         .expect("ssh exec");
-    assert!(
-        !output.status.success(),
-        "ssh should fail without password"
-    );
+    assert!(!output.status.success(), "ssh should fail without password");
 
     let output = client
         .exec_with_password("echo ok", "secret")
@@ -63,7 +60,7 @@ async fn test_public_key_auth() {
     let server = TestServer::start(
         ServerBuilder::new()
             .auth_handler(auth)
-            .handler(handler_with_message("pubkey ok")),
+            .handler_arc(handler_with_message("pubkey ok")),
     )
     .await;
 
@@ -99,10 +96,7 @@ fn generate_test_keypair(dir: &Path) -> io::Result<PathBuf> {
         .status()?;
 
     if !status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            "ssh-keygen failed",
-        ));
+        return Err(io::Error::new(io::ErrorKind::Other, "ssh-keygen failed"));
     }
 
     Ok(key_path)

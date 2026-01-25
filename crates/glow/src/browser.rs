@@ -20,6 +20,7 @@ use std::time::SystemTime;
 
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model};
 use lipgloss::Style;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 /// File browser configuration.
 #[derive(Debug, Clone)]
@@ -590,12 +591,9 @@ impl Model for FileBrowser {
                         "   "
                     };
 
-                    let line = format!(
-                        "{}{:<40} {:>8}",
-                        prefix,
-                        truncate_string(&entry.name, 40),
-                        entry.size_display()
-                    );
+                    let name = truncate_string(&entry.name, 40);
+                    let padded = pad_display_width(&name, 40);
+                    let line = format!("{}{} {:>8}", prefix, padded, entry.size_display());
 
                     let styled = if is_selected {
                         self.selected_style.render(&line)
@@ -684,15 +682,34 @@ fn truncate_string(s: &str, max_width: usize) -> String {
         return String::new();
     }
 
-    if s.chars().count() <= max_width {
+    if UnicodeWidthStr::width(s) <= max_width {
         s.to_string()
     } else {
         if max_width == 1 {
             return "…".to_string();
         }
-        let truncated: String = s.chars().take(max_width - 1).collect();
-        format!("{}…", truncated)
+        let target_width = max_width.saturating_sub(1);
+        let mut current_width = 0;
+        let mut result = String::new();
+        for ch in s.chars() {
+            let width = UnicodeWidthChar::width(ch).unwrap_or(0);
+            if current_width + width > target_width {
+                break;
+            }
+            result.push(ch);
+            current_width += width;
+        }
+        format!("{}…", result)
     }
+}
+
+fn pad_display_width(s: &str, width: usize) -> String {
+    let current = UnicodeWidthStr::width(s);
+    if current >= width {
+        return s.to_string();
+    }
+    let padding = width - current;
+    format!("{}{}", s, " ".repeat(padding))
 }
 
 #[cfg(test)]
@@ -837,6 +854,8 @@ mod tests {
         );
         assert_eq!(truncate_string("hello", 1), "…");
         assert_eq!(truncate_string("hello", 0), "");
+        assert_eq!(truncate_string("日本語", 4), "日…");
+        assert_eq!(truncate_string("日本語", 5), "日本…");
     }
 
     #[test]

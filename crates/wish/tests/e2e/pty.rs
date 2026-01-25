@@ -1,7 +1,6 @@
 use std::io::Write;
 use std::sync::{
-    Arc,
-    Mutex,
+    Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
 

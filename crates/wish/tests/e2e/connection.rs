@@ -108,7 +108,7 @@ async fn test_log_capture() {
         ServerBuilder::new()
             .auth_handler(AcceptAllAuth::new())
             .with_middleware(middleware::logging::middleware_with_logger(logger.clone()))
-            .handler(handler_with_message("logged")),
+            .handler_arc(handler_with_message("logged")),
     )
     .await;
 
