@@ -1079,8 +1079,10 @@ struct RenderContext<'a> {
     in_link: bool,
     in_image: bool,
     in_code_block: bool,
-    in_block_quote: bool,
-    block_quote_pending_separator: bool,
+    block_quote_depth: usize,
+    block_quote_pending_separator: Option<usize>,
+    pending_block_quote_decrement: usize,
+    in_paragraph: bool,
     in_list: bool,
     ordered_list_stack: Vec<bool>,
     list_depth: usize,
@@ -1114,8 +1116,10 @@ impl<'a> RenderContext<'a> {
             in_link: false,
             in_image: false,
             in_code_block: false,
-            in_block_quote: false,
-            block_quote_pending_separator: false,
+            block_quote_depth: 0,
+            block_quote_pending_separator: None,
+            pending_block_quote_decrement: 0,
+            in_paragraph: false,
             in_list: false,
             ordered_list_stack: Vec::new(),
             list_depth: 0,
@@ -1188,7 +1192,9 @@ impl<'a> RenderContext<'a> {
             }
 
             Event::Start(Tag::Paragraph) => {
-                if self.in_block_quote && self.block_quote_pending_separator {
+                if let Some(depth) = self.block_quote_pending_separator.take()
+                    && depth > 0
+                {
                     let indent_token = self
                         .options
                         .styles
@@ -1196,28 +1202,59 @@ impl<'a> RenderContext<'a> {
                         .indent_token
                         .as_deref()
                         .unwrap_or("│ ");
-                    self.output.push_str(indent_token);
+                    let prefix = indent_token.repeat(depth);
+                    self.output.push_str(&prefix);
                     self.output.push('\n');
-                    self.block_quote_pending_separator = false;
                 }
                 if !self.in_list {
                     self.text_buffer.clear();
                 }
+                self.in_paragraph = true;
             }
             Event::End(TagEnd::Paragraph) => {
                 if !self.in_list && !self.in_table {
                     self.flush_paragraph();
                 }
+                self.in_paragraph = false;
+                if self.pending_block_quote_decrement > 0 {
+                    self.block_quote_depth = self
+                        .block_quote_depth
+                        .saturating_sub(self.pending_block_quote_decrement);
+                    self.pending_block_quote_decrement = 0;
+                    // Update pending separator to match new depth
+                    if let Some(ref mut sep_depth) = self.block_quote_pending_separator {
+                        if *sep_depth > self.block_quote_depth {
+                            *sep_depth = self.block_quote_depth;
+                        }
+                    }
+                }
+                if self.block_quote_depth == 0 {
+                    self.block_quote_pending_separator = None;
+                }
             }
 
             Event::Start(Tag::BlockQuote(_kind)) => {
-                self.in_block_quote = true;
-                self.block_quote_pending_separator = false;
-                self.output.push('\n');
+                if self.block_quote_depth == 0 {
+                    self.output.push('\n');
+                }
+                self.block_quote_depth += 1;
             }
             Event::End(TagEnd::BlockQuote(_)) => {
-                self.in_block_quote = false;
-                self.block_quote_pending_separator = false;
+                if self.in_paragraph {
+                    self.pending_block_quote_decrement += 1;
+                } else {
+                    self.block_quote_depth = self.block_quote_depth.saturating_sub(1);
+                    // Update pending separator to match new depth (prevents stale
+                    // high depth values from nested blockquotes)
+                    if let Some(ref mut sep_depth) = self.block_quote_pending_separator {
+                        if *sep_depth > self.block_quote_depth {
+                            *sep_depth = self.block_quote_depth;
+                        }
+                    }
+                    if self.block_quote_depth == 0 {
+                        self.block_quote_pending_separator = None;
+                    }
+                }
             }
 
             Event::Start(Tag::CodeBlock(kind)) => {
@@ -1519,7 +1556,7 @@ impl<'a> RenderContext<'a> {
             let rendered = style.render(&wrapped);
 
             // Add block quote indent if needed
-            if self.in_block_quote {
+            if self.block_quote_depth > 0 {
                 let indent_token = self
                     .options
                     .styles
@@ -1527,14 +1564,15 @@ impl<'a> RenderContext<'a> {
                     .indent_token
                     .as_deref()
                     .unwrap_or("│ ");
+                let prefix = indent_token.repeat(self.block_quote_depth);
                 let indented = rendered
                     .lines()
-                    .map(|line| format!("{}{}", indent_token, line))
+                    .map(|line| format!("{}{}", prefix, line))
                     .collect::<Vec<_>>()
                     .join("\n");
                 self.output.push_str(&indented);
                 self.output.push('\n');
-                self.block_quote_pending_separator = true;
+                self.block_quote_pending_separator = Some(self.block_quote_depth);
             } else {
                 self.output.push_str(&rendered);
                 self.output.push_str("\n\n");
@@ -1543,16 +1581,28 @@ impl<'a> RenderContext<'a> {
     }
 
     fn flush_list_item(&mut self) {
-        let text = std::mem::take(&mut self.text_buffer);
+        let mut text = std::mem::take(&mut self.text_buffer);
         if text.is_empty() {
             return;
+        }
+
+        let mut task_marker: Option<String> = None;
+        for marker in [
+            &self.options.styles.task.ticked,
+            &self.options.styles.task.unticked,
+        ] {
+            if text.starts_with(marker) {
+                task_marker = Some(marker.clone());
+                text = text[marker.len()..].to_string();
+                break;
+            }
         }
 
         let indent = (self.list_depth - 1) * self.options.styles.list.level_indent;
         let indent_str = " ".repeat(indent);
 
         let is_ordered = self.ordered_list_stack.last().copied().unwrap_or(false);
-        let prefix = if is_ordered {
+        let mut prefix = if is_ordered {
             let num = self.list_item_number.last().copied().unwrap_or(1);
             if let Some(last) = self.list_item_number.last_mut() {
                 *last += 1;
@@ -1561,6 +1611,9 @@ impl<'a> RenderContext<'a> {
         } else {
             self.options.styles.item.block_prefix.clone()
         };
+        if let Some(marker) = task_marker {
+            prefix = marker;
+        }
 
         self.output.push_str(&indent_str);
         self.output.push_str(&prefix);
@@ -2150,7 +2203,9 @@ mod tests {
     fn test_task_list() {
         let renderer = Renderer::new().with_style(Style::Ascii);
         let output = renderer.render("- [ ] todo\n- [x] done");
-        assert!(output.contains("[ ]") || output.contains("todo"));
+        assert!(output.contains("[ ] todo"));
+        assert!(output.contains("[x] done"));
+        assert!(!output.contains("* [ ]"));
     }
 
     // ========================================================================

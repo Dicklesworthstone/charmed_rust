@@ -639,9 +639,7 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
             // Handle filtering state
             if self.filter_state == FilterState::Filtering {
                 if matches(&key_str, &[&self.key_map.cancel_while_filtering]) {
-                    self.filter_input.reset();
-                    self.filter_state = FilterState::Unfiltered;
-                    self.filtered_indices = (0..self.items.len()).collect();
+                    self.reset_filter();
                     return None;
                 }
                 if matches(&key_str, &[&self.key_map.accept_while_filtering]) {
@@ -903,6 +901,24 @@ mod tests {
 
         list.reset_filter();
         assert_eq!(list.visible_items().len(), 4);
+    }
+
+    #[test]
+    fn test_cancel_filter_resets_pagination() {
+        let mut list = List::new(test_items(), DefaultDelegate::new(), 80, 6);
+
+        list.filter_state = FilterState::Filtering;
+        list.filtered_indices = vec![0];
+        list.paginator
+            .set_total_pages_from_items(list.filtered_indices.len());
+
+        let key_msg = Message::new(KeyMsg::from_type(bubbletea::KeyType::Esc));
+        let _ = list.update(key_msg);
+
+        assert_eq!(list.filter_state, FilterState::Unfiltered);
+        assert_eq!(list.filtered_indices.len(), list.items.len());
+        assert_eq!(list.paginator.get_total_pages(), 2);
+        assert_eq!(list.cursor, 0);
     }
 
     #[test]

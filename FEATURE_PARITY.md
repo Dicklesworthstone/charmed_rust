@@ -20,7 +20,7 @@ cargo test -p charmed_conformance -- --nocapture
 
 Result summary:
 - **Failed:** 0
-- **Skipped:** 13 (Glamour 8, Huh 4, Lipgloss 1)
+- **Skipped:** 11 (Glamour 6, Huh 4, Lipgloss 1)
 - **Notes:** Benchmark compile tests ran; benchmark execution tests remain ignored.
 
 ### Per-Crate Conformance Results
@@ -33,7 +33,7 @@ Result summary:
 | harmonica    | 24    | 24   | 0    | 0    | All fixtures pass |
 | huh          | 46    | 42   | 0    | 4    | Textarea not implemented |
 | lipgloss     | 58    | 57   | 0    | 1    | Partial border edges |
-| glamour      | 84    | 76   | 0    | 8    | Remaining preset/link/task list/nested quote gaps |
+| glamour      | 84    | 78   | 0    | 6    | Remaining preset/link/image gaps |
 | integration  | 24    | 24   | 0    | 0    | Cross-crate integration OK |
 
 ---
@@ -42,9 +42,8 @@ Result summary:
 
 ### Glamour (Markdown Rendering)
 Current gaps vs Go (from latest run):
-- **Skips:** `list_task_list`, `link_autolink_email`, `link_image`,
-  `link_image_title`, `blockquote_nested`, `style_preset_notty`,
-  `style_preset_ascii`, `style_preset_dracula`
+- **Skips:** `link_autolink_email`, `link_image`, `link_image_title`,
+  `style_preset_notty`, `style_preset_ascii`, `style_preset_dracula`
 
 ### Lipgloss (Terminal Styling)
 - `border_partial_top_bottom`: partial border edges not implemented.

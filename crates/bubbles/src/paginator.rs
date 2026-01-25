@@ -150,6 +150,8 @@ impl Paginator {
     /// Returns the calculated total pages.
     pub fn set_total_pages_from_items(&mut self, items: usize) -> usize {
         if items < 1 {
+            self.total_pages = 1;
+            self.page = 0;
             return self.total_pages;
         }
 
@@ -390,7 +392,9 @@ mod tests {
         assert_eq!(p.set_total_pages_from_items(20), 2);
         assert_eq!(p.get_total_pages(), 2);
 
-        assert_eq!(p.set_total_pages_from_items(0), 2); // Doesn't change on 0
+        assert_eq!(p.set_total_pages_from_items(0), 1);
+        assert_eq!(p.get_total_pages(), 1);
+        assert_eq!(p.page(), 0);
     }
 
     #[test]
