@@ -972,6 +972,14 @@ pub struct TextKeyMap {
     pub editor: Binding,
     /// Submit the form.
     pub submit: Binding,
+    /// Uppercase word forward.
+    pub uppercase_word_forward: Binding,
+    /// Lowercase word forward.
+    pub lowercase_word_forward: Binding,
+    /// Capitalize word forward.
+    pub capitalize_word_forward: Binding,
+    /// Transpose character backward.
+    pub transpose_character_backward: Binding,
 }
 
 impl Default for TextKeyMap {
@@ -988,6 +996,18 @@ impl Default for TextKeyMap {
             editor: Binding::new()
                 .keys(&["ctrl+e"])
                 .help("ctrl+e", "open editor"),
+            uppercase_word_forward: Binding::new()
+                .keys(&["alt+u"])
+                .help("alt+u", "uppercase word"),
+            lowercase_word_forward: Binding::new()
+                .keys(&["alt+l"])
+                .help("alt+l", "lowercase word"),
+            capitalize_word_forward: Binding::new()
+                .keys(&["alt+c"])
+                .help("alt+c", "capitalize word"),
+            transpose_character_backward: Binding::new()
+                .keys(&["ctrl+t"])
+                .help("ctrl+t", "transpose"),
         }
     }
 }
@@ -2872,6 +2892,109 @@ impl Text {
         let lines: Vec<&str> = self.value.lines().collect();
         if lines.is_empty() { vec![""] } else { lines }
     }
+
+    /// Transpose the character at cursor with the one before it.
+    ///
+    /// If at the end of the line, moves cursor back first. After swapping,
+    /// moves cursor right if not at end of line. No-op if cursor is at
+    /// beginning of line or line has fewer than 2 characters.
+    fn transpose_left(&mut self) {
+        let lines: Vec<String> = self.value.lines().map(String::from).collect();
+        if self.cursor_row >= lines.len() {
+            return;
+        }
+
+        let line_chars: Vec<char> = lines[self.cursor_row].chars().collect();
+
+        // No-op if at beginning or line too short
+        if self.cursor_col == 0 || line_chars.len() < 2 {
+            return;
+        }
+
+        let mut col = self.cursor_col;
+
+        // If at end, move back first
+        if col >= line_chars.len() {
+            col = line_chars.len() - 1;
+            self.cursor_col = col;
+        }
+
+        // Swap chars at col-1 and col
+        let mut new_chars = line_chars;
+        new_chars.swap(col - 1, col);
+
+        // Rebuild value
+        let mut new_lines = lines;
+        new_lines[self.cursor_row] = new_chars.into_iter().collect();
+        self.value = new_lines.join("\n");
+
+        // Move right if not at end of line
+        let new_line_len = self
+            .value
+            .lines()
+            .nth(self.cursor_row)
+            .map(|l| l.chars().count())
+            .unwrap_or(0);
+        if self.cursor_col < new_line_len {
+            self.cursor_col += 1;
+        }
+    }
+
+    /// Helper for word operations - operates on current line.
+    ///
+    /// Skips whitespace forward, then processes each character in the word
+    /// using the provided function. Moves cursor to the end of the word.
+    fn do_word_right<F>(&mut self, mut f: F)
+    where
+        F: FnMut(usize, char) -> char,
+    {
+        let lines: Vec<String> = self.value.lines().map(String::from).collect();
+        if self.cursor_row >= lines.len() {
+            return;
+        }
+
+        let mut chars: Vec<char> = lines[self.cursor_row].chars().collect();
+        let len = chars.len();
+
+        // Skip spaces forward
+        while self.cursor_col < len && chars[self.cursor_col].is_whitespace() {
+            self.cursor_col += 1;
+        }
+
+        // Process word chars
+        let mut char_idx = 0;
+        while self.cursor_col < len && !chars[self.cursor_col].is_whitespace() {
+            chars[self.cursor_col] = f(char_idx, chars[self.cursor_col]);
+            self.cursor_col += 1;
+            char_idx += 1;
+        }
+
+        // Rebuild value
+        let mut new_lines = lines;
+        new_lines[self.cursor_row] = chars.into_iter().collect();
+        self.value = new_lines.join("\n");
+    }
+
+    /// Uppercase the word to the right of the cursor.
+    fn uppercase_right(&mut self) {
+        self.do_word_right(|_, c| c.to_uppercase().next().unwrap_or(c));
+    }
+
+    /// Lowercase the word to the right of the cursor.
+    fn lowercase_right(&mut self) {
+        self.do_word_right(|_, c| c.to_lowercase().next().unwrap_or(c));
+    }
+
+    /// Capitalize the word to the right (first char uppercase, rest unchanged).
+    fn capitalize_right(&mut self) {
+        self.do_word_right(|idx, c| {
+            if idx == 0 {
+                c.to_uppercase().next().unwrap_or(c)
+            } else {
+                c
+            }
+        });
+    }
 }
 
 impl Field for Text {
@@ -2922,6 +3045,24 @@ impl Field for Text {
                     self.cursor_row += 1;
                     self.cursor_col = 0;
                 }
+                return None;
+            }
+
+            // Check for word transformation operations
+            if binding_matches(&self.keymap.uppercase_word_forward, key_msg) {
+                self.uppercase_right();
+                return None;
+            }
+            if binding_matches(&self.keymap.lowercase_word_forward, key_msg) {
+                self.lowercase_right();
+                return None;
+            }
+            if binding_matches(&self.keymap.capitalize_word_forward, key_msg) {
+                self.capitalize_right();
+                return None;
+            }
+            if binding_matches(&self.keymap.transpose_character_backward, key_msg) {
+                self.transpose_left();
                 return None;
             }
 
