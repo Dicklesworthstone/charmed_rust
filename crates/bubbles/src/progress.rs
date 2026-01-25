@@ -285,18 +285,30 @@ impl Progress {
     }
 
     fn bar_view(&self, buf: &mut String, percent: f64, text_width: usize) {
-        let tw = self.width.saturating_sub(text_width);
-        let fw = ((tw as f64 * percent).round() as usize).min(tw);
+        use unicode_width::UnicodeWidthChar;
+
+        let full_width = self.full_char.width().unwrap_or(1).max(1);
+        let empty_width = self.empty_char.width().unwrap_or(1).max(1);
+
+        let available_width = self.width.saturating_sub(text_width);
+        let filled_target_width =
+            ((available_width as f64 * percent).round() as usize).min(available_width);
+
+        let filled_count = filled_target_width / full_width;
+        let filled_visual_width = filled_count * full_width;
+
+        let empty_target_width = available_width.saturating_sub(filled_visual_width);
+        let empty_count = empty_target_width / empty_width;
 
         if let Some(ref gradient) = self.gradient {
             // Gradient fill
-            for i in 0..fw {
-                let p = if fw == 1 {
+            for i in 0..filled_count {
+                let p = if filled_count <= 1 {
                     0.5
                 } else if gradient.scaled {
-                    i as f64 / (fw - 1) as f64
+                    i as f64 / (filled_count - 1) as f64
                 } else {
-                    i as f64 / (tw - 1).max(1) as f64
+                    (i * full_width) as f64 / (available_width.saturating_sub(1)).max(1) as f64
                 };
 
                 // Simple linear interpolation between colors
@@ -305,15 +317,22 @@ impl Progress {
             }
         } else {
             // Solid fill
-            let colored_char = format_colored_char(self.full_char, &self.full_color).repeat(fw);
+            let colored_char =
+                format_colored_char(self.full_char, &self.full_color).repeat(filled_count);
             buf.push_str(&colored_char);
         }
 
         // Empty fill
         let empty_colored = format_colored_char(self.empty_char, &self.empty_color);
-        let empty_count = tw.saturating_sub(fw);
         for _ in 0..empty_count {
             buf.push_str(&empty_colored);
+        }
+
+        // Pad remaining space if chars don't divide width evenly
+        let used = (filled_count * full_width) + (empty_count * empty_width);
+        let remaining = available_width.saturating_sub(used);
+        if remaining > 0 {
+            buf.push_str(&" ".repeat(remaining));
         }
     }
 

@@ -697,6 +697,34 @@ impl<M: Model> Program<M> {
             });
         }
 
+        // Spawn event listener thread
+        let (event_tx, mut event_rx) = tokio::sync::mpsc::channel::<Event>(100);
+        let event_cancel = cancel_token.clone();
+
+        if !self.options.custom_io {
+            std::thread::spawn(move || {
+                loop {
+                    if event_cancel.is_cancelled() {
+                        break;
+                    }
+                    // Poll with timeout to check cancellation
+                    match event::poll(Duration::from_millis(100)) {
+                        Ok(true) => {
+                            if let Ok(evt) = event::read() {
+                                if event_tx.blocking_send(evt).is_err() {
+                                    break;
+                                }
+                            }
+                        }
+                        Ok(false) => {} // timeout
+                        Err(_) => {
+                            break;
+                        } // error
+                    }
+                }
+            });
+        }
+
         // Get initial window size
         if !self.options.custom_io {
             let (width, height) = terminal::size()?;
@@ -724,48 +752,46 @@ impl<M: Model> Program<M> {
         // Event loop
         loop {
             tokio::select! {
-                // Check for terminal events (using spawn_blocking for crossterm)
-                event_result = Self::poll_event_async(), if !self.options.custom_io => {
-                    if let Some(event) = event_result? {
-                        match event {
-                            Event::Key(key_event) => {
-                                // Only handle key press events, not release
-                                if key_event.kind != KeyEventKind::Press {
-                                    continue;
-                                }
+                // Check for terminal events via channel
+                Some(event) = event_rx.recv(), if !self.options.custom_io => {
+                    match event {
+                        Event::Key(key_event) => {
+                            // Only handle key press events, not release
+                            if key_event.kind != KeyEventKind::Press {
+                                continue;
+                            }
 
-                                let key_msg = from_crossterm_key(key_event.code, key_event.modifiers);
+                            let key_msg = from_crossterm_key(key_event.code, key_event.modifiers);
 
-                                // Handle Ctrl+C specially
-                                if key_msg.key_type == crate::KeyType::CtrlC {
-                                    let _ = tx.send(Message::new(InterruptMsg)).await;
-                                } else {
-                                    let _ = tx.send(Message::new(key_msg)).await;
-                                }
-                            }
-                            Event::Mouse(mouse_event) => {
-                                let mouse_msg = from_crossterm_mouse(mouse_event);
-                                let _ = tx.send(Message::new(mouse_msg)).await;
-                            }
-                            Event::Resize(width, height) => {
-                                let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
-                            }
-                            Event::FocusGained => {
-                                let _ = tx.send(Message::new(FocusMsg)).await;
-                            }
-                            Event::FocusLost => {
-                                let _ = tx.send(Message::new(BlurMsg)).await;
-                            }
-                            Event::Paste(text) => {
-                                // Send as a key message with paste flag
-                                let key_msg = KeyMsg {
-                                    key_type: crate::KeyType::Runes,
-                                    runes: text.chars().collect(),
-                                    alt: false,
-                                    paste: true,
-                                };
+                            // Handle Ctrl+C specially
+                            if key_msg.key_type == crate::KeyType::CtrlC {
+                                let _ = tx.send(Message::new(InterruptMsg)).await;
+                            } else {
                                 let _ = tx.send(Message::new(key_msg)).await;
                             }
+                        }
+                        Event::Mouse(mouse_event) => {
+                            let mouse_msg = from_crossterm_mouse(mouse_event);
+                            let _ = tx.send(Message::new(mouse_msg)).await;
+                        }
+                        Event::Resize(width, height) => {
+                            let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
+                        }
+                        Event::FocusGained => {
+                            let _ = tx.send(Message::new(FocusMsg)).await;
+                        }
+                        Event::FocusLost => {
+                            let _ = tx.send(Message::new(BlurMsg)).await;
+                        }
+                        Event::Paste(text) => {
+                            // Send as a key message with paste flag
+                            let key_msg = KeyMsg {
+                                key_type: crate::KeyType::Runes,
+                                runes: text.chars().collect(),
+                                alt: false,
+                                paste: true,
+                            };
+                            let _ = tx.send(Message::new(key_msg)).await;
                         }
                     }
                 }
@@ -837,20 +863,6 @@ impl<M: Model> Program<M> {
         // Wait for all tasks with a timeout (5 seconds)
         let shutdown_timeout = Duration::from_secs(5);
         let _ = tokio::time::timeout(shutdown_timeout, task_tracker.wait()).await;
-    }
-
-    /// Poll for terminal events asynchronously.
-    async fn poll_event_async() -> Result<Option<Event>> {
-        // crossterm doesn't have native async support, so we use spawn_blocking
-        tokio::task::spawn_blocking(|| {
-            if event::poll(Duration::from_millis(10))? {
-                Ok(Some(event::read()?))
-            } else {
-                Ok(None)
-            }
-        })
-        .await
-        .map_err(|_| Error::Io(io::Error::other("task join error")))?
     }
 
     /// Handle a command with task tracking and cancellation support.

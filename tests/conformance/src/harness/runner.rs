@@ -182,7 +182,9 @@ impl TestRunner {
     /// Run a single test and return its result
     fn run_single_test(test: &dyn ConformanceTest) -> TestRunResult {
         let test_start = Instant::now();
-        let mut ctx = TestContext::new().with_test_name(test.name());
+        let mut ctx = TestContext::new()
+            .with_test_name(test.name())
+            .with_logger_test_name(&test.id());
         let result = test.run(&mut ctx);
         let duration = test_start.elapsed();
 

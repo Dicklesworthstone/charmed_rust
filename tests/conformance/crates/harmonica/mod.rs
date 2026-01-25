@@ -666,11 +666,9 @@ pub mod integration {
             TestCategory::Unit
         }
 
-        fn run(&self, _ctx: &mut TestContext) -> TestResult {
-            let mut loader = FixtureLoader::new();
-
-            let fixture = match loader.get_test("harmonica", &self.name) {
-                Ok(f) => f.clone(),
+        fn run(&self, ctx: &mut TestContext) -> TestResult {
+            let fixture = match ctx.fixture_for_current_test("harmonica") {
+                Ok(f) => f,
                 Err(e) => {
                     return TestResult::Fail {
                         reason: format!("Failed to load fixture: {}", e),

@@ -2,8 +2,6 @@
 //!
 //! Combines logging, comparison, and fixture loading into a unified
 //! interface for running conformance tests.
-//!
-//! TODO: Full implementation pending (charmed_rust-5x5.1.4)
 
 use std::fmt::Debug;
 
@@ -57,15 +55,31 @@ impl TestContext {
         self
     }
 
+    /// Set the logger's test name without changing fixture lookup name
+    pub fn with_logger_test_name(mut self, name: &str) -> Self {
+        self.logger.set_test_name(name);
+        self
+    }
+
     /// Update the current test name (updates logger context too)
     pub fn set_test_name(&mut self, name: &str) {
         self.test_name = name.to_string();
         self.logger.set_test_name(name);
     }
 
+    /// Update the logger's test name without changing fixture lookup name
+    pub fn set_logger_test_name(&mut self, name: &str) {
+        self.logger.set_test_name(name);
+    }
+
     /// Clear the current test name (clears logger context)
     pub fn clear_test_name(&mut self) {
         self.test_name.clear();
+        self.logger.clear_test_name();
+    }
+
+    /// Clear the logger's test name without clearing fixture lookup name
+    pub fn clear_logger_test_name(&mut self) {
         self.logger.clear_test_name();
     }
 

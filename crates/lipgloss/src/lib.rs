@@ -331,20 +331,53 @@ pub fn join_vertical(pos: Position, strs: &[&str]) -> String {
 /// Calculate the visible width of a string (excluding ANSI escapes).
 fn visible_width(s: &str) -> usize {
     let mut width = 0;
-    let mut in_escape = false;
+    #[derive(Clone, Copy, PartialEq)]
+    enum State {
+        Normal,
+        Esc,
+        Csi,
+        Osc,
+    }
+    let mut state = State::Normal;
 
     for c in s.chars() {
-        if c == '\x1b' {
-            in_escape = true;
-            continue;
-        }
-        if in_escape {
-            if c == 'm' {
-                in_escape = false;
+        match state {
+            State::Normal => {
+                if c == '\x1b' {
+                    state = State::Esc;
+                } else {
+                    width += unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+                }
             }
-            continue;
+            State::Esc => {
+                if c == '[' {
+                    state = State::Csi;
+                } else if c == ']' {
+                    state = State::Osc;
+                } else {
+                    // Handle simple escapes like \x1b7 (save cursor) or \x1b> (keypad)
+                    // They are single char after ESC.
+                    state = State::Normal;
+                }
+            }
+            State::Csi => {
+                // CSI sequence: [params] [intermediate] final
+                // Final byte is 0x40-0x7E (@ to ~)
+                if ('@'..='~').contains(&c) {
+                    state = State::Normal;
+                }
+            }
+            State::Osc => {
+                // OSC sequence: ] [params] ; [text] BEL/ST
+                // Handle BEL (\x07)
+                if c == '\x07' {
+                    state = State::Normal;
+                } else if c == '\x1b' {
+                    // Handle ST (ESC \) - we see ESC, transition to Esc to handle the backslash
+                    state = State::Esc;
+                }
+            }
         }
-        width += unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
     }
 
     width
