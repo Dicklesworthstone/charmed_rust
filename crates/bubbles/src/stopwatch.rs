@@ -626,7 +626,10 @@ mod tests {
         // Hours, minutes, and seconds
         assert_eq!(format_duration(Duration::from_secs(3600)), "1h0m0s");
         assert_eq!(format_duration(Duration::from_secs(3665)), "1h1m5s");
-        assert_eq!(format_duration(Duration::from_secs(100 * 3600 + 30 * 60 + 15)), "100h30m15s");
+        assert_eq!(
+            format_duration(Duration::from_secs(100 * 3600 + 30 * 60 + 15)),
+            "100h30m15s"
+        );
         // Hours with sub-second precision
         assert_eq!(format_duration(Duration::from_millis(3600_500)), "1h0m0.5s");
     }

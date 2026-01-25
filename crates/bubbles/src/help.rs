@@ -576,7 +576,9 @@ mod tests {
         let help = Help::new().width(30);
         let b1 = Binding::new().keys(&["a"]).help("a", "first action");
         let b2 = Binding::new().keys(&["b"]).help("b", "second action");
-        let b3 = Binding::new().keys(&["c"]).help("c", "third action that won't fit");
+        let b3 = Binding::new()
+            .keys(&["c"])
+            .help("c", "third action that won't fit");
 
         let groups = vec![vec![&b1], vec![&b2], vec![&b3]];
 
@@ -720,9 +722,10 @@ mod tests {
     fn test_help_zero_width_no_truncation() {
         // Width of 0 means no truncation
         let help = Help::new().width(0);
-        let b1 = Binding::new()
-            .keys(&["a"])
-            .help("a", "a very long description that would normally be truncated");
+        let b1 = Binding::new().keys(&["a"]).help(
+            "a",
+            "a very long description that would normally be truncated",
+        );
         let b2 = Binding::new()
             .keys(&["b"])
             .help("b", "another very long description");
