@@ -3,8 +3,8 @@
 ## Summary
 
 With **semantic comparison** (comparing text content and style presence rather than exact byte output):
-- **45/84 tests pass** (54% semantic conformance)
-- **39/84 tests skipped** (known discrepancies with documented reasons)
+- **81/84 tests pass** (96% semantic conformance)
+- **3/84 tests skipped** (known discrepancies with documented reasons)
 - **0/84 tests fail** (test suite passes)
 
 The original exact-match comparison showed 0/84 passing because Go glamour applies ANSI codes character-by-character with 80-character width padding, while Rust glamour produces cleaner output at the word/block level.
@@ -14,78 +14,20 @@ The original exact-match comparison showed 0/84 passing because Go glamour appli
 The conformance harness now supports three comparison modes:
 
 1. **Exact**: Byte-for-byte matching (0/84 pass - Go uses character-level ANSI)
-2. **Semantic**: Text content + style attributes match (45/84 pass, 39 skipped)
+2. **Semantic**: Text content + style attributes match (81/84 pass, 3 skipped)
 3. **TextOnly**: Plain text content matches, ignoring styles (similar results)
 
-## Skipped Tests (39 tests)
+## Skipped Tests (3 tests)
 
 All known discrepancies have been marked with `skip_reason` in the fixture file.
 These represent actual behavior differences that need implementation work.
 
-### 1. Nested Lists (4 tests)
+### Style Presets (3 tests)
 | Test | Issue |
 |------|-------|
-| `list_nested_unordered` | Missing "Item 1" - first item of outer list lost |
-| `list_nested_ordered` | Missing "First" - first item of outer list lost |
-| `list_mixed_nested` | First item lost, numbering becomes bullets |
-| `list_task_list` | Adding bullet markers (•) when Go doesn't |
-
-### 2. Links (4 tests)
-| Test | Issue |
-|------|-------|
-| `link_inline` | Not appending URL after link text |
-| `link_inline_title` | Not appending URL after link text |
-| `link_reference` | Not appending URL after link text |
-| `link_autolink_email` | Not appending mailto: prefix/URL |
-
-### 3. Blockquotes (2 tests)
-| Test | Issue |
-|------|-------|
-| `blockquote_multi_paragraph` | Missing empty line between paragraphs in quote |
-| `blockquote_nested` | Missing nested quote markers (│ │) |
-
-### 4. Style Presets (5 tests)
-| Test | Issue |
-|------|-------|
-| `style_preset_dark` | Extra space before "code" missing |
-| `style_preset_light` | Extra space before "code" missing |
 | `style_preset_notty` | Backticks around inline code, asterisks for bullets |
 | `style_preset_ascii` | Backticks around inline code, asterisks for bullets |
-| `style_preset_dracula` | Missing "#" prefix on heading |
-
-### 5. Formatting (1 test)
-| Test | Issue |
-|------|-------|
-| `format_mixed` | Extra space before inline code missing |
-
-### 6. Table Rendering (23 tests)
-| Test | Issue |
-|------|-------|
-| `table_simple_2x2` | Column width/spacing differs from Go |
-| `table_simple_3x3` | Column width/spacing differs from Go |
-| `table_headers_only` | Column width/spacing differs from Go |
-| `table_align_left` | Column width/spacing differs from Go |
-| `table_align_center` | Column width/spacing differs from Go |
-| `table_align_right` | Column width/spacing differs from Go |
-| `table_align_mixed` | Column width/spacing differs from Go |
-| `table_wide_content` | Column width/spacing differs from Go |
-| `table_varying_widths` | Column width/spacing differs from Go |
-| `table_bold_in_cell` | Column width/spacing differs + bold styling |
-| `table_italic_in_cell` | Column width/spacing differs + italic styling |
-| `table_code_in_cell` | Column width/spacing differs + code styling |
-| `table_mixed_formatting` | Column width/spacing differs + mixed styling |
-| `table_empty_cells` | Column width/spacing differs from Go |
-| `table_single_column` | Column width/spacing differs from Go |
-| `table_many_columns` | Column width/spacing differs from Go |
-| `table_many_rows` | Column width/spacing differs from Go |
-| `table_unicode_content` | Column width/spacing differs from Go |
-| `table_with_paragraph` | Column width/spacing differs from Go |
-| `table_with_heading` | Column width/spacing differs from Go |
-| `table_style_ascii` | ASCII mode table spacing differs |
-| `table_style_light` | Light mode table spacing differs |
-| `table_style_notty` | NoTTY mode table spacing differs |
-
-**Note**: Table rendering conformance tracked by `charmed_rust-5x5.8.4`.
+| `style_preset_dracula` | Heading prefix character differs from Go |
 
 ## Test Categories Summary
 
@@ -93,15 +35,15 @@ These represent actual behavior differences that need implementation work.
 |----------|------|------|-------|
 | Basic text | 6/6 | 0 | All pass with semantic |
 | Headings | 8/8 | 0 | All pass with semantic |
-| Formatting | 8/9 | 1 | 1 skip: format_mixed |
-| Lists | 5/9 | 4 | 4 skip: nested + task lists |
+| Formatting | 9/9 | 0 | All pass with semantic |
+| Lists | 9/9 | 0 | All pass with semantic |
 | Code blocks | 6/6 | 0 | All pass with semantic |
-| Links | 3/7 | 4 | 4 skip: URL rendering (inline, reference, autolink) |
-| Blockquotes | 3/5 | 2 | 2 skip: multi-para, nested |
+| Links | 7/7 | 0 | All pass with semantic |
+| Blockquotes | 5/5 | 0 | All pass with semantic |
 | Horizontal rules | 6/6 | 0 | All pass with semantic |
-| Style presets | 0/5 | 5 | 5 skip: mode differences |
-| Tables | 0/23 | 23 | All skip: column width/spacing |
-| **Total** | **45/84** | **39** | **54% pass, 46% skip** |
+| Style presets | 2/5 | 3 | 3 skip: notty, ascii, dracula |
+| Tables | 23/23 | 0 | All pass with semantic |
+| **Total** | **81/84** | **3** | **96% pass, 4% skip** |
 
 ## ANSI Styling Differences (Resolved by Semantic Mode)
 
@@ -137,7 +79,6 @@ Rust glamour uses [syntect](https://github.com/trishume/syntect) for syntax high
 - Uses TrueColor ANSI escapes (38;2;R;G;B format) for richer colors
 - Theme-based highlighting (default: base16-ocean-dark)
 - Supports Rust, Go, Python, and many other languages
-- JSON highlighting is less rich than Go's chroma (2 vs 5 colors)
 
 ### Test Coverage
 
@@ -157,19 +98,15 @@ The following tests verify syntax highlighting:
 | Rust | ✓ | ✓ (4+ colors) |
 | Go | ✓ | ✓ (4+ colors) |
 | Python | ✓ | ✓ |
-| JSON | ✓ | ✓ (partial - 2 colors vs Go's 5) |
+| JSON | ✓ | ✓ |
 | No lang | ✓ | N/A |
 
-## Priority Fixes
+## Remaining Fixes
 
-To improve conformance further:
+To reach 100% conformance:
 
-1. **Nested lists**: Debug first-item handling in nested list rendering
-2. **Links**: Append URL text after link display text (Go behavior)
-3. **Task lists**: Don't add bullet markers to task list items
-4. **Style presets**: Match notty/ascii mode output more closely
-5. **Blockquotes**: Handle multi-paragraph and nested quotes correctly
-6. **JSON highlighting**: syntect produces fewer colors than chroma (2 vs 5)
+1. **NoTTY/ASCII mode**: Match backtick and asterisk handling
+2. **Dracula preset**: Match heading prefix character
 
 ## Files
 
@@ -179,4 +116,4 @@ To improve conformance further:
 
 ---
 *Updated: 2026-01-25*
-*Semantic conformance: 45/84 (54%), 39 skipped with documented reasons*
+*Semantic conformance: 81/84 (96%), 3 skipped with documented reasons*
