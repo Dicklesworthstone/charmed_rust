@@ -615,6 +615,60 @@ pub fn theme_base16() -> Theme {
     t
 }
 
+/// Returns the Catppuccin theme.
+///
+/// This theme is based on the Catppuccin color scheme (Mocha variant).
+/// See <https://github.com/catppuccin/catppuccin> for more details.
+pub fn theme_catppuccin() -> Theme {
+    let mut t = theme_base();
+
+    // Catppuccin Mocha palette
+    let base = "#1e1e2e";
+    let text = "#cdd6f4";
+    let subtext1 = "#bac2de";
+    let subtext0 = "#a6adc8";
+    let overlay1 = "#7f849c";
+    let overlay0 = "#6c7086";
+    let green = "#a6e3a1";
+    let red = "#f38ba8";
+    let pink = "#f5c2e7";
+    let mauve = "#cba6f7";
+    let rosewater = "#f5e0dc";
+
+    t.focused.base = t.focused.base.border_foreground(subtext1);
+    t.focused.title = t.focused.title.foreground(mauve);
+    t.focused.note_title = t.focused.note_title.foreground(mauve);
+    t.focused.description = t.focused.description.foreground(subtext0);
+    t.focused.error_indicator = t.focused.error_indicator.foreground(red);
+    t.focused.error_message = t.focused.error_message.foreground(red);
+    t.focused.select_selector = t.focused.select_selector.foreground(pink);
+    t.focused.next_indicator = t.focused.next_indicator.foreground(pink);
+    t.focused.prev_indicator = t.focused.prev_indicator.foreground(pink);
+    t.focused.option = t.focused.option.foreground(text);
+    t.focused.multi_select_selector = t.focused.multi_select_selector.foreground(pink);
+    t.focused.selected_option = t.focused.selected_option.foreground(green);
+    t.focused.selected_prefix = t.focused.selected_prefix.foreground(green);
+    t.focused.unselected_prefix = t.focused.unselected_prefix.foreground(text);
+    t.focused.unselected_option = t.focused.unselected_option.foreground(text);
+    t.focused.focused_button = t.focused.focused_button.foreground(base).background(pink);
+    t.focused.blurred_button = t.focused.blurred_button.foreground(text).background(base);
+
+    t.focused.text_input.cursor = t.focused.text_input.cursor.foreground(rosewater);
+    t.focused.text_input.placeholder = t.focused.text_input.placeholder.foreground(overlay0);
+    t.focused.text_input.prompt = t.focused.text_input.prompt.foreground(pink);
+
+    t.blurred = t.focused.clone();
+    t.blurred.base = t.blurred.base.border(Border::hidden());
+    t.blurred.next_indicator = Style::new();
+    t.blurred.prev_indicator = Style::new();
+
+    t.group.title = t.focused.title.clone();
+    t.group.description = t.focused.description.clone();
+    t.help = Style::new().foreground(subtext0).margin_top(1);
+
+    t
+}
+
 // -----------------------------------------------------------------------------
 // KeyMap
 // -----------------------------------------------------------------------------
@@ -4696,6 +4750,16 @@ mod tests {
     fn test_theme_base16() {
         let theme = theme_base16();
         let _ = theme.focused.title.render("Test");
+    }
+
+    #[test]
+    fn test_theme_catppuccin() {
+        let theme = theme_catppuccin();
+        // Verify it doesn't panic and has expected Catppuccin colors
+        let _ = theme.focused.title.render("Test");
+        let _ = theme.focused.selected_option.render("Selected");
+        let _ = theme.focused.focused_button.render("OK");
+        let _ = theme.blurred.title.render("Blurred");
     }
 
     #[test]
