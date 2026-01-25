@@ -873,7 +873,9 @@ impl Style {
         self.margin
     }
 
-    pub(crate) fn get_width(&self) -> Option<u16> {
+    /// Returns the configured width, if explicitly set.
+    #[must_use]
+    pub fn get_width(&self) -> Option<u16> {
         if self.props.contains(Props::WIDTH) {
             Some(self.width)
         } else {
@@ -881,7 +883,9 @@ impl Style {
         }
     }
 
-    pub(crate) fn get_height(&self) -> Option<u16> {
+    /// Returns the configured height, if explicitly set.
+    #[must_use]
+    pub fn get_height(&self) -> Option<u16> {
         if self.props.contains(Props::HEIGHT) {
             Some(self.height)
         } else {

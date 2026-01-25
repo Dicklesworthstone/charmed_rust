@@ -680,9 +680,16 @@ fn format_size(bytes: u64) -> String {
 
 /// Truncates a string to a maximum width.
 fn truncate_string(s: &str, max_width: usize) -> String {
+    if max_width == 0 {
+        return String::new();
+    }
+
     if s.chars().count() <= max_width {
         s.to_string()
     } else {
+        if max_width == 1 {
+            return "…".to_string();
+        }
         let truncated: String = s.chars().take(max_width - 1).collect();
         format!("{}…", truncated)
     }
@@ -828,6 +835,8 @@ mod tests {
             truncate_string("this is a very long string", 10),
             "this is a…"
         );
+        assert_eq!(truncate_string("hello", 1), "…");
+        assert_eq!(truncate_string("hello", 0), "");
     }
 
     #[test]
