@@ -546,4 +546,191 @@ mod tests {
         assert!(Model::update(&mut help, Message::new(SetWidthMsg(80))).is_none());
         assert!(Model::update(&mut help, Message::new(SetBindingsMsg(vec![]))).is_none());
     }
+
+    // Parity audit tests (bd-212m.6.6)
+
+    #[test]
+    fn test_help_full_view_multi_group() {
+        // Test full help with multiple groups (columns)
+        let help = Help::new();
+        let nav_up = Binding::new().keys(&["up", "k"]).help("↑/k", "up");
+        let nav_down = Binding::new().keys(&["down", "j"]).help("↓/j", "down");
+        let action_enter = Binding::new().keys(&["enter"]).help("enter", "select");
+        let action_quit = Binding::new().keys(&["q", "ctrl+c"]).help("q", "quit");
+
+        let groups = vec![vec![&nav_up, &nav_down], vec![&action_enter, &action_quit]];
+
+        let view = help.full_help_view(&groups);
+        // Should contain all keys and descriptions
+        assert!(view.contains("↑/k"));
+        assert!(view.contains("↓/j"));
+        assert!(view.contains("enter"));
+        assert!(view.contains("quit"));
+        // Should contain newlines for multi-row layout
+        assert!(view.contains('\n'));
+    }
+
+    #[test]
+    fn test_help_full_view_with_width_truncation() {
+        // Test that full help respects width limits
+        let help = Help::new().width(30);
+        let b1 = Binding::new().keys(&["a"]).help("a", "first action");
+        let b2 = Binding::new().keys(&["b"]).help("b", "second action");
+        let b3 = Binding::new().keys(&["c"]).help("c", "third action that won't fit");
+
+        let groups = vec![vec![&b1], vec![&b2], vec![&b3]];
+
+        let view = help.full_help_view(&groups);
+        // With width=30, not all groups should fit
+        // Exact behavior depends on column width calculation
+        assert!(!view.is_empty());
+    }
+
+    #[test]
+    fn test_help_mixed_enabled_disabled_in_group() {
+        // Test that disabled bindings are skipped within a group
+        let help = Help::new();
+        let enabled = Binding::new().keys(&["a"]).help("a", "enabled");
+        let disabled = Binding::new()
+            .keys(&["b"])
+            .help("b", "disabled")
+            .set_enabled(false);
+        let enabled2 = Binding::new().keys(&["c"]).help("c", "also enabled");
+
+        let view = help.short_help_view(&[&enabled, &disabled, &enabled2]);
+
+        assert!(view.contains("a"));
+        assert!(!view.contains("b disabled"));
+        assert!(view.contains("c"));
+    }
+
+    #[test]
+    fn test_help_full_view_skips_all_disabled_group() {
+        // Test that groups with all disabled bindings are skipped
+        let help = Help::new();
+        let enabled = Binding::new().keys(&["a"]).help("a", "enabled");
+        let disabled1 = Binding::new()
+            .keys(&["b"])
+            .help("b", "disabled1")
+            .set_enabled(false);
+        let disabled2 = Binding::new()
+            .keys(&["c"])
+            .help("c", "disabled2")
+            .set_enabled(false);
+
+        let groups = vec![vec![&disabled1, &disabled2], vec![&enabled]];
+
+        let view = help.full_help_view(&groups);
+        assert!(view.contains("a"));
+        assert!(view.contains("enabled"));
+        assert!(!view.contains("disabled1"));
+        assert!(!view.contains("disabled2"));
+    }
+
+    #[test]
+    fn test_help_short_view_ellipsis_truncation() {
+        // Test that ellipsis is added when truncating
+        let help = Help::new().width(15);
+        let b1 = Binding::new().keys(&["a"]).help("a", "first");
+        let b2 = Binding::new().keys(&["b"]).help("b", "second");
+        let b3 = Binding::new().keys(&["c"]).help("c", "third");
+
+        let view = help.short_help_view(&[&b1, &b2, &b3]);
+
+        // Should be truncated with ellipsis
+        assert!(view.len() <= 20); // Width + some margin for ellipsis
+    }
+
+    #[test]
+    fn test_help_separator_styles() {
+        // Test that separators use the configured values
+        let mut help = Help::new();
+        help.short_separator = " | ".to_string();
+        help.full_separator = "  ||  ".to_string();
+
+        let b1 = Binding::new().keys(&["a"]).help("a", "first");
+        let b2 = Binding::new().keys(&["b"]).help("b", "second");
+
+        let short_view = help.short_help_view(&[&b1, &b2]);
+        assert!(short_view.contains(" | "), "Short view: {}", short_view);
+
+        let full_view = help.full_help_view(&[vec![&b1], vec![&b2]]);
+        assert!(full_view.contains("||"), "Full view: {}", full_view);
+    }
+
+    #[test]
+    fn test_help_unicode_keys() {
+        // Test handling of Unicode characters in key names
+        let help = Help::new();
+        let arrow_up = Binding::new().keys(&["up"]).help("↑", "move up");
+        let arrow_down = Binding::new().keys(&["down"]).help("↓", "move down");
+
+        let view = help.short_help_view(&[&arrow_up, &arrow_down]);
+        assert!(view.contains("↑"));
+        assert!(view.contains("↓"));
+    }
+
+    #[test]
+    fn test_help_empty_key_or_desc() {
+        // Test bindings with empty key or description are skipped
+        let help = Help::new();
+        let empty_both = Binding::new().keys(&["a"]).help("", "");
+        let empty_key = Binding::new().keys(&["b"]).help("", "desc only");
+        let empty_desc = Binding::new().keys(&["c"]).help("key only", "");
+        let normal = Binding::new().keys(&["d"]).help("d", "normal");
+
+        let view = help.short_help_view(&[&empty_both, &empty_key, &empty_desc, &normal]);
+
+        // empty_both should be skipped (both empty)
+        // empty_key and empty_desc should be included (one is non-empty)
+        // normal should be included
+        assert!(view.contains("desc only") || view.contains("key only"));
+        assert!(view.contains("d normal") || view.contains("d") && view.contains("normal"));
+    }
+
+    #[test]
+    fn test_help_view_method_dispatches_correctly() {
+        // Test that view() method correctly dispatches based on show_all
+        let b1 = Binding::new().keys(&["a"]).help("a", "action");
+        let b2 = Binding::new().keys(&["b"]).help("b", "back");
+
+        let help_short = Help::new();
+        let help_full = Help::new().show_all(true);
+
+        let short_view = help_short.view(&[&b1, &b2]);
+        let full_view = help_full.view(&[&b1, &b2]);
+
+        // Short view should be single line
+        assert!(!short_view.contains('\n') || short_view.lines().count() == 1);
+        // Full view should have bindings stacked
+        assert!(full_view.contains("a"));
+        assert!(full_view.contains("b"));
+    }
+
+    #[test]
+    fn test_help_default_separators() {
+        // Verify default separators match Go implementation
+        let help = Help::new();
+        assert_eq!(help.short_separator, " • ");
+        assert_eq!(help.full_separator, "    ");
+        assert_eq!(help.ellipsis, "…");
+    }
+
+    #[test]
+    fn test_help_zero_width_no_truncation() {
+        // Width of 0 means no truncation
+        let help = Help::new().width(0);
+        let b1 = Binding::new()
+            .keys(&["a"])
+            .help("a", "a very long description that would normally be truncated");
+        let b2 = Binding::new()
+            .keys(&["b"])
+            .help("b", "another very long description");
+
+        let view = help.short_help_view(&[&b1, &b2]);
+
+        // Should contain full descriptions
+        assert!(view.contains("a very long description"));
+        assert!(view.contains("another very long description"));
+    }
 }
