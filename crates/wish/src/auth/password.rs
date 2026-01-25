@@ -207,25 +207,40 @@ impl AuthHandler for PasswordAuth {
             "PasswordAuth: auth attempt"
         );
 
-        match self.users.get(ctx.username()) {
-            Some(stored_password) if stored_password == password => {
-                debug!(username = %ctx.username(), "PasswordAuth: accepted");
-                AuthResult::Accept
-            }
-            Some(_) => {
-                debug!(username = %ctx.username(), "PasswordAuth: wrong password");
-                AuthResult::Reject
-            }
-            None => {
-                debug!(username = %ctx.username(), "PasswordAuth: unknown user");
-                AuthResult::Reject
-            }
+        let stored = self.users.get(ctx.username());
+        // Use a dummy string for comparison if user is not found to mitigate timing attacks
+        // against username enumeration (though checking the map itself might still leak timing)
+        let target = stored.map(String::as_str).unwrap_or("");
+
+        if constant_time_eq(target, password) && stored.is_some() {
+            debug!(username = %ctx.username(), "PasswordAuth: accepted");
+            AuthResult::Accept
+        } else {
+            debug!(username = %ctx.username(), "PasswordAuth: rejected");
+            AuthResult::Reject
         }
     }
 
     fn supported_methods(&self) -> Vec<AuthMethod> {
         vec![AuthMethod::Password]
     }
+}
+
+/// Constant-time string comparison.
+///
+/// Returns true if strings are equal, false otherwise.
+/// Does not short-circuit on inequality to prevent timing attacks.
+fn constant_time_eq(a: &str, b: &str) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let a_bytes = a.as_bytes();
+    let b_bytes = b.as_bytes();
+    let mut result = 0u8;
+    for (x, y) in a_bytes.iter().zip(b_bytes.iter()) {
+        result |= x ^ y;
+    }
+    result == 0
 }
 
 /// Async callback-based password authentication handler.

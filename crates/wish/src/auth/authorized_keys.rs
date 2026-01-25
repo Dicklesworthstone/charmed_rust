@@ -105,28 +105,99 @@ fn parse_authorized_key_line(line: &str) -> Option<AuthorizedKey> {
         "sk-ecdsa-sha2-nistp256@openssh.com",
     ];
 
-    // Find the key type in the line
-    let mut parts = line.splitn(2, |c: char| c.is_whitespace());
-    let first = parts.next()?;
+    // Find the first whitespace separator not inside quotes
+    let (first, rest) = split_unquoted_whitespace(line)?;
 
     // Check if first part is a key type or options
     if KEY_TYPES.contains(&first) {
         // No options, first part is key type
-        parse_key_parts(first, parts.next().unwrap_or(""), &[])
+        parse_key_parts(first, rest, &[])
     } else {
         // First part is options, find key type in the rest
-        let rest = parts.next()?;
-        let options: Vec<String> = first.split(',').map(|s| s.to_string()).collect();
+        let options = split_options(first);
 
-        let mut rest_parts = rest.splitn(2, |c: char| c.is_whitespace());
-        let key_type = rest_parts.next()?;
+        let (key_type, key_rest) = split_unquoted_whitespace(rest)?;
 
         if !KEY_TYPES.contains(&key_type) {
             return None;
         }
 
-        parse_key_parts(key_type, rest_parts.next().unwrap_or(""), &options)
+        parse_key_parts(key_type, key_rest, &options)
     }
+}
+
+/// Splits a string into (first, rest) on the first whitespace not inside quotes.
+fn split_unquoted_whitespace(input: &str) -> Option<(&str, &str)> {
+    let mut in_quotes = false;
+    let mut escaped = false;
+
+    for (idx, ch) in input.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == '"' {
+            in_quotes = !in_quotes;
+            continue;
+        }
+        if ch.is_whitespace() && !in_quotes {
+            let first = &input[..idx];
+            let rest = input[idx..].trim_start();
+            return Some((first, rest));
+        }
+    }
+
+    if input.is_empty() {
+        None
+    } else {
+        Some((input, ""))
+    }
+}
+
+/// Splits an options string by commas, respecting quoted values.
+fn split_options(input: &str) -> Vec<String> {
+    let mut options = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    let mut escaped = false;
+
+    for ch in input.chars() {
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            current.push(ch);
+            escaped = true;
+            continue;
+        }
+        if ch == '"' {
+            in_quotes = !in_quotes;
+            current.push(ch);
+            continue;
+        }
+        if ch == ',' && !in_quotes {
+            let trimmed = current.trim();
+            if !trimmed.is_empty() {
+                options.push(trimmed.to_string());
+            }
+            current.clear();
+            continue;
+        }
+        current.push(ch);
+    }
+
+    let trimmed = current.trim();
+    if !trimmed.is_empty() {
+        options.push(trimmed.to_string());
+    }
+
+    options
 }
 
 /// Parses the key type, data, and optional comment.
@@ -453,6 +524,34 @@ mod tests {
         assert_eq!(key.key_type, "ssh-ed25519");
         assert!(key.options.contains(&"no-pty".to_string()));
         assert!(key.options.iter().any(|o| o.starts_with("command=")));
+    }
+
+    #[test]
+    fn test_parse_key_with_quoted_option_spaces() {
+        let line = "command=\"echo hello world\",no-pty ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG1cILnhxkg+kMsGsVJP7hQnfKSPPIP/8GSXTE2n/8SE user@example.com";
+        let keys = parse_authorized_keys(line);
+
+        assert_eq!(keys.len(), 1);
+        let key = &keys[0];
+        assert_eq!(key.key_type, "ssh-ed25519");
+        assert!(key.options.contains(&"no-pty".to_string()));
+        assert!(
+            key.options
+                .iter()
+                .any(|o| o == "command=\"echo hello world\"")
+        );
+    }
+
+    #[test]
+    fn test_parse_key_with_quoted_option_commas() {
+        let line = "command=\"echo a,b\",no-pty ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG1cILnhxkg+kMsGsVJP7hQnfKSPPIP/8GSXTE2n/8SE user@example.com";
+        let keys = parse_authorized_keys(line);
+
+        assert_eq!(keys.len(), 1);
+        let key = &keys[0];
+        assert_eq!(key.key_type, "ssh-ed25519");
+        assert!(key.options.contains(&"no-pty".to_string()));
+        assert!(key.options.iter().any(|o| o == "command=\"echo a,b\""));
     }
 
     #[test]

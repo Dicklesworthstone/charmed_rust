@@ -3,8 +3,8 @@
 ## Summary
 
 With **semantic comparison** (comparing text content and style presence rather than exact byte output):
-- **43/84 tests pass** (51% semantic conformance)
-- **41/84 tests skipped** (known discrepancies with documented reasons)
+- **45/84 tests pass** (54% semantic conformance)
+- **39/84 tests skipped** (known discrepancies with documented reasons)
 - **0/84 tests fail** (test suite passes)
 
 The original exact-match comparison showed 0/84 passing because Go glamour applies ANSI codes character-by-character with 80-character width padding, while Rust glamour produces cleaner output at the word/block level.
@@ -30,14 +30,13 @@ These represent actual behavior differences that need implementation work.
 | `list_mixed_nested` | First item lost, numbering becomes bullets |
 | `list_task_list` | Adding bullet markers (•) when Go doesn't |
 
-### 2. Links (5 tests)
+### 2. Links (3 tests)
 | Test | Issue |
 |------|-------|
 | `link_inline` | Not appending URL after link text |
 | `link_inline_title` | Not appending URL after link text |
 | `link_reference` | Not appending URL after link text |
 | `link_autolink_email` | Not appending mailto: prefix/URL |
-| `link_image` / `link_image_title` | Arrow character (→ vs ->) |
 
 ### 3. Blockquotes (2 tests)
 | Test | Issue |
@@ -97,12 +96,12 @@ These represent actual behavior differences that need implementation work.
 | Formatting | 8/9 | 1 | 1 skip: format_mixed |
 | Lists | 5/9 | 4 | 4 skip: nested + task lists |
 | Code blocks | 6/6 | 0 | All pass with semantic |
-| Links | 2/7 | 5 | 5 skip: URL rendering |
+| Links | 4/7 | 3 | 3 skip: URL rendering (inline, reference) |
 | Blockquotes | 3/5 | 2 | 2 skip: multi-para, nested |
 | Horizontal rules | 6/6 | 0 | All pass with semantic |
 | Style presets | 0/5 | 5 | 5 skip: mode differences |
 | Tables | 0/23 | 23 | All skip: column width/spacing |
-| **Total** | **43/84** | **41** | **51% pass, 49% skip** |
+| **Total** | **45/84** | **39** | **54% pass, 46% skip** |
 
 ## ANSI Styling Differences (Resolved by Semantic Mode)
 

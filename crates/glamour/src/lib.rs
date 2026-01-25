@@ -715,11 +715,11 @@ pub fn ascii_style() -> StyleConfig {
         emph: StylePrimitive::new().block_prefix("*").block_suffix("*"),
         strong: StylePrimitive::new().block_prefix("**").block_suffix("**"),
         horizontal_rule: StylePrimitive::new().format("\n--------\n"),
-        item: StylePrimitive::new().block_prefix("* "),
+        item: StylePrimitive::new().block_prefix("• "),
         enumeration: StylePrimitive::new().block_prefix(". "),
         task: StyleTask::new().ticked("[x] ").unticked("[ ] "),
         image_text: StylePrimitive::new().format("Image: {{.text}} →"),
-        code: StyleBlock::new().style(StylePrimitive::new().prefix("`").suffix("`")),
+        code: StyleBlock::new(),
         code_block: StyleCodeBlock::new().block(StyleBlock::new().margin(DEFAULT_MARGIN)),
         table: StyleTable::new().separators("|", "|", "-"),
         definition_description: StylePrimitive::new().block_prefix("\n* "),
@@ -2254,6 +2254,16 @@ mod tests {
     }
 
     #[test]
+    fn test_ascii_style_inline_code_and_lists() {
+        let renderer = Renderer::new().with_style(Style::Ascii);
+        let output = renderer.render("A `code` example.\n\n- Item 1\n- Item 2");
+        assert!(output.contains("code"));
+        assert!(!output.contains("`code`"));
+        assert!(output.contains("• Item 1"));
+        assert!(output.contains("• Item 2"));
+    }
+
+    #[test]
     fn test_pink_style() {
         let config = pink_style();
         assert!(config.heading.style.color.is_some());
@@ -3111,5 +3121,33 @@ mod table_spacing_tests {
             width_small, width_large,
             "Table should be compact (content-sized) when it fits"
         );
+    }
+
+    #[test]
+    fn test_image_link_arrow_glyph() {
+        // Verify image links use Unicode arrow (→) matching Go behavior
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render("![Alt text](https://example.com/image.png)");
+        assert!(
+            output.contains("→"),
+            "Image link should use Unicode arrow (→), got: {}",
+            output
+        );
+        assert!(output.contains("Image: Alt text"));
+        assert!(output.contains("https://example.com/image.png"));
+    }
+
+    #[test]
+    fn test_image_link_arrow_in_all_styles() {
+        // All styles with arrows should use → (Unicode arrow)
+        for style in [Style::Dark, Style::Light, Style::Dracula] {
+            let renderer = Renderer::new().with_style(style);
+            let output = renderer.render("![Test](http://example.com/test.png)");
+            assert!(
+                output.contains("→"),
+                "{:?} style should use Unicode arrow (→)",
+                style
+            );
+        }
     }
 }

@@ -330,6 +330,7 @@ impl Model for Pager {
                         KeyType::Esc => {
                             // Cancel search
                             self.mode = InputMode::Normal;
+                            self.viewport.height += 1;
                             return None;
                         }
                         KeyType::Enter => {
@@ -342,6 +343,7 @@ impl Model for Pager {
                                 self.goto_last_match_before_current();
                             }
                             self.mode = InputMode::Normal;
+                            self.viewport.height += 1;
                             return None;
                         }
                         KeyType::Backspace => {
@@ -390,11 +392,13 @@ impl Model for Pager {
                             ['/'] => {
                                 self.search.query.clear();
                                 self.mode = InputMode::Search { forward: true };
+                                self.viewport.height = self.viewport.height.saturating_sub(1);
                                 return None;
                             }
                             ['?'] => {
                                 self.search.query.clear();
                                 self.mode = InputMode::Search { forward: false };
+                                self.viewport.height = self.viewport.height.saturating_sub(1);
                                 return None;
                             }
                             ['n'] => {

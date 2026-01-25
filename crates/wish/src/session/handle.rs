@@ -2,7 +2,6 @@
 
 use crate::auth::SessionId;
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::oneshot;
@@ -18,7 +17,7 @@ pub struct SessionHandle {
     /// When the session was established.
     pub started_at: Instant,
     /// Last activity timestamp (updated on data/commands).
-    last_activity: Arc<AtomicU64>,
+    last_activity: AtomicU64,
     /// Number of active channels in this session.
     pub channel_count: AtomicU64,
     /// Shutdown signal sender - dropping this signals the session to terminate.
@@ -39,7 +38,7 @@ impl SessionHandle {
             user,
             remote_addr,
             started_at: now,
-            last_activity: Arc::new(AtomicU64::new(0)), // 0 means "same as started_at"
+            last_activity: AtomicU64::new(0), // 0 means "same as started_at"
             channel_count: AtomicU64::new(0),
             shutdown_tx: Some(shutdown_tx),
         }

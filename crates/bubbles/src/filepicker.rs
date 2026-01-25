@@ -470,7 +470,13 @@ impl FilePicker {
                     }
                     return Some(self.read_dir_cmd());
                 }
-            } else if matches(&key_str, &[&self.key_map.open]) {
+            } else {
+                let is_select = matches(&key_str, &[&self.key_map.select]);
+                let is_open = matches(&key_str, &[&self.key_map.open]);
+                if !is_select && !is_open {
+                    return None;
+                }
+
                 if self.files.is_empty() {
                     return None;
                 }
@@ -479,14 +485,12 @@ impl FilePicker {
                 let is_dir = entry.is_dir;
 
                 // Check if we can select this
-                if matches(&key_str, &[&self.key_map.select])
-                    && ((!is_dir && self.file_allowed) || (is_dir && self.dir_allowed))
-                {
+                if is_select && ((!is_dir && self.file_allowed) || (is_dir && self.dir_allowed)) {
                     self.path = Some(entry.path.clone());
                 }
 
                 // If it's a directory, navigate into it
-                if is_dir {
+                if is_open && is_dir {
                     self.current_directory = entry.path.clone();
                     self.push_view();
                     self.selected = 0;
@@ -1258,6 +1262,34 @@ mod tests {
         if let Some(entry) = fp.files.get(fp.selected) {
             assert_eq!(entry.name, "second.txt");
         }
+    }
+
+    #[test]
+    fn test_filepicker_select_key_independent_of_open() {
+        use bubbletea::{KeyMsg, Message};
+
+        let mut fp = FilePicker::new();
+        fp.key_map.select = Binding::new().keys(&["s"]);
+        fp.key_map.open = Binding::new().keys(&["enter"]);
+        fp.files = vec![DirEntry {
+            name: "selected.txt".to_string(),
+            path: PathBuf::from("/tmp/selected.txt"),
+            is_dir: false,
+            is_symlink: false,
+            size: 10,
+            mode: "-rw-r--r--".to_string(),
+        }];
+        fp.max = 10;
+        fp.selected = 0;
+
+        let msg = Message::new(KeyMsg::from_char('s'));
+        let _ = Model::update(&mut fp, msg);
+
+        assert_eq!(
+            fp.selected_path(),
+            Some(Path::new("/tmp/selected.txt")),
+            "Select key should set path even when open key differs"
+        );
     }
 
     #[test]

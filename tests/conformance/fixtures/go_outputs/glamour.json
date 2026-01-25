@@ -540,8 +540,7 @@
       "expected_output": {
         "error": false,
         "output": "\n\u001b[38;5;243m\u001b[0m\u001b[38;5;243m\u001b[0m  \u001b[38;5;243mImage: Alt text →\u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;212;4mhttps://example.com/image.png\u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\n\n"
-      },
-      "skip_reason": "Known discrepancy: Image link arrow character differs (-> vs →)"
+      }
     },
     {
       "name": "link_image_title",
@@ -553,8 +552,7 @@
       "expected_output": {
         "error": false,
         "output": "\n\u001b[38;5;243m\u001b[0m\u001b[38;5;243m\u001b[0m  \u001b[38;5;243mImage: Alt text →\u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;212;4mhttps://example.com/image.png\u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\n\n"
-      },
-      "skip_reason": "Known discrepancy: Image link arrow character differs (-> vs →)"
+      }
     },
     {
       "name": "blockquote_single_line",
