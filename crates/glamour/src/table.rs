@@ -2077,6 +2077,50 @@ Some text between tables.
     }
 
     #[test]
+    fn test_unicode_edge_cases() {
+        // Combining characters: e + combining acute accent
+        let combining = "e\u{0301}"; // é as two code points
+        assert_eq!(measure_width(combining), 1); // Should be 1 display width
+
+        // Precomposed form
+        let precomposed = "é"; // Single code point
+        assert_eq!(measure_width(precomposed), 1);
+
+        // Zero-width joiner (often in emoji sequences)
+        let zwj = "\u{200D}";
+        assert_eq!(measure_width(zwj), 0);
+
+        // Regional indicator symbols (flags)
+        // Note: Flag emoji width varies by terminal, unicode-width treats as 1 each
+        let flag = "🇺🇸"; // U+1F1FA U+1F1F8
+        let flag_width = measure_width(flag);
+        assert!(flag_width >= 1); // Terminal-dependent, at least 1
+
+        // Variation selectors (shouldn't add width)
+        let with_vs = "☀\u{FE0F}"; // sun with variation selector
+        let without_vs = "☀";
+        // Both should have similar width
+        assert!(measure_width(with_vs) <= measure_width(without_vs) + 1);
+    }
+
+    #[test]
+    fn test_unicode_width_cjk_variants() {
+        // Full-width Latin letters
+        assert_eq!(measure_width("Ａ"), 2); // Full-width A
+        assert_eq!(measure_width("ａ"), 2); // Full-width a
+
+        // Half-width katakana
+        assert_eq!(measure_width("ｱ"), 1); // Half-width katakana A
+
+        // Regular katakana (full-width)
+        assert_eq!(measure_width("ア"), 2); // Full-width katakana A
+
+        // Korean (Hangul)
+        assert_eq!(measure_width("한"), 2);
+        assert_eq!(measure_width("한글"), 4);
+    }
+
+    #[test]
     fn test_alignment_integration() {
         // Integration test: calculate widths and align cells
         let table = ParsedTable {

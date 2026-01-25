@@ -1537,6 +1537,35 @@ mod tests {
     }
 
     #[test]
+    fn test_visible_width_unicode() {
+        // CJK characters are 2 display units wide
+        assert_eq!(visible_width("日本"), 4);
+        assert_eq!(visible_width("中文"), 4);
+
+        // Emoji
+        assert_eq!(visible_width("🦀"), 2);
+        assert_eq!(visible_width("🎉"), 2);
+
+        // Mixed content
+        assert_eq!(visible_width("Hi日本"), 6); // 2 + 4
+
+        // With ANSI codes
+        assert_eq!(visible_width("\x1b[31m日本\x1b[0m"), 4);
+        assert_eq!(visible_width("\x1b[1m🦀\x1b[0m"), 2);
+    }
+
+    #[test]
+    fn test_visible_width_combining_chars() {
+        // Combining character: e + combining acute
+        let combining = "e\u{0301}"; // é as two code points
+        assert_eq!(visible_width(combining), 1);
+
+        // Precomposed form
+        let precomposed = "é";
+        assert_eq!(visible_width(precomposed), 1);
+    }
+
+    #[test]
     fn test_from_theme_colors_sets_fg_bg() {
         let theme = Theme::dark();
         let style = Style::from_theme_colors(&theme, ColorSlot::Primary, ColorSlot::Background);
