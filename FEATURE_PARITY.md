@@ -20,20 +20,20 @@ cargo test -p charmed_conformance -- --nocapture
 
 Result summary:
 - **Failed:** 0
-- **Skipped:** 11 (Glamour 6, Huh 4, Lipgloss 1)
+- **Skipped:** 8 (Glamour 3, Huh 4, Lipgloss 1)
 - **Notes:** Benchmark compile tests ran; benchmark execution tests remain ignored.
 
 ### Per-Crate Conformance Results
 
 | Crate        | Tests | Pass | Fail | Skip | Notes |
 |--------------|-------|------|------|------|-------|
-| bubbles      | 83    | 83   | 0    | 0    | All fixtures pass |
+| bubbles      | 83    | 83   | 0    | 0    | All fixtures pass, full component coverage |
 | bubbletea    | 168   | 168  | 0    | 0    | All fixtures pass |
 | charmed_log  | 67    | 67   | 0    | 0    | All fixtures pass |
 | harmonica    | 24    | 24   | 0    | 0    | All fixtures pass |
 | huh          | 46    | 42   | 0    | 4    | Textarea not implemented |
 | lipgloss     | 58    | 57   | 0    | 1    | Partial border edges |
-| glamour      | 84    | 78   | 0    | 6    | Remaining preset/link/image gaps |
+| glamour      | 84    | 81   | 0    | 3    | 3 style presets differ (notty, ascii, dracula) |
 | integration  | 24    | 24   | 0    | 0    | Cross-crate integration OK |
 
 ---
@@ -42,8 +42,8 @@ Result summary:
 
 ### Glamour (Markdown Rendering)
 Current gaps vs Go (from latest run):
-- **Skips:** `link_autolink_email`, `link_image`, `link_image_title`,
-  `style_preset_notty`, `style_preset_ascii`, `style_preset_dracula`
+- **Skips:** `style_preset_notty`, `style_preset_ascii`, `style_preset_dracula`
+- **Note:** All link, blockquote, nested list, and table tests now pass (81/84 = 96%)
 
 ### Lipgloss (Terminal Styling)
 - `border_partial_top_bottom`: partial border edges not implemented.
@@ -68,11 +68,31 @@ These are documented limitations that still need verification or closure:
 
 ## Recommended Next Actions (High Priority)
 
-1. **Address remaining Glamour discrepancies** (task list marker, email autolink, image glyph, presets, nested blockquotes).
+1. **Address remaining Glamour preset discrepancies** (notty/ascii backtick handling, dracula heading prefix).
 2. **Implement Lipgloss partial border edges**.
 3. **Implement Huh textarea field** and extend fixtures.
 4. **Audit Bubbletea custom I/O event injection**.
 5. **Run targeted validation** for README limitations (Wish stability, mouse drag, Unicode).
+
+---
+
+## Fixture Coverage Notes
+
+### Bubbles (100% Coverage)
+All 83 bubbles fixtures have full test implementations:
+- **viewport** (7): new, with_content, scroll_down, goto_top, goto_bottom, half_page_down, page_navigation
+- **list** (7): empty, with_items, cursor_movement, goto_top_bottom, pagination, title, selection
+- **table** (8): empty, with_data, cursor_movement, goto_top_bottom, focus, set_cursor, dimensions, cursor_bounds
+- **textinput** (10): new, with_value, char_limit, width, cursor_set/start/end, password, echo_none, focus_blur
+- **filepicker** (11): new, set_directory, allowed_types, show_hidden, height, dir_allowed, keybindings, format_size, cursor, sort_order, empty_view
+- **spinner** (12): line, dot, minidot, jump, pulse, points, globe, moon, monkey, meter, hamburger, model_view
+- **progress** (6): basic, zero, full, custom_width, no_percent, solid_fill
+- **paginator** (5): dots, arabic, navigation, boundaries, items_per_page
+- **help** (3): basic, custom_width, empty
+- **cursor** (4): mode_cursorblink, mode_cursorstatic, mode_cursorhide, model
+- **keybinding** (4): simple, multi, disabled, toggle
+- **stopwatch** (3): new, tick, reset
+- **timer** (3): new, tick, timeout
 
 ---
 
