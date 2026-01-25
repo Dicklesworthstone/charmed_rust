@@ -250,10 +250,10 @@ impl Cursor {
     pub fn view(&self) -> String {
         if self.blink {
             // Cursor is in "off" state, show normal text
-            self.text_style.render(&self.char)
+            self.text_style.clone().inline().render(&self.char)
         } else {
             // Cursor is in "on" state, show reversed
-            self.style.clone().reverse().render(&self.char)
+            self.style.clone().inline().reverse().render(&self.char)
         }
     }
 }
@@ -356,6 +356,41 @@ mod tests {
         // When blinking off (default), should render with text style
         let view = cursor.view();
         assert!(!view.is_empty());
+    }
+
+    fn strip_ansi(s: &str) -> String {
+        let mut result = String::with_capacity(s.len());
+        let mut in_escape = false;
+
+        for c in s.chars() {
+            if c == '\x1b' {
+                in_escape = true;
+                continue;
+            }
+            if in_escape {
+                if c == 'm' {
+                    in_escape = false;
+                }
+                continue;
+            }
+            result.push(c);
+        }
+
+        result
+    }
+
+    #[test]
+    fn test_cursor_view_inline_removes_padding() {
+        let mut cursor = Cursor::new();
+        cursor.set_char("x");
+
+        cursor.text_style = Style::new().padding(1);
+        cursor.blink = true;
+        assert_eq!(cursor.view(), "x");
+
+        cursor.style = Style::new().padding(1);
+        cursor.blink = false;
+        assert_eq!(strip_ansi(&cursor.view()), "x");
     }
 
     #[test]

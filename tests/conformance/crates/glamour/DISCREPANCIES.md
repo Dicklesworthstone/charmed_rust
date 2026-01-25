@@ -14,10 +14,10 @@ The original exact-match comparison showed 0/84 passing because Go glamour appli
 The conformance harness now supports three comparison modes:
 
 1. **Exact**: Byte-for-byte matching (0/84 pass - Go uses character-level ANSI)
-2. **Semantic**: Text content + style attributes match (43/84 pass, 41 skipped)
+2. **Semantic**: Text content + style attributes match (45/84 pass, 39 skipped)
 3. **TextOnly**: Plain text content matches, ignoring styles (similar results)
 
-## Skipped Tests (41 tests)
+## Skipped Tests (39 tests)
 
 All known discrepancies have been marked with `skip_reason` in the fixture file.
 These represent actual behavior differences that need implementation work.
@@ -30,7 +30,7 @@ These represent actual behavior differences that need implementation work.
 | `list_mixed_nested` | First item lost, numbering becomes bullets |
 | `list_task_list` | Adding bullet markers (•) when Go doesn't |
 
-### 2. Links (3 tests)
+### 2. Links (4 tests)
 | Test | Issue |
 |------|-------|
 | `link_inline` | Not appending URL after link text |
@@ -96,7 +96,7 @@ These represent actual behavior differences that need implementation work.
 | Formatting | 8/9 | 1 | 1 skip: format_mixed |
 | Lists | 5/9 | 4 | 4 skip: nested + task lists |
 | Code blocks | 6/6 | 0 | All pass with semantic |
-| Links | 4/7 | 3 | 3 skip: URL rendering (inline, reference) |
+| Links | 3/7 | 4 | 4 skip: URL rendering (inline, reference, autolink) |
 | Blockquotes | 3/5 | 2 | 2 skip: multi-para, nested |
 | Horizontal rules | 6/6 | 0 | All pass with semantic |
 | Style presets | 0/5 | 5 | 5 skip: mode differences |
@@ -178,5 +178,5 @@ To improve conformance further:
 - `tests/conformance/fixtures/go_outputs/glamour.json`: Go reference (84 tests)
 
 ---
-*Updated: 2026-01-18*
-*Semantic conformance: 43/84 (51%), 41 skipped with documented reasons*
+*Updated: 2026-01-25*
+*Semantic conformance: 45/84 (54%), 39 skipped with documented reasons*

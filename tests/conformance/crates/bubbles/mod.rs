@@ -1042,7 +1042,6 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
 
             if let Some(expected_total_pages) = expected.total_pages {
                 let actual = list.paginator().get_total_pages();
-                // Document discrepancy: Go expects {} but Rust calculates {} due to chrome height difference
                 if actual != expected_total_pages {
                     // Log discrepancy but don't fail - this is a known difference
                     eprintln!(
