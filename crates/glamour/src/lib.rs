@@ -1080,6 +1080,7 @@ struct RenderContext<'a> {
     in_image: bool,
     in_code_block: bool,
     in_block_quote: bool,
+    block_quote_pending_separator: bool,
     in_list: bool,
     ordered_list_stack: Vec<bool>,
     list_depth: usize,
@@ -1114,6 +1115,7 @@ impl<'a> RenderContext<'a> {
             in_image: false,
             in_code_block: false,
             in_block_quote: false,
+            block_quote_pending_separator: false,
             in_list: false,
             ordered_list_stack: Vec::new(),
             list_depth: 0,
@@ -1186,6 +1188,18 @@ impl<'a> RenderContext<'a> {
             }
 
             Event::Start(Tag::Paragraph) => {
+                if self.in_block_quote && self.block_quote_pending_separator {
+                    let indent_token = self
+                        .options
+                        .styles
+                        .block_quote
+                        .indent_token
+                        .as_deref()
+                        .unwrap_or("│ ");
+                    self.output.push_str(indent_token);
+                    self.output.push('\n');
+                    self.block_quote_pending_separator = false;
+                }
                 if !self.in_list {
                     self.text_buffer.clear();
                 }
@@ -1198,10 +1212,12 @@ impl<'a> RenderContext<'a> {
 
             Event::Start(Tag::BlockQuote(_kind)) => {
                 self.in_block_quote = true;
+                self.block_quote_pending_separator = false;
                 self.output.push('\n');
             }
             Event::End(TagEnd::BlockQuote(_)) => {
                 self.in_block_quote = false;
+                self.block_quote_pending_separator = false;
             }
 
             Event::Start(Tag::CodeBlock(kind)) => {
@@ -1517,10 +1533,8 @@ impl<'a> RenderContext<'a> {
                     .collect::<Vec<_>>()
                     .join("\n");
                 self.output.push_str(&indented);
-                // For blockquotes, add marker on the separator line between paragraphs
                 self.output.push('\n');
-                self.output.push_str(indent_token);
-                self.output.push('\n');
+                self.block_quote_pending_separator = true;
             } else {
                 self.output.push_str(&rendered);
                 self.output.push_str("\n\n");
@@ -1969,35 +1983,6 @@ mod tests {
         // For autolinks, URL should appear only once (not duplicated)
         let url_count = output.matches("https://example.com").count();
         assert_eq!(url_count, 1, "Autolink URL should appear exactly once");
-    }
-
-    #[test]
-    fn test_render_blockquote_multi_paragraph_debug() {
-        let renderer = Renderer::new().with_style(Style::Dark);
-        let output = renderer.render("> Paragraph 1\n>\n> Paragraph 2");
-
-        eprintln!("=== BLOCKQUOTE MULTI-PARAGRAPH OUTPUT ===");
-        for (i, line) in output.lines().enumerate() {
-            // Strip ANSI sequences
-            let mut plain = String::new();
-            let mut in_escape = false;
-            for c in line.chars() {
-                if c == '\x1b' {
-                    in_escape = true;
-                } else if in_escape {
-                    if c == 'm' {
-                        in_escape = false;
-                    }
-                } else {
-                    plain.push(c);
-                }
-            }
-            eprintln!("Line {}: {:?}", i, plain);
-        }
-        eprintln!("=== END ===");
-
-        assert!(output.contains("Paragraph 1"));
-        assert!(output.contains("Paragraph 2"));
     }
 
     #[test]

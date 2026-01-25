@@ -13,17 +13,15 @@ for feature gaps, behavioral discrepancies, and infrastructure blockers.
 Command:
 
 ```
-CARGO_HOME=target/cargo_home_20260124_210554 \
-CARGO_TARGET_DIR=target/conformance_20260124_210554 \
+CARGO_HOME=target/cargo_home_20260125_full \
+CARGO_TARGET_DIR=target/conformance_20260125_full \
 cargo test -p charmed_conformance -- --nocapture
 ```
 
 Result summary:
-- **Failed:** 4 (Glamour blockquote semantic mismatches)
+- **Failed:** 0
 - **Skipped:** 13 (Glamour 8, Huh 4, Lipgloss 1)
-- **Notes:** Benchmark compile tests emitted “running over 60 seconds” warnings
-  during this run; no cargo lock errors observed. See log
-  `target/conformance_20260124_210554.log`.
+- **Notes:** Benchmark compile tests ran; benchmark execution tests remain ignored.
 
 ### Per-Crate Conformance Results
 
@@ -35,14 +33,8 @@ Result summary:
 | harmonica    | 24    | 24   | 0    | 0    | All fixtures pass |
 | huh          | 46    | 42   | 0    | 4    | Textarea not implemented |
 | lipgloss     | 58    | 57   | 0    | 1    | Partial border edges |
-| glamour      | 84    | 72   | 4    | 8    | Blockquote mismatches + remaining preset/link gaps |
+| glamour      | 84    | 76   | 0    | 8    | Remaining preset/link/task list/nested quote gaps |
 | integration  | 24    | 24   | 0    | 0    | Cross-crate integration OK |
-
-### Benchmark E2E Failures (Infra)
-
-Benchmark compile tests no longer show cargo lock errors after the mutex change,
-but did emit “running over 60 seconds” warnings in this run. Re-run after Glamour
-fixes to confirm completion timing. See `target/conformance_20260124_210554.log`.
 
 ---
 
@@ -50,9 +42,6 @@ fixes to confirm completion timing. See `target/conformance_20260124_210554.log`
 
 ### Glamour (Markdown Rendering)
 Current gaps vs Go (from latest run):
-- **Fails (blockquotes):** `blockquote_single_line`, `blockquote_multi_line`,
-  `blockquote_multi_paragraph`, `blockquote_with_formatting`
-  - Actual output includes trailing right border `│` and drops styles (bold/italic/fg).
 - **Skips:** `list_task_list`, `link_autolink_email`, `link_image`,
   `link_image_title`, `blockquote_nested`, `style_preset_notty`,
   `style_preset_ascii`, `style_preset_dracula`
@@ -80,12 +69,11 @@ These are documented limitations that still need verification or closure:
 
 ## Recommended Next Actions (High Priority)
 
-1. **Fix Glamour blockquote rendering** (now failing, not skipped).
-2. **Address remaining Glamour discrepancies** (task list marker, email autolink, image glyph, presets).
-3. **Implement Lipgloss partial border edges**.
-4. **Implement Huh textarea field** and extend fixtures.
-5. **Audit Bubbletea custom I/O event injection**.
-6. **Run targeted validation** for README limitations (Wish stability, mouse drag, Unicode).
+1. **Address remaining Glamour discrepancies** (task list marker, email autolink, image glyph, presets, nested blockquotes).
+2. **Implement Lipgloss partial border edges**.
+3. **Implement Huh textarea field** and extend fixtures.
+4. **Audit Bubbletea custom I/O event injection**.
+5. **Run targeted validation** for README limitations (Wish stability, mouse drag, Unicode).
 
 ---
 
