@@ -3210,6 +3210,10 @@ impl Field for Text {
             self.keymap.prev.clone(),
             self.keymap.submit.clone(),
             self.keymap.next.clone(),
+            self.keymap.uppercase_word_forward.clone(),
+            self.keymap.lowercase_word_forward.clone(),
+            self.keymap.capitalize_word_forward.clone(),
+            self.keymap.transpose_character_backward.clone(),
         ]
     }
 
@@ -5287,5 +5291,164 @@ mod tests {
         // No errors initially
         let errors = form.all_errors();
         assert!(errors.is_empty());
+    }
+
+    // Word transformation tests matching Go bubbles/textarea behavior
+
+    #[test]
+    fn test_text_transpose_left() {
+        let mut text = Text::new().value("hello");
+        text.cursor_row = 0;
+        text.cursor_col = 5; // At end of "hello"
+
+        text.transpose_left();
+
+        // At end, moves cursor back first, then swaps 'l' and 'o'
+        assert_eq!(text.get_string_value(), "helol");
+        assert_eq!(text.cursor_col, 5); // Cursor stays at end
+    }
+
+    #[test]
+    fn test_text_transpose_left_middle() {
+        let mut text = Text::new().value("hello");
+        text.cursor_row = 0;
+        text.cursor_col = 2; // After 'e', before 'l'
+
+        text.transpose_left();
+
+        // Swaps 'e' (pos 1) and 'l' (pos 2)
+        assert_eq!(text.get_string_value(), "hlelo");
+        assert_eq!(text.cursor_col, 3); // Cursor moves right
+    }
+
+    #[test]
+    fn test_text_transpose_left_at_beginning() {
+        let mut text = Text::new().value("hello");
+        text.cursor_row = 0;
+        text.cursor_col = 0; // At beginning
+
+        text.transpose_left();
+
+        // No-op when at beginning
+        assert_eq!(text.get_string_value(), "hello");
+        assert_eq!(text.cursor_col, 0);
+    }
+
+    #[test]
+    fn test_text_uppercase_right() {
+        let mut text = Text::new().value("hello world");
+        text.cursor_row = 0;
+        text.cursor_col = 0; // At beginning
+
+        text.uppercase_right();
+
+        assert_eq!(text.get_string_value(), "HELLO world");
+        assert_eq!(text.cursor_col, 5); // Cursor moves past the word
+    }
+
+    #[test]
+    fn test_text_uppercase_right_with_spaces() {
+        let mut text = Text::new().value("  hello world");
+        text.cursor_row = 0;
+        text.cursor_col = 0; // Before spaces
+
+        text.uppercase_right();
+
+        // Skips spaces, then uppercases "hello"
+        assert_eq!(text.get_string_value(), "  HELLO world");
+        assert_eq!(text.cursor_col, 7); // Cursor after "HELLO"
+    }
+
+    #[test]
+    fn test_text_lowercase_right() {
+        let mut text = Text::new().value("HELLO WORLD");
+        text.cursor_row = 0;
+        text.cursor_col = 0;
+
+        text.lowercase_right();
+
+        assert_eq!(text.get_string_value(), "hello WORLD");
+        assert_eq!(text.cursor_col, 5);
+    }
+
+    #[test]
+    fn test_text_capitalize_right() {
+        let mut text = Text::new().value("hello world");
+        text.cursor_row = 0;
+        text.cursor_col = 0;
+
+        text.capitalize_right();
+
+        // Only first char is uppercased
+        assert_eq!(text.get_string_value(), "Hello world");
+        assert_eq!(text.cursor_col, 5);
+    }
+
+    #[test]
+    fn test_text_capitalize_right_already_upper() {
+        let mut text = Text::new().value("HELLO WORLD");
+        text.cursor_row = 0;
+        text.cursor_col = 0;
+
+        text.capitalize_right();
+
+        // First char stays upper, rest unchanged (capitalize doesn't lowercase)
+        assert_eq!(text.get_string_value(), "HELLO WORLD");
+        assert_eq!(text.cursor_col, 5);
+    }
+
+    #[test]
+    fn test_text_word_ops_multiline() {
+        let mut text = Text::new().value("hello\nworld");
+        text.cursor_row = 1;
+        text.cursor_col = 0;
+
+        text.uppercase_right();
+
+        // Only operates on current line
+        assert_eq!(text.get_string_value(), "hello\nWORLD");
+        assert_eq!(text.cursor_row, 1);
+        assert_eq!(text.cursor_col, 5);
+    }
+
+    #[test]
+    fn test_text_transpose_multiline() {
+        let mut text = Text::new().value("ab\ncd");
+        text.cursor_row = 1;
+        text.cursor_col = 2; // At end of "cd"
+
+        text.transpose_left();
+
+        // Swaps 'c' and 'd' on second line
+        assert_eq!(text.get_string_value(), "ab\ndc");
+    }
+
+    #[test]
+    fn test_text_word_ops_unicode() {
+        let mut text = Text::new().value("café résumé");
+        text.cursor_row = 0;
+        text.cursor_col = 0;
+
+        text.uppercase_right();
+
+        assert_eq!(text.get_string_value(), "CAFÉ résumé");
+        assert_eq!(text.cursor_col, 4);
+    }
+
+    #[test]
+    fn test_text_keymap_has_word_ops() {
+        let keymap = TextKeyMap::default();
+
+        // Verify the new bindings exist and are enabled
+        assert!(keymap.uppercase_word_forward.enabled());
+        assert!(keymap.lowercase_word_forward.enabled());
+        assert!(keymap.capitalize_word_forward.enabled());
+        assert!(keymap.transpose_character_backward.enabled());
+
+        // Verify expected key bindings
+        assert!(keymap.uppercase_word_forward.get_keys().contains(&"alt+u".to_string()));
+        assert!(keymap.lowercase_word_forward.get_keys().contains(&"alt+l".to_string()));
+        assert!(keymap.capitalize_word_forward.get_keys().contains(&"alt+c".to_string()));
+        assert!(keymap.transpose_character_backward.get_keys().contains(&"ctrl+t".to_string()));
     }
 }
