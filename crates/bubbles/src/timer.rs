@@ -277,22 +277,88 @@ impl Model for Timer {
     }
 }
 
-/// Formats a duration for display.
+/// Formats a duration for display, matching Go's time.Duration.String() behavior.
+///
+/// Format rules (matching Go):
+/// - Less than 1 second: show as milliseconds (e.g., "100ms", "1ms")
+/// - 1 second or more: show with decimal precision (e.g., "5.001s", "10.5s")
+/// - 1 minute or more: show minutes and seconds (e.g., "1m30s", "2m5.5s")
+/// - 1 hour or more: show hours, minutes, seconds (e.g., "1h0m0s", "1h30m15.5s")
 fn format_duration(d: Duration) -> String {
+    let total_nanos = d.as_nanos();
+
+    // Zero case
+    if total_nanos == 0 {
+        return "0s".to_string();
+    }
+
     let total_secs = d.as_secs();
+    let subsec_nanos = d.subsec_nanos();
+
+    // Less than 1 second - show as ms, µs, or ns
+    if total_secs == 0 {
+        let micros = d.as_micros();
+        if micros >= 1000 {
+            // Milliseconds
+            let millis = d.as_millis();
+            let remainder_micros = micros % 1000;
+            if remainder_micros == 0 {
+                return format!("{}ms", millis);
+            }
+            // Show with decimal precision
+            let decimal = format!("{:06}", d.as_nanos() % 1_000_000);
+            let trimmed = decimal.trim_end_matches('0');
+            if trimmed.is_empty() {
+                return format!("{}ms", millis);
+            }
+            return format!("{}.{}ms", millis, trimmed);
+        } else if micros >= 1 {
+            // Microseconds
+            let nanos = d.as_nanos() % 1000;
+            if nanos == 0 {
+                return format!("{}µs", micros);
+            }
+            let decimal = format!("{:03}", nanos);
+            let trimmed = decimal.trim_end_matches('0');
+            return format!("{}.{}µs", micros, trimmed);
+        } else {
+            // Nanoseconds
+            return format!("{}ns", d.as_nanos());
+        }
+    }
+
     let hours = total_secs / 3600;
     let minutes = (total_secs % 3600) / 60;
     let seconds = total_secs % 60;
-    let millis = d.subsec_millis();
+
+    // Format sub-second part
+    let subsec_str = if subsec_nanos > 0 {
+        // Convert to string with 9 decimal places, then trim trailing zeros
+        let decimal = format!("{:09}", subsec_nanos);
+        let trimmed = decimal.trim_end_matches('0');
+        if trimmed.is_empty() {
+            String::new()
+        } else {
+            format!(".{}", trimmed)
+        }
+    } else {
+        String::new()
+    };
 
     if hours > 0 {
-        format!("{}h{}m{}s", hours, minutes, seconds)
+        if subsec_str.is_empty() {
+            format!("{}h{}m{}s", hours, minutes, seconds)
+        } else {
+            format!("{}h{}m{}{}s", hours, minutes, seconds, subsec_str)
+        }
     } else if minutes > 0 {
-        format!("{}m{}s", minutes, seconds)
-    } else if millis > 0 && seconds < 10 {
-        format!("{}.{}s", seconds, millis / 100)
+        if subsec_str.is_empty() {
+            format!("{}m{}s", minutes, seconds)
+        } else {
+            format!("{}m{}{}s", minutes, seconds, subsec_str)
+        }
     } else {
-        format!("{}s", seconds)
+        format!("{}{}s", seconds, subsec_str)
     }
 }
 
@@ -444,5 +510,80 @@ mod tests {
         fn accepts_model<M: Model + Send + 'static>(_model: M) {}
         let timer = Timer::new(Duration::from_secs(10));
         accepts_model(timer);
+    }
+
+    // Go parity tests - format_duration should match Go's time.Duration.String()
+
+    #[test]
+    fn test_format_duration_go_parity_sub_second() {
+        // Sub-second durations use ms, µs, or ns units
+        assert_eq!(format_duration(Duration::from_millis(100)), "100ms");
+        assert_eq!(format_duration(Duration::from_millis(1)), "1ms");
+        assert_eq!(format_duration(Duration::from_millis(999)), "999ms");
+        assert_eq!(format_duration(Duration::from_micros(500)), "500µs");
+        assert_eq!(format_duration(Duration::from_nanos(123)), "123ns");
+    }
+
+    #[test]
+    fn test_format_duration_go_parity_seconds_with_decimals() {
+        // Seconds with sub-second precision
+        assert_eq!(format_duration(Duration::from_millis(5050)), "5.05s");
+        assert_eq!(format_duration(Duration::from_millis(5100)), "5.1s");
+        assert_eq!(format_duration(Duration::from_millis(5001)), "5.001s");
+        assert_eq!(format_duration(Duration::from_millis(9999)), "9.999s");
+        assert_eq!(format_duration(Duration::from_millis(10000)), "10s");
+        assert_eq!(format_duration(Duration::from_millis(10001)), "10.001s");
+    }
+
+    #[test]
+    fn test_format_duration_go_parity_minutes() {
+        // Minutes and seconds
+        assert_eq!(format_duration(Duration::from_secs(60)), "1m0s");
+        assert_eq!(format_duration(Duration::from_secs(61)), "1m1s");
+        assert_eq!(format_duration(Duration::from_secs(90)), "1m30s");
+        assert_eq!(format_duration(Duration::from_secs(125)), "2m5s");
+        // Minutes with sub-second precision
+        assert_eq!(format_duration(Duration::from_millis(90500)), "1m30.5s");
+    }
+
+    #[test]
+    fn test_format_duration_go_parity_hours() {
+        // Hours, minutes, and seconds
+        assert_eq!(format_duration(Duration::from_secs(3600)), "1h0m0s");
+        assert_eq!(format_duration(Duration::from_secs(3665)), "1h1m5s");
+        assert_eq!(format_duration(Duration::from_secs(100 * 3600 + 30 * 60 + 15)), "100h30m15s");
+        // Hours with sub-second precision
+        assert_eq!(format_duration(Duration::from_millis(3600_500)), "1h0m0.5s");
+    }
+
+    #[test]
+    fn test_timer_countdown_progression() {
+        // Test that timer counts down correctly over multiple ticks
+        let mut timer = Timer::with_interval(Duration::from_secs(5), Duration::from_secs(1));
+
+        // Tick 5 times
+        for i in 0..5 {
+            assert_eq!(timer.remaining(), Duration::from_secs(5 - i));
+            if i < 5 {
+                let tick = Message::new(TickMsg {
+                    id: timer.id(),
+                    tag: timer.tag,
+                    timeout: false,
+                });
+                timer.update(tick);
+            }
+        }
+
+        assert!(timer.timed_out());
+        assert!(!timer.running());
+    }
+
+    #[test]
+    fn test_timer_zero_duration() {
+        // Timer created with zero duration should be timed out immediately
+        let timer = Timer::new(Duration::ZERO);
+        assert!(timer.timed_out());
+        assert!(!timer.running());
+        assert_eq!(timer.view(), "0s");
     }
 }
