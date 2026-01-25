@@ -35,6 +35,7 @@ use crate::message::{
     SetWindowTitleMsg, WindowSizeMsg,
 };
 use crate::mouse::from_crossterm_mouse;
+use crate::screen::{ReleaseTerminalMsg, RestoreTerminalMsg};
 
 /// Errors that can occur when running a bubbletea program.
 ///
@@ -508,6 +509,55 @@ impl<M: Model> Program<M> {
                     continue;
                 }
 
+                // Handle release terminal
+                if msg.is::<ReleaseTerminalMsg>() {
+                    if !self.options.custom_io {
+                        // Disable features in reverse order
+                        if self.options.bracketed_paste {
+                            let _ = execute!(writer, event::DisableBracketedPaste);
+                        }
+                        if self.options.report_focus {
+                            let _ = execute!(writer, event::DisableFocusChange);
+                        }
+                        if self.options.mouse_all_motion || self.options.mouse_cell_motion {
+                            let _ = execute!(writer, DisableMouseCapture);
+                        }
+                        let _ = execute!(writer, Show);
+                        if self.options.alt_screen {
+                            let _ = execute!(writer, LeaveAlternateScreen);
+                        }
+                        let _ = disable_raw_mode();
+                    }
+                    continue;
+                }
+
+                // Handle restore terminal
+                if msg.is::<RestoreTerminalMsg>() {
+                    if !self.options.custom_io {
+                        // Re-enable features in original order
+                        let _ = enable_raw_mode();
+                        if self.options.alt_screen {
+                            let _ = execute!(writer, EnterAlternateScreen);
+                        }
+                        let _ = execute!(writer, Hide);
+                        if self.options.mouse_all_motion {
+                            let _ = execute!(writer, EnableMouseCapture);
+                        } else if self.options.mouse_cell_motion {
+                            let _ = execute!(writer, EnableMouseCapture);
+                        }
+                        if self.options.report_focus {
+                            let _ = execute!(writer, event::EnableFocusChange);
+                        }
+                        if self.options.bracketed_paste {
+                            let _ = execute!(writer, event::EnableBracketedPaste);
+                        }
+                        // Force a full re-render
+                        last_view.clear();
+                    }
+                    needs_render = true;
+                    continue;
+                }
+
                 // Update model
                 if let Some(cmd) = self.model.update(msg) {
                     self.handle_command(cmd, tx.clone());
@@ -827,6 +877,55 @@ impl<M: Model> Program<M> {
                             let (width, height) = terminal::size()?;
                             let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
                         }
+                        continue;
+                    }
+
+                    // Handle release terminal
+                    if msg.is::<ReleaseTerminalMsg>() {
+                        if !self.options.custom_io {
+                            // Disable features in reverse order
+                            if self.options.bracketed_paste {
+                                let _ = execute!(stdout, event::DisableBracketedPaste);
+                            }
+                            if self.options.report_focus {
+                                let _ = execute!(stdout, event::DisableFocusChange);
+                            }
+                            if self.options.mouse_all_motion || self.options.mouse_cell_motion {
+                                let _ = execute!(stdout, DisableMouseCapture);
+                            }
+                            let _ = execute!(stdout, Show);
+                            if self.options.alt_screen {
+                                let _ = execute!(stdout, LeaveAlternateScreen);
+                            }
+                            let _ = disable_raw_mode();
+                        }
+                        continue;
+                    }
+
+                    // Handle restore terminal
+                    if msg.is::<RestoreTerminalMsg>() {
+                        if !self.options.custom_io {
+                            // Re-enable features in original order
+                            let _ = enable_raw_mode();
+                            if self.options.alt_screen {
+                                let _ = execute!(stdout, EnterAlternateScreen);
+                            }
+                            let _ = execute!(stdout, Hide);
+                            if self.options.mouse_all_motion {
+                                let _ = execute!(stdout, EnableMouseCapture);
+                            } else if self.options.mouse_cell_motion {
+                                let _ = execute!(stdout, EnableMouseCapture);
+                            }
+                            if self.options.report_focus {
+                                let _ = execute!(stdout, event::EnableFocusChange);
+                            }
+                            if self.options.bracketed_paste {
+                                let _ = execute!(stdout, event::EnableBracketedPaste);
+                            }
+                            // Force a full re-render
+                            last_view.clear();
+                        }
+                        self.render(stdout, &mut last_view)?;
                         continue;
                     }
 

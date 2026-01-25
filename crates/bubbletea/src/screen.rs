@@ -7,18 +7,20 @@ use crate::command::Cmd;
 use crate::message::Message;
 
 // Internal message types for screen commands
-struct ClearScreenMsg;
-struct EnterAltScreenMsg;
-struct ExitAltScreenMsg;
-struct ShowCursorMsg;
-struct HideCursorMsg;
-struct EnableMouseCellMotionMsg;
-struct EnableMouseAllMotionMsg;
-struct DisableMouseMsg;
-struct EnableBracketedPasteMsg;
-struct DisableBracketedPasteMsg;
-struct EnableReportFocusMsg;
-struct DisableReportFocusMsg;
+pub(crate) struct ClearScreenMsg;
+pub(crate) struct EnterAltScreenMsg;
+pub(crate) struct ExitAltScreenMsg;
+pub(crate) struct ShowCursorMsg;
+pub(crate) struct HideCursorMsg;
+pub(crate) struct EnableMouseCellMotionMsg;
+pub(crate) struct EnableMouseAllMotionMsg;
+pub(crate) struct DisableMouseMsg;
+pub(crate) struct EnableBracketedPasteMsg;
+pub(crate) struct DisableBracketedPasteMsg;
+pub(crate) struct EnableReportFocusMsg;
+pub(crate) struct DisableReportFocusMsg;
+pub(crate) struct ReleaseTerminalMsg;
+pub(crate) struct RestoreTerminalMsg;
 
 /// Command to clear the screen.
 pub fn clear_screen() -> Cmd {
@@ -92,6 +94,59 @@ pub fn disable_report_focus() -> Cmd {
     Cmd::new(|| Message::new(DisableReportFocusMsg))
 }
 
+/// Command to release the terminal for external processes.
+///
+/// This restores the terminal to its normal state:
+/// - Disables raw mode
+/// - Shows the cursor
+/// - Exits alternate screen (if enabled)
+/// - Disables mouse tracking
+/// - Disables bracketed paste
+/// - Disables focus reporting
+///
+/// Use this before spawning external processes like text editors.
+/// Call `restore_terminal()` afterwards to resume the TUI.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use bubbletea::{Model, Message, Cmd, screen, sequence};
+/// use std::process::Command;
+///
+/// fn update(&mut self, msg: Message) -> Option<Cmd> {
+///     if msg.is::<EditMsg>() {
+///         return Some(sequence(vec![
+///             Some(screen::release_terminal()),
+///             Some(Cmd::new(|| {
+///                 // Run editor
+///                 Command::new("vim").arg("file.txt").status().ok();
+///                 Message::new(EditorDoneMsg)
+///             })),
+///             Some(screen::restore_terminal()),
+///         ]));
+///     }
+///     None
+/// }
+/// ```
+pub fn release_terminal() -> Cmd {
+    Cmd::new(|| Message::new(ReleaseTerminalMsg))
+}
+
+/// Command to restore the terminal after a release.
+///
+/// This re-enables the TUI state:
+/// - Enables raw mode
+/// - Hides the cursor
+/// - Enters alternate screen (if originally enabled)
+/// - Restores mouse tracking settings
+/// - Restores bracketed paste mode
+/// - Restores focus reporting
+///
+/// Use this after `release_terminal()` to resume the TUI.
+pub fn restore_terminal() -> Cmd {
+    Cmd::new(|| Message::new(RestoreTerminalMsg))
+}
+
 // Note: execute_screen_command could be used in the future for handling
 // screen commands dynamically. For now, screen control is handled directly
 // in the Program struct.
@@ -115,5 +170,7 @@ mod tests {
         let _ = disable_bracketed_paste();
         let _ = enable_report_focus();
         let _ = disable_report_focus();
+        let _ = release_terminal();
+        let _ = restore_terminal();
     }
 }

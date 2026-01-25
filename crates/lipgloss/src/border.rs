@@ -388,6 +388,43 @@ impl BorderEdges {
     pub const fn is_all(&self) -> bool {
         self.top && self.right && self.bottom && self.left
     }
+
+    /// Get the horizontal (left + right) border width for enabled edges.
+    pub fn horizontal_size(&self, border: &Border) -> usize {
+        let left = if self.left { border.left_size() } else { 0 };
+        let right = if self.right { border.right_size() } else { 0 };
+        left + right
+    }
+
+    /// Get the vertical (top + bottom) border height for enabled edges.
+    ///
+    /// The border parameter is accepted for API consistency with `horizontal_size`
+    /// but is currently unused since each border edge is one line tall.
+    pub fn vertical_size(&self, _border: &Border) -> usize {
+        let top = if self.top { 1 } else { 0 };
+        let bottom = if self.bottom { 1 } else { 0 };
+        top + bottom
+    }
+
+    /// Get the left border width if enabled.
+    pub fn left_size(&self, border: &Border) -> usize {
+        if self.left { border.left_size() } else { 0 }
+    }
+
+    /// Get the right border width if enabled.
+    pub fn right_size(&self, border: &Border) -> usize {
+        if self.right { border.right_size() } else { 0 }
+    }
+
+    /// Get the top border height if enabled (always 0 or 1).
+    pub const fn top_size(&self) -> usize {
+        if self.top { 1 } else { 0 }
+    }
+
+    /// Get the bottom border height if enabled (always 0 or 1).
+    pub const fn bottom_size(&self) -> usize {
+        if self.bottom { 1 } else { 0 }
+    }
 }
 
 #[cfg(test)]
@@ -425,5 +462,57 @@ mod tests {
 
         let none = BorderEdges::none();
         assert!(!none.any());
+    }
+
+    #[test]
+    fn test_border_edges_partial_sizes() {
+        let border = Border::normal();
+
+        // All edges enabled
+        let all = BorderEdges::all();
+        assert_eq!(all.horizontal_size(&border), 2); // left + right
+        assert_eq!(all.vertical_size(&border), 2); // top + bottom
+
+        // No edges enabled
+        let none = BorderEdges::none();
+        assert_eq!(none.horizontal_size(&border), 0);
+        assert_eq!(none.vertical_size(&border), 0);
+
+        // Only top and bottom
+        let top_bottom = BorderEdges {
+            top: true,
+            right: false,
+            bottom: true,
+            left: false,
+        };
+        assert_eq!(top_bottom.horizontal_size(&border), 0);
+        assert_eq!(top_bottom.vertical_size(&border), 2);
+
+        // Only left and right
+        let left_right = BorderEdges {
+            top: false,
+            right: true,
+            bottom: false,
+            left: true,
+        };
+        assert_eq!(left_right.horizontal_size(&border), 2);
+        assert_eq!(left_right.vertical_size(&border), 0);
+    }
+
+    #[test]
+    fn test_border_edges_individual_sizes() {
+        let border = Border::normal();
+
+        let edges = BorderEdges {
+            top: true,
+            right: false,
+            bottom: true,
+            left: true,
+        };
+
+        assert_eq!(edges.left_size(&border), 1);
+        assert_eq!(edges.right_size(&border), 0);
+        assert_eq!(edges.top_size(), 1);
+        assert_eq!(edges.bottom_size(), 1);
     }
 }

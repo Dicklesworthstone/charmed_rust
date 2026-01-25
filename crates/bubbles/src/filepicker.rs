@@ -160,6 +160,8 @@ impl Default for Styles {
 pub struct FilePicker {
     /// Unique ID for this file picker.
     id: u64,
+    /// Root directory (jail) for navigation.
+    pub root: Option<PathBuf>,
     /// Currently selected path (after selection).
     pub path: Option<PathBuf>,
     /// Current directory being displayed.
@@ -214,6 +216,7 @@ impl FilePicker {
     pub fn new() -> Self {
         Self {
             id: next_id(),
+            root: None,
             path: None,
             current_directory: PathBuf::from("."),
             allowed_types: Vec::new(),
@@ -249,9 +252,28 @@ impl FilePicker {
         &self.current_directory
     }
 
+    /// Sets the root directory (jail). Navigation above this directory will be blocked.
+    pub fn set_root(&mut self, root: impl AsRef<Path>) {
+        self.root = Some(root.as_ref().to_path_buf());
+        // Ensure current directory satisfies new root
+        if let Some(root) = &self.root
+            && !self.current_directory.starts_with(root)
+        {
+            self.current_directory = root.clone();
+        }
+    }
+
     /// Sets the current directory.
     pub fn set_current_directory(&mut self, path: impl AsRef<Path>) {
-        self.current_directory = path.as_ref().to_path_buf();
+        let path = path.as_ref();
+        if let Some(root) = &self.root
+            && !path.starts_with(root)
+        {
+            // If path is outside root, default to root
+            self.current_directory = root.clone();
+            return;
+        }
+        self.current_directory = path.to_path_buf();
     }
 
     /// Sets the height of the file picker.
@@ -426,19 +448,28 @@ impl FilePicker {
                 }
             } else if matches(&key_str, &[&self.key_map.back]) {
                 // Go to parent directory
-                if let Some(parent) = self.current_directory.parent() {
-                    self.current_directory = parent.to_path_buf();
-                }
-                if let Some((sel, min, max)) = self.pop_view() {
-                    self.selected = sel;
-                    self.min = min;
-                    self.max = max;
+                // Check if we are at root
+                let at_root = if let Some(root) = &self.root {
+                    self.current_directory == *root
                 } else {
-                    self.selected = 0;
-                    self.min = 0;
-                    self.max = self.height.saturating_sub(1);
+                    false
+                };
+
+                if !at_root {
+                    if let Some(parent) = self.current_directory.parent() {
+                        self.current_directory = parent.to_path_buf();
+                    }
+                    if let Some((sel, min, max)) = self.pop_view() {
+                        self.selected = sel;
+                        self.min = min;
+                        self.max = max;
+                    } else {
+                        self.selected = 0;
+                        self.min = 0;
+                        self.max = self.height.saturating_sub(1);
+                    }
+                    return Some(self.read_dir_cmd());
                 }
-                return Some(self.read_dir_cmd());
             } else if matches(&key_str, &[&self.key_map.open]) {
                 if self.files.is_empty() {
                     return None;

@@ -336,6 +336,8 @@ pub struct Theme {
     pub blurred: FieldStyles,
     /// Styles for focused fields.
     pub focused: FieldStyles,
+    /// Style for help text at the bottom of the form.
+    pub help: Style,
 }
 
 impl Default for Theme {
@@ -462,6 +464,7 @@ pub fn theme_base() -> Theme {
         field_separator: Style::new().set_string("\n\n"),
         focused,
         blurred,
+        help: Style::new().foreground("241").margin_top(1),
     }
 }
 
@@ -516,6 +519,7 @@ pub fn theme_charm() -> Theme {
 
     t.group.title = t.focused.title.clone();
     t.group.description = t.focused.description.clone();
+    t.help = Style::new().foreground("241").margin_top(1);
 
     t
 }
@@ -569,6 +573,7 @@ pub fn theme_dracula() -> Theme {
 
     t.group.title = t.focused.title.clone();
     t.group.description = t.focused.description.clone();
+    t.help = Style::new().foreground(comment).margin_top(1);
 
     t
 }
@@ -605,6 +610,7 @@ pub fn theme_base16() -> Theme {
 
     t.group.title = t.focused.title.clone();
     t.group.description = t.focused.description.clone();
+    t.help = Style::new().foreground("8").margin_top(1);
 
     t
 }
@@ -630,6 +636,8 @@ pub struct KeyMap {
     pub note: NoteKeyMap,
     /// Text area keybindings.
     pub text: TextKeyMap,
+    /// File picker keybindings.
+    pub file_picker: FilePickerKeyMap,
 }
 
 impl Default for KeyMap {
@@ -649,6 +657,7 @@ impl KeyMap {
             confirm: ConfirmKeyMap::default(),
             note: NoteKeyMap::default(),
             text: TextKeyMap::default(),
+            file_picker: FilePickerKeyMap::default(),
         }
     }
 }
@@ -929,6 +938,61 @@ impl Default for TextKeyMap {
     }
 }
 
+/// Keybindings for file picker fields.
+#[derive(Debug, Clone)]
+pub struct FilePickerKeyMap {
+    /// Go to next field.
+    pub next: Binding,
+    /// Go to previous field.
+    pub prev: Binding,
+    /// Submit the form.
+    pub submit: Binding,
+    /// Move up in file list.
+    pub up: Binding,
+    /// Move down in file list.
+    pub down: Binding,
+    /// Open directory or select file.
+    pub open: Binding,
+    /// Close picker / go back.
+    pub close: Binding,
+    /// Go back to parent directory.
+    pub back: Binding,
+    /// Select current item.
+    pub select: Binding,
+    /// Go to top of list.
+    pub goto_top: Binding,
+    /// Go to bottom of list.
+    pub goto_bottom: Binding,
+    /// Page up.
+    pub page_up: Binding,
+    /// Page down.
+    pub page_down: Binding,
+}
+
+impl Default for FilePickerKeyMap {
+    fn default() -> Self {
+        Self {
+            prev: Binding::new()
+                .keys(&["shift+tab"])
+                .help("shift+tab", "back"),
+            next: Binding::new().keys(&["tab"]).help("tab", "next"),
+            submit: Binding::new().keys(&["enter"]).help("enter", "submit"),
+            up: Binding::new().keys(&["up", "k"]).help("↑/k", "up"),
+            down: Binding::new().keys(&["down", "j"]).help("↓/j", "down"),
+            open: Binding::new().keys(&["enter", "l"]).help("enter", "open"),
+            close: Binding::new().keys(&["esc", "q"]).help("esc", "close"),
+            back: Binding::new().keys(&["backspace", "h"]).help("h", "back"),
+            select: Binding::new().keys(&["enter"]).help("enter", "select"),
+            goto_top: Binding::new().keys(&["g"]).help("g", "first"),
+            goto_bottom: Binding::new().keys(&["G"]).help("G", "last"),
+            page_up: Binding::new().keys(&["pgup", "K"]).help("pgup", "page up"),
+            page_down: Binding::new()
+                .keys(&["pgdown", "J"])
+                .help("pgdown", "page down"),
+        }
+    }
+}
+
 // -----------------------------------------------------------------------------
 // Field Position
 // -----------------------------------------------------------------------------
@@ -968,50 +1032,12 @@ impl FieldPosition {
 // Helper for key matching
 // -----------------------------------------------------------------------------
 
-/// Convert KeyMsg to a string representation for matching.
-fn key_to_string(key: &KeyMsg) -> String {
-    match key.key_type {
-        KeyType::Enter => "enter".to_string(),
-        KeyType::Tab => "tab".to_string(),
-        KeyType::Esc => "escape".to_string(),
-        KeyType::Backspace => "backspace".to_string(),
-        KeyType::Delete => "delete".to_string(),
-        KeyType::Left => "left".to_string(),
-        KeyType::Right => "right".to_string(),
-        KeyType::Up => "up".to_string(),
-        KeyType::Down => "down".to_string(),
-        KeyType::Home => "home".to_string(),
-        KeyType::End => "end".to_string(),
-        KeyType::PgUp => "pgup".to_string(),
-        KeyType::PgDown => "pgdown".to_string(),
-        KeyType::Space => " ".to_string(),
-        KeyType::CtrlC => "ctrl+c".to_string(),
-        KeyType::CtrlD => "ctrl+d".to_string(),
-        KeyType::CtrlA => "ctrl+a".to_string(),
-        KeyType::CtrlE => "ctrl+e".to_string(),
-        KeyType::CtrlJ => "ctrl+j".to_string(),
-        KeyType::CtrlK => "ctrl+k".to_string(),
-        KeyType::CtrlN => "ctrl+n".to_string(),
-        KeyType::CtrlP => "ctrl+p".to_string(),
-        KeyType::CtrlU => "ctrl+u".to_string(),
-        KeyType::Runes => {
-            if key.runes.len() == 1 {
-                key.runes[0].to_string()
-            } else {
-                key.runes.iter().collect()
-            }
-        }
-        KeyType::ShiftTab => "shift+tab".to_string(),
-        _ => String::new(),
-    }
-}
-
 /// Check if a KeyMsg matches a Binding.
 fn binding_matches(binding: &Binding, key: &KeyMsg) -> bool {
     if !binding.enabled() {
         return false;
     }
-    let key_str = key_to_string(key);
+    let key_str = key.to_string();
     binding.get_keys().iter().any(|k| k == &key_str)
 }
 
@@ -2631,6 +2657,979 @@ impl Field for Note {
 }
 
 // -----------------------------------------------------------------------------
+// Text Field (Textarea)
+// -----------------------------------------------------------------------------
+
+/// A multi-line text area field.
+///
+/// The Text field is used for gathering longer-form user input.
+/// It wraps the bubbles textarea component and integrates it with the huh form system.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use huh::Text;
+///
+/// let text = Text::new()
+///     .key("bio")
+///     .title("Biography")
+///     .description("Tell us about yourself")
+///     .placeholder("Enter your bio...")
+///     .lines(5);
+/// ```
+pub struct Text {
+    id: usize,
+    key: String,
+    value: String,
+    title: String,
+    description: String,
+    placeholder: String,
+    lines: usize,
+    char_limit: usize,
+    show_line_numbers: bool,
+    focused: bool,
+    error: Option<String>,
+    validate: Option<fn(&str) -> Option<String>>,
+    width: usize,
+    height: usize,
+    theme: Option<Theme>,
+    keymap: TextKeyMap,
+    _position: FieldPosition,
+    cursor_row: usize,
+    cursor_col: usize,
+}
+
+impl Default for Text {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Text {
+    /// Creates a new text area field.
+    pub fn new() -> Self {
+        Self {
+            id: next_id(),
+            key: String::new(),
+            value: String::new(),
+            title: String::new(),
+            description: String::new(),
+            placeholder: String::new(),
+            lines: 5,
+            char_limit: 0,
+            show_line_numbers: false,
+            focused: false,
+            error: None,
+            validate: None,
+            width: 80,
+            height: 0,
+            theme: None,
+            keymap: TextKeyMap::default(),
+            _position: FieldPosition::default(),
+            cursor_row: 0,
+            cursor_col: 0,
+        }
+    }
+
+    /// Sets the field key.
+    pub fn key(mut self, key: impl Into<String>) -> Self {
+        self.key = key.into();
+        self
+    }
+
+    /// Sets the initial value.
+    pub fn value(mut self, value: impl Into<String>) -> Self {
+        self.value = value.into();
+        self
+    }
+
+    /// Sets the title.
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.title = title.into();
+        self
+    }
+
+    /// Sets the description.
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = description.into();
+        self
+    }
+
+    /// Sets the placeholder text.
+    pub fn placeholder(mut self, placeholder: impl Into<String>) -> Self {
+        self.placeholder = placeholder.into();
+        self
+    }
+
+    /// Sets the number of visible lines.
+    pub fn lines(mut self, lines: usize) -> Self {
+        self.lines = lines;
+        self
+    }
+
+    /// Sets the character limit (0 = no limit).
+    pub fn char_limit(mut self, limit: usize) -> Self {
+        self.char_limit = limit;
+        self
+    }
+
+    /// Sets whether to show line numbers.
+    pub fn show_line_numbers(mut self, show: bool) -> Self {
+        self.show_line_numbers = show;
+        self
+    }
+
+    /// Sets the validation function.
+    pub fn validate(mut self, validate: fn(&str) -> Option<String>) -> Self {
+        self.validate = Some(validate);
+        self
+    }
+
+    fn get_theme(&self) -> Theme {
+        self.theme.clone().unwrap_or_else(theme_charm)
+    }
+
+    fn active_styles(&self) -> FieldStyles {
+        let theme = self.get_theme();
+        if self.focused {
+            theme.focused
+        } else {
+            theme.blurred
+        }
+    }
+
+    fn run_validation(&mut self) {
+        if let Some(validate) = self.validate {
+            self.error = validate(&self.value);
+        }
+    }
+
+    /// Gets the current value.
+    pub fn get_string_value(&self) -> &str {
+        &self.value
+    }
+
+    /// Returns the field ID.
+    pub fn id(&self) -> usize {
+        self.id
+    }
+
+    fn visible_lines(&self) -> Vec<&str> {
+        let lines: Vec<&str> = self.value.lines().collect();
+        if lines.is_empty() { vec![""] } else { lines }
+    }
+}
+
+impl Field for Text {
+    fn get_key(&self) -> &str {
+        &self.key
+    }
+
+    fn get_value(&self) -> Box<dyn Any> {
+        Box::new(self.value.clone())
+    }
+
+    fn error(&self) -> Option<&str> {
+        self.error.as_deref()
+    }
+
+    fn init(&mut self) -> Option<Cmd> {
+        None
+    }
+
+    fn update(&mut self, msg: &Message) -> Option<Cmd> {
+        if !self.focused {
+            return None;
+        }
+
+        if let Some(key_msg) = msg.downcast_ref::<KeyMsg>() {
+            self.error = None;
+
+            // Check for prev
+            if binding_matches(&self.keymap.prev, key_msg) {
+                return Some(Cmd::new(|| Message::new(PrevFieldMsg)));
+            }
+
+            // Check for next/submit (tab submits in text area)
+            if binding_matches(&self.keymap.next, key_msg)
+                || binding_matches(&self.keymap.submit, key_msg)
+            {
+                self.run_validation();
+                if self.error.is_some() {
+                    return None;
+                }
+                return Some(Cmd::new(|| Message::new(NextFieldMsg)));
+            }
+
+            // Check for new line
+            if binding_matches(&self.keymap.new_line, key_msg) {
+                if self.char_limit == 0 || self.value.len() < self.char_limit {
+                    self.value.push('\n');
+                    self.cursor_row += 1;
+                    self.cursor_col = 0;
+                }
+                return None;
+            }
+
+            // Handle text input
+            match key_msg.key_type {
+                KeyType::Runes => {
+                    for c in &key_msg.runes {
+                        if self.char_limit == 0 || self.value.chars().count() < self.char_limit {
+                            self.value.push(*c);
+                            self.cursor_col += 1;
+                        }
+                    }
+                }
+                KeyType::Backspace => {
+                    if !self.value.is_empty() {
+                        let removed = self.value.pop();
+                        if removed == Some('\n') {
+                            self.cursor_row = self.cursor_row.saturating_sub(1);
+                            let lines = self.visible_lines();
+                            self.cursor_col =
+                                lines.get(self.cursor_row).map(|l| l.len()).unwrap_or(0);
+                        } else {
+                            self.cursor_col = self.cursor_col.saturating_sub(1);
+                        }
+                    }
+                }
+                KeyType::Enter => {
+                    // Enter inserts newline in text areas
+                    if self.char_limit == 0 || self.value.len() < self.char_limit {
+                        self.value.push('\n');
+                        self.cursor_row += 1;
+                        self.cursor_col = 0;
+                    }
+                }
+                KeyType::Up => {
+                    self.cursor_row = self.cursor_row.saturating_sub(1);
+                }
+                KeyType::Down => {
+                    let line_count = self.visible_lines().len();
+                    if self.cursor_row < line_count.saturating_sub(1) {
+                        self.cursor_row += 1;
+                    }
+                }
+                KeyType::Left => {
+                    if self.cursor_col > 0 {
+                        self.cursor_col -= 1;
+                    }
+                }
+                KeyType::Right => {
+                    let lines = self.visible_lines();
+                    let current_line_len = lines.get(self.cursor_row).map(|l| l.len()).unwrap_or(0);
+                    if self.cursor_col < current_line_len {
+                        self.cursor_col += 1;
+                    }
+                }
+                KeyType::Home => {
+                    self.cursor_col = 0;
+                }
+                KeyType::End => {
+                    let lines = self.visible_lines();
+                    self.cursor_col = lines.get(self.cursor_row).map(|l| l.len()).unwrap_or(0);
+                }
+                _ => {}
+            }
+        }
+
+        None
+    }
+
+    fn view(&self) -> String {
+        let styles = self.active_styles();
+        let mut output = String::new();
+
+        // Title
+        if !self.title.is_empty() {
+            output.push_str(&styles.title.render(&self.title));
+            if self.error.is_some() {
+                output.push_str(&styles.error_indicator.render(""));
+            }
+            output.push('\n');
+        }
+
+        // Description
+        if !self.description.is_empty() {
+            output.push_str(&styles.description.render(&self.description));
+            output.push('\n');
+        }
+
+        // Text area content
+        let lines = self.visible_lines();
+        let visible_lines = self.lines.min(lines.len().max(1));
+
+        for (i, line) in lines.iter().take(visible_lines).enumerate() {
+            if self.show_line_numbers {
+                let line_num = format!("{:3} ", i + 1);
+                output.push_str(&styles.description.render(&line_num));
+            }
+
+            if line.is_empty() && i == 0 && self.value.is_empty() && !self.placeholder.is_empty() {
+                output.push_str(&styles.text_input.placeholder.render(&self.placeholder));
+            } else {
+                output.push_str(&styles.text_input.text.render(line));
+            }
+
+            if i < visible_lines - 1 {
+                output.push('\n');
+            }
+        }
+
+        // Pad with empty lines if needed
+        for i in lines.len()..visible_lines {
+            output.push('\n');
+            if self.show_line_numbers {
+                let line_num = format!("{:3} ", i + 1);
+                output.push_str(&styles.description.render(&line_num));
+            }
+        }
+
+        // Error message
+        if let Some(ref err) = self.error {
+            output.push('\n');
+            output.push_str(&styles.error_message.render(err));
+        }
+
+        styles
+            .base
+            .width(self.width.try_into().unwrap_or(u16::MAX))
+            .render(&output)
+    }
+
+    fn focus(&mut self) -> Option<Cmd> {
+        self.focused = true;
+        None
+    }
+
+    fn blur(&mut self) -> Option<Cmd> {
+        self.focused = false;
+        self.run_validation();
+        None
+    }
+
+    fn key_binds(&self) -> Vec<Binding> {
+        vec![
+            self.keymap.new_line.clone(),
+            self.keymap.prev.clone(),
+            self.keymap.submit.clone(),
+            self.keymap.next.clone(),
+        ]
+    }
+
+    fn with_theme(&mut self, theme: &Theme) {
+        if self.theme.is_none() {
+            self.theme = Some(theme.clone());
+        }
+    }
+
+    fn with_keymap(&mut self, keymap: &KeyMap) {
+        self.keymap = keymap.text.clone();
+    }
+
+    fn with_width(&mut self, width: usize) {
+        self.width = width;
+    }
+
+    fn with_height(&mut self, height: usize) {
+        self.height = height;
+        // Adjust lines based on height minus title/description
+        let adjust = if self.title.is_empty() { 0 } else { 1 }
+            + if self.description.is_empty() { 0 } else { 1 };
+        if height > adjust {
+            self.lines = height - adjust;
+        }
+    }
+
+    fn with_position(&mut self, position: FieldPosition) {
+        self._position = position;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// FilePicker Field
+// -----------------------------------------------------------------------------
+
+/// A file picker field for selecting files and directories.
+///
+/// The FilePicker field allows users to browse the filesystem and select files
+/// or directories. It can be configured to filter by file type, show/hide hidden
+/// files, and control whether files and/or directories can be selected.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use huh::FilePicker;
+///
+/// let picker = FilePicker::new()
+///     .key("config_file")
+///     .title("Select Configuration File")
+///     .description("Choose a .toml or .json file")
+///     .allowed_types(vec![".toml".to_string(), ".json".to_string()])
+///     .current_directory(".");
+/// ```
+pub struct FilePicker {
+    id: usize,
+    key: String,
+    selected_path: Option<String>,
+    title: String,
+    description: String,
+    current_directory: String,
+    allowed_types: Vec<String>,
+    show_hidden: bool,
+    show_size: bool,
+    show_permissions: bool,
+    file_allowed: bool,
+    dir_allowed: bool,
+    picking: bool,
+    focused: bool,
+    error: Option<String>,
+    validate: Option<fn(&str) -> Option<String>>,
+    width: usize,
+    height: usize,
+    theme: Option<Theme>,
+    keymap: FilePickerKeyMap,
+    _position: FieldPosition,
+    // Simple file list for display
+    files: Vec<FileEntry>,
+    selected_index: usize,
+    offset: usize,
+}
+
+/// A file entry in the picker.
+#[derive(Debug, Clone)]
+struct FileEntry {
+    name: String,
+    path: String,
+    is_dir: bool,
+    size: u64,
+    #[allow(dead_code)]
+    mode: String,
+}
+
+impl Default for FilePicker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl FilePicker {
+    /// Creates a new file picker field.
+    pub fn new() -> Self {
+        Self {
+            id: next_id(),
+            key: String::new(),
+            selected_path: None,
+            title: String::new(),
+            description: String::new(),
+            current_directory: ".".to_string(),
+            allowed_types: Vec::new(),
+            show_hidden: false,
+            show_size: false,
+            show_permissions: false,
+            file_allowed: true,
+            dir_allowed: false,
+            picking: false,
+            focused: false,
+            error: None,
+            validate: None,
+            width: 80,
+            height: 10,
+            theme: None,
+            keymap: FilePickerKeyMap::default(),
+            _position: FieldPosition::default(),
+            files: Vec::new(),
+            selected_index: 0,
+            offset: 0,
+        }
+    }
+
+    /// Sets the field key.
+    pub fn key(mut self, key: impl Into<String>) -> Self {
+        self.key = key.into();
+        self
+    }
+
+    /// Sets the title.
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.title = title.into();
+        self
+    }
+
+    /// Sets the description.
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = description.into();
+        self
+    }
+
+    /// Sets the starting directory.
+    pub fn current_directory(mut self, dir: impl Into<String>) -> Self {
+        self.current_directory = dir.into();
+        self
+    }
+
+    /// Sets the allowed file types (extensions).
+    pub fn allowed_types(mut self, types: Vec<String>) -> Self {
+        self.allowed_types = types;
+        self
+    }
+
+    /// Sets whether to show hidden files.
+    pub fn show_hidden(mut self, show: bool) -> Self {
+        self.show_hidden = show;
+        self
+    }
+
+    /// Sets whether to show file sizes.
+    pub fn show_size(mut self, show: bool) -> Self {
+        self.show_size = show;
+        self
+    }
+
+    /// Sets whether to show file permissions.
+    pub fn show_permissions(mut self, show: bool) -> Self {
+        self.show_permissions = show;
+        self
+    }
+
+    /// Sets whether files can be selected.
+    pub fn file_allowed(mut self, allowed: bool) -> Self {
+        self.file_allowed = allowed;
+        self
+    }
+
+    /// Sets whether directories can be selected.
+    pub fn dir_allowed(mut self, allowed: bool) -> Self {
+        self.dir_allowed = allowed;
+        self
+    }
+
+    /// Sets the validation function.
+    pub fn validate(mut self, validate: fn(&str) -> Option<String>) -> Self {
+        self.validate = Some(validate);
+        self
+    }
+
+    /// Sets the visible height (number of entries shown).
+    pub fn height_entries(mut self, height: usize) -> Self {
+        self.height = height;
+        self
+    }
+
+    fn get_theme(&self) -> Theme {
+        self.theme.clone().unwrap_or_else(theme_charm)
+    }
+
+    fn active_styles(&self) -> FieldStyles {
+        let theme = self.get_theme();
+        if self.focused {
+            theme.focused
+        } else {
+            theme.blurred
+        }
+    }
+
+    fn run_validation(&mut self) {
+        if let Some(validate) = self.validate
+            && let Some(ref path) = self.selected_path
+        {
+            self.error = validate(path);
+        }
+    }
+
+    fn read_directory(&mut self) {
+        self.files.clear();
+        self.selected_index = 0;
+        self.offset = 0;
+
+        // Add parent directory entry if not at root
+        if self.current_directory != "/" {
+            self.files.push(FileEntry {
+                name: "..".to_string(),
+                path: "..".to_string(),
+                is_dir: true,
+                size: 0,
+                mode: String::new(),
+            });
+        }
+
+        // Read directory contents
+        if let Ok(entries) = std::fs::read_dir(&self.current_directory) {
+            let mut entries: Vec<_> = entries
+                .filter_map(|e| e.ok())
+                .filter_map(|entry| {
+                    let name = entry.file_name().to_string_lossy().to_string();
+
+                    // Skip hidden files unless show_hidden is true
+                    if !self.show_hidden && name.starts_with('.') {
+                        return None;
+                    }
+
+                    let metadata = entry.metadata().ok()?;
+                    let is_dir = metadata.is_dir();
+                    let size = metadata.len();
+
+                    // Filter by allowed types (only for files)
+                    if !is_dir && !self.allowed_types.is_empty() {
+                        let matches = self.allowed_types.iter().any(|ext| {
+                            name.ends_with(ext)
+                                || name.ends_with(&ext.trim_start_matches('.').to_string())
+                        });
+                        if !matches {
+                            return None;
+                        }
+                    }
+
+                    let path = entry.path().to_string_lossy().to_string();
+
+                    Some(FileEntry {
+                        name,
+                        path,
+                        is_dir,
+                        size,
+                        mode: String::new(),
+                    })
+                })
+                .collect();
+
+            // Sort: directories first, then alphabetically
+            entries.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+            });
+
+            self.files.extend(entries);
+        }
+    }
+
+    fn is_selectable(&self, entry: &FileEntry) -> bool {
+        if entry.is_dir {
+            self.dir_allowed
+        } else {
+            self.file_allowed
+        }
+    }
+
+    fn format_size(size: u64) -> String {
+        const KB: u64 = 1024;
+        const MB: u64 = KB * 1024;
+        const GB: u64 = MB * 1024;
+
+        if size >= GB {
+            format!("{:.1}G", size as f64 / GB as f64)
+        } else if size >= MB {
+            format!("{:.1}M", size as f64 / MB as f64)
+        } else if size >= KB {
+            format!("{:.1}K", size as f64 / KB as f64)
+        } else {
+            format!("{}B", size)
+        }
+    }
+
+    /// Gets the currently selected path.
+    pub fn get_selected_path(&self) -> Option<&str> {
+        self.selected_path.as_deref()
+    }
+
+    /// Returns the field ID.
+    pub fn id(&self) -> usize {
+        self.id
+    }
+}
+
+impl Field for FilePicker {
+    fn get_key(&self) -> &str {
+        &self.key
+    }
+
+    fn get_value(&self) -> Box<dyn Any> {
+        Box::new(self.selected_path.clone().unwrap_or_default())
+    }
+
+    fn error(&self) -> Option<&str> {
+        self.error.as_deref()
+    }
+
+    fn init(&mut self) -> Option<Cmd> {
+        self.read_directory();
+        None
+    }
+
+    fn update(&mut self, msg: &Message) -> Option<Cmd> {
+        if !self.focused {
+            return None;
+        }
+
+        if let Some(key_msg) = msg.downcast_ref::<KeyMsg>() {
+            self.error = None;
+
+            // Check for prev
+            if binding_matches(&self.keymap.prev, key_msg) {
+                self.picking = false;
+                return Some(Cmd::new(|| Message::new(PrevFieldMsg)));
+            }
+
+            // Check for next (tab)
+            if binding_matches(&self.keymap.next, key_msg) {
+                self.picking = false;
+                self.run_validation();
+                if self.error.is_some() {
+                    return None;
+                }
+                return Some(Cmd::new(|| Message::new(NextFieldMsg)));
+            }
+
+            // Handle close/escape
+            if binding_matches(&self.keymap.close, key_msg) {
+                if self.picking {
+                    self.picking = false;
+                } else {
+                    return Some(Cmd::new(|| Message::new(NextFieldMsg)));
+                }
+                return None;
+            }
+
+            // Handle open (enter picker mode or select)
+            if binding_matches(&self.keymap.open, key_msg) {
+                if !self.picking {
+                    self.picking = true;
+                    self.read_directory();
+                    return None;
+                }
+
+                // In picking mode, open directory or select file
+                if let Some(entry) = self.files.get(self.selected_index) {
+                    if entry.name == ".." {
+                        // Go to parent directory
+                        if let Some(parent) = std::path::Path::new(&self.current_directory).parent()
+                        {
+                            self.current_directory = parent.to_string_lossy().to_string();
+                            if self.current_directory.is_empty() {
+                                self.current_directory = "/".to_string();
+                            }
+                            self.read_directory();
+                        }
+                    } else if entry.is_dir {
+                        // Enter directory
+                        self.current_directory = entry.path.clone();
+                        self.read_directory();
+                    } else if self.is_selectable(entry) {
+                        // Select file
+                        self.selected_path = Some(entry.path.clone());
+                        self.picking = false;
+                        self.run_validation();
+                        if self.error.is_some() {
+                            return None;
+                        }
+                        return Some(Cmd::new(|| Message::new(NextFieldMsg)));
+                    }
+                }
+                return None;
+            }
+
+            // Handle back (go to parent directory)
+            if self.picking && binding_matches(&self.keymap.back, key_msg) {
+                if let Some(parent) = std::path::Path::new(&self.current_directory).parent() {
+                    self.current_directory = parent.to_string_lossy().to_string();
+                    if self.current_directory.is_empty() {
+                        self.current_directory = "/".to_string();
+                    }
+                    self.read_directory();
+                }
+                return None;
+            }
+
+            // Navigation in picker mode
+            if self.picking {
+                if binding_matches(&self.keymap.up, key_msg) {
+                    if self.selected_index > 0 {
+                        self.selected_index -= 1;
+                        if self.selected_index < self.offset {
+                            self.offset = self.selected_index;
+                        }
+                    }
+                } else if binding_matches(&self.keymap.down, key_msg) {
+                    if self.selected_index < self.files.len().saturating_sub(1) {
+                        self.selected_index += 1;
+                        if self.selected_index >= self.offset + self.height {
+                            self.offset = self.selected_index.saturating_sub(self.height - 1);
+                        }
+                    }
+                } else if binding_matches(&self.keymap.goto_top, key_msg) {
+                    self.selected_index = 0;
+                    self.offset = 0;
+                } else if binding_matches(&self.keymap.goto_bottom, key_msg) {
+                    self.selected_index = self.files.len().saturating_sub(1);
+                    self.offset = self.selected_index.saturating_sub(self.height - 1);
+                }
+            }
+        }
+
+        None
+    }
+
+    fn view(&self) -> String {
+        let styles = self.active_styles();
+        let mut output = String::new();
+
+        // Title
+        if !self.title.is_empty() {
+            output.push_str(&styles.title.render(&self.title));
+            if self.error.is_some() {
+                output.push_str(&styles.error_indicator.render(""));
+            }
+            output.push('\n');
+        }
+
+        // Description
+        if !self.description.is_empty() {
+            output.push_str(&styles.description.render(&self.description));
+            output.push('\n');
+        }
+
+        if self.picking {
+            // Show file list
+            let visible: Vec<_> = self
+                .files
+                .iter()
+                .skip(self.offset)
+                .take(self.height)
+                .collect();
+
+            for (i, entry) in visible.iter().enumerate() {
+                let idx = self.offset + i;
+                let is_selected = idx == self.selected_index;
+                let is_selectable = self.is_selectable(entry);
+
+                // Cursor
+                if is_selected {
+                    output.push_str(&styles.select_selector.render(""));
+                } else {
+                    output.push_str("  ");
+                }
+
+                // Entry display
+                let mut entry_str = String::new();
+
+                // Directory/file indicator
+                if entry.is_dir {
+                    entry_str.push_str("📁 ");
+                } else {
+                    entry_str.push_str("   ");
+                }
+
+                entry_str.push_str(&entry.name);
+
+                // Size
+                if self.show_size && !entry.is_dir {
+                    entry_str.push_str(&format!(" ({})", Self::format_size(entry.size)));
+                }
+
+                if is_selected && is_selectable {
+                    output.push_str(&styles.selected_option.render(&entry_str));
+                } else if !is_selectable && !entry.is_dir && entry.name != ".." {
+                    output.push_str(&styles.text_input.placeholder.render(&entry_str));
+                } else {
+                    output.push_str(&styles.option.render(&entry_str));
+                }
+
+                output.push('\n');
+            }
+
+            // Remove trailing newline
+            if !visible.is_empty() {
+                output.pop();
+            }
+
+            // Show current directory
+            output.push('\n');
+            output.push_str(
+                &styles
+                    .description
+                    .render(&format!("📂 {}", self.current_directory)),
+            );
+        } else {
+            // Show selected file or placeholder
+            if let Some(ref path) = self.selected_path {
+                output.push_str(&styles.selected_option.render(path));
+            } else {
+                output.push_str(
+                    &styles
+                        .text_input
+                        .placeholder
+                        .render("No file selected. Press Enter to browse."),
+                );
+            }
+        }
+
+        // Error message
+        if let Some(ref err) = self.error {
+            output.push('\n');
+            output.push_str(&styles.error_message.render(err));
+        }
+
+        styles
+            .base
+            .width(self.width.try_into().unwrap_or(u16::MAX))
+            .render(&output)
+    }
+
+    fn focus(&mut self) -> Option<Cmd> {
+        self.focused = true;
+        None
+    }
+
+    fn blur(&mut self) -> Option<Cmd> {
+        self.focused = false;
+        self.picking = false;
+        self.run_validation();
+        None
+    }
+
+    fn key_binds(&self) -> Vec<Binding> {
+        if self.picking {
+            vec![
+                self.keymap.up.clone(),
+                self.keymap.down.clone(),
+                self.keymap.open.clone(),
+                self.keymap.back.clone(),
+                self.keymap.close.clone(),
+            ]
+        } else {
+            vec![
+                self.keymap.open.clone(),
+                self.keymap.prev.clone(),
+                self.keymap.next.clone(),
+            ]
+        }
+    }
+
+    fn with_theme(&mut self, theme: &Theme) {
+        if self.theme.is_none() {
+            self.theme = Some(theme.clone());
+        }
+    }
+
+    fn with_keymap(&mut self, keymap: &KeyMap) {
+        self.keymap = keymap.file_picker.clone();
+    }
+
+    fn with_width(&mut self, width: usize) {
+        self.width = width;
+    }
+
+    fn with_height(&mut self, height: usize) {
+        self.height = height;
+    }
+
+    fn with_position(&mut self, position: FieldPosition) {
+        self._position = position;
+    }
+}
+
+// -----------------------------------------------------------------------------
 // Group
 // -----------------------------------------------------------------------------
 
@@ -2732,6 +3731,61 @@ impl Group {
     fn get_theme(&self) -> Theme {
         self.theme.clone().unwrap_or_else(theme_charm)
     }
+
+    /// Returns the header portion of the group (title and description).
+    ///
+    /// This is useful for custom layouts that want to render the header
+    /// separately from the content.
+    pub fn header(&self) -> String {
+        let theme = self.get_theme();
+        let mut output = String::new();
+
+        if !self.title.is_empty() {
+            output.push_str(&theme.group.title.render(&self.title));
+            output.push('\n');
+        }
+
+        if !self.description.is_empty() {
+            output.push_str(&theme.group.description.render(&self.description));
+            output.push('\n');
+        }
+
+        output
+    }
+
+    /// Returns the content portion of the group (just the fields).
+    ///
+    /// This is useful for custom layouts that want to render the content
+    /// separately from the header and footer.
+    pub fn content(&self) -> String {
+        let theme = self.get_theme();
+        let mut output = String::new();
+
+        for (i, field) in self.fields.iter().enumerate() {
+            output.push_str(&field.view());
+            if i < self.fields.len() - 1 {
+                output.push_str(&theme.field_separator.render(""));
+            }
+        }
+
+        output
+    }
+
+    /// Returns the footer portion of the group (currently errors).
+    ///
+    /// This is useful for custom layouts that want to render the footer
+    /// separately from the content.
+    pub fn footer(&self) -> String {
+        let theme = self.get_theme();
+        let errors = self.errors();
+
+        if errors.is_empty() {
+            return String::new();
+        }
+
+        let error_text = errors.join(", ");
+        theme.focused.error_message.render(&error_text)
+    }
 }
 
 impl Model for Group {
@@ -2808,6 +3862,272 @@ impl Model for Group {
 }
 
 // -----------------------------------------------------------------------------
+// Layout
+// -----------------------------------------------------------------------------
+
+/// Layout determines how groups are arranged within a form.
+///
+/// The layout system controls how multiple groups are displayed:
+/// - `Default`: Shows one group at a time (traditional wizard-style)
+/// - `Stack`: Shows all groups stacked vertically
+/// - `Columns`: Distributes groups across columns
+/// - `Grid`: Arranges groups in a grid pattern
+pub trait Layout: Send + Sync {
+    /// Renders the form using this layout.
+    fn view(&self, form: &Form) -> String;
+
+    /// Returns the width allocated to a specific group.
+    fn group_width(&self, form: &Form, group_index: usize, total_width: usize) -> usize;
+}
+
+/// Default layout - shows one group at a time.
+///
+/// This is the traditional wizard-style form layout where only the
+/// current group is visible and users navigate between groups.
+#[derive(Debug, Clone, Default)]
+pub struct LayoutDefault;
+
+impl Layout for LayoutDefault {
+    fn view(&self, form: &Form) -> String {
+        if let Some(group) = form.groups.get(form.current_group) {
+            if group.is_hidden() {
+                return String::new();
+            }
+            form.theme
+                .form
+                .base
+                .clone()
+                .width(form.width.try_into().unwrap_or(u16::MAX))
+                .render(&group.view())
+        } else {
+            String::new()
+        }
+    }
+
+    fn group_width(&self, form: &Form, _group_index: usize, _total_width: usize) -> usize {
+        form.width
+    }
+}
+
+/// Stack layout - shows all groups stacked vertically.
+///
+/// All groups are rendered one after another, with the form's
+/// field separator between them.
+#[derive(Debug, Clone, Default)]
+pub struct LayoutStack;
+
+impl Layout for LayoutStack {
+    fn view(&self, form: &Form) -> String {
+        let mut output = String::new();
+        let visible_groups: Vec<_> = form
+            .groups
+            .iter()
+            .enumerate()
+            .filter(|(_, g)| !g.is_hidden())
+            .collect();
+
+        for (i, (_, group)) in visible_groups.iter().enumerate() {
+            output.push_str(&group.view());
+            if i < visible_groups.len() - 1 {
+                output.push('\n');
+            }
+        }
+
+        form.theme
+            .form
+            .base
+            .clone()
+            .width(form.width.try_into().unwrap_or(u16::MAX))
+            .render(&output)
+    }
+
+    fn group_width(&self, form: &Form, _group_index: usize, _total_width: usize) -> usize {
+        form.width
+    }
+}
+
+/// Columns layout - distributes groups across columns.
+///
+/// Groups are arranged in columns, wrapping to the next row when needed.
+#[derive(Debug, Clone)]
+pub struct LayoutColumns {
+    columns: usize,
+}
+
+impl LayoutColumns {
+    /// Creates a new columns layout with the specified number of columns.
+    pub fn new(columns: usize) -> Self {
+        Self {
+            columns: columns.max(1),
+        }
+    }
+}
+
+impl Default for LayoutColumns {
+    fn default() -> Self {
+        Self::new(2)
+    }
+}
+
+impl Layout for LayoutColumns {
+    fn view(&self, form: &Form) -> String {
+        let visible_groups: Vec<_> = form
+            .groups
+            .iter()
+            .enumerate()
+            .filter(|(_, g)| !g.is_hidden())
+            .collect();
+
+        if visible_groups.is_empty() {
+            return String::new();
+        }
+
+        let column_width = form.width / self.columns;
+        let mut rows: Vec<String> = Vec::new();
+
+        for chunk in visible_groups.chunks(self.columns) {
+            let mut row_parts: Vec<String> = Vec::new();
+            for (_, group) in chunk {
+                // Render each group with column width
+                let group_view = group.view();
+                // Pad to column width
+                let lines: Vec<&str> = group_view.lines().collect();
+                let padded: Vec<String> = lines
+                    .iter()
+                    .map(|line| {
+                        let visual_width = lipgloss::width(line);
+                        if visual_width < column_width {
+                            format!("{}{}", line, " ".repeat(column_width - visual_width))
+                        } else {
+                            line.to_string()
+                        }
+                    })
+                    .collect();
+                row_parts.push(padded.join("\n"));
+            }
+
+            // Join columns horizontally using lipgloss
+            if row_parts.len() == 1 {
+                rows.push(row_parts.into_iter().next().unwrap());
+            } else {
+                let row_refs: Vec<&str> = row_parts.iter().map(|s| s.as_str()).collect();
+                rows.push(lipgloss::join_horizontal(
+                    lipgloss::Position::Top,
+                    &row_refs,
+                ));
+            }
+        }
+
+        let output = rows.join("\n");
+        form.theme
+            .form
+            .base
+            .clone()
+            .width(form.width.try_into().unwrap_or(u16::MAX))
+            .render(&output)
+    }
+
+    fn group_width(&self, form: &Form, _group_index: usize, _total_width: usize) -> usize {
+        form.width / self.columns
+    }
+}
+
+/// Grid layout - arranges groups in a fixed grid pattern.
+///
+/// Groups are arranged in a grid with the specified number of rows and columns.
+/// If there are more groups than cells, extra groups are not displayed.
+#[derive(Debug, Clone)]
+pub struct LayoutGrid {
+    rows: usize,
+    columns: usize,
+}
+
+impl LayoutGrid {
+    /// Creates a new grid layout with the specified dimensions.
+    pub fn new(rows: usize, columns: usize) -> Self {
+        Self {
+            rows: rows.max(1),
+            columns: columns.max(1),
+        }
+    }
+}
+
+impl Default for LayoutGrid {
+    fn default() -> Self {
+        Self::new(2, 2)
+    }
+}
+
+impl Layout for LayoutGrid {
+    fn view(&self, form: &Form) -> String {
+        let visible_groups: Vec<_> = form
+            .groups
+            .iter()
+            .enumerate()
+            .filter(|(_, g)| !g.is_hidden())
+            .collect();
+
+        if visible_groups.is_empty() {
+            return String::new();
+        }
+
+        let column_width = form.width / self.columns;
+        let max_cells = self.rows * self.columns;
+        let mut rows: Vec<String> = Vec::new();
+
+        for row_idx in 0..self.rows {
+            let start = row_idx * self.columns;
+            if start >= visible_groups.len() || start >= max_cells {
+                break;
+            }
+            let end = (start + self.columns)
+                .min(visible_groups.len())
+                .min(max_cells);
+
+            let mut row_parts: Vec<String> = Vec::new();
+            for (_, group) in &visible_groups[start..end] {
+                let group_view = group.view();
+                let lines: Vec<&str> = group_view.lines().collect();
+                let padded: Vec<String> = lines
+                    .iter()
+                    .map(|line| {
+                        let visual_width = lipgloss::width(line);
+                        if visual_width < column_width {
+                            format!("{}{}", line, " ".repeat(column_width - visual_width))
+                        } else {
+                            line.to_string()
+                        }
+                    })
+                    .collect();
+                row_parts.push(padded.join("\n"));
+            }
+
+            if row_parts.len() == 1 {
+                rows.push(row_parts.into_iter().next().unwrap());
+            } else {
+                let row_refs: Vec<&str> = row_parts.iter().map(|s| s.as_str()).collect();
+                rows.push(lipgloss::join_horizontal(
+                    lipgloss::Position::Top,
+                    &row_refs,
+                ));
+            }
+        }
+
+        let output = rows.join("\n");
+        form.theme
+            .form
+            .base
+            .clone()
+            .width(form.width.try_into().unwrap_or(u16::MAX))
+            .render(&output)
+    }
+
+    fn group_width(&self, form: &Form, _group_index: usize, _total_width: usize) -> usize {
+        form.width / self.columns
+    }
+}
+
+// -----------------------------------------------------------------------------
 // Form
 // -----------------------------------------------------------------------------
 
@@ -2819,6 +4139,9 @@ pub struct Form {
     width: usize,
     theme: Theme,
     keymap: KeyMap,
+    layout: Box<dyn Layout>,
+    show_help: bool,
+    show_errors: bool,
 }
 
 impl Default for Form {
@@ -2837,6 +4160,9 @@ impl Form {
             width: 80,
             theme: theme_charm(),
             keymap: KeyMap::default(),
+            layout: Box::new(LayoutDefault),
+            show_help: true,
+            show_errors: true,
         }
     }
 
@@ -2855,6 +4181,33 @@ impl Form {
     /// Sets the keymap.
     pub fn keymap(mut self, keymap: KeyMap) -> Self {
         self.keymap = keymap;
+        self
+    }
+
+    /// Sets the layout for the form.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use huh::{Form, Group, LayoutColumns};
+    ///
+    /// let form = Form::new(vec![group1, group2, group3])
+    ///     .layout(LayoutColumns::new(2));
+    /// ```
+    pub fn layout<L: Layout + 'static>(mut self, layout: L) -> Self {
+        self.layout = Box::new(layout);
+        self
+    }
+
+    /// Sets whether to show help at the bottom of the form.
+    pub fn show_help(mut self, show: bool) -> Self {
+        self.show_help = show;
+        self
+    }
+
+    /// Sets whether to show validation errors.
+    pub fn show_errors(mut self, show: bool) -> Self {
+        self.show_errors = show;
         self
     }
 
@@ -2960,6 +4313,69 @@ impl Form {
             .and_then(|v| v.downcast::<bool>().ok())
             .map(|v| *v)
     }
+
+    /// Collects all validation errors from all groups.
+    pub fn all_errors(&self) -> Vec<String> {
+        self.groups
+            .iter()
+            .flat_map(|g| g.errors())
+            .map(|s| s.to_string())
+            .collect()
+    }
+
+    /// Returns a view of all validation errors.
+    fn errors_view(&self) -> String {
+        let errors = self.all_errors();
+        if errors.is_empty() {
+            return String::new();
+        }
+
+        let error_text = errors.join(", ");
+        self.theme.focused.error_message.render(&error_text)
+    }
+
+    /// Returns a help view with available keybindings.
+    fn help_view(&self) -> String {
+        // Build help text from keybindings
+        let mut help_parts = Vec::new();
+
+        // Get current field's keybindings if available
+        if let Some(group) = self.groups.get(self.current_group)
+            && let Some(field) = group.fields.get(group.current)
+        {
+            for binding in field.key_binds() {
+                let help = binding.get_help();
+                if binding.enabled() && !help.desc.is_empty() {
+                    let keys = binding.get_keys();
+                    if !keys.is_empty() {
+                        help_parts.push(format!("{}: {}", keys.join("/"), help.desc));
+                    }
+                }
+            }
+        }
+
+        // Add form-level keybindings
+        let quit_help = self.keymap.quit.get_help();
+        if self.keymap.quit.enabled() && !quit_help.desc.is_empty() {
+            let keys = self.keymap.quit.get_keys();
+            if !keys.is_empty() {
+                help_parts.push(format!("{}: {}", keys.join("/"), quit_help.desc));
+            }
+        }
+
+        if help_parts.is_empty() {
+            return String::new();
+        }
+
+        // Style the help text
+        let help_text = help_parts.join(" • ");
+        self.theme.help.render(&help_text)
+    }
+
+    /// Returns the width allocated to a specific group based on the current layout.
+    pub fn group_width(&self, group_index: usize) -> usize {
+        self.layout.group_width(self, group_index, self.width)
+    }
 }
 
 impl Model for Form {
@@ -3003,16 +4419,27 @@ impl Model for Form {
     }
 
     fn view(&self) -> String {
-        if let Some(group) = self.groups.get(self.current_group) {
-            self.theme
-                .form
-                .base
-                .clone()
-                .width(self.width.try_into().unwrap_or(u16::MAX))
-                .render(&group.view())
-        } else {
-            String::new()
+        let mut output = self.layout.view(self);
+
+        // Add help footer if enabled
+        if self.show_help {
+            let help_text = self.help_view();
+            if !help_text.is_empty() {
+                output.push('\n');
+                output.push_str(&help_text);
+            }
         }
+
+        // Add errors if enabled
+        if self.show_errors {
+            let errors = self.errors_view();
+            if !errors.is_empty() {
+                output.push('\n');
+                output.push_str(&errors);
+            }
+        }
+
+        output
     }
 }
 
@@ -3182,6 +4609,55 @@ mod tests {
     }
 
     #[test]
+    fn test_text_builder() {
+        let text = Text::new()
+            .key("bio")
+            .title("Biography")
+            .description("Tell us about yourself")
+            .placeholder("Enter your bio...")
+            .lines(10)
+            .value("Hello world");
+
+        assert_eq!(text.get_key(), "bio");
+        assert_eq!(text.get_string_value(), "Hello world");
+    }
+
+    #[test]
+    fn test_text_char_limit() {
+        let text = Text::new().char_limit(50).show_line_numbers(true);
+
+        assert_eq!(text.char_limit, 50);
+        assert!(text.show_line_numbers);
+    }
+
+    #[test]
+    fn test_filepicker_builder() {
+        let picker = FilePicker::new()
+            .key("config_file")
+            .title("Select Configuration")
+            .description("Choose a file")
+            .current_directory("/tmp")
+            .show_hidden(true)
+            .file_allowed(true)
+            .dir_allowed(false);
+
+        assert_eq!(picker.get_key(), "config_file");
+        assert!(picker.file_allowed);
+        assert!(!picker.dir_allowed);
+        assert!(picker.show_hidden);
+    }
+
+    #[test]
+    fn test_filepicker_allowed_types() {
+        let picker = FilePicker::new()
+            .allowed_types(vec![".toml".to_string(), ".json".to_string()])
+            .show_size(true);
+
+        assert_eq!(picker.allowed_types.len(), 2);
+        assert!(picker.show_size);
+    }
+
+    #[test]
     fn test_select_builder() {
         let select: Select<String> =
             Select::new()
@@ -3291,7 +4767,7 @@ mod tests {
             alt: false,
             paste: false,
         };
-        assert_eq!(key_to_string(&key), "enter");
+        assert_eq!(key.to_string(), "enter");
 
         let key = KeyMsg {
             key_type: KeyType::Runes,
@@ -3299,7 +4775,7 @@ mod tests {
             alt: false,
             paste: false,
         };
-        assert_eq!(key_to_string(&key), "a");
+        assert_eq!(key.to_string(), "a");
 
         let key = KeyMsg {
             key_type: KeyType::CtrlC,
@@ -3307,7 +4783,7 @@ mod tests {
             alt: false,
             paste: false,
         };
-        assert_eq!(key_to_string(&key), "ctrl+c");
+        assert_eq!(key.to_string(), "ctrl+c");
     }
 
     #[test]
@@ -3524,5 +5000,87 @@ mod tests {
 
         // Should still be 5 characters
         assert_eq!(input.value.chars().count(), 5);
+    }
+
+    #[test]
+    fn test_layout_default() {
+        let _layout = LayoutDefault;
+        // Just ensure it compiles and can be created
+    }
+
+    #[test]
+    fn test_layout_stack() {
+        let _layout = LayoutStack;
+        // Just ensure it compiles and can be created
+    }
+
+    #[test]
+    fn test_layout_columns() {
+        let layout = LayoutColumns::new(3);
+        assert_eq!(layout.columns, 3);
+
+        // Minimum of 1 column
+        let layout = LayoutColumns::new(0);
+        assert_eq!(layout.columns, 1);
+    }
+
+    #[test]
+    fn test_layout_grid() {
+        let layout = LayoutGrid::new(2, 3);
+        assert_eq!(layout.rows, 2);
+        assert_eq!(layout.columns, 3);
+
+        // Minimum of 1x1
+        let layout = LayoutGrid::new(0, 0);
+        assert_eq!(layout.rows, 1);
+        assert_eq!(layout.columns, 1);
+    }
+
+    #[test]
+    fn test_form_with_layout() {
+        let form = Form::new(vec![
+            Group::new(vec![Box::new(Input::new().key("a"))]),
+            Group::new(vec![Box::new(Input::new().key("b"))]),
+        ])
+        .layout(LayoutColumns::new(2));
+
+        // Form should have the layout set
+        assert_eq!(form.len(), 2);
+    }
+
+    #[test]
+    fn test_form_show_help() {
+        let form = Form::new(Vec::new()).show_help(false).show_errors(false);
+
+        // Just verify the builder works
+        assert!(!form.show_help);
+        assert!(!form.show_errors);
+    }
+
+    #[test]
+    fn test_group_header_footer_content() {
+        let group = Group::new(vec![Box::new(Input::new().key("test").title("Test Input"))])
+            .title("Group Title")
+            .description("Group Description");
+
+        let header = group.header();
+        assert!(header.contains("Group Title"));
+        assert!(header.contains("Group Description"));
+
+        let content = group.content();
+        assert!(content.contains("Test Input"));
+
+        let footer = group.footer();
+        // No errors, so footer should be empty
+        assert!(footer.is_empty());
+    }
+
+    #[test]
+    fn test_form_all_errors() {
+        let form = Form::new(vec![Group::new(Vec::new())]);
+
+        // No errors initially
+        let errors = form.all_errors();
+        assert!(errors.is_empty());
     }
 }

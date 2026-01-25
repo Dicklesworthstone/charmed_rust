@@ -791,6 +791,58 @@ impl Style {
         }
     }
 
+    /// Get the horizontal frame size (left/right padding + border).
+    ///
+    /// This is useful for calculating content width when applying styles.
+    pub fn get_horizontal_frame_size(&self) -> usize {
+        let edges = self.effective_border_edges();
+        let border_width = edges.horizontal_size(&self.border_style);
+        let padding_width = self.padding.left as usize + self.padding.right as usize;
+        border_width + padding_width
+    }
+
+    /// Get the vertical frame size (top/bottom padding + border).
+    ///
+    /// This is useful for calculating content height when applying styles.
+    pub fn get_vertical_frame_size(&self) -> usize {
+        let edges = self.effective_border_edges();
+        let border_height = edges.vertical_size(&self.border_style);
+        let padding_height = self.padding.top as usize + self.padding.bottom as usize;
+        border_height + padding_height
+    }
+
+    /// Get the horizontal border size (left + right borders if enabled).
+    pub fn get_horizontal_border_size(&self) -> usize {
+        let edges = self.effective_border_edges();
+        edges.horizontal_size(&self.border_style)
+    }
+
+    /// Get the vertical border size (top + bottom borders if enabled).
+    pub fn get_vertical_border_size(&self) -> usize {
+        let edges = self.effective_border_edges();
+        edges.vertical_size(&self.border_style)
+    }
+
+    /// Get the horizontal padding (left + right).
+    pub fn get_horizontal_padding(&self) -> usize {
+        self.padding.left as usize + self.padding.right as usize
+    }
+
+    /// Get the vertical padding (top + bottom).
+    pub fn get_vertical_padding(&self) -> usize {
+        self.padding.top as usize + self.padding.bottom as usize
+    }
+
+    /// Get the horizontal margin (left + right).
+    pub fn get_horizontal_margin(&self) -> usize {
+        self.margin.left as usize + self.margin.right as usize
+    }
+
+    /// Get the vertical margin (top + bottom).
+    pub fn get_vertical_margin(&self) -> usize {
+        self.margin.top as usize + self.margin.bottom as usize
+    }
+
     // ==================== Internal Accessors ====================
 
     pub(crate) fn attrs(&self) -> Attrs {
@@ -1547,6 +1599,88 @@ mod tests {
         assert!(style.props.contains(Props::BACKGROUND));
         assert!(style.props.contains(Props::BORDER_TOP_FG));
         assert!(style.props.contains(Props::BORDER_TOP_BG));
+    }
+
+    #[test]
+    fn test_partial_border_top_only() {
+        let style = Style::new()
+            .border(Border::normal())
+            .border_top(true)
+            .border_right(false)
+            .border_bottom(false)
+            .border_left(false);
+
+        let rendered = style.render("Hello");
+        // Should have top border line but no side borders
+        let lines: Vec<&str> = rendered.lines().collect();
+        assert_eq!(lines.len(), 2); // top border + content
+        assert!(lines[0].contains("─")); // top edge
+        assert!(!lines[1].contains("│")); // no side borders
+    }
+
+    #[test]
+    fn test_partial_border_left_right_only() {
+        let style = Style::new()
+            .border(Border::normal())
+            .border_top(false)
+            .border_right(true)
+            .border_bottom(false)
+            .border_left(true);
+
+        let rendered = style.render("Hi");
+        let lines: Vec<&str> = rendered.lines().collect();
+        assert_eq!(lines.len(), 1); // just content with side borders
+        assert!(lines[0].contains("│")); // side borders present
+    }
+
+    #[test]
+    fn test_frame_size_with_all_borders() {
+        let style = Style::new().border(Border::normal()).padding(2);
+
+        // All borders enabled by default when border style is set
+        assert_eq!(style.get_horizontal_border_size(), 2); // left + right
+        assert_eq!(style.get_vertical_border_size(), 2); // top + bottom
+        assert_eq!(style.get_horizontal_padding(), 4); // 2 + 2
+        assert_eq!(style.get_vertical_padding(), 4); // 2 + 2
+        assert_eq!(style.get_horizontal_frame_size(), 6); // borders + padding
+        assert_eq!(style.get_vertical_frame_size(), 6);
+    }
+
+    #[test]
+    fn test_frame_size_with_partial_borders() {
+        let style = Style::new()
+            .border(Border::normal())
+            .border_top(true)
+            .border_right(false)
+            .border_bottom(true)
+            .border_left(false)
+            .padding(1);
+
+        // Only top and bottom borders
+        assert_eq!(style.get_horizontal_border_size(), 0); // no left/right
+        assert_eq!(style.get_vertical_border_size(), 2); // top + bottom
+        assert_eq!(style.get_horizontal_frame_size(), 2); // just padding
+        assert_eq!(style.get_vertical_frame_size(), 4); // borders + padding
+    }
+
+    #[test]
+    fn test_frame_size_no_border() {
+        let style = Style::new().padding((1, 2));
+
+        assert_eq!(style.get_horizontal_border_size(), 0);
+        assert_eq!(style.get_vertical_border_size(), 0);
+        assert_eq!(style.get_horizontal_padding(), 4); // 2 + 2
+        assert_eq!(style.get_vertical_padding(), 2); // 1 + 1
+        assert_eq!(style.get_horizontal_frame_size(), 4);
+        assert_eq!(style.get_vertical_frame_size(), 2);
+    }
+
+    #[test]
+    fn test_margin_sizes() {
+        let style = Style::new().margin((1, 2, 3, 4)); // top, right, bottom, left
+
+        assert_eq!(style.get_horizontal_margin(), 6); // 2 + 4
+        assert_eq!(style.get_vertical_margin(), 4); // 1 + 3
     }
 
     #[test]

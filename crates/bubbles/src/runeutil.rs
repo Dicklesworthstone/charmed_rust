@@ -69,7 +69,7 @@ impl Sanitizer {
     ///
     /// This method:
     /// - Removes Unicode replacement characters (`U+FFFD`)
-    /// - Replaces `\r` and `\n` with the configured newline replacement
+    /// - Replaces `\r\n` (CRLF), `\r`, and `\n` with the configured newline replacement
     /// - Replaces `\t` with the configured tab replacement
     /// - Removes other control characters
     ///
@@ -82,21 +82,34 @@ impl Sanitizer {
     ///     .with_tab_replacement("  ")
     ///     .with_newline_replacement(" ");
     ///
-    /// let input: Vec<char> = "a\tb\nc".chars().collect();
+    /// let input: Vec<char> = "a\tb\nc\r\nd".chars().collect();
     /// let output = sanitizer.sanitize(&input);
-    /// assert_eq!(output.iter().collect::<String>(), "a  b c");
+    /// assert_eq!(output.iter().collect::<String>(), "a  b c d");
     /// ```
     #[must_use]
     pub fn sanitize(&self, runes: &[char]) -> Vec<char> {
         let mut result = Vec::with_capacity(runes.len());
+        let mut iter = runes.iter().peekable();
 
-        for &r in runes {
+        while let Some(&r) = iter.next() {
             match r {
                 // Skip Unicode replacement character
                 '\u{FFFD}' => {}
 
-                // Replace carriage return and newline
-                '\r' | '\n' => {
+                // Handle Carriage Return
+                '\r' => {
+                    // Check if next char is Newline (CRLF)
+                    if let Some(&&next) = iter.peek()
+                        && next == '\n'
+                    {
+                        continue; // Skip \r, let \n be processed
+                    }
+                    // Lone \r becomes newline
+                    result.extend(&self.replace_newline);
+                }
+
+                // Handle Newline
+                '\n' => {
                     result.extend(&self.replace_newline);
                 }
 

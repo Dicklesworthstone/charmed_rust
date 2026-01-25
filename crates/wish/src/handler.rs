@@ -8,7 +8,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bubbletea::{KeyMsg, Message, WindowSizeMsg, parse_sequence};
+use bubbletea::{KeyMsg, Message, WindowSizeMsg, parse_sequence, parse_sequence_prefix};
 use parking_lot::RwLock;
 use russh::MethodSet;
 use russh::server::{Auth, Handler as RusshHandler, Msg, Session as RusshSession};
@@ -70,6 +70,8 @@ struct ChannelState {
     input_tx: mpsc::Sender<Vec<u8>>,
     /// Whether shell/exec has started.
     started: bool,
+    /// Buffer for incoming input data (to handle split UTF-8/sequences).
+    input_buffer: Vec<u8>,
 }
 
 /// Tracks pending keyboard-interactive prompts for a connection.
@@ -523,6 +525,7 @@ impl RusshHandler for WishHandler {
                 session: wish_session,
                 input_tx,
                 started: false,
+                input_buffer: Vec::new(),
             },
         );
 
@@ -788,7 +791,7 @@ impl RusshHandler for WishHandler {
             "Data received"
         );
 
-        if let Some(state) = self.channels.get(&channel) {
+        if let Some(state) = self.channels.get_mut(&channel) {
             // Forward raw data to input_tx (legacy/stream support)
             // We use try_send to avoid blocking the handler if the app isn't reading input
             if let Err(mpsc::error::TrySendError::Full(_)) = state.input_tx.try_send(data.to_vec())
@@ -800,17 +803,75 @@ impl RusshHandler for WishHandler {
                 );
             }
 
-            // Parse for bubbletea
-            if let Some(key) = parse_sequence(data) {
-                state.session.send_message(Message::new(key));
-            } else {
-                // Parse as UTF-8 chars
-                if let Ok(s) = std::str::from_utf8(data) {
-                    for c in s.chars() {
-                        let key = KeyMsg::from_char(c);
+            // Append data to buffer
+            state.input_buffer.extend_from_slice(data);
+
+            // Process buffer
+            let mut i = 0;
+            let mut consumed_until = 0;
+
+            while i < state.input_buffer.len() {
+                let slice = &state.input_buffer[i..];
+
+                // 1. Try parsing sequence prefix
+                if let Some((key, len)) = parse_sequence_prefix(slice) {
+                    state.session.send_message(Message::new(key));
+                    i += len;
+                    consumed_until = i;
+                    continue;
+                }
+
+                // 2. Try parsing one UTF-8 char
+                // Check if we have enough bytes for the next char
+                let b = slice[0];
+                let char_len = if b < 128 {
+                    1
+                } else if (b & 0xE0) == 0xC0 {
+                    2
+                } else if (b & 0xF0) == 0xE0 {
+                    3
+                } else if (b & 0xF8) == 0xF0 {
+                    4
+                } else {
+                    // Invalid start byte, consume 1 byte as error replacement or just ignore
+                    // We'll treat it as a replacement char for now to make progress
+                    // KeyMsg doesn't strictly enforce char, but we use from_char
+                    let key = KeyMsg::from_char(std::char::REPLACEMENT_CHARACTER);
+                    state.session.send_message(Message::new(key));
+                    i += 1;
+                    consumed_until = i;
+                    continue;
+                };
+
+                if slice.len() < char_len {
+                    // Not enough bytes yet, wait for more
+                    break;
+                }
+
+                // We have enough bytes, try to parse
+                match std::str::from_utf8(&slice[..char_len]) {
+                    Ok(s) => {
+                        // Should be exactly 1 char
+                        if let Some(c) = s.chars().next() {
+                            let key = KeyMsg::from_char(c);
+                            state.session.send_message(Message::new(key));
+                        }
+                        i += char_len;
+                        consumed_until = i;
+                    }
+                    Err(_) => {
+                        // Invalid sequence despite length check, consume 1 byte as error
+                        let key = KeyMsg::from_char(std::char::REPLACEMENT_CHARACTER);
                         state.session.send_message(Message::new(key));
+                        i += 1;
+                        consumed_until = i;
                     }
                 }
+            }
+
+            // Remove consumed bytes from buffer
+            if consumed_until > 0 {
+                state.input_buffer.drain(0..consumed_until);
             }
         }
 

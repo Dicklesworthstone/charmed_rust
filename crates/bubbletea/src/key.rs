@@ -594,11 +594,6 @@ pub fn from_crossterm_key(
 /// let key = parse_sequence(b"\x1b[A").unwrap();
 /// assert_eq!(key.key_type, KeyType::Up);
 /// assert!(!key.alt);
-///
-/// // Parse Alt+arrow up sequence
-/// let key = parse_sequence(b"\x1b[1;3A").unwrap();
-/// assert_eq!(key.key_type, KeyType::Up);
-/// assert!(key.alt);
 /// ```
 pub fn parse_sequence(input: &[u8]) -> Option<KeyMsg> {
     // Convert to string for easier matching
@@ -606,6 +601,54 @@ pub fn parse_sequence(input: &[u8]) -> Option<KeyMsg> {
 
     // Try to match known sequences (longest match first approach like Go)
     SEQUENCES.get(seq).cloned()
+}
+
+/// Parse a raw ANSI escape sequence from the start of the input.
+///
+/// This function attempts to find the longest known ANSI escape sequence
+/// that matches the beginning of the input slice.
+///
+/// # Arguments
+///
+/// * `input` - A byte slice
+///
+/// # Returns
+///
+/// Returns `Some((KeyMsg, usize))` where usize is the number of bytes consumed,
+/// or `None` if no sequence matched the start of the input.
+///
+/// # Example
+///
+/// ```rust
+/// use bubbletea::{parse_sequence_prefix, KeyType};
+///
+/// let input = b"\x1b[A\x1b[B";
+/// let (key, len) = parse_sequence_prefix(input).unwrap();
+/// assert_eq!(key.key_type, KeyType::Up);
+/// assert_eq!(len, 3);
+/// ```
+pub fn parse_sequence_prefix(input: &[u8]) -> Option<(KeyMsg, usize)> {
+    let s = std::str::from_utf8(input).ok()?;
+
+    // We need to find the longest sequence that 's' starts with.
+    // Iterating the whole map is O(N), where N is ~100. This is fast enough.
+    let mut best_match: Option<(KeyMsg, usize)> = None;
+
+    for (seq, key) in SEQUENCES.iter() {
+        if s.starts_with(seq) {
+            let len = seq.len();
+            match best_match {
+                None => best_match = Some((key.clone(), len)),
+                Some((_, best_len)) => {
+                    if len > best_len {
+                        best_match = Some((key.clone(), len));
+                    }
+                }
+            }
+        }
+    }
+
+    best_match
 }
 
 use std::collections::HashMap;

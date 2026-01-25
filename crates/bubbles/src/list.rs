@@ -382,7 +382,12 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         let items_len = items.len();
         let filtered_indices: Vec<usize> = (0..items_len).collect();
 
-        let mut paginator = Paginator::new().per_page(10);
+        // Calculate per_page based on height and delegate
+        let item_height = delegate.height() + delegate.spacing();
+        let available = height.saturating_sub(4); // Reserve space for chrome
+        let per_page = available / item_height.max(1);
+
+        let mut paginator = Paginator::new().per_page(per_page.max(1));
         paginator.set_total_pages_from_items(items_len);
 
         let mut filter_input = TextInput::new();
