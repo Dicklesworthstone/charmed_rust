@@ -586,6 +586,38 @@ impl Style {
         self
     }
 
+    /// Set top border foreground color.
+    pub fn border_top_foreground(mut self, color: impl Into<String>) -> Self {
+        let c = Color::new(color);
+        self.props |= Props::BORDER_TOP_FG;
+        self.border_fg[0] = Some(c.clone_box());
+        self
+    }
+
+    /// Set right border foreground color.
+    pub fn border_right_foreground(mut self, color: impl Into<String>) -> Self {
+        let c = Color::new(color);
+        self.props |= Props::BORDER_RIGHT_FG;
+        self.border_fg[1] = Some(c.clone_box());
+        self
+    }
+
+    /// Set bottom border foreground color.
+    pub fn border_bottom_foreground(mut self, color: impl Into<String>) -> Self {
+        let c = Color::new(color);
+        self.props |= Props::BORDER_BOTTOM_FG;
+        self.border_fg[2] = Some(c.clone_box());
+        self
+    }
+
+    /// Set left border foreground color.
+    pub fn border_left_foreground(mut self, color: impl Into<String>) -> Self {
+        let c = Color::new(color);
+        self.props |= Props::BORDER_LEFT_FG;
+        self.border_fg[3] = Some(c.clone_box());
+        self
+    }
+
     /// Set border foreground color for all sides using a theme slot.
     ///
     /// # Example
@@ -625,6 +657,38 @@ impl Style {
             Some(c.clone_box()),
             Some(c.clone_box()),
         ];
+        self
+    }
+
+    /// Set top border background color.
+    pub fn border_top_background(mut self, color: impl Into<String>) -> Self {
+        let c = Color::new(color);
+        self.props |= Props::BORDER_TOP_BG;
+        self.border_bg[0] = Some(c.clone_box());
+        self
+    }
+
+    /// Set right border background color.
+    pub fn border_right_background(mut self, color: impl Into<String>) -> Self {
+        let c = Color::new(color);
+        self.props |= Props::BORDER_RIGHT_BG;
+        self.border_bg[1] = Some(c.clone_box());
+        self
+    }
+
+    /// Set bottom border background color.
+    pub fn border_bottom_background(mut self, color: impl Into<String>) -> Self {
+        let c = Color::new(color);
+        self.props |= Props::BORDER_BOTTOM_BG;
+        self.border_bg[2] = Some(c.clone_box());
+        self
+    }
+
+    /// Set left border background color.
+    pub fn border_left_background(mut self, color: impl Into<String>) -> Self {
+        let c = Color::new(color);
+        self.props |= Props::BORDER_LEFT_BG;
+        self.border_bg[3] = Some(c.clone_box());
         self
     }
 
@@ -1725,5 +1789,105 @@ mod tests {
         assert_eq!(style.padding.bottom, 1);
         assert_eq!(style.padding.left, 2);
         assert!(style.attrs.contains(Attrs::BOLD));
+    }
+
+    #[test]
+    fn test_per_edge_border_foreground() {
+        let style = Style::new()
+            .border(Border::normal())
+            .border_top_foreground("#ff0000")
+            .border_right_foreground("#00ff00")
+            .border_bottom_foreground("#0000ff")
+            .border_left_foreground("#ffff00");
+
+        // Verify props are set correctly
+        assert!(style.props.contains(Props::BORDER_TOP_FG));
+        assert!(style.props.contains(Props::BORDER_RIGHT_FG));
+        assert!(style.props.contains(Props::BORDER_BOTTOM_FG));
+        assert!(style.props.contains(Props::BORDER_LEFT_FG));
+
+        // Verify colors are stored in correct positions
+        assert!(style.border_fg[0].is_some()); // top
+        assert!(style.border_fg[1].is_some()); // right
+        assert!(style.border_fg[2].is_some()); // bottom
+        assert!(style.border_fg[3].is_some()); // left
+    }
+
+    #[test]
+    fn test_per_edge_border_background() {
+        let style = Style::new()
+            .border(Border::normal())
+            .border_top_background("#111111")
+            .border_right_background("#222222")
+            .border_bottom_background("#333333")
+            .border_left_background("#444444");
+
+        // Verify props are set correctly
+        assert!(style.props.contains(Props::BORDER_TOP_BG));
+        assert!(style.props.contains(Props::BORDER_RIGHT_BG));
+        assert!(style.props.contains(Props::BORDER_BOTTOM_BG));
+        assert!(style.props.contains(Props::BORDER_LEFT_BG));
+
+        // Verify colors are stored in correct positions
+        assert!(style.border_bg[0].is_some()); // top
+        assert!(style.border_bg[1].is_some()); // right
+        assert!(style.border_bg[2].is_some()); // bottom
+        assert!(style.border_bg[3].is_some()); // left
+    }
+
+    #[test]
+    fn test_mixed_border_colors() {
+        // Test setting all sides then overriding one
+        let style = Style::new()
+            .border(Border::normal())
+            .border_foreground("#ffffff")
+            .border_top_foreground("#ff0000"); // Override just top
+
+        assert!(style.border_fg[0].is_some()); // top (overridden)
+        assert!(style.border_fg[1].is_some()); // right
+        assert!(style.border_fg[2].is_some()); // bottom
+        assert!(style.border_fg[3].is_some()); // left
+    }
+
+    #[test]
+    fn test_per_edge_border_renders() {
+        let style = Style::new()
+            .border(Border::normal())
+            .border_top_foreground("#ff0000")
+            .border_left_foreground("#00ff00");
+
+        // Should render without panicking
+        let rendered = style.render("Hello");
+        assert!(!rendered.is_empty());
+        assert!(rendered.contains("Hello"));
+    }
+
+    #[test]
+    fn test_transform_method() {
+        let style = Style::new().transform(|s| s.to_uppercase());
+
+        let rendered = style.render("hello");
+        assert_eq!(rendered, "HELLO");
+    }
+
+    #[test]
+    fn test_transform_with_other_styles() {
+        let style = Style::new()
+            .bold()
+            .transform(|s| s.to_uppercase());
+
+        // Transform is applied to content
+        let rendered = style.render("hello");
+        // Should contain uppercase HELLO (with ANSI codes for bold)
+        assert!(rendered.contains("HELLO"));
+    }
+
+    #[test]
+    fn test_transform_closure_captures() {
+        let prefix = ">>> ";
+        let style = Style::new().transform(move |s| format!("{}{}", prefix, s));
+
+        let rendered = style.render("test");
+        assert_eq!(rendered, ">>> test");
     }
 }
