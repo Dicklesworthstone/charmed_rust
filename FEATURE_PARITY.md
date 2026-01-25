@@ -13,18 +13,17 @@ for feature gaps, behavioral discrepancies, and infrastructure blockers.
 Command:
 
 ```
-CARGO_HOME=target/cargo_home_20260124_201340 \
-CARGO_TARGET_DIR=target/conformance_20260124_201340 \
+CARGO_HOME=target/cargo_home_20260124_210554 \
+CARGO_TARGET_DIR=target/conformance_20260124_210554 \
 cargo test -p charmed_conformance -- --nocapture
 ```
 
 Result summary:
-- **Passed:** 164
-- **Failed:** 1
-- **Ignored:** 6
-- **Failure cause:** `benchmark_e2e::compilation_tests::test_benchmarks_compile` failed due to
-  cargo package cache locking and a compile error in `huh` (missing `file_picker`
-  field in `KeyMap` initializer at `crates/huh/src/lib.rs:646`).
+- **Failed:** 4 (Glamour blockquote semantic mismatches)
+- **Skipped:** 13 (Glamour 8, Huh 4, Lipgloss 1)
+- **Notes:** Benchmark compile tests emitted “running over 60 seconds” warnings
+  during this run; no cargo lock errors observed. See log
+  `target/conformance_20260124_210554.log`.
 
 ### Per-Crate Conformance Results
 
@@ -36,38 +35,27 @@ Result summary:
 | harmonica    | 24    | 24   | 0    | 0    | All fixtures pass |
 | huh          | 46    | 42   | 0    | 4    | Textarea not implemented |
 | lipgloss     | 58    | 57   | 0    | 1    | Partial border edges |
-| glamour      | 84    | 66   | 0    | 18   | Known rendering differences |
+| glamour      | 84    | 72   | 4    | 8    | Blockquote mismatches + remaining preset/link gaps |
 | integration  | 24    | 24   | 0    | 0    | Cross-crate integration OK |
 
 ### Benchmark E2E Failures (Infra)
 
-`benchmark_e2e::compilation_tests::test_benchmarks_compile` failed after
-encountering cargo package cache locks and a compile error in `huh`.
-The other compile checks succeeded in this run:
-- `benchmark_e2e::compilation_tests::test_bubbletea_benchmarks_compile` ✅
-- `benchmark_e2e::compilation_tests::test_glamour_benchmarks_compile` ✅
-- `benchmark_e2e::compilation_tests::test_lipgloss_benchmarks_compile` ✅
-
-Root issue remains: concurrent benchmark compilation jobs contend on cargo’s
-package cache and artifact directory locks. The new blocker is the `huh` compile
-error (`KeyMap` missing `file_picker` initializer). These are infra/product
-correctness blockers, not conformance discrepancies.
+Benchmark compile tests no longer show cargo lock errors after the mutex change,
+but did emit “running over 60 seconds” warnings in this run. Re-run after Glamour
+fixes to confirm completion timing. See `target/conformance_20260124_210554.log`.
 
 ---
 
 ## Known Parity Gaps (Behavioral Discrepancies)
 
 ### Glamour (Markdown Rendering)
-Skipped tests indicate known output differences from Go:
-- `format_mixed`: extra space before inline code
-- Nested lists: `list_nested_unordered`, `list_nested_ordered`, `list_mixed_nested`
-- Task list: `list_task_list` (task markers rendered differently)
-- Links: `link_inline`, `link_inline_title`, `link_reference`
-- Email autolink: `link_autolink_email` (mailto prefix)
-- Images: `link_image`, `link_image_title` (arrow glyph `->` vs `→`)
-- Blockquotes: `blockquote_multi_paragraph`, `blockquote_nested`
-- Style presets: `style_preset_dark`, `style_preset_light`,
-  `style_preset_notty`, `style_preset_ascii`, `style_preset_dracula`
+Current gaps vs Go (from latest run):
+- **Fails (blockquotes):** `blockquote_single_line`, `blockquote_multi_line`,
+  `blockquote_multi_paragraph`, `blockquote_with_formatting`
+  - Actual output includes trailing right border `│` and drops styles (bold/italic/fg).
+- **Skips:** `list_task_list`, `link_autolink_email`, `link_image`,
+  `link_image_title`, `blockquote_nested`, `style_preset_notty`,
+  `style_preset_ascii`, `style_preset_dracula`
 
 ### Lipgloss (Terminal Styling)
 - `border_partial_top_bottom`: partial border edges not implemented.
@@ -92,13 +80,12 @@ These are documented limitations that still need verification or closure:
 
 ## Recommended Next Actions (High Priority)
 
-1. **Fix `huh` KeyMap compile error** blocking benchmark compilation.
-2. **Fix benchmark compilation locking** (test infra reliability).
-3. **Address Glamour rendering discrepancies** (lists, links, blockquotes, presets).
-4. **Implement Lipgloss partial border edges**.
-5. **Implement Huh textarea field** and extend fixtures.
-6. **Audit Bubbletea custom I/O event injection**.
-7. **Run targeted validation** for README limitations (Wish stability, mouse drag, Unicode).
+1. **Fix Glamour blockquote rendering** (now failing, not skipped).
+2. **Address remaining Glamour discrepancies** (task list marker, email autolink, image glyph, presets).
+3. **Implement Lipgloss partial border edges**.
+4. **Implement Huh textarea field** and extend fixtures.
+5. **Audit Bubbletea custom I/O event injection**.
+6. **Run targeted validation** for README limitations (Wish stability, mouse drag, Unicode).
 
 ---
 

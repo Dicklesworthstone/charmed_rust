@@ -186,7 +186,7 @@ pub use command::{Cmd, batch, every, quit, sequence, set_window_title, tick, win
 
 #[cfg(feature = "async")]
 pub use command::{AsyncCmd, every_async, tick_async};
-pub use key::{KeyMsg, KeyType, parse_sequence};
+pub use key::{KeyMsg, KeyType, parse_sequence, parse_sequence_prefix};
 pub use message::{
     BlurMsg, FocusMsg, InterruptMsg, Message, QuitMsg, ResumeMsg, SuspendMsg, WindowSizeMsg,
 };

@@ -190,8 +190,8 @@ impl Paginator {
     /// ```
     #[must_use]
     pub fn get_slice_bounds(&self, length: usize) -> (usize, usize) {
-        let start = (self.page * self.per_page).min(length);
-        let end = (start + self.per_page).min(length);
+        let start = (self.page.saturating_mul(self.per_page)).min(length);
+        let end = (start.saturating_add(self.per_page)).min(length);
         (start, end)
     }
 

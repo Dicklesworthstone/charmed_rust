@@ -1081,7 +1081,7 @@ struct RenderContext<'a> {
     in_code_block: bool,
     in_block_quote: bool,
     in_list: bool,
-    in_ordered_list: bool,
+    ordered_list_stack: Vec<bool>,
     list_depth: usize,
     list_item_number: Vec<usize>,
     in_table: bool,
@@ -1115,7 +1115,7 @@ impl<'a> RenderContext<'a> {
             in_code_block: false,
             in_block_quote: false,
             in_list: false,
-            in_ordered_list: false,
+            ordered_list_stack: Vec::new(),
             list_depth: 0,
             list_item_number: Vec::new(),
             in_table: false,
@@ -1223,9 +1223,15 @@ impl<'a> RenderContext<'a> {
 
             // Lists
             Event::Start(Tag::List(first_item)) => {
+                // If we're starting a nested list inside a list item, flush the parent
+                // item's text first (before its nested children)
+                if self.list_depth > 0 && !self.text_buffer.is_empty() {
+                    self.flush_list_item();
+                }
                 self.in_list = true;
                 self.list_depth += 1;
-                self.in_ordered_list = first_item.is_some();
+                // Track ordered/unordered state per list level
+                self.ordered_list_stack.push(first_item.is_some());
                 self.list_item_number.push(first_item.unwrap_or(1) as usize);
                 if self.list_depth == 1 {
                     self.output.push('\n');
@@ -1234,9 +1240,9 @@ impl<'a> RenderContext<'a> {
             Event::End(TagEnd::List(_)) => {
                 self.list_depth = self.list_depth.saturating_sub(1);
                 self.list_item_number.pop();
+                self.ordered_list_stack.pop();
                 if self.list_depth == 0 {
                     self.in_list = false;
-                    self.in_ordered_list = false;
                 }
             }
 
@@ -1359,7 +1365,15 @@ impl<'a> RenderContext<'a> {
                 self.link_title = title.to_string();
             }
             Event::End(TagEnd::Link) => {
+                // Append URL after link text, like Go glamour does
+                // But don't duplicate if the link text is already the URL (autolinks)
+                if !self.link_url.is_empty() && !self.text_buffer.ends_with(&self.link_url) {
+                    self.text_buffer.push(' ');
+                    self.text_buffer.push_str(&self.link_url);
+                }
                 self.in_link = false;
+                self.link_url.clear();
+                self.link_title.clear();
             }
 
             Event::Start(Tag::Image {
@@ -1503,10 +1517,14 @@ impl<'a> RenderContext<'a> {
                     .collect::<Vec<_>>()
                     .join("\n");
                 self.output.push_str(&indented);
+                // For blockquotes, add marker on the separator line between paragraphs
+                self.output.push('\n');
+                self.output.push_str(indent_token);
+                self.output.push('\n');
             } else {
                 self.output.push_str(&rendered);
+                self.output.push_str("\n\n");
             }
-            self.output.push_str("\n\n");
         }
     }
 
@@ -1519,7 +1537,8 @@ impl<'a> RenderContext<'a> {
         let indent = (self.list_depth - 1) * self.options.styles.list.level_indent;
         let indent_str = " ".repeat(indent);
 
-        let prefix = if self.in_ordered_list {
+        let is_ordered = self.ordered_list_stack.last().copied().unwrap_or(false);
+        let prefix = if is_ordered {
             let num = self.list_item_number.last().copied().unwrap_or(1);
             if let Some(last) = self.list_item_number.last_mut() {
                 *last += 1;
@@ -1746,11 +1765,10 @@ impl<'a> RenderContext<'a> {
         let style = &self.options.styles.code;
         let lipgloss_style = style.style.to_lipgloss();
 
-        let mut result = String::new();
-        result.push_str(&style.style.prefix);
-        result.push_str(&lipgloss_style.render(code));
-        result.push_str(&style.style.suffix);
-        result
+        // Build the code text with prefix/suffix INSIDE the styled region
+        // Go glamour includes padding spaces inside the ANSI-styled region
+        let code_with_padding = format!("{}{}{}", style.style.prefix, code, style.style.suffix);
+        lipgloss_style.render(&code_with_padding)
     }
 
     fn word_wrap(&self, text: &str) -> String {
@@ -1912,6 +1930,74 @@ mod tests {
         let output = renderer.render("* item 1\n* item 2");
         assert!(output.contains("item 1"));
         assert!(output.contains("item 2"));
+    }
+
+    #[test]
+    fn test_render_nested_list() {
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render("- Item 1\n  - Nested 1\n  - Nested 2\n- Item 2");
+        assert!(output.contains("Item 1"));
+        assert!(output.contains("Nested 1"));
+        assert!(output.contains("Nested 2"));
+        assert!(output.contains("Item 2"));
+    }
+
+    #[test]
+    fn test_render_mixed_nested_list() {
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render("1. First\n   - Sub item\n   - Sub item\n2. Second");
+        assert!(output.contains("First"));
+        assert!(output.contains("Sub item"));
+        assert!(output.contains("Second"));
+        // Verify the second item is rendered as ordered (with number)
+        assert!(output.contains("2."));
+    }
+
+    #[test]
+    fn test_render_link() {
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render("[Link text](https://example.com)");
+        assert!(output.contains("Link text"));
+        // URL should be appended after link text
+        assert!(output.contains("https://example.com"));
+    }
+
+    #[test]
+    fn test_render_autolink() {
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render("<https://example.com>");
+        // For autolinks, URL should appear only once (not duplicated)
+        let url_count = output.matches("https://example.com").count();
+        assert_eq!(url_count, 1, "Autolink URL should appear exactly once");
+    }
+
+    #[test]
+    fn test_render_blockquote_multi_paragraph_debug() {
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render("> Paragraph 1\n>\n> Paragraph 2");
+
+        eprintln!("=== BLOCKQUOTE MULTI-PARAGRAPH OUTPUT ===");
+        for (i, line) in output.lines().enumerate() {
+            // Strip ANSI sequences
+            let mut plain = String::new();
+            let mut in_escape = false;
+            for c in line.chars() {
+                if c == '\x1b' {
+                    in_escape = true;
+                } else if in_escape {
+                    if c == 'm' {
+                        in_escape = false;
+                    }
+                } else {
+                    plain.push(c);
+                }
+            }
+            eprintln!("Line {}: {:?}", i, plain);
+        }
+        eprintln!("=== END ===");
+
+        assert!(output.contains("Paragraph 1"));
+        assert!(output.contains("Paragraph 2"));
     }
 
     #[test]

@@ -387,7 +387,7 @@ impl Table {
         // Render only the visible rows
         let rendered: Vec<String> = (self.start..self.end).map(|i| self.render_row(i)).collect();
 
-        self.viewport.set_content(&rendered.join("\n"));
+        self.viewport.set_lines(rendered);
     }
 
     /// Renders the header row.

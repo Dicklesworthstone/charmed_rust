@@ -14,6 +14,7 @@
 use std::env;
 use std::path::PathBuf;
 use std::process::{Command, Output};
+use std::sync::{Mutex, OnceLock};
 
 /// Get the workspace root directory
 fn workspace_root() -> PathBuf {
@@ -26,14 +27,37 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn cargo_mutex() -> &'static Mutex<()> {
+    static CARGO_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+    CARGO_MUTEX.get_or_init(|| Mutex::new(()))
+}
+
+/// Run a cargo command with optional extra env and return the output
+fn run_cargo_command_with_env(args: &[&str], extra_env: &[(&str, &str)]) -> Output {
+    let _guard = cargo_mutex()
+        .lock()
+        .expect("Failed to lock cargo command mutex");
+    let cargo_home = env::var("CARGO_HOME").ok();
+    let cargo_target_dir = env::var("CARGO_TARGET_DIR").ok();
+    eprintln!(
+        "benchmark_e2e: cargo {} (CARGO_HOME={:?}, CARGO_TARGET_DIR={:?})",
+        args.join(" "),
+        cargo_home,
+        cargo_target_dir
+    );
+    let mut cmd = Command::new("cargo");
+    cmd.current_dir(workspace_root())
+        .args(args)
+        .env("CARGO_TERM_COLOR", "never");
+    for (key, value) in extra_env {
+        cmd.env(key, value);
+    }
+    cmd.output().expect("Failed to execute cargo command")
+}
+
 /// Run a cargo command and return the output
 fn run_cargo_command(args: &[&str]) -> Output {
-    Command::new("cargo")
-        .current_dir(workspace_root())
-        .args(args)
-        .env("CARGO_TERM_COLOR", "never")
-        .output()
-        .expect("Failed to execute cargo command")
+    run_cargo_command_with_env(args, &[])
 }
 
 /// Helper to check if output indicates success
@@ -227,9 +251,8 @@ mod baseline_tests {
         fs::create_dir_all(&target_dir).expect("Failed to create target dir");
 
         // Save baseline (run a quick benchmark)
-        let output = Command::new("cargo")
-            .current_dir(workspace_root())
-            .args([
+        let output = run_cargo_command_with_env(
+            &[
                 "bench",
                 "-p",
                 "lipgloss",
@@ -242,10 +265,9 @@ mod baseline_tests {
                 "--save-baseline",
                 "test_baseline",
                 "Style::new",
-            ])
-            .env("CARGO_TERM_COLOR", "never")
-            .output()
-            .expect("Failed to save baseline");
+            ],
+            &[],
+        );
 
         assert!(
             is_success(&output),
@@ -254,9 +276,8 @@ mod baseline_tests {
         );
 
         // Compare against baseline
-        let output = Command::new("cargo")
-            .current_dir(workspace_root())
-            .args([
+        let output = run_cargo_command_with_env(
+            &[
                 "bench",
                 "-p",
                 "lipgloss",
@@ -269,10 +290,9 @@ mod baseline_tests {
                 "--baseline",
                 "test_baseline",
                 "Style::new",
-            ])
-            .env("CARGO_TERM_COLOR", "never")
-            .output()
-            .expect("Failed to compare baseline");
+            ],
+            &[],
+        );
 
         // Should succeed (comparison itself doesn't fail on regression)
         assert!(

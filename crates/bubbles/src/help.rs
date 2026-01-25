@@ -22,6 +22,7 @@
 use crate::key::Binding;
 use bubbletea::{Cmd, Message, Model};
 use lipgloss::Style;
+use unicode_width::UnicodeWidthStr;
 
 /// Styles for the help view.
 #[derive(Debug, Clone)]
@@ -183,12 +184,11 @@ impl Help {
             let key_str = self.styles.short_key.render(&help.key);
             let desc_str = self.styles.short_desc.render(&help.desc);
             let item = format!("{}{} {}", sep, key_str, desc_str);
-            let item_width =
-                sep.chars().count() + help.key.chars().count() + 1 + help.desc.chars().count();
+            let item_width = sep.width() + help.key.width() + 1 + help.desc.width();
 
             // Check width limit
             if self.width > 0 {
-                let ellipsis_width = 1 + self.ellipsis.chars().count();
+                let ellipsis_width = 1 + self.ellipsis.width();
                 if total_width + item_width > self.width {
                     if total_width + ellipsis_width < self.width {
                         result.push(' ');
@@ -255,10 +255,9 @@ impl Help {
             );
 
             // Approximate width
-            let max_key_width = keys.iter().map(|k| k.chars().count()).max().unwrap_or(0);
-            let max_desc_width = descs.iter().map(|d| d.chars().count()).max().unwrap_or(0);
-            let col_width =
-                self.full_separator.chars().count() + max_key_width + 1 + max_desc_width;
+            let max_key_width = keys.iter().map(|k| k.width()).max().unwrap_or(0);
+            let max_desc_width = descs.iter().map(|d| d.width()).max().unwrap_or(0);
+            let col_width = self.full_separator.width() + max_key_width + 1 + max_desc_width;
 
             // Check width limit
             if self.width > 0 && total_width + col_width > self.width {
