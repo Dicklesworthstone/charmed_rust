@@ -65,11 +65,11 @@ struct GlamourOutput {
 fn parse_style(style: &str) -> Style {
     match style.to_lowercase().as_str() {
         "dark" => Style::Dark,
+        "dracula" => Style::Dracula,
         "light" => Style::Light,
         "ascii" => Style::Ascii,
         "notty" => Style::NoTty,
         "pink" => Style::Pink,
-        "dracula" => Style::Dark, // dracula maps to dark for now
         "auto" => Style::Auto,
         _ => Style::Dark, // default to dark
     }

@@ -214,22 +214,15 @@ impl Viewport {
     }
 
     /// Returns the currently visible lines.
-    fn visible_lines(&self) -> Vec<&str> {
+    fn visible_lines(&self) -> &[String] {
         if self.lines.is_empty() {
-            return Vec::new();
+            return &[];
         }
 
         let top = self.y_offset.min(self.lines.len());
         let bottom = (self.y_offset + self.height).min(self.lines.len());
 
-        self.lines[top..bottom]
-            .iter()
-            .map(|s| {
-                // Apply horizontal offset
-                // Note: horizontal slicing handled in view() where we can allocate
-                s.as_str()
-            })
-            .collect()
+        &self.lines[top..bottom]
     }
 
     /// Scrolls down by the given number of lines.

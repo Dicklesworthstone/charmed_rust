@@ -528,8 +528,7 @@
       "expected_output": {
         "error": false,
         "output": "\n\u001b[38;5;35;1m\u001b[0m\u001b[38;5;35;1m\u001b[0m  \u001b[38;5;35;1muser@example.com\u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;30;4mmailto:user@example.com\u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\u001b[38;5;252m \u001b[0m\n\n"
-      },
-      "skip_reason": "Known discrepancy: Email autolink formatting differs (mailto: prefix)"
+      }
     },
     {
       "name": "link_image",

@@ -537,6 +537,7 @@ impl TextInput {
             self.value = new_value;
         }
         self.err = self.do_validate(&self.value);
+        self.handle_overflow();
     }
 
     fn delete_word_forward(&mut self) {
@@ -848,10 +849,10 @@ impl TextInput {
             v.push_str(&self.completion_view(0));
         } else if self.focus && self.can_accept_suggestion() {
             if let Some(suggestion) = self.matched_suggestions.get(self.current_suggestion_index) {
-                if value.len() < suggestion.len() {
+                if self.value.len() < suggestion.len() && self.pos < suggestion.len() {
                     let mut cursor = self.cursor.clone();
                     cursor.text_style = self.completion_style.clone();
-                    let char_display: String = suggestion[pos..pos + 1].iter().collect();
+                    let char_display: String = suggestion[self.pos..self.pos + 1].iter().collect();
                     cursor.set_char(&self.echo_transform(&char_display));
                     v.push_str(&cursor.view());
                     v.push_str(&self.completion_view(1));
@@ -1035,6 +1036,23 @@ mod tests {
         assert_eq!(input.matched_suggestions().len(), 2);
         assert!(input.matched_suggestions().contains(&"apple".to_string()));
         assert!(input.matched_suggestions().contains(&"apricot".to_string()));
+    }
+
+    #[test]
+    fn test_textinput_suggestion_overflow_uses_global_position() {
+        let mut input = TextInput::new();
+        input.width = 5;
+        input.show_suggestions = true;
+        input.set_value("abcdefghij");
+        input.set_suggestions(&["abcdefghijZ"]);
+        input.focus();
+        input.cursor_end();
+
+        let view = input.view();
+        assert!(
+            view.contains("Z"),
+            "Expected suggestion character to render at cursor when scrolled"
+        );
     }
 
     #[test]

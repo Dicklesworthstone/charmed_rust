@@ -670,6 +670,8 @@ pub enum Style {
     /// Dark terminal style (default).
     #[default]
     Dark,
+    /// Dracula theme style (purple accents, # heading prefixes).
+    Dracula,
     /// Light terminal style.
     Light,
     /// Pink accent style.
@@ -686,6 +688,7 @@ impl Style {
         match self {
             Style::Ascii | Style::NoTty => ascii_style(),
             Style::Dark | Style::Auto => dark_style(),
+            Style::Dracula => dracula_style(),
             Style::Light => light_style(),
             Style::Pink => pink_style(),
         }
@@ -715,7 +718,7 @@ pub fn ascii_style() -> StyleConfig {
         item: StylePrimitive::new().block_prefix("* "),
         enumeration: StylePrimitive::new().block_prefix(". "),
         task: StyleTask::new().ticked("[x] ").unticked("[ ] "),
-        image_text: StylePrimitive::new().format("Image: {{.text}} ->"),
+        image_text: StylePrimitive::new().format("Image: {{.text}} →"),
         code: StyleBlock::new().style(StylePrimitive::new().prefix("`").suffix("`")),
         code_block: StyleCodeBlock::new().block(StyleBlock::new().margin(DEFAULT_MARGIN)),
         table: StyleTable::new().separators("|", "|", "-"),
@@ -773,7 +776,7 @@ pub fn dark_style() -> StyleConfig {
         image: StylePrimitive::new().color("212").underline(true),
         image_text: StylePrimitive::new()
             .color("243")
-            .format("Image: {{.text}} ->"),
+            .format("Image: {{.text}} →"),
         code: StyleBlock::new().style(
             StylePrimitive::new()
                 .prefix(" ")
@@ -835,7 +838,7 @@ pub fn light_style() -> StyleConfig {
         image: StylePrimitive::new().color("205").underline(true),
         image_text: StylePrimitive::new()
             .color("243")
-            .format("Image: {{.text}} ->"),
+            .format("Image: {{.text}} →"),
         code: StyleBlock::new().style(
             StylePrimitive::new()
                 .prefix(" ")
@@ -888,6 +891,72 @@ pub fn pink_style() -> StyleConfig {
                 .suffix(" ")
                 .color("212")
                 .background_color("236"),
+        ),
+        definition_description: StylePrimitive::new().block_prefix("\n→ "),
+        ..Default::default()
+    }
+}
+
+/// Creates the Dracula style configuration.
+///
+/// Dracula theme colors:
+/// - Text: #f8f8f2 (light gray)
+/// - Heading: #bd93f9 (purple)
+/// - Bold: #ffb86c (orange)
+/// - Italic: #f1fa8c (yellow-green)
+/// - Code: #50fa7b (green)
+/// - Link: #8be9fd (cyan)
+pub fn dracula_style() -> StyleConfig {
+    StyleConfig {
+        document: StyleBlock::new()
+            .style(
+                StylePrimitive::new()
+                    .block_prefix("\n")
+                    .block_suffix("\n")
+                    .color("#f8f8f2"),
+            )
+            .margin(DEFAULT_MARGIN),
+        block_quote: StyleBlock::new().indent(1).indent_token("│ "),
+        list: StyleList::new().level_indent(DEFAULT_LIST_INDENT),
+        heading: StyleBlock::new().style(
+            StylePrimitive::new()
+                .block_suffix("\n")
+                .color("#bd93f9")
+                .bold(true),
+        ),
+        // Dracula uses # prefix for h1 (matching Go behavior)
+        h1: StyleBlock::new().style(StylePrimitive::new().prefix("# ")),
+        h2: StyleBlock::new().style(StylePrimitive::new().prefix("## ")),
+        h3: StyleBlock::new().style(StylePrimitive::new().prefix("### ")),
+        h4: StyleBlock::new().style(StylePrimitive::new().prefix("#### ")),
+        h5: StyleBlock::new().style(StylePrimitive::new().prefix("##### ")),
+        h6: StyleBlock::new().style(StylePrimitive::new().prefix("###### ").bold(false)),
+        strikethrough: StylePrimitive::new().crossed_out(true),
+        emph: StylePrimitive::new().italic(true).color("#f1fa8c"),
+        strong: StylePrimitive::new().bold(true).color("#ffb86c"),
+        horizontal_rule: StylePrimitive::new()
+            .color("#6272a4")
+            .format("\n--------\n"),
+        item: StylePrimitive::new().block_prefix("• "),
+        enumeration: StylePrimitive::new().block_prefix(". "),
+        task: StyleTask::new().ticked("[✓] ").unticked("[ ] "),
+        link: StylePrimitive::new().color("#8be9fd").underline(true),
+        link_text: StylePrimitive::new().color("#ff79c6").bold(true),
+        image: StylePrimitive::new().color("#ff79c6").underline(true),
+        image_text: StylePrimitive::new()
+            .color("#6272a4")
+            .format("Image: {{.text}} →"),
+        code: StyleBlock::new().style(
+            StylePrimitive::new()
+                .prefix(" ")
+                .suffix(" ")
+                .color("#50fa7b")
+                .background_color("#44475a"),
+        ),
+        code_block: StyleCodeBlock::new().block(
+            StyleBlock::new()
+                .style(StylePrimitive::new().color("#f8f8f2"))
+                .margin(DEFAULT_MARGIN),
         ),
         definition_description: StylePrimitive::new().block_prefix("\n→ "),
         ..Default::default()
@@ -1098,6 +1167,7 @@ struct RenderContext<'a> {
     text_buffer: String,
     link_url: String,
     link_title: String,
+    link_is_autolink_email: bool,
     image_url: String,
     image_title: String,
     code_block_language: String,
@@ -1134,6 +1204,7 @@ impl<'a> RenderContext<'a> {
             text_buffer: String::new(),
             link_url: String::new(),
             link_title: String::new(),
+            link_is_autolink_email: false,
             image_url: String::new(),
             image_title: String::new(),
             code_block_language: String::new(),
@@ -1221,11 +1292,10 @@ impl<'a> RenderContext<'a> {
                         .block_quote_depth
                         .saturating_sub(self.pending_block_quote_decrement);
                     self.pending_block_quote_decrement = 0;
-                    // Update pending separator to match new depth
-                    if let Some(ref mut sep_depth) = self.block_quote_pending_separator {
-                        if *sep_depth > self.block_quote_depth {
-                            *sep_depth = self.block_quote_depth;
-                        }
+                    if let Some(ref mut sep_depth) = self.block_quote_pending_separator
+                        && *sep_depth > self.block_quote_depth
+                    {
+                        *sep_depth = self.block_quote_depth;
                     }
                 }
                 if self.block_quote_depth == 0 {
@@ -1246,10 +1316,10 @@ impl<'a> RenderContext<'a> {
                     self.block_quote_depth = self.block_quote_depth.saturating_sub(1);
                     // Update pending separator to match new depth (prevents stale
                     // high depth values from nested blockquotes)
-                    if let Some(ref mut sep_depth) = self.block_quote_pending_separator {
-                        if *sep_depth > self.block_quote_depth {
-                            *sep_depth = self.block_quote_depth;
-                        }
+                    if let Some(ref mut sep_depth) = self.block_quote_pending_separator
+                        && *sep_depth > self.block_quote_depth
+                    {
+                        *sep_depth = self.block_quote_depth;
                     }
                     if self.block_quote_depth == 0 {
                         self.block_quote_pending_separator = None;
@@ -1411,20 +1481,31 @@ impl<'a> RenderContext<'a> {
             }
 
             Event::Start(Tag::Link {
-                dest_url, title, ..
+                link_type,
+                dest_url,
+                title,
+                ..
             }) => {
                 self.in_link = true;
                 self.link_url = dest_url.to_string();
                 self.link_title = title.to_string();
+                self.link_is_autolink_email = matches!(link_type, pulldown_cmark::LinkType::Email);
             }
             Event::End(TagEnd::Link) => {
                 // Append URL after link text, like Go glamour does
                 // But don't duplicate if the link text is already the URL (autolinks)
+                if self.link_is_autolink_email
+                    && !self.link_url.is_empty()
+                    && !self.link_url.starts_with("mailto:")
+                {
+                    self.link_url = format!("mailto:{}", self.link_url);
+                }
                 if !self.link_url.is_empty() && !self.text_buffer.ends_with(&self.link_url) {
                     self.text_buffer.push(' ');
                     self.text_buffer.push_str(&self.link_url);
                 }
                 self.in_link = false;
+                self.link_is_autolink_email = false;
                 self.link_url.clear();
                 self.link_title.clear();
             }
@@ -1813,7 +1894,7 @@ impl<'a> RenderContext<'a> {
 
         let style = &self.options.styles.image_text;
         let format = if style.format.is_empty() {
-            "Image: {{.text}} ->"
+            "Image: {{.text}} →"
         } else {
             &style.format
         };
@@ -1889,6 +1970,7 @@ pub fn render_with_environment_config(markdown: &str) -> String {
         .and_then(|s| match s.as_str() {
             "ascii" => Some(Style::Ascii),
             "dark" => Some(Style::Dark),
+            "dracula" => Some(Style::Dracula),
             "light" => Some(Style::Light),
             "pink" => Some(Style::Pink),
             "notty" => Some(Style::NoTty),
@@ -1905,6 +1987,7 @@ pub fn available_styles() -> HashMap<&'static str, Style> {
     let mut styles = HashMap::new();
     styles.insert("ascii", Style::Ascii);
     styles.insert("dark", Style::Dark);
+    styles.insert("dracula", Style::Dracula);
     styles.insert("light", Style::Light);
     styles.insert("pink", Style::Pink);
     styles.insert("notty", Style::NoTty);
@@ -1917,7 +2000,7 @@ pub mod prelude {
     pub use crate::{
         Renderer, RendererOptions, Style, StyleBlock, StyleCodeBlock, StyleConfig, StyleList,
         StylePrimitive, StyleTable, StyleTask, ascii_style, available_styles, dark_style,
-        light_style, pink_style, render, render_with_environment_config,
+        dracula_style, light_style, pink_style, render, render_with_environment_config,
     };
 }
 
@@ -2036,6 +2119,16 @@ mod tests {
         // For autolinks, URL should appear only once (not duplicated)
         let url_count = output.matches("https://example.com").count();
         assert_eq!(url_count, 1, "Autolink URL should appear exactly once");
+    }
+
+    #[test]
+    fn test_render_autolink_email() {
+        let renderer = Renderer::new().with_style(Style::Dark);
+        let output = renderer.render("<user@example.com>");
+        assert!(output.contains("user@example.com"));
+        assert!(output.contains("mailto:user@example.com"));
+        let mailto_count = output.matches("mailto:user@example.com").count();
+        assert_eq!(mailto_count, 1, "Email autolink should include mailto once");
     }
 
     #[test]
@@ -2164,6 +2257,31 @@ mod tests {
     fn test_pink_style() {
         let config = pink_style();
         assert!(config.heading.style.color.is_some());
+    }
+
+    #[test]
+    fn test_dracula_style() {
+        let config = dracula_style();
+        // Dracula uses # prefix for h1 headings (matching Go behavior)
+        assert_eq!(config.h1.style.prefix, "# ");
+        assert_eq!(config.h2.style.prefix, "## ");
+        assert_eq!(config.h3.style.prefix, "### ");
+        // Heading should be bold and purple
+        assert!(config.heading.style.bold == Some(true));
+        assert!(config.heading.style.color.is_some());
+        // Dracula uses specific colors
+        assert_eq!(config.heading.style.color.as_deref(), Some("#bd93f9")); // purple
+        assert_eq!(config.strong.color.as_deref(), Some("#ffb86c")); // orange bold
+        assert_eq!(config.emph.color.as_deref(), Some("#f1fa8c")); // yellow-green italic
+    }
+
+    #[test]
+    fn test_dracula_heading_output() {
+        let renderer = Renderer::new().with_style(Style::Dracula);
+        let output = renderer.render("# Heading");
+        // Verify the heading has # prefix
+        assert!(output.contains("# "), "Dracula h1 should have '# ' prefix");
+        assert!(output.contains("Heading"));
     }
 
     #[test]

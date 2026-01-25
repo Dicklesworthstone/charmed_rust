@@ -27,7 +27,7 @@ struct Cli {
     /// Markdown file to render. Use "-" to read from stdin.
     path: Option<PathBuf>,
 
-    /// Style theme (dark, light, ascii, pink, auto, no-tty)
+    /// Style theme (dark, light, dracula, ascii, pink, auto, no-tty)
     #[arg(short = 's', long, default_value = "dark")]
     style: String,
 
