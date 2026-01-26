@@ -760,10 +760,10 @@ impl<M: Model> Program<M> {
                     // Poll with timeout to check cancellation
                     match event::poll(Duration::from_millis(100)) {
                         Ok(true) => {
-                            if let Ok(evt) = event::read() {
-                                if event_tx.blocking_send(evt).is_err() {
-                                    break;
-                                }
+                            if let Ok(evt) = event::read()
+                                && event_tx.blocking_send(evt).is_err()
+                            {
+                                break;
                             }
                         }
                         Ok(false) => {} // timeout

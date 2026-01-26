@@ -5,7 +5,7 @@ use std::sync::{
 };
 
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, WindowSizeMsg};
-use portable_pty::{Child, ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
+use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use tokio::io::AsyncWriteExt;
 
 use super::common::{
@@ -104,22 +104,22 @@ async fn test_window_resize() {
         .expect("openpty");
 
     let mut cmd = CommandBuilder::new("ssh");
-    cmd.arg("-tt")
-        .arg("-F")
-        .arg("/dev/null")
-        .arg("-o")
-        .arg("StrictHostKeyChecking=no")
-        .arg("-o")
-        .arg("UserKnownHostsFile=/dev/null")
-        .arg("-o")
-        .arg("GlobalKnownHostsFile=/dev/null")
-        .arg("-o")
-        .arg("LogLevel=ERROR")
-        .arg("-o")
-        .arg("ConnectTimeout=5")
-        .arg("-p")
-        .arg(server.port().to_string())
-        .arg(format!("{}@127.0.0.1", super::common::TEST_USER));
+    cmd.arg("-tt");
+    cmd.arg("-F");
+    cmd.arg("/dev/null");
+    cmd.arg("-o");
+    cmd.arg("StrictHostKeyChecking=no");
+    cmd.arg("-o");
+    cmd.arg("UserKnownHostsFile=/dev/null");
+    cmd.arg("-o");
+    cmd.arg("GlobalKnownHostsFile=/dev/null");
+    cmd.arg("-o");
+    cmd.arg("LogLevel=ERROR");
+    cmd.arg("-o");
+    cmd.arg("ConnectTimeout=5");
+    cmd.arg("-p");
+    cmd.arg(server.port().to_string());
+    cmd.arg(format!("{}@127.0.0.1", super::common::TEST_USER));
 
     let mut child = pair.slave.spawn_command(cmd).expect("spawn ssh");
     drop(pair.slave);
