@@ -3,7 +3,7 @@
 //! The Program struct manages the entire TUI application lifecycle,
 //! including terminal setup, event handling, and rendering.
 
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
@@ -27,7 +27,6 @@ use crossterm::{
     },
 };
 
-use crate::KeyMsg;
 use crate::command::Cmd;
 use crate::key::from_crossterm_key;
 use crate::message::{
@@ -36,6 +35,7 @@ use crate::message::{
 };
 use crate::mouse::from_crossterm_mouse;
 use crate::screen::{ReleaseTerminalMsg, RestoreTerminalMsg};
+use crate::{KeyMsg, KeyType};
 
 /// Errors that can occur when running a bubbletea program.
 ///
@@ -309,6 +309,8 @@ pub struct Program<M: Model> {
     model: M,
     options: ProgramOptions,
     external_rx: Option<Receiver<Message>>,
+    input: Option<Box<dyn Read + Send>>,
+    output: Option<Box<dyn Write + Send>>,
 }
 
 impl<M: Model> Program<M> {
@@ -318,6 +320,8 @@ impl<M: Model> Program<M> {
             model,
             options: ProgramOptions::default(),
             external_rx: None,
+            input: None,
+            output: None,
         }
     }
 
@@ -327,6 +331,25 @@ impl<M: Model> Program<M> {
     /// This is useful for injecting events from external sources (e.g. SSH).
     pub fn with_input_receiver(mut self, rx: Receiver<Message>) -> Self {
         self.external_rx = Some(rx);
+        self
+    }
+
+    /// Provide a custom input reader.
+    ///
+    /// This enables custom I/O mode and reads raw bytes from the given reader,
+    /// translating them into Bubbletea messages.
+    pub fn with_input<R: Read + Send + 'static>(mut self, input: R) -> Self {
+        self.input = Some(Box::new(input));
+        self.options.custom_io = true;
+        self
+    }
+
+    /// Provide a custom output writer.
+    ///
+    /// This enables custom I/O mode and writes render output to the given writer.
+    pub fn with_output<W: Write + Send + 'static>(mut self, output: W) -> Self {
+        self.output = Some(Box::new(output));
+        self.options.custom_io = true;
         self
     }
 
@@ -455,7 +478,11 @@ impl<M: Model> Program<M> {
     }
 
     /// Run the program and return the final model state.
-    pub fn run(self) -> Result<M> {
+    pub fn run(mut self) -> Result<M> {
+        if let Some(output) = self.output.take() {
+            return self.run_with_writer(output);
+        }
+
         let stdout = io::stdout();
         self.run_with_writer(stdout)
     }
@@ -469,6 +496,34 @@ impl<M: Model> Program<M> {
             let tx_clone = tx.clone();
             thread::spawn(move || {
                 while let Ok(msg) = ext_rx.recv() {
+                    let _ = tx_clone.send(msg);
+                }
+            });
+        }
+
+        // Read custom input stream and inject messages.
+        if let Some(mut input) = self.input.take() {
+            let tx_clone = tx.clone();
+            thread::spawn(move || {
+                let mut parser = InputParser::new();
+                let mut buf = [0u8; 256];
+                loop {
+                    match input.read(&mut buf) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            let can_have_more_data = n == buf.len();
+                            for msg in parser.push_bytes(&buf[..n], can_have_more_data) {
+                                let _ = tx_clone.send(msg);
+                            }
+                        }
+                        Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                            thread::yield_now();
+                        }
+                        Err(_) => break,
+                    }
+                }
+
+                for msg in parser.flush() {
                     let _ = tx_clone.send(msg);
                 }
             });
@@ -732,9 +787,20 @@ impl<M: Model> Program<M> {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn run_async(self) -> Result<M> {
-        let mut stdout = io::stdout();
+    pub async fn run_async(mut self) -> Result<M> {
+        if let Some(output) = self.output.take() {
+            return self.run_async_with_writer(output).await;
+        }
 
+        let stdout = io::stdout();
+        self.run_async_with_writer(stdout).await
+    }
+
+    /// Run the program using the tokio async runtime with a custom writer.
+    pub async fn run_async_with_writer<W: Write + Send + 'static>(
+        self,
+        mut writer: W,
+    ) -> Result<M> {
         // Save options for cleanup (since self will be moved)
         let options = self.options.clone();
 
@@ -744,45 +810,45 @@ impl<M: Model> Program<M> {
         }
 
         if options.alt_screen {
-            execute!(stdout, EnterAlternateScreen)?;
+            execute!(writer, EnterAlternateScreen)?;
         }
 
-        execute!(stdout, Hide)?;
+        execute!(writer, Hide)?;
 
         if options.mouse_all_motion {
-            execute!(stdout, EnableMouseCapture)?;
+            execute!(writer, EnableMouseCapture)?;
         } else if options.mouse_cell_motion {
-            execute!(stdout, EnableMouseCapture)?;
+            execute!(writer, EnableMouseCapture)?;
         }
 
         if options.report_focus {
-            execute!(stdout, event::EnableFocusChange)?;
+            execute!(writer, event::EnableFocusChange)?;
         }
 
         if options.bracketed_paste {
-            execute!(stdout, event::EnableBracketedPaste)?;
+            execute!(writer, event::EnableBracketedPaste)?;
         }
 
         // Run the async event loop
-        let result = self.event_loop_async(&mut stdout).await;
+        let result = self.event_loop_async(&mut writer).await;
 
         // Cleanup terminal
         if options.bracketed_paste {
-            let _ = execute!(stdout, event::DisableBracketedPaste);
+            let _ = execute!(writer, event::DisableBracketedPaste);
         }
 
         if options.report_focus {
-            let _ = execute!(stdout, event::DisableFocusChange);
+            let _ = execute!(writer, event::DisableFocusChange);
         }
 
         if options.mouse_all_motion || options.mouse_cell_motion {
-            let _ = execute!(stdout, DisableMouseCapture);
+            let _ = execute!(writer, DisableMouseCapture);
         }
 
-        let _ = execute!(stdout, Show);
+        let _ = execute!(writer, Show);
 
         if options.alt_screen {
-            let _ = execute!(stdout, LeaveAlternateScreen);
+            let _ = execute!(writer, LeaveAlternateScreen);
         }
 
         if !options.custom_io {
@@ -792,7 +858,7 @@ impl<M: Model> Program<M> {
         result
     }
 
-    async fn event_loop_async(mut self, stdout: &mut io::Stdout) -> Result<M> {
+    async fn event_loop_async<W: Write>(mut self, stdout: &mut W) -> Result<M> {
         // Create async message channel
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Message>(256);
 
@@ -823,6 +889,42 @@ impl<M: Model> Program<M> {
                             // Channel closed, exit
                             break;
                         }
+                    }
+                }
+            });
+        }
+
+        // Read custom input stream and inject messages.
+        if let Some(mut input) = self.input.take() {
+            let tx_clone = tx.clone();
+            let cancel_clone = cancel_token.clone();
+            task_tracker.spawn_blocking(move || {
+                let mut parser = InputParser::new();
+                let mut buf = [0u8; 256];
+                loop {
+                    if cancel_clone.is_cancelled() {
+                        break;
+                    }
+                    match input.read(&mut buf) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            let can_have_more_data = n == buf.len();
+                            for msg in parser.push_bytes(&buf[..n], can_have_more_data) {
+                                if tx_clone.blocking_send(msg).is_err() {
+                                    return;
+                                }
+                            }
+                        }
+                        Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                            std::thread::yield_now();
+                        }
+                        Err(_) => break,
+                    }
+                }
+
+                for msg in parser.flush() {
+                    if tx_clone.blocking_send(msg).is_err() {
+                        break;
                     }
                 }
             });
@@ -1142,6 +1244,346 @@ impl<M: Model> Program<M> {
             }
         });
     }
+}
+
+// =============================================================================
+// Custom Input Parsing (for custom I/O mode)
+// =============================================================================
+
+struct InputParser {
+    buffer: Vec<u8>,
+}
+
+impl InputParser {
+    fn new() -> Self {
+        Self { buffer: Vec::new() }
+    }
+
+    fn push_bytes(&mut self, bytes: &[u8], can_have_more_data: bool) -> Vec<Message> {
+        if !bytes.is_empty() {
+            self.buffer.extend_from_slice(bytes);
+        }
+
+        let mut messages = Vec::new();
+        loop {
+            if self.buffer.is_empty() {
+                break;
+            }
+
+            match parse_one_message(&self.buffer, can_have_more_data) {
+                ParseOutcome::NeedMore => break,
+                ParseOutcome::Parsed(consumed, msg) => {
+                    self.buffer.drain(0..consumed);
+                    if let Some(msg) = msg {
+                        messages.push(msg);
+                    }
+                }
+            }
+        }
+
+        messages
+    }
+
+    fn flush(&mut self) -> Vec<Message> {
+        let mut messages = Vec::new();
+        loop {
+            if self.buffer.is_empty() {
+                break;
+            }
+
+            match parse_one_message(&self.buffer, false) {
+                ParseOutcome::NeedMore => break,
+                ParseOutcome::Parsed(consumed, msg) => {
+                    self.buffer.drain(0..consumed);
+                    if let Some(msg) = msg {
+                        messages.push(msg);
+                    }
+                }
+            }
+        }
+        messages
+    }
+}
+
+enum ParseOutcome {
+    NeedMore,
+    Parsed(usize, Option<Message>),
+}
+
+fn parse_one_message(buf: &[u8], can_have_more_data: bool) -> ParseOutcome {
+    if buf.is_empty() {
+        return ParseOutcome::NeedMore;
+    }
+
+    if let Some(outcome) = parse_mouse_event(buf, can_have_more_data) {
+        return outcome;
+    }
+
+    if let Some(outcome) = parse_focus_event(buf, can_have_more_data) {
+        return outcome;
+    }
+
+    if let Some(outcome) = parse_bracketed_paste(buf, can_have_more_data) {
+        return outcome;
+    }
+
+    if let Some(outcome) = parse_key_sequence(buf) {
+        return outcome;
+    }
+
+    parse_runes_or_control(buf, can_have_more_data)
+}
+
+fn parse_mouse_event(buf: &[u8], can_have_more_data: bool) -> Option<ParseOutcome> {
+    if buf.starts_with(b"\x1b[M") {
+        if buf.len() < 6 {
+            return Some(if can_have_more_data {
+                ParseOutcome::NeedMore
+            } else {
+                ParseOutcome::Parsed(1, Some(replacement_message()))
+            });
+        }
+        let seq = &buf[..6];
+        return Some(match crate::mouse::parse_mouse_event_sequence(seq) {
+            Ok(msg) => ParseOutcome::Parsed(6, Some(Message::new(msg))),
+            Err(_) => ParseOutcome::Parsed(1, Some(replacement_message())),
+        });
+    }
+
+    if buf.starts_with(b"\x1b[<") {
+        if let Some(end_idx) = buf.iter().position(|b| *b == b'M' || *b == b'm') {
+            let seq = &buf[..=end_idx];
+            return Some(match crate::mouse::parse_mouse_event_sequence(seq) {
+                Ok(msg) => ParseOutcome::Parsed(seq.len(), Some(Message::new(msg))),
+                Err(_) => ParseOutcome::Parsed(1, Some(replacement_message())),
+            });
+        }
+        return Some(if can_have_more_data {
+            ParseOutcome::NeedMore
+        } else {
+            ParseOutcome::Parsed(1, Some(replacement_message()))
+        });
+    }
+
+    None
+}
+
+fn parse_focus_event(buf: &[u8], can_have_more_data: bool) -> Option<ParseOutcome> {
+    if buf.len() < 3 && buf.starts_with(b"\x1b[") && can_have_more_data {
+        return Some(ParseOutcome::NeedMore);
+    }
+
+    if buf.starts_with(b"\x1b[I") {
+        return Some(ParseOutcome::Parsed(3, Some(Message::new(FocusMsg))));
+    }
+
+    if buf.starts_with(b"\x1b[O") {
+        return Some(ParseOutcome::Parsed(3, Some(Message::new(BlurMsg))));
+    }
+
+    None
+}
+
+fn parse_bracketed_paste(buf: &[u8], can_have_more_data: bool) -> Option<ParseOutcome> {
+    const BP_START: &[u8] = b"\x1b[200~";
+    const BP_END: &[u8] = b"\x1b[201~";
+
+    if !buf.starts_with(BP_START) {
+        return None;
+    }
+
+    if let Some(idx) = buf.windows(BP_END.len()).position(|w| w == BP_END) {
+        let content = &buf[BP_START.len()..idx];
+        let text = String::from_utf8_lossy(content);
+        let runes = text.chars().collect::<Vec<char>>();
+        let key = KeyMsg::from_runes(runes).with_paste();
+        let total_len = idx + BP_END.len();
+        return Some(ParseOutcome::Parsed(total_len, Some(message_from_key(key))));
+    }
+
+    Some(if can_have_more_data {
+        ParseOutcome::NeedMore
+    } else {
+        let content = &buf[BP_START.len()..];
+        let text = String::from_utf8_lossy(content);
+        let runes = text.chars().collect::<Vec<char>>();
+        let key = KeyMsg::from_runes(runes).with_paste();
+        ParseOutcome::Parsed(buf.len(), Some(message_from_key(key)))
+    })
+}
+
+fn parse_key_sequence(buf: &[u8]) -> Option<ParseOutcome> {
+    if let Some((key, len)) = crate::key::parse_sequence_prefix(buf) {
+        return Some(ParseOutcome::Parsed(len, Some(message_from_key(key))));
+    }
+
+    if buf.starts_with(b"\x1b") {
+        if let Some((mut key, len)) = crate::key::parse_sequence_prefix(&buf[1..]) {
+            if !key.alt {
+                key = key.with_alt();
+            }
+            return Some(ParseOutcome::Parsed(len + 1, Some(message_from_key(key))));
+        }
+    }
+
+    None
+}
+
+fn parse_runes_or_control(buf: &[u8], can_have_more_data: bool) -> ParseOutcome {
+    let mut alt = false;
+    let mut idx = 0;
+
+    if buf[0] == 0x1b {
+        if buf.len() == 1 {
+            return if can_have_more_data {
+                ParseOutcome::NeedMore
+            } else {
+                ParseOutcome::Parsed(1, Some(message_from_key(KeyMsg::from_type(KeyType::Esc))))
+            };
+        }
+        alt = true;
+        idx = 1;
+    }
+
+    if idx >= buf.len() {
+        return ParseOutcome::NeedMore;
+    }
+
+    if let Some(key_type) = control_key_type(buf[idx]) {
+        let mut key = KeyMsg::from_type(key_type);
+        if alt {
+            key = key.with_alt();
+        }
+        return ParseOutcome::Parsed(idx + 1, Some(message_from_key(key)));
+    }
+
+    let mut runes = Vec::new();
+    let mut i = idx;
+    while i < buf.len() {
+        let b = buf[i];
+        if is_control_or_space(b) {
+            break;
+        }
+
+        let (ch, width, valid) = match decode_char(&buf[i..], can_have_more_data) {
+            DecodeOutcome::NeedMore => return ParseOutcome::NeedMore,
+            DecodeOutcome::Decoded(ch, width, valid) => (ch, width, valid),
+        };
+
+        if !valid {
+            runes.push(std::char::REPLACEMENT_CHARACTER);
+            i += 1;
+        } else {
+            runes.push(ch);
+            i += width;
+        }
+
+        if alt {
+            break;
+        }
+    }
+
+    if !runes.is_empty() {
+        let mut key = KeyMsg::from_runes(runes);
+        if alt {
+            key = key.with_alt();
+        }
+        return ParseOutcome::Parsed(i, Some(message_from_key(key)));
+    }
+
+    ParseOutcome::Parsed(1, Some(replacement_message()))
+}
+
+fn control_key_type(byte: u8) -> Option<KeyType> {
+    match byte {
+        0x00 => Some(KeyType::Null),
+        0x01 => Some(KeyType::CtrlA),
+        0x02 => Some(KeyType::CtrlB),
+        0x03 => Some(KeyType::CtrlC),
+        0x04 => Some(KeyType::CtrlD),
+        0x05 => Some(KeyType::CtrlE),
+        0x06 => Some(KeyType::CtrlF),
+        0x07 => Some(KeyType::CtrlG),
+        0x08 => Some(KeyType::CtrlH),
+        0x09 => Some(KeyType::Tab),
+        0x0A => Some(KeyType::CtrlJ),
+        0x0B => Some(KeyType::CtrlK),
+        0x0C => Some(KeyType::CtrlL),
+        0x0D => Some(KeyType::Enter),
+        0x0E => Some(KeyType::CtrlN),
+        0x0F => Some(KeyType::CtrlO),
+        0x10 => Some(KeyType::CtrlP),
+        0x11 => Some(KeyType::CtrlQ),
+        0x12 => Some(KeyType::CtrlR),
+        0x13 => Some(KeyType::CtrlS),
+        0x14 => Some(KeyType::CtrlT),
+        0x15 => Some(KeyType::CtrlU),
+        0x16 => Some(KeyType::CtrlV),
+        0x17 => Some(KeyType::CtrlW),
+        0x18 => Some(KeyType::CtrlX),
+        0x19 => Some(KeyType::CtrlY),
+        0x1A => Some(KeyType::CtrlZ),
+        0x1B => Some(KeyType::Esc),
+        0x1C => Some(KeyType::CtrlBackslash),
+        0x1D => Some(KeyType::CtrlCloseBracket),
+        0x1E => Some(KeyType::CtrlCaret),
+        0x1F => Some(KeyType::CtrlUnderscore),
+        0x20 => Some(KeyType::Space),
+        0x7F => Some(KeyType::Backspace),
+        _ => None,
+    }
+}
+
+fn is_control_or_space(byte: u8) -> bool {
+    byte <= 0x1F || byte == 0x7F || byte == b' '
+}
+
+enum DecodeOutcome {
+    NeedMore,
+    Decoded(char, usize, bool),
+}
+
+fn decode_char(input: &[u8], can_have_more_data: bool) -> DecodeOutcome {
+    let first = input[0];
+    let width = if first < 0x80 {
+        1
+    } else if (first & 0xE0) == 0xC0 {
+        2
+    } else if (first & 0xF0) == 0xE0 {
+        3
+    } else if (first & 0xF8) == 0xF0 {
+        4
+    } else {
+        return DecodeOutcome::Decoded(std::char::REPLACEMENT_CHARACTER, 1, false);
+    };
+
+    if input.len() < width {
+        return if can_have_more_data {
+            DecodeOutcome::NeedMore
+        } else {
+            DecodeOutcome::Decoded(std::char::REPLACEMENT_CHARACTER, 1, false)
+        };
+    }
+
+    match std::str::from_utf8(&input[..width]) {
+        Ok(s) => {
+            let ch = s.chars().next().unwrap_or(std::char::REPLACEMENT_CHARACTER);
+            DecodeOutcome::Decoded(ch, width, true)
+        }
+        Err(_) => DecodeOutcome::Decoded(std::char::REPLACEMENT_CHARACTER, 1, false),
+    }
+}
+
+fn message_from_key(key: KeyMsg) -> Message {
+    if key.key_type == KeyType::CtrlC {
+        Message::new(InterruptMsg)
+    } else {
+        Message::new(key)
+    }
+}
+
+fn replacement_message() -> Message {
+    Message::new(KeyMsg::from_char(std::char::REPLACEMENT_CHARACTER))
 }
 
 #[cfg(test)]

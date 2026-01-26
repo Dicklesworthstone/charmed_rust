@@ -182,7 +182,9 @@ pub mod screen;
 pub mod simulator;
 
 // Re-exports
-pub use command::{Cmd, batch, every, printf, println, quit, sequence, set_window_title, tick, window_size};
+pub use command::{
+    Cmd, batch, every, printf, println, quit, sequence, set_window_title, tick, window_size,
+};
 
 #[cfg(feature = "async")]
 pub use command::{AsyncCmd, every_async, tick_async};
