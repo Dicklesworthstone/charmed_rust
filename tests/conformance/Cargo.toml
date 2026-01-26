@@ -30,7 +30,7 @@ chrono = { workspace = true } # Timestamps
 rayon = { workspace = true }  # Parallel test execution
 
 [dev-dependencies]
-criterion = "0.5"          # Benchmarking
+criterion = "0.8"          # Benchmarking
 proptest = "1"             # Property testing
 tempfile = "3"             # Temp directories
 

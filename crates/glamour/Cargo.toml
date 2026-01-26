@@ -10,7 +10,7 @@ description = "Stylesheet-based markdown rendering for terminal applications"
 [dependencies]
 lipgloss = { path = "../lipgloss" }
 pulldown-cmark = "0.13"
-unicode-width = "0.1"
+unicode-width = "0.2"
 
 # Optional: syntax highlighting
 # Uses fancy-regex (pure Rust) instead of onig for WASM compatibility
