@@ -108,6 +108,14 @@ pub struct BatchMsg(pub Vec<super::Cmd>);
 /// This is produced by [`sequence`](crate::sequence) and handled by the program runtime.
 pub struct SequenceMsg(pub Vec<super::Cmd>);
 
+/// Internal message for printing lines outside the TUI renderer.
+///
+/// This is produced by [`println`](crate::println) and [`printf`](crate::printf)
+/// and handled by the program runtime. Output is only written when not in
+/// alternate screen mode.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PrintLineMsg(pub String);
+
 #[cfg(test)]
 mod tests {
     use super::*;

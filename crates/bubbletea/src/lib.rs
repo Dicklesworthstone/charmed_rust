@@ -182,7 +182,7 @@ pub mod screen;
 pub mod simulator;
 
 // Re-exports
-pub use command::{Cmd, batch, every, quit, sequence, set_window_title, tick, window_size};
+pub use command::{Cmd, batch, every, printf, println, quit, sequence, set_window_title, tick, window_size};
 
 #[cfg(feature = "async")]
 pub use command::{AsyncCmd, every_async, tick_async};
@@ -202,7 +202,7 @@ pub use bubbletea_macros::*;
 
 /// Prelude module for convenient imports.
 pub mod prelude {
-    pub use crate::command::{Cmd, batch, every, quit, sequence, tick};
+    pub use crate::command::{Cmd, batch, every, printf, println, quit, sequence, tick};
     pub use crate::key::{KeyMsg, KeyType};
     pub use crate::message::{Message, QuitMsg, WindowSizeMsg};
     pub use crate::mouse::{MouseAction, MouseButton, MouseMsg};

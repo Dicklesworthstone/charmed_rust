@@ -31,8 +31,8 @@ use crate::KeyMsg;
 use crate::command::Cmd;
 use crate::key::from_crossterm_key;
 use crate::message::{
-    BatchMsg, BlurMsg, FocusMsg, InterruptMsg, Message, QuitMsg, RequestWindowSizeMsg, SequenceMsg,
-    SetWindowTitleMsg, WindowSizeMsg,
+    BatchMsg, BlurMsg, FocusMsg, InterruptMsg, Message, PrintLineMsg, QuitMsg,
+    RequestWindowSizeMsg, SequenceMsg, SetWindowTitleMsg, WindowSizeMsg,
 };
 use crate::mouse::from_crossterm_mouse;
 use crate::screen::{ReleaseTerminalMsg, RestoreTerminalMsg};
@@ -62,6 +62,10 @@ use crate::screen::{ReleaseTerminalMsg, RestoreTerminalMsg};
 /// | Error Variant | Recovery Strategy |
 /// |--------------|-------------------|
 /// | [`Io`](Error::Io) | Check terminal availability, retry, or report to user |
+/// | [`RawModeFailure`](Error::RawModeFailure) | Check terminal compatibility |
+/// | [`AltScreenFailure`](Error::AltScreenFailure) | Disable alt screen option |
+/// | [`EventPoll`](Error::EventPoll) | Terminal may be disconnected |
+/// | [`Render`](Error::Render) | Check output stream, retry |
 ///
 /// # Example: Graceful Error Handling
 ///
@@ -75,6 +79,9 @@ use crate::screen::{ReleaseTerminalMsg, RestoreTerminalMsg};
 ///     Err(Error::Io(e)) if e.kind() == std::io::ErrorKind::NotConnected => {
 ///         eprintln!("Terminal disconnected, saving state...");
 ///         // Save any important state before exiting
+///     }
+///     Err(Error::RawModeFailure { .. }) => {
+///         eprintln!("Terminal doesn't support raw mode. Try a different terminal.");
 ///     }
 ///     Err(e) => {
 ///         eprintln!("Program error: {}", e);
@@ -106,6 +113,65 @@ pub enum Error {
     /// - `Other`: Terminal control sequence errors
     #[error("terminal io error: {0}")]
     Io(#[from] io::Error),
+
+    /// Failed to enable or disable raw mode.
+    ///
+    /// Raw mode is required for TUI operation as it disables terminal
+    /// line buffering and echo. This error typically indicates the
+    /// terminal doesn't support raw mode or isn't a TTY.
+    ///
+    /// # Recovery
+    ///
+    /// Verify the program is running in an interactive terminal.
+    /// Some terminals (especially on Windows) may have limited support.
+    #[error("failed to {action} raw mode: {source}")]
+    RawModeFailure {
+        /// Whether we were trying to enable or disable raw mode.
+        action: &'static str,
+        /// The underlying I/O error.
+        #[source]
+        source: io::Error,
+    },
+
+    /// Failed to enter or exit alternate screen.
+    ///
+    /// Alternate screen provides a separate buffer that preserves
+    /// the user's terminal content. This error may indicate the
+    /// terminal doesn't support alternate screen mode.
+    ///
+    /// # Recovery
+    ///
+    /// Try running without `.with_alt_screen()`.
+    #[error("failed to {action} alternate screen: {source}")]
+    AltScreenFailure {
+        /// Whether we were trying to enter or exit alt screen.
+        action: &'static str,
+        /// The underlying I/O error.
+        #[source]
+        source: io::Error,
+    },
+
+    /// Failed to poll for terminal events.
+    ///
+    /// This error occurs when the event polling system fails,
+    /// typically because the terminal was disconnected or closed.
+    ///
+    /// # Recovery
+    ///
+    /// The terminal connection may be lost. Save state and exit.
+    #[error("failed to poll terminal events: {0}")]
+    EventPoll(io::Error),
+
+    /// Failed to render the view to the terminal.
+    ///
+    /// This error occurs when writing the view output fails,
+    /// typically due to a broken pipe or disconnected terminal.
+    ///
+    /// # Recovery
+    ///
+    /// The output stream may be closed. Save state and exit.
+    #[error("failed to render view: {0}")]
+    Render(io::Error),
 }
 
 /// A specialized [`Result`] type for bubbletea operations.
@@ -509,6 +575,21 @@ impl<M: Model> Program<M> {
                     continue;
                 }
 
+                // Handle print line message (only when not in alt screen)
+                if let Some(print_msg) = msg.downcast_ref::<PrintLineMsg>() {
+                    if !self.options.alt_screen {
+                        // Print each line above the TUI
+                        for line in print_msg.0.lines() {
+                            let _ = writeln!(writer, "{}", line);
+                        }
+                        let _ = writer.flush();
+                        // Force a full re-render since we printed above
+                        last_view.clear();
+                        needs_render = true;
+                    }
+                    continue;
+                }
+
                 // Handle release terminal
                 if msg.is::<ReleaseTerminalMsg>() {
                     if !self.options.custom_io {
@@ -877,6 +958,21 @@ impl<M: Model> Program<M> {
                             let (width, height) = terminal::size()?;
                             let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
                         }
+                        continue;
+                    }
+
+                    // Handle print line message (only when not in alt screen)
+                    if let Some(print_msg) = msg.downcast_ref::<PrintLineMsg>() {
+                        if !self.options.alt_screen {
+                            // Print each line above the TUI
+                            for line in print_msg.0.lines() {
+                                let _ = writeln!(stdout, "{}", line);
+                            }
+                            let _ = stdout.flush();
+                            // Force a full re-render since we printed above
+                            last_view.clear();
+                        }
+                        self.render(stdout, &mut last_view)?;
                         continue;
                     }
 

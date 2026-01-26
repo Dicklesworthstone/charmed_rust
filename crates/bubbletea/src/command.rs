@@ -15,7 +15,7 @@
 use std::time::{Duration, Instant, SystemTime};
 
 use crate::message::{
-    BatchMsg, Message, QuitMsg, RequestWindowSizeMsg, SequenceMsg, SetWindowTitleMsg,
+    BatchMsg, Message, PrintLineMsg, QuitMsg, RequestWindowSizeMsg, SequenceMsg, SetWindowTitleMsg,
 };
 
 #[cfg(feature = "async")]
@@ -460,6 +460,68 @@ pub fn window_size() -> Cmd {
     Cmd::new(|| Message::new(RequestWindowSizeMsg))
 }
 
+/// Print a line above the program's TUI output.
+///
+/// This output is unmanaged by the program and will persist across renders.
+/// Unlike `std::println!`, the message is printed on its own line (similar to `log::info!`).
+///
+/// **Note:** If the alternate screen is active, no output will be printed.
+/// This is because alternate screen mode uses a separate buffer that doesn't
+/// support this kind of unmanaged output.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use bubbletea::{Model, Message, Cmd, println};
+///
+/// impl Model for MyModel {
+///     fn update(&mut self, msg: Message) -> Option<Cmd> {
+///         if msg.is::<DownloadComplete>() {
+///             return Some(println("Download finished!"));
+///         }
+///         None
+///     }
+/// }
+/// ```
+pub fn println(msg: impl Into<String>) -> Cmd {
+    let msg = msg.into();
+    Cmd::new(move || Message::new(PrintLineMsg(msg)))
+}
+
+/// Print a formatted line above the program's TUI output.
+///
+/// This works like [`std::format!`] but prints above the TUI.
+/// Output is unmanaged by the program and will persist across renders.
+/// Unlike `std::print!`, the message is printed on its own line (similar to `log::info!`).
+///
+/// **Note:** If the alternate screen is active, no output will be printed.
+/// This is because alternate screen mode uses a separate buffer that doesn't
+/// support this kind of unmanaged output.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use bubbletea::{Model, Message, Cmd, printf};
+///
+/// impl Model for MyModel {
+///     fn update(&mut self, msg: Message) -> Option<Cmd> {
+///         if let Some(size) = msg.downcast_ref::<WindowSizeMsg>() {
+///             return Some(printf(format!("Window size: {}x{}", size.width, size.height)));
+///         }
+///         None
+///     }
+/// }
+/// ```
+///
+/// For more complex formatting, use [`std::format!`] with [`println`]:
+///
+/// ```rust,ignore
+/// println(format!("Processing {} of {} items", current, total))
+/// ```
+pub fn printf(msg: impl Into<String>) -> Cmd {
+    println(msg)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -506,6 +568,40 @@ mod tests {
         let cmd = set_window_title("My App");
         let msg = cmd.execute().unwrap();
         assert!(msg.is::<SetWindowTitleMsg>());
+    }
+
+    #[test]
+    fn test_println() {
+        let cmd = println("Hello, World!");
+        let msg = cmd.execute().unwrap();
+        assert!(msg.is::<PrintLineMsg>());
+        let print_msg = msg.downcast::<PrintLineMsg>().unwrap();
+        assert_eq!(print_msg.0, "Hello, World!");
+    }
+
+    #[test]
+    fn test_println_from_string() {
+        let cmd = println(String::from("From String"));
+        let msg = cmd.execute().unwrap();
+        let print_msg = msg.downcast::<PrintLineMsg>().unwrap();
+        assert_eq!(print_msg.0, "From String");
+    }
+
+    #[test]
+    fn test_printf() {
+        let cmd = printf(format!("Count: {}", 42));
+        let msg = cmd.execute().unwrap();
+        assert!(msg.is::<PrintLineMsg>());
+        let print_msg = msg.downcast::<PrintLineMsg>().unwrap();
+        assert_eq!(print_msg.0, "Count: 42");
+    }
+
+    #[test]
+    fn test_println_multiline() {
+        let cmd = println("Line 1\nLine 2\nLine 3");
+        let msg = cmd.execute().unwrap();
+        let print_msg = msg.downcast::<PrintLineMsg>().unwrap();
+        assert_eq!(print_msg.0, "Line 1\nLine 2\nLine 3");
     }
 
     #[test]
