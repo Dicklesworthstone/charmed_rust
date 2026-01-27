@@ -337,16 +337,10 @@ impl<M: Model> ProgramHandle<M> {
     pub fn wait(mut self) -> Result<M> {
         if let Some(handle) = self.handle.take() {
             handle.join().map_err(|_| {
-                Error::Io(io::Error::new(
-                    io::ErrorKind::Other,
-                    "program thread panicked",
-                ))
+                Error::Io(io::Error::other("program thread panicked"))
             })?
         } else {
-            Err(Error::Io(io::Error::new(
-                io::ErrorKind::Other,
-                "program already joined",
-            )))
+            Err(Error::Io(io::Error::other("program already joined")))
         }
     }
 

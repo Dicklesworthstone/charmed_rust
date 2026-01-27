@@ -103,7 +103,7 @@ impl std::str::FromStr for Level {
         match s.to_lowercase().as_str() {
             "debug" => Ok(Self::Debug),
             "info" => Ok(Self::Info),
-            "warn" => Ok(Self::Warn),
+            "warn" | "warning" => Ok(Self::Warn),
             "error" => Ok(Self::Error),
             "fatal" => Ok(Self::Fatal),
             _ => Err(ParseLevelError(s.to_string())),
@@ -905,7 +905,8 @@ mod tests {
         assert_eq!("debug".parse::<Level>().unwrap(), Level::Debug);
         assert_eq!("INFO".parse::<Level>().unwrap(), Level::Info);
         assert_eq!("WARN".parse::<Level>().unwrap(), Level::Warn);
-        assert!("warning".parse::<Level>().is_err());
+        // "warning" is an alias for "warn"
+        assert_eq!("warning".parse::<Level>().unwrap(), Level::Warn);
         assert!("invalid".parse::<Level>().is_err());
     }
 

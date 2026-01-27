@@ -1675,28 +1675,28 @@ impl Style {
     /// Removes the top border rule.
     pub fn unset_border_top(mut self) -> Self {
         self.props.remove(Props::BORDER_TOP);
-        self.border_edges.remove(BorderEdges::TOP);
+        self.border_edges.top = false;
         self
     }
 
     /// Removes the right border rule.
     pub fn unset_border_right(mut self) -> Self {
         self.props.remove(Props::BORDER_RIGHT);
-        self.border_edges.remove(BorderEdges::RIGHT);
+        self.border_edges.right = false;
         self
     }
 
     /// Removes the bottom border rule.
     pub fn unset_border_bottom(mut self) -> Self {
         self.props.remove(Props::BORDER_BOTTOM);
-        self.border_edges.remove(BorderEdges::BOTTOM);
+        self.border_edges.bottom = false;
         self
     }
 
     /// Removes the left border rule.
     pub fn unset_border_left(mut self) -> Self {
         self.props.remove(Props::BORDER_LEFT);
-        self.border_edges.remove(BorderEdges::LEFT);
+        self.border_edges.left = false;
         self
     }
 
