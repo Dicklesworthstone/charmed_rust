@@ -121,18 +121,20 @@ mod valid_levels_tests {
     }
 
     #[test]
-    fn test_warning_alias() {
-        // "warning" is an alias for "warn" (common in other logging frameworks)
+    fn test_warning_not_accepted() {
+        // "warning" is NOT accepted (matching Go charmbracelet/log behavior)
+        // Only "warn" is valid
         let result = Level::from_str("warning");
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), Level::Warn);
+        assert!(result.is_err());
 
-        // Should also work with uppercase
         let result = Level::from_str("WARNING");
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), Level::Warn);
+        assert!(result.is_err());
 
         let result = Level::from_str("Warning");
+        assert!(result.is_err());
+
+        // But "warn" is accepted
+        let result = Level::from_str("warn");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Level::Warn);
     }
