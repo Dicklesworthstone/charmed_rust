@@ -336,9 +336,9 @@ impl<M: Model> ProgramHandle<M> {
     /// This blocks until the program exits.
     pub fn wait(mut self) -> Result<M> {
         if let Some(handle) = self.handle.take() {
-            handle.join().map_err(|_| {
-                Error::Io(io::Error::other("program thread panicked"))
-            })?
+            handle
+                .join()
+                .map_err(|_| Error::Io(io::Error::other("program thread panicked")))?
         } else {
             Err(Error::Io(io::Error::other("program already joined")))
         }
@@ -346,9 +346,7 @@ impl<M: Model> ProgramHandle<M> {
 
     /// Check if the program is still running.
     pub fn is_running(&self) -> bool {
-        self.handle
-            .as_ref()
-            .is_some_and(|h| !h.is_finished())
+        self.handle.as_ref().is_some_and(|h| !h.is_finished())
     }
 }
 
