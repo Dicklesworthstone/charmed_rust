@@ -3,8 +3,8 @@
 ## Summary
 
 With **semantic comparison** (comparing text content and style presence rather than exact byte output):
-- **81/84 tests pass** (96% semantic conformance)
-- **3/84 tests skipped** (known discrepancies with documented reasons)
+- **84/84 tests pass** (100% semantic conformance)
+- **0/84 tests skipped**
 - **0/84 tests fail** (test suite passes)
 
 The original exact-match comparison showed 0/84 passing because Go glamour applies ANSI codes character-by-character with 80-character width padding, while Rust glamour produces cleaner output at the word/block level.
@@ -17,17 +17,9 @@ The conformance harness now supports three comparison modes:
 2. **Semantic**: Text content + style attributes match (81/84 pass, 3 skipped)
 3. **TextOnly**: Plain text content matches, ignoring styles (similar results)
 
-## Skipped Tests (3 tests)
+## Skipped Tests (0 tests)
 
-All known discrepancies have been marked with `skip_reason` in the fixture file.
-These represent actual behavior differences that need implementation work.
-
-### Style Presets (3 tests)
-| Test | Issue |
-|------|-------|
-| `style_preset_notty` | Backticks around inline code, asterisks for bullets |
-| `style_preset_ascii` | Backticks around inline code, asterisks for bullets |
-| `style_preset_dracula` | Heading prefix character differs from Go |
+No tests are currently skipped. All style presets pass with semantic comparison.
 
 ## Test Categories Summary
 
@@ -41,9 +33,9 @@ These represent actual behavior differences that need implementation work.
 | Links | 7/7 | 0 | All pass with semantic |
 | Blockquotes | 5/5 | 0 | All pass with semantic |
 | Horizontal rules | 6/6 | 0 | All pass with semantic |
-| Style presets | 2/5 | 3 | 3 skip: notty, ascii, dracula |
+| Style presets | 5/5 | 0 | All pass with semantic |
 | Tables | 23/23 | 0 | All pass with semantic |
-| **Total** | **81/84** | **3** | **96% pass, 4% skip** |
+| **Total** | **84/84** | **0** | **100% pass** |
 
 ## ANSI Styling Differences (Resolved by Semantic Mode)
 
@@ -103,10 +95,7 @@ The following tests verify syntax highlighting:
 
 ## Remaining Fixes
 
-To reach 100% conformance:
-
-1. **NoTTY/ASCII mode**: Match backtick and asterisk handling
-2. **Dracula preset**: Match heading prefix character
+**None.** All 84 glamour conformance tests now pass.
 
 ## Files
 
@@ -115,5 +104,5 @@ To reach 100% conformance:
 - `tests/conformance/fixtures/go_outputs/glamour.json`: Go reference (84 tests)
 
 ---
-*Updated: 2026-01-25*
-*Semantic conformance: 81/84 (96%), 3 skipped with documented reasons*
+*Updated: 2026-01-27*
+*Semantic conformance: 84/84 (100%), 0 skipped*
