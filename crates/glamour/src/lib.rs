@@ -1981,6 +1981,7 @@ impl<'a> RenderContext<'a> {
 
     /// Calculate the visible width of a string (excluding ANSI escapes).
     /// Copied from lipgloss to handle ANSI-aware wrapping.
+    #[allow(dead_code)]
     fn visible_width(&self, s: &str) -> usize {
         visible_width(s)
     }
