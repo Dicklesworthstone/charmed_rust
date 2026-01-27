@@ -238,37 +238,51 @@ pub fn join_horizontal(pos: Position, strs: &[&str]) -> String {
         .collect();
     let max_height = blocks.iter().map(|lines| lines.len()).max().unwrap_or(0);
 
-    // Build result lines
-    let mut result = Vec::with_capacity(max_height);
+    // Pre-compute alignment factor once
+    let factor = pos.factor();
+
+    // Pre-compute vertical offsets for each block (avoid per-row calculation)
+    let offsets: Vec<usize> = blocks
+        .iter()
+        .map(|block| {
+            let extra = max_height.saturating_sub(block.len());
+            (extra as f64 * factor).round() as usize
+        })
+        .collect();
+
+    // Estimate total capacity: sum of widths * max_height + newlines
+    let total_width: usize = widths.iter().sum();
+    let estimated_capacity = max_height * (total_width + 1);
+    let mut result = String::with_capacity(estimated_capacity);
+
+    // Build result directly without intermediate Vec<String>
     for row in 0..max_height {
-        let mut line = String::new();
+        if row > 0 {
+            result.push('\n');
+        }
+
         for (block_idx, block) in blocks.iter().enumerate() {
             let block_height = block.len();
             let width = widths[block_idx];
-
-            // Calculate vertical offset based on alignment
-            let extra_rows = max_height.saturating_sub(block_height);
-            let top_offset = (extra_rows as f64 * pos.factor()).round() as usize;
+            let top_offset = offsets[block_idx];
 
             // Determine which line from this block to use
-            let block_row = row.checked_sub(top_offset);
-            let content = if let Some(br) = block_row {
-                if br < block_height { block[br] } else { "" }
-            } else {
-                ""
-            };
+            let content = row
+                .checked_sub(top_offset)
+                .filter(|&br| br < block_height)
+                .map_or("", |br| block[br]);
 
-            // Pad to block width
+            // Pad to block width (avoid " ".repeat() allocation)
             let content_width = visible_width(content);
             let padding = width.saturating_sub(content_width);
-            line.push_str(content);
-            line.push_str(&" ".repeat(padding));
+            result.push_str(content);
+            for _ in 0..padding {
+                result.push(' ');
+            }
         }
-        // Preserve trailing spaces to maintain column alignment (like Go)
-        result.push(line);
     }
 
-    result.join("\n")
+    result
 }
 
 /// Vertically joins multi-line strings along a horizontal axis.
@@ -303,29 +317,45 @@ pub fn join_vertical(pos: Position, strs: &[&str]) -> String {
         .max()
         .unwrap_or(0);
 
-    // Pad each line to max width based on position
-    let mut result = Vec::new();
+    // Pre-compute alignment factor once
+    let factor = pos.factor();
+    let is_right_aligned = factor >= 1.0;
+
+    // Count total lines for capacity estimation
+    let line_count: usize = strs.iter().map(|s| s.lines().count()).sum();
+    let estimated_capacity = line_count * (max_width + 1);
+    let mut result = String::with_capacity(estimated_capacity);
+
+    // Pad each line to max width based on position - single pass, no Vec<String>
+    let mut first = true;
     for s in strs {
         for line in s.lines() {
+            if !first {
+                result.push('\n');
+            }
+            first = false;
+
             let line_width = visible_width(line);
             let extra = max_width.saturating_sub(line_width);
-            let left_pad = (extra as f64 * pos.factor()).round() as usize;
+            let left_pad = (extra as f64 * factor).round() as usize;
             let right_pad = extra.saturating_sub(left_pad);
 
-            // For left alignment (pos=0), keep trailing spaces to maintain width
-            // For right alignment (pos=1), we can trim trailing (no right_pad)
-            // For center alignment, keep trailing spaces to maintain width
-            let padded = format!("{}{}{}", " ".repeat(left_pad), line, " ".repeat(right_pad));
-            // Only trim trailing for right alignment where right_pad would be 0
-            if pos.factor() >= 1.0 {
-                result.push(padded.trim_end().to_string());
-            } else {
-                result.push(padded);
+            // Add left padding (avoid " ".repeat() allocation)
+            for _ in 0..left_pad {
+                result.push(' ');
+            }
+            result.push_str(line);
+
+            // Add right padding only if not right-aligned
+            if !is_right_aligned {
+                for _ in 0..right_pad {
+                    result.push(' ');
+                }
             }
         }
     }
 
-    result.join("\n")
+    result
 }
 
 /// Calculate the visible width of a string (excluding ANSI escapes).

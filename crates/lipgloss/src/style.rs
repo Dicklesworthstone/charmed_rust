@@ -1004,11 +1004,11 @@ impl Style {
 
         // Early return if no props set
         if self.props.is_empty() {
-            return self.maybe_convert_tabs(&str);
+            return self.maybe_convert_tabs(str);
         }
 
         // Convert tabs
-        str = self.maybe_convert_tabs(&str);
+        str = self.maybe_convert_tabs(str);
 
         // Strip carriage returns
         str = str.replace("\r\n", "\n");
@@ -1106,15 +1106,21 @@ impl Style {
         str
     }
 
-    fn maybe_convert_tabs(&self, s: &str) -> String {
+    /// Convert tabs in the string according to tab_width setting.
+    /// Takes ownership to avoid allocation when no conversion is needed.
+    fn maybe_convert_tabs(&self, s: String) -> String {
         let tw = if self.props.contains(Props::TAB_WIDTH) {
             self.tab_width
         } else {
             4 // Default
         };
 
+        // Fast path: no conversion requested or no tabs present
+        if tw == -1 || !s.contains('\t') {
+            return s; // Return owned string as-is - zero allocation
+        }
+
         match tw {
-            -1 => s.to_string(),
             0 => s.replace('\t', ""),
             n => s.replace('\t', &" ".repeat(n as usize)),
         }
@@ -1235,57 +1241,96 @@ impl Style {
         let top_extra = (extra as f64 * factor).round() as usize;
         let bottom_extra = extra - top_extra;
 
-        let mut result = Vec::with_capacity(target_height);
+        // Pre-allocate result - avoid Vec<String> intermediate and clone()
+        let estimated_len = target_height * (content_width + 1);
+        let mut result = String::with_capacity(estimated_len);
 
-        for _ in 0..top_extra {
-            result.push(blank_line.clone());
+        // Add top blank lines (no clone - reuse blank_line reference)
+        for i in 0..top_extra {
+            if i > 0 {
+                result.push('\n');
+            }
+            result.push_str(&blank_line);
         }
-        result.extend(lines.iter().map(|l| l.to_string()));
+
+        // Add content lines (no to_string - push_str from &str directly)
+        for (i, line) in lines.iter().enumerate() {
+            if top_extra > 0 || i > 0 {
+                result.push('\n');
+            }
+            result.push_str(line);
+        }
+
+        // Add bottom blank lines
         for _ in 0..bottom_extra {
-            result.push(blank_line.clone());
+            result.push('\n');
+            result.push_str(&blank_line);
         }
 
-        result.join("\n")
+        result
     }
 
     fn apply_width(&self, s: &str, profile: ColorProfile, dark_bg: bool) -> String {
         let target_width = self.width as usize;
 
-        // Build whitespace style
+        // Build whitespace style once
         let ws_style = if let Some(ref bg) = self.bg_color {
             bg.to_ansi_bg(profile, dark_bg)
         } else {
             String::new()
         };
+        let has_ws_style = !ws_style.is_empty();
 
-        let lines: Vec<&str> = s.lines().collect();
-        let aligned: Vec<String> = lines
-            .iter()
-            .map(|line| {
-                let line_width = visible_width(line);
-                if line_width >= target_width {
-                    line.to_string()
+        // Pre-compute alignment factor once (avoid per-line call)
+        let factor = self.align_horizontal.factor();
+
+        // Pre-allocate result string
+        // Estimate: each line gets up to target_width + ANSI codes (~20 bytes) + newline
+        let line_count = s.lines().count();
+        let estimated_capacity = line_count * (target_width + 25);
+        let mut result = String::with_capacity(estimated_capacity);
+
+        // Single-pass: avoid Vec<String> intermediate allocation
+        for (i, line) in s.lines().enumerate() {
+            if i > 0 {
+                result.push('\n');
+            }
+
+            let line_width = visible_width(line);
+            if line_width >= target_width {
+                result.push_str(line);
+            } else {
+                let extra = target_width - line_width;
+                let left_pad = (extra as f64 * factor).round() as usize;
+                let right_pad = extra - left_pad;
+
+                if has_ws_style {
+                    // With background styling
+                    result.push_str(&ws_style);
+                    for _ in 0..left_pad {
+                        result.push(' ');
+                    }
+                    result.push_str("\x1b[0m");
+                    result.push_str(line);
+                    result.push_str(&ws_style);
+                    for _ in 0..right_pad {
+                        result.push(' ');
+                    }
+                    result.push_str("\x1b[0m");
                 } else {
-                    let extra = target_width - line_width;
-                    let factor = self.align_horizontal.factor();
-                    let left_pad = (extra as f64 * factor).round() as usize;
-                    let right_pad = extra - left_pad;
-
-                    let left_spaces = " ".repeat(left_pad);
-                    let right_spaces = " ".repeat(right_pad);
-
-                    if ws_style.is_empty() {
-                        format!("{left_spaces}{line}{right_spaces}")
-                    } else {
-                        format!(
-                            "{ws_style}{left_spaces}\x1b[0m{line}{ws_style}{right_spaces}\x1b[0m"
-                        )
+                    // Without styling - just spaces
+                    for _ in 0..left_pad {
+                        result.push(' ');
+                    }
+                    result.push_str(line);
+                    for _ in 0..right_pad {
+                        result.push(' ');
                     }
                 }
-            })
-            .collect();
+            }
+        }
 
-        aligned.join("\n")
+        result
     }
 
     fn apply_border(&self, s: &str, profile: ColorProfile, dark_bg: bool) -> String {
@@ -1443,80 +1488,94 @@ impl Style {
     }
 
     fn apply_margin(&self, s: &str, profile: ColorProfile, dark_bg: bool) -> String {
-        let mut result = s.to_string();
+        let left = self.margin.left as usize;
+        let right = self.margin.right as usize;
+        let top = self.margin.top as usize;
+        let bottom = self.margin.bottom as usize;
 
-        // Build margin style
-        let margin_style = if let Some(ref bg) = self.margin_bg_color {
-            bg.to_ansi_bg(profile, dark_bg)
+        // Early return if no margin
+        if left == 0 && right == 0 && top == 0 && bottom == 0 {
+            return s.to_string();
+        }
+
+        // Build margin style once
+        let margin_style = self
+            .margin_bg_color
+            .as_ref()
+            .map(|bg| bg.to_ansi_bg(profile, dark_bg));
+
+        // Pre-compute padding strings once (avoid repeated allocations)
+        let left_pad = if left > 0 {
+            match &margin_style {
+                Some(style) => format!("{}{}\x1b[0m", style, " ".repeat(left)),
+                None => " ".repeat(left),
+            }
         } else {
             String::new()
         };
 
-        // Left margin
-        if self.margin.left > 0 {
-            let pad = if margin_style.is_empty() {
-                " ".repeat(self.margin.left as usize)
-            } else {
-                format!(
-                    "{}{}\x1b[0m",
-                    margin_style,
-                    " ".repeat(self.margin.left as usize)
-                )
-            };
-            result = result
-                .lines()
-                .map(|line| format!("{pad}{line}"))
-                .collect::<Vec<_>>()
-                .join("\n");
+        let right_pad = if right > 0 {
+            match &margin_style {
+                Some(style) => format!("{}{}\x1b[0m", style, " ".repeat(right)),
+                None => " ".repeat(right),
+            }
+        } else {
+            String::new()
+        };
+
+        // Single pass: apply left/right margins and track max width
+        let lines: Vec<&str> = s.lines().collect();
+        let mut max_width = 0usize;
+
+        // Estimate capacity for result
+        let avg_line_len = lines.first().map(|l| l.len()).unwrap_or(40);
+        let estimated_len = lines.len() * (avg_line_len + left_pad.len() + right_pad.len() + 1)
+            + (top + bottom) * (avg_line_len + left + right + 20);
+        let mut result = String::with_capacity(estimated_len);
+
+        // Build content with horizontal margins in single pass
+        for (i, line) in lines.iter().enumerate() {
+            if i > 0 {
+                result.push('\n');
+            }
+            result.push_str(&left_pad);
+            result.push_str(line);
+            result.push_str(&right_pad);
+
+            // Track width for blank lines (only if we need top/bottom margins)
+            if top > 0 || bottom > 0 {
+                let line_width = left + visible_width(line) + right;
+                max_width = max_width.max(line_width);
+            }
         }
 
-        // Right margin
-        if self.margin.right > 0 {
-            let pad = if margin_style.is_empty() {
-                " ".repeat(self.margin.right as usize)
-            } else {
-                format!(
-                    "{}{}\x1b[0m",
-                    margin_style,
-                    " ".repeat(self.margin.right as usize)
-                )
+        // Handle top/bottom margins if needed
+        if top > 0 || bottom > 0 {
+            let blank_line = match &margin_style {
+                Some(style) => format!("{}{}\x1b[0m", style, " ".repeat(max_width)),
+                None => " ".repeat(max_width),
             };
-            result = result
-                .lines()
-                .map(|line| format!("{line}{pad}"))
-                .collect::<Vec<_>>()
-                .join("\n");
-        }
 
-        // Calculate content width for blank lines (after horizontal margins applied)
-        let content_width = result.lines().map(|l| visible_width(l)).max().unwrap_or(0);
+            if top > 0 {
+                let mut top_result =
+                    String::with_capacity(top * (blank_line.len() + 1) + result.len() + 1);
+                for i in 0..top {
+                    if i > 0 {
+                        top_result.push('\n');
+                    }
+                    top_result.push_str(&blank_line);
+                }
+                top_result.push('\n');
+                top_result.push_str(&result);
+                result = top_result;
+            }
 
-        // Top margin - create blank lines with proper width
-        if self.margin.top > 0 {
-            let blank_line = if margin_style.is_empty() {
-                " ".repeat(content_width)
-            } else {
-                format!("{}{}\x1b[0m", margin_style, " ".repeat(content_width))
-            };
-            let top = std::iter::repeat(blank_line)
-                .take(self.margin.top as usize)
-                .collect::<Vec<_>>()
-                .join("\n");
-            result = format!("{}\n{}", top, result);
-        }
-
-        // Bottom margin - create blank lines with proper width
-        if self.margin.bottom > 0 {
-            let blank_line = if margin_style.is_empty() {
-                " ".repeat(content_width)
-            } else {
-                format!("{}{}\x1b[0m", margin_style, " ".repeat(content_width))
-            };
-            let bottom = std::iter::repeat(blank_line)
-                .take(self.margin.bottom as usize)
-                .collect::<Vec<_>>()
-                .join("\n");
-            result = format!("{}\n{}", result, bottom);
+            if bottom > 0 {
+                for _ in 0..bottom {
+                    result.push('\n');
+                    result.push_str(&blank_line);
+                }
+            }
         }
 
         result
