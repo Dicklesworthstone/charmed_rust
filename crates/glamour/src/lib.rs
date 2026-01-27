@@ -722,7 +722,7 @@ pub fn ascii_style() -> StyleConfig {
         enumeration: StylePrimitive::new().block_prefix(". "),
         task: StyleTask::new().ticked("[x] ").unticked("[ ] "),
         image_text: StylePrimitive::new().format("Image: {{.text}} →"),
-        code: StyleBlock::new().style(StylePrimitive::new().prefix("`").suffix("`")),
+        code: StyleBlock::new(),
         code_block: StyleCodeBlock::new().block(StyleBlock::new().margin(DEFAULT_MARGIN)),
         table: StyleTable::new().separators("|", "|", "-"),
         definition_description: StylePrimitive::new().block_prefix("\n* "),
@@ -1979,6 +1979,12 @@ impl<'a> RenderContext<'a> {
         lipgloss_style.render(&code_with_padding)
     }
 
+    /// Calculate the visible width of a string (excluding ANSI escapes).
+    /// Copied from lipgloss to handle ANSI-aware wrapping.
+    fn visible_width(&self, s: &str) -> usize {
+        visible_width(s)
+    }
+
     fn word_wrap(&self, text: &str) -> String {
         let width = self.options.word_wrap;
         if width == 0 {
@@ -1991,11 +1997,7 @@ impl<'a> RenderContext<'a> {
         for word in text.split_whitespace() {
             if current_line.is_empty() {
                 current_line.push_str(word);
-            } else if unicode_width::UnicodeWidthStr::width(current_line.as_str())
-                + 1
-                + unicode_width::UnicodeWidthStr::width(word)
-                <= width
-            {
+            } else if visible_width(&current_line) + 1 + visible_width(word) <= width {
                 current_line.push(' ');
                 current_line.push_str(word);
             } else {
@@ -2011,6 +2013,61 @@ impl<'a> RenderContext<'a> {
 
         result
     }
+}
+
+/// Calculate the visible width of a string (excluding ANSI escapes).
+pub(crate) fn visible_width(s: &str) -> usize {
+    let mut width = 0;
+    #[derive(Clone, Copy, PartialEq)]
+    enum State {
+        Normal,
+        Esc,
+        Csi,
+        Osc,
+    }
+    let mut state = State::Normal;
+
+    for c in s.chars() {
+        match state {
+            State::Normal => {
+                if c == '\x1b' {
+                    state = State::Esc;
+                } else {
+                    width += unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+                }
+            }
+            State::Esc => {
+                if c == '[' {
+                    state = State::Csi;
+                } else if c == ']' {
+                    state = State::Osc;
+                } else {
+                    // Handle simple escapes like \x1b7 (save cursor) or \x1b> (keypad)
+                    // They are single char after ESC.
+                    state = State::Normal;
+                }
+            }
+            State::Csi => {
+                // CSI sequence: [params] [intermediate] final
+                // Final byte is 0x40-0x7E (@ to ~)
+                if ('@'..='~').contains(&c) {
+                    state = State::Normal;
+                }
+            }
+            State::Osc => {
+                // OSC sequence: ] [params] ; [text] BEL/ST
+                // Handle BEL (\x07)
+                if c == '\x07' {
+                    state = State::Normal;
+                } else if c == '\x1b' {
+                    // Handle ST (ESC \) - we see ESC, transition to Esc to handle the backslash
+                    state = State::Esc;
+                }
+            }
+        }
+    }
+
+    width
 }
 
 // ============================================================================
@@ -2123,8 +2180,9 @@ mod tests {
     fn test_render_code() {
         let renderer = Renderer::new().with_style(Style::Ascii);
         let output = renderer.render("`code`");
-        assert!(output.contains("`"));
+        // ASCII style renders inline code as plain text without backticks
         assert!(output.contains("code"));
+        assert!(!output.contains("`"));
     }
 
     #[test]
