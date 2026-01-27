@@ -1121,80 +1121,98 @@ impl Style {
     }
 
     fn apply_padding(&self, s: &str, profile: ColorProfile, dark_bg: bool) -> String {
-        let mut result = s.to_string();
+        let left = self.padding.left as usize;
+        let right = self.padding.right as usize;
+        let top = self.padding.top as usize;
+        let bottom = self.padding.bottom as usize;
 
-        // Build whitespace style
-        let ws_style = if let Some(ref bg) = self.bg_color {
-            bg.to_ansi_bg(profile, dark_bg)
+        // Early return if no padding
+        if left == 0 && right == 0 && top == 0 && bottom == 0 {
+            return s.to_string();
+        }
+
+        // Build whitespace style once
+        let ws_style = self
+            .bg_color
+            .as_ref()
+            .map(|bg| bg.to_ansi_bg(profile, dark_bg));
+
+        // Pre-compute padding strings once (avoid repeated allocations)
+        let left_pad = if left > 0 {
+            match &ws_style {
+                Some(style) => format!("{}{}\x1b[0m", style, " ".repeat(left)),
+                None => " ".repeat(left),
+            }
         } else {
             String::new()
         };
 
-        // Left padding
-        if self.padding.left > 0 {
-            let pad = if ws_style.is_empty() {
-                " ".repeat(self.padding.left as usize)
-            } else {
-                format!(
-                    "{}{}\x1b[0m",
-                    ws_style,
-                    " ".repeat(self.padding.left as usize)
-                )
-            };
-            result = result
-                .lines()
-                .map(|line| format!("{pad}{line}"))
-                .collect::<Vec<_>>()
-                .join("\n");
+        let right_pad = if right > 0 {
+            match &ws_style {
+                Some(style) => format!("{}{}\x1b[0m", style, " ".repeat(right)),
+                None => " ".repeat(right),
+            }
+        } else {
+            String::new()
+        };
+
+        // Collect lines and compute widths in single pass
+        let lines: Vec<&str> = s.lines().collect();
+        let line_count = lines.len();
+
+        // Pre-allocate result with estimated capacity
+        // Each line gets left_pad + content + right_pad + newline
+        let estimated_capacity = lines.iter().map(|l| l.len()).sum::<usize>()
+            + line_count * (left_pad.len() + right_pad.len() + 1)
+            + (top + bottom) * (left + right + 80); // estimate for blank lines
+
+        let mut result = String::with_capacity(estimated_capacity);
+
+        // Apply left+right padding in single pass (avoiding .collect().join())
+        let mut max_width = 0usize;
+        for (i, line) in lines.iter().enumerate() {
+            if i > 0 {
+                result.push('\n');
+            }
+            result.push_str(&left_pad);
+            result.push_str(line);
+            result.push_str(&right_pad);
+
+            // Track max width for blank lines (only if we need top/bottom padding)
+            if top > 0 || bottom > 0 {
+                let line_width = left + visible_width(line) + right;
+                max_width = max_width.max(line_width);
+            }
         }
 
-        // Right padding
-        if self.padding.right > 0 {
-            let pad = if ws_style.is_empty() {
-                " ".repeat(self.padding.right as usize)
-            } else {
-                format!(
-                    "{}{}\x1b[0m",
-                    ws_style,
-                    " ".repeat(self.padding.right as usize)
-                )
+        // Handle top/bottom padding
+        if top > 0 || bottom > 0 {
+            let blank_line = match &ws_style {
+                Some(style) => format!("{}{}\x1b[0m", style, " ".repeat(max_width)),
+                None => " ".repeat(max_width),
             };
-            result = result
-                .lines()
-                .map(|line| format!("{line}{pad}"))
-                .collect::<Vec<_>>()
-                .join("\n");
-        }
 
-        // Calculate content width for blank lines (after horizontal padding applied)
-        let content_width = result.lines().map(|l| visible_width(l)).max().unwrap_or(0);
+            if top > 0 {
+                let mut top_result = String::with_capacity(
+                    top * (blank_line.len() + 1) + result.len() + 1,
+                );
+                for i in 0..top {
+                    if i > 0 {
+                        top_result.push('\n');
+                    }
+                    top_result.push_str(&blank_line);
+                }
+                top_result.push('\n');
+                top_result.push_str(&result);
+                result = top_result;
+            }
 
-        // Top padding - create blank lines with proper width
-        if self.padding.top > 0 {
-            let blank_line = if ws_style.is_empty() {
-                " ".repeat(content_width)
-            } else {
-                format!("{}{}\x1b[0m", ws_style, " ".repeat(content_width))
-            };
-            let top_lines = std::iter::repeat(blank_line)
-                .take(self.padding.top as usize)
-                .collect::<Vec<_>>()
-                .join("\n");
-            result = format!("{}\n{}", top_lines, result);
-        }
-
-        // Bottom padding - create blank lines with proper width
-        if self.padding.bottom > 0 {
-            let blank_line = if ws_style.is_empty() {
-                " ".repeat(content_width)
-            } else {
-                format!("{}{}\x1b[0m", ws_style, " ".repeat(content_width))
-            };
-            let bottom_lines = std::iter::repeat(blank_line)
-                .take(self.padding.bottom as usize)
-                .collect::<Vec<_>>()
-                .join("\n");
-            result = format!("{}\n{}", result, bottom_lines);
+            if bottom > 0 {
+                for _ in 0..bottom {
+                    result.push('\n');
+                    result.push_str(&blank_line);
+                }
+            }
         }
 
         result
@@ -1281,107 +1299,128 @@ impl Style {
         let lines: Vec<&str> = s.lines().collect();
         let content_width = lines.iter().map(|l| visible_width(l)).max().unwrap_or(0);
 
-        // Helper to style border characters
-        let style_border =
-            |s: &str, fg: &Option<Box<dyn TerminalColor>>, bg: &Option<Box<dyn TerminalColor>>| {
-                let mut result = String::new();
-                if let Some(c) = fg {
-                    result.push_str(&c.to_ansi_fg(profile, dark_bg));
-                }
-                if let Some(c) = bg {
-                    result.push_str(&c.to_ansi_bg(profile, dark_bg));
-                }
-                result.push_str(s);
-                if fg.is_some() || bg.is_some() {
-                    result.push_str("\x1b[0m");
-                }
-                result
-            };
+        // Helper to build styled border string
+        #[inline]
+        fn style_border_str(
+            s: &str,
+            fg: Option<&dyn TerminalColor>,
+            bg: Option<&dyn TerminalColor>,
+            profile: ColorProfile,
+            dark_bg: bool,
+        ) -> String {
+            if fg.is_none() && bg.is_none() {
+                return s.to_string();
+            }
+            let mut result = String::with_capacity(s.len() + 20);
+            if let Some(c) = fg {
+                result.push_str(&c.to_ansi_fg(profile, dark_bg));
+            }
+            if let Some(c) = bg {
+                result.push_str(&c.to_ansi_bg(profile, dark_bg));
+            }
+            result.push_str(s);
+            result.push_str("\x1b[0m");
+            result
+        }
 
-        let mut result = Vec::new();
+        // Pre-compute styled border elements (called once, not per-line)
+        let left_border = if edges.left {
+            style_border_str(&border.left, self.border_fg[3].as_deref(), self.border_bg[3].as_deref(), profile, dark_bg)
+        } else {
+            String::new()
+        };
+
+        let right_border = if edges.right {
+            style_border_str(&border.right, self.border_fg[1].as_deref(), self.border_bg[1].as_deref(), profile, dark_bg)
+        } else {
+            String::new()
+        };
+
+        // Estimate capacity for result
+        let line_count = lines.len();
+        let border_lines = edges.top as usize + edges.bottom as usize;
+        let border_width = left_border.len() + right_border.len();
+        let total_len: usize = lines.iter().map(|l| l.len()).sum();
+        let avg_line_len = total_len.checked_div(line_count).unwrap_or(0);
+        let estimated_capacity = (line_count + border_lines) * (avg_line_len + border_width + 1);
+
+        let mut result = String::with_capacity(estimated_capacity);
 
         // Top border
         if edges.top {
-            let mut top_line = String::new();
             if edges.left {
-                top_line.push_str(&style_border(
+                result.push_str(&style_border_str(
                     &border.top_left,
-                    &self.border_fg[0],
-                    &self.border_bg[0],
+                    self.border_fg[0].as_deref(),
+                    self.border_bg[0].as_deref(),
+                    profile,
+                    dark_bg,
                 ));
             }
-            let horizontal = if border.top.is_empty() {
-                " "
-            } else {
-                &border.top
-            };
-            top_line.push_str(&style_border(
+            let horizontal = if border.top.is_empty() { " " } else { &border.top };
+            result.push_str(&style_border_str(
                 &horizontal.repeat(content_width.max(1)),
-                &self.border_fg[0],
-                &self.border_bg[0],
+                self.border_fg[0].as_deref(),
+                self.border_bg[0].as_deref(),
+                profile,
+                dark_bg,
             ));
             if edges.right {
-                top_line.push_str(&style_border(
+                result.push_str(&style_border_str(
                     &border.top_right,
-                    &self.border_fg[0],
-                    &self.border_bg[0],
+                    self.border_fg[0].as_deref(),
+                    self.border_bg[0].as_deref(),
+                    profile,
+                    dark_bg,
                 ));
             }
-            result.push(top_line);
+            result.push('\n');
         }
 
-        // Content with side borders
-        for line in &lines {
-            let mut row = String::new();
-            if edges.left {
-                row.push_str(&style_border(
-                    &border.left,
-                    &self.border_fg[3],
-                    &self.border_bg[3],
-                ));
+        // Content with side borders (reuse pre-computed border strings)
+        for (i, line) in lines.iter().enumerate() {
+            if i > 0 || edges.top {
+                if i > 0 {
+                    result.push('\n');
+                }
             }
-            row.push_str(line);
-            if edges.right {
-                row.push_str(&style_border(
-                    &border.right,
-                    &self.border_fg[1],
-                    &self.border_bg[1],
-                ));
-            }
-            result.push(row);
+            result.push_str(&left_border);
+            result.push_str(line);
+            result.push_str(&right_border);
         }
 
         // Bottom border
         if edges.bottom {
-            let mut bottom_line = String::new();
+            result.push('\n');
             if edges.left {
-                bottom_line.push_str(&style_border(
+                result.push_str(&style_border_str(
                     &border.bottom_left,
-                    &self.border_fg[2],
-                    &self.border_bg[2],
+                    self.border_fg[2].as_deref(),
+                    self.border_bg[2].as_deref(),
+                    profile,
+                    dark_bg,
                 ));
             }
-            let horizontal = if border.bottom.is_empty() {
-                " "
-            } else {
-                &border.bottom
-            };
-            bottom_line.push_str(&style_border(
+            let horizontal = if border.bottom.is_empty() { " " } else { &border.bottom };
+            result.push_str(&style_border_str(
                 &horizontal.repeat(content_width.max(1)),
-                &self.border_fg[2],
-                &self.border_bg[2],
+                self.border_fg[2].as_deref(),
+                self.border_bg[2].as_deref(),
+                profile,
+                dark_bg,
             ));
             if edges.right {
-                bottom_line.push_str(&style_border(
+                result.push_str(&style_border_str(
                     &border.bottom_right,
-                    &self.border_fg[2],
-                    &self.border_bg[2],
+                    self.border_fg[2].as_deref(),
+                    self.border_bg[2].as_deref(),
+                    profile,
+                    dark_bg,
                 ));
             }
-            result.push(bottom_line);
         }
 
-        result.join("\n")
+        result
     }
 
     fn apply_margin(&self, s: &str, profile: ColorProfile, dark_bg: bool) -> String {
@@ -1828,8 +1867,17 @@ impl std::fmt::Display for Style {
 // Helper functions
 
 /// Calculate the visible width of a string (excluding ANSI escapes).
+///
+/// Optimized with fast path for ASCII-only content (common case).
+#[inline]
 fn visible_width(s: &str) -> usize {
-    // Strip ANSI escape sequences
+    // Fast path: check if string is ASCII-only and has no escapes
+    // This is the common case for most terminal text
+    if s.is_ascii() && !s.contains('\x1b') {
+        return s.len();
+    }
+
+    // Slow path: handle ANSI escapes and Unicode width
     let mut width = 0;
     let mut in_escape = false;
 
@@ -1844,7 +1892,12 @@ fn visible_width(s: &str) -> usize {
             }
             continue;
         }
-        width += unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+        // Fast path for ASCII in mixed content
+        if c.is_ascii() {
+            width += 1;
+        } else {
+            width += unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+        }
     }
 
     width

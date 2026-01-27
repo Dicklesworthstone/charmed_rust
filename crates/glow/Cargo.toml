@@ -8,7 +8,8 @@ authors.workspace = true
 description = "Render markdown on the command line with style"
 
 [features]
-default = []
+default = ["syntax-highlighting"]
+syntax-highlighting = ["glamour/syntax-highlighting"]
 github = ["dep:reqwest", "dep:serde", "dep:serde_json", "dep:directories"]
 
 [dependencies]

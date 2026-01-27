@@ -14,18 +14,22 @@
 
 use std::io::Read;
 use std::path::PathBuf;
+use std::process::Command as ProcessCommand;
 
 use bubbles::viewport::Viewport;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, WindowSizeMsg, quit};
 use clap::{ArgAction, CommandFactory, Parser};
+#[cfg(feature = "github")]
+use glow::github::{FetcherConfig, GitHubFetcher, RepoRef};
 use glow::{Config, Reader};
 use lipgloss::Style;
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Parser)]
 #[command(name = "glow", about = "Terminal-based markdown reader", version)]
 struct Cli {
-    /// Markdown file to render. Use "-" to read from stdin.
-    path: Option<PathBuf>,
+    /// Markdown file, URL, or GitHub repo to render. Use "-" to read from stdin.
+    path: Option<String>,
 
     /// Style theme (dark, light, dracula, ascii, pink, auto, no-tty)
     #[arg(short = 's', long, default_value = "dark")]
@@ -38,6 +42,23 @@ struct Cli {
     /// Disable pager mode (print to stdout and exit)
     #[arg(long = "no-pager", action = ArgAction::SetTrue)]
     no_pager: bool,
+
+    /// Show all files including hidden (for file browser mode)
+    #[arg(short = 'a', long)]
+    #[allow(dead_code)] // Used when file browser is shown
+    all: bool,
+
+    /// Show line numbers in code blocks
+    #[arg(short = 'l', long = "line-numbers")]
+    line_numbers: bool,
+
+    /// Enable mouse support
+    #[arg(short = 'm', long)]
+    mouse: bool,
+
+    /// Preserve newlines in markdown output
+    #[arg(long = "preserve-new-lines")]
+    preserve_new_lines: bool,
 }
 
 /// Input mode for the pager.
@@ -66,9 +87,13 @@ struct SearchState {
 struct Pager {
     viewport: Viewport,
     content: String,
+    /// Original markdown source (for reload/editor).
+    source_markdown: String,
     /// Content lines for search.
     lines: Vec<String>,
     title: String,
+    /// Source path or URL (for reload/editor).
+    source_path: Option<String>,
     ready: bool,
     mode: InputMode,
     search: SearchState,
@@ -76,16 +101,25 @@ struct Pager {
     help_style: Style,
     search_style: Style,
     match_style: Style,
+    /// Whether mouse support is enabled.
+    mouse_enabled: bool,
 }
 
 impl Pager {
-    fn new(content: String, title: String) -> Self {
+    fn new(
+        content: String,
+        source_markdown: String,
+        title: String,
+        source_path: Option<String>,
+    ) -> Self {
         let lines: Vec<String> = content.lines().map(String::from).collect();
         Self {
             viewport: Viewport::new(80, 24),
             content,
+            source_markdown,
             lines,
             title,
+            source_path,
             ready: false,
             mode: InputMode::Normal,
             search: SearchState::default(),
@@ -93,7 +127,71 @@ impl Pager {
             help_style: Style::new().foreground("#626262"),
             search_style: Style::new().foreground("#FFCC00").bold(),
             match_style: Style::new().foreground("#00FF00"),
+            mouse_enabled: false,
         }
+    }
+
+    const fn with_mouse(mut self, enabled: bool) -> Self {
+        self.mouse_enabled = enabled;
+        self
+    }
+
+    /// Copies content to clipboard using system commands.
+    fn copy_to_clipboard(&self) -> bool {
+        // Try different clipboard commands based on platform
+        #[cfg(target_os = "macos")]
+        {
+            if let Ok(mut child) = ProcessCommand::new("pbcopy")
+                .stdin(std::process::Stdio::piped())
+                .spawn()
+            {
+                if let Some(mut stdin) = child.stdin.take() {
+                    use std::io::Write;
+                    let _ = stdin.write_all(self.source_markdown.as_bytes());
+                }
+                return child.wait().is_ok();
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            // Try xclip first, then xsel
+            for cmd in &["xclip", "xsel"] {
+                if let Ok(mut child) = ProcessCommand::new(cmd)
+                    .args(["-selection", "clipboard"])
+                    .stdin(std::process::Stdio::piped())
+                    .spawn()
+                {
+                    if let Some(mut stdin) = child.stdin.take() {
+                        use std::io::Write;
+                        let _ = stdin.write_all(self.source_markdown.as_bytes());
+                    }
+                    if child.wait().is_ok() {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    /// Opens source in editor.
+    fn open_in_editor(&self) -> bool {
+        let Some(path) = &self.source_path else {
+            return false;
+        };
+
+        // Only open local files in editor
+        if path.starts_with("http") || path.contains("github.com") {
+            return false;
+        }
+
+        let editor = std::env::var("EDITOR")
+            .or_else(|_| std::env::var("VISUAL"))
+            .unwrap_or_else(|_| "vi".to_string());
+
+        ProcessCommand::new(&editor).arg(path).status().is_ok()
     }
 
     fn status_bar(&self) -> String {
@@ -119,7 +217,7 @@ impl Pager {
         };
 
         let help = match self.mode {
-            InputMode::Normal => "  q quit · h help · / search · j/k scroll · g/G top/bottom ",
+            InputMode::Normal => "  q quit · h help · / search · c copy · e edit · j/k scroll ",
             InputMode::Help => "  Press any key to close help ",
             InputMode::Search { .. } => "  Enter confirm · Esc cancel · n/N next/prev ",
         };
@@ -164,8 +262,10 @@ impl Pager {
             "  n          Next match",
             "  N          Previous match",
             "",
-            "  Other",
-            "  ─────",
+            "  Actions",
+            "  ───────",
+            "  c          Copy source to clipboard",
+            "  e          Open in $EDITOR",
             "  h          Show this help",
             "  q/Esc      Quit",
             "",
@@ -385,7 +485,7 @@ impl Model for Pager {
                                 self.viewport.goto_bottom();
                                 return None;
                             }
-                            ['h' | '?'] if self.search.query.is_empty() => {
+                            ['h'] if self.search.query.is_empty() => {
                                 self.mode = InputMode::Help;
                                 return None;
                             }
@@ -407,6 +507,16 @@ impl Model for Pager {
                             }
                             ['N'] => {
                                 self.goto_prev_match();
+                                return None;
+                            }
+                            ['c'] => {
+                                // Copy markdown source to clipboard
+                                self.copy_to_clipboard();
+                                return None;
+                            }
+                            ['e'] => {
+                                // Open in editor (suspends TUI)
+                                self.open_in_editor();
                                 return None;
                             }
                             _ => {}
@@ -446,10 +556,51 @@ impl Model for Pager {
     }
 }
 
+/// Determines the source type from a path string.
+enum Source {
+    Stdin,
+    File(PathBuf),
+    #[cfg(feature = "github")]
+    GitHub(RepoRef),
+    #[cfg(feature = "github")]
+    Url(String),
+}
+
+impl Source {
+    fn parse(path: &str) -> Self {
+        if path == "-" {
+            return Self::Stdin;
+        }
+
+        // Check for GitHub repo references
+        #[cfg(feature = "github")]
+        {
+            let is_github_pattern = path.contains("github.com")
+                || path.starts_with("git@github.com")
+                || (path.contains('/') && !path.contains('.') && !PathBuf::from(path).exists());
+
+            if is_github_pattern && let Ok(repo) = RepoRef::parse(path) {
+                return Self::GitHub(repo);
+            }
+
+            // Check for URL (requires github feature for reqwest)
+            if path.starts_with("http://") || path.starts_with("https://") {
+                return Self::Url(path.to_string());
+            }
+        }
+
+        Self::File(PathBuf::from(path))
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
-    let mut config = Config::new().style(cli.style.clone()).pager(!cli.no_pager);
+    let mut config = Config::new()
+        .style(cli.style.clone())
+        .pager(!cli.no_pager)
+        .line_numbers(cli.line_numbers)
+        .preserve_newlines(cli.preserve_new_lines);
     if let Some(width) = cli.width {
         config = config.width(width);
     }
@@ -457,25 +608,63 @@ fn main() {
     let reader = Reader::new(config);
 
     if let Some(path) = cli.path {
-        // Read content from stdin or file
-        let (content, title) = if path.as_os_str() == "-" {
-            let mut input = String::new();
-            if let Err(err) = std::io::stdin().read_to_string(&mut input) {
-                eprintln!("Error reading stdin: {err}");
-                std::process::exit(1);
-            }
-            (input, "stdin".to_string())
-        } else {
-            let title = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("markdown")
-                .to_string();
-            match std::fs::read_to_string(&path) {
-                Ok(content) => (content, title),
-                Err(err) => {
-                    eprintln!("Error reading file: {err}");
+        let source = Source::parse(&path);
+
+        // Read content based on source type
+        let (content, title, source_path) = match source {
+            Source::Stdin => {
+                let mut input = String::new();
+                if let Err(err) = std::io::stdin().read_to_string(&mut input) {
+                    eprintln!("Error reading stdin: {err}");
                     std::process::exit(1);
+                }
+                (input, "stdin".to_string(), None)
+            }
+            Source::File(path) => {
+                let title = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("markdown")
+                    .to_string();
+                let source = path.to_string_lossy().to_string();
+                match std::fs::read_to_string(&path) {
+                    Ok(content) => (content, title, Some(source)),
+                    Err(err) => {
+                        eprintln!("Error reading file: {err}");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            #[cfg(feature = "github")]
+            Source::GitHub(repo) => {
+                let fetcher = GitHubFetcher::new(FetcherConfig::default());
+                let title = format!("{}/{}", repo.owner, repo.name);
+                match fetcher.fetch_readme(&repo) {
+                    Ok(content) => (content, title, None),
+                    Err(err) => {
+                        eprintln!("Error fetching README: {err}");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            #[cfg(feature = "github")]
+            Source::Url(url) => {
+                // Simple URL fetching using reqwest (blocking)
+                match reqwest::blocking::get(&url) {
+                    Ok(resp) => match resp.text() {
+                        Ok(content) => {
+                            let title = url.rsplit('/').next().unwrap_or("markdown").to_string();
+                            (content, title, Some(url))
+                        }
+                        Err(err) => {
+                            eprintln!("Error reading URL response: {err}");
+                            std::process::exit(1);
+                        }
+                    },
+                    Err(err) => {
+                        eprintln!("Error fetching URL: {err}");
+                        std::process::exit(1);
+                    }
                 }
             }
         };
@@ -496,16 +685,19 @@ fn main() {
         }
 
         // Run TUI pager
-        let pager = Pager::new(rendered, title);
-        if let Err(err) = Program::new(pager)
-            .with_alt_screen()
-            .with_mouse_cell_motion()
-            .run()
-        {
+        let pager = Pager::new(rendered, content, title, source_path).with_mouse(cli.mouse);
+        let mut program = Program::new(pager).with_alt_screen();
+
+        if cli.mouse {
+            program = program.with_mouse_cell_motion();
+        }
+
+        if let Err(err) = program.run() {
             eprintln!("Error running pager: {err}");
             std::process::exit(1);
         }
     } else {
+        // No path provided - show file browser
         let mut cmd = Cli::command();
         let _ = cmd.print_help();
         println!();

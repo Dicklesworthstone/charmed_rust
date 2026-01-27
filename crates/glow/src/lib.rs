@@ -55,7 +55,7 @@ pub mod github;
 use std::io;
 use std::path::Path;
 
-use glamour::{Renderer, Style as GlamourStyle};
+use glamour::{Style as GlamourStyle, TermRenderer};
 
 /// Configuration for the markdown reader.
 ///
@@ -79,6 +79,8 @@ pub struct Config {
     pager: bool,
     width: Option<usize>,
     style: String,
+    line_numbers: bool,
+    preserve_newlines: bool,
 }
 
 impl Config {
@@ -88,6 +90,8 @@ impl Config {
             pager: true,
             width: None,
             style: "dark".to_string(),
+            line_numbers: false,
+            preserve_newlines: false,
         }
     }
 
@@ -109,6 +113,18 @@ impl Config {
         self
     }
 
+    /// Enables or disables line numbers in code blocks.
+    pub fn line_numbers(mut self, enabled: bool) -> Self {
+        self.line_numbers = enabled;
+        self
+    }
+
+    /// Enables or disables preserving newlines in output.
+    pub fn preserve_newlines(mut self, enabled: bool) -> Self {
+        self.preserve_newlines = enabled;
+        self
+    }
+
     fn glamour_style(&self) -> io::Result<GlamourStyle> {
         parse_style(&self.style).ok_or_else(|| {
             io::Error::new(
@@ -118,11 +134,20 @@ impl Config {
         })
     }
 
-    fn renderer(&self) -> io::Result<Renderer> {
+    fn renderer(&self) -> io::Result<TermRenderer> {
         let style = self.glamour_style()?;
-        let mut renderer = Renderer::new().with_style(style);
+        let mut renderer = TermRenderer::new()
+            .with_style(style)
+            .with_preserved_newlines(self.preserve_newlines);
         if let Some(width) = self.width {
             renderer = renderer.with_word_wrap(width);
+        }
+        // line_numbers is only available with syntax-highlighting feature
+        if self.line_numbers {
+            #[cfg(feature = "syntax-highlighting")]
+            {
+                renderer = renderer.set_line_numbers(true);
+            }
         }
         Ok(renderer)
     }

@@ -1027,9 +1027,11 @@ pub fn tokyo_night_style() -> StyleConfig {
 // Renderer
 // ============================================================================
 
-/// Options for the markdown renderer.
+/// Options for the markdown renderer (Go API: `AnsiOptions`).
+///
+/// This struct is also exported as `RendererOptions` for backwards compatibility.
 #[derive(Debug, Clone)]
-pub struct RendererOptions {
+pub struct AnsiOptions {
     /// Word wrap width.
     pub word_wrap: usize,
     /// Base URL for resolving relative links.
@@ -1040,7 +1042,10 @@ pub struct RendererOptions {
     pub styles: StyleConfig,
 }
 
-impl Default for RendererOptions {
+/// Backwards-compatible type alias for [`AnsiOptions`].
+pub type RendererOptions = AnsiOptions;
+
+impl Default for AnsiOptions {
     fn default() -> Self {
         Self {
             word_wrap: DEFAULT_WIDTH,
@@ -1051,23 +1056,31 @@ impl Default for RendererOptions {
     }
 }
 
-/// Markdown renderer for terminal output.
+/// Markdown renderer for terminal output (Go API: `TermRenderer`).
+///
+/// This struct is also exported as `Renderer` for backwards compatibility.
+///
+/// The `TermRenderer` name matches the Go `glamour` library's API for
+/// rendering markdown to ANSI-styled terminal output.
 #[derive(Debug, Clone)]
-pub struct Renderer {
-    options: RendererOptions,
+pub struct TermRenderer {
+    options: AnsiOptions,
 }
 
-impl Default for Renderer {
+/// Backwards-compatible type alias for [`TermRenderer`].
+pub type Renderer = TermRenderer;
+
+impl Default for TermRenderer {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Renderer {
+impl TermRenderer {
     /// Creates a new renderer with default settings.
     pub fn new() -> Self {
         Self {
-            options: RendererOptions::default(),
+            options: AnsiOptions::default(),
         }
     }
 
@@ -1198,7 +1211,7 @@ impl Renderer {
 
 /// Render context that tracks state during rendering.
 struct RenderContext<'a> {
-    options: &'a RendererOptions,
+    options: &'a AnsiOptions,
     output: String,
     // Track element nesting
     in_heading: Option<HeadingLevel>,
@@ -1235,7 +1248,7 @@ struct RenderContext<'a> {
 }
 
 impl<'a> RenderContext<'a> {
-    fn new(options: &'a RendererOptions) -> Self {
+    fn new(options: &'a AnsiOptions) -> Self {
         Self {
             options,
             output: String::new(),
@@ -2116,9 +2129,10 @@ pub fn available_styles() -> HashMap<&'static str, Style> {
 /// Prelude module for convenient imports.
 pub mod prelude {
     pub use crate::{
-        Renderer, RendererOptions, Style, StyleBlock, StyleCodeBlock, StyleConfig, StyleList,
-        StylePrimitive, StyleTable, StyleTask, ascii_style, available_styles, dark_style,
-        dracula_style, light_style, pink_style, render, render_with_environment_config,
+        AnsiOptions, Renderer, RendererOptions, Style, StyleBlock, StyleCodeBlock, StyleConfig,
+        StyleList, StylePrimitive, StyleTable, StyleTask, TermRenderer, ascii_style,
+        available_styles, dark_style, dracula_style, light_style, pink_style, render,
+        render_with_environment_config,
     };
 }
 

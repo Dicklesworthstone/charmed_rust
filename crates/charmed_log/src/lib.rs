@@ -28,6 +28,7 @@
 //! - **JSON**: Machine-readable JSON output
 //! - **Logfmt**: Key=value format for log aggregation
 
+use backtrace::Backtrace;
 use lipgloss::{Color, Style};
 use std::collections::HashMap;
 use std::fmt;
@@ -286,6 +287,64 @@ fn trim_caller_path(path: &str, n: usize) -> &str {
     &path[last_idx + 1..]
 }
 
+/// Caller information extracted from the call stack.
+#[derive(Debug, Clone)]
+pub struct CallerInfo {
+    /// Source file path.
+    pub file: String,
+    /// Line number.
+    pub line: u32,
+    /// Function name.
+    pub function: String,
+}
+
+impl CallerInfo {
+    /// Extracts caller information from the current call stack.
+    ///
+    /// The `skip` parameter indicates how many frames to skip from the
+    /// logging infrastructure to find the actual caller.
+    #[must_use]
+    pub fn capture(skip: usize) -> Option<Self> {
+        let bt = Backtrace::new();
+        let frames: Vec<_> = bt.frames().iter().collect();
+
+        // Skip frames from backtrace crate + our own logging infrastructure
+        // Typical stack: backtrace::capture -> CallerInfo::capture -> log -> debug/info/etc -> user code
+        let skip_total = skip + 4;
+
+        for frame in frames.iter().skip(skip_total) {
+            for symbol in frame.symbols() {
+                // Get function name and filter out internal frames
+                let fn_name = symbol
+                    .name()
+                    .map(|n| n.to_string())
+                    .unwrap_or_else(|| "<unknown>".to_string());
+
+                // Skip frames from logging crate itself
+                if fn_name.contains("charmed_log::") || fn_name.contains("backtrace::") {
+                    continue;
+                }
+
+                let file = symbol
+                    .filename()
+                    .and_then(|p| p.to_str())
+                    .unwrap_or("<unknown>")
+                    .to_string();
+
+                let line = symbol.lineno().unwrap_or(0);
+
+                return Some(Self {
+                    file,
+                    line,
+                    function: fn_name,
+                });
+            }
+        }
+
+        None
+    }
+}
+
 /// Logger options.
 #[derive(Clone)]
 pub struct Options {
@@ -461,6 +520,9 @@ impl Logger {
     }
 
     /// Creates a new logger with additional fields.
+    ///
+    /// This is the idiomatic Rust method name. For Go API compatibility,
+    /// use [`with`](Logger::with) instead.
     #[must_use]
     pub fn with_fields(&self, fields: &[(&str, &str)]) -> Self {
         let inner = self.inner.read().unwrap();
@@ -483,6 +545,25 @@ impl Logger {
                 styles: inner.styles.clone(),
             })),
         }
+    }
+
+    /// Creates a new logger with additional fields (Go API compatibility).
+    ///
+    /// This method matches the Go `log.With()` API. It is equivalent to
+    /// [`with_fields`](Logger::with_fields).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use charmed_log::Logger;
+    ///
+    /// let logger = Logger::new();
+    /// let ctx_logger = logger.with(&[("request_id", "abc123"), ("user", "alice")]);
+    /// ctx_logger.info("Processing request", &[]);
+    /// ```
+    #[must_use]
+    pub fn with(&self, fields: &[(&str, &str)]) -> Self {
+        self.with_fields(fields)
     }
 
     /// Creates a new logger with a different prefix.
@@ -554,10 +635,14 @@ impl Logger {
             first = false;
         }
 
-        // Caller (simplified - actual caller info would require backtrace)
+        // Caller - extract actual caller info from backtrace
         if inner.report_caller {
-            let caller = (inner.caller_formatter)("unknown", 0, "unknown");
-            let styled = styles.caller.render(&format!("<{caller}>"));
+            let caller_str = if let Some(info) = CallerInfo::capture(inner.caller_offset) {
+                (inner.caller_formatter)(&info.file, info.line, &info.function)
+            } else {
+                (inner.caller_formatter)("unknown", 0, "unknown")
+            };
+            let styled = styles.caller.render(&format!("<{caller_str}>"));
             if !first {
                 output.push(' ');
             }
@@ -874,8 +959,8 @@ fn escape_logfmt(s: &str) -> String {
 /// Prelude module for convenient imports.
 pub mod prelude {
     pub use crate::{
-        DEFAULT_TIME_FORMAT, Formatter, Level, Logger, Options, ParseLevelError, ParseResult,
-        Styles, keys, long_caller_formatter, now_utc, short_caller_formatter,
+        CallerInfo, DEFAULT_TIME_FORMAT, Formatter, Level, Logger, Options, ParseLevelError,
+        ParseResult, Styles, keys, long_caller_formatter, now_utc, short_caller_formatter,
     };
 }
 
@@ -945,6 +1030,29 @@ mod tests {
         let with_fields = logger.with_fields(&[("app", "test"), ("version", "1.0")]);
         // Fields are internal, just verify it doesn't panic
         drop(with_fields);
+    }
+
+    #[test]
+    fn test_logger_with_method() {
+        // Test the Go API compatible `with()` method
+        let logger = Logger::new();
+        let ctx_logger = logger.with(&[("request_id", "abc123"), ("user", "alice")]);
+        // Verify it creates a new logger (not the same instance)
+        // Both should work independently
+        ctx_logger.info("test message", &[]);
+        logger.info("another message", &[]);
+    }
+
+    #[test]
+    fn test_caller_info_capture() {
+        // CallerInfo::capture should return Some when called from a test
+        let info = CallerInfo::capture(0);
+        // The capture might return None in optimized builds, so we just
+        // verify it doesn't panic
+        if let Some(caller) = info {
+            // In debug builds, we should get meaningful info
+            assert!(!caller.function.is_empty());
+        }
     }
 
     #[test]

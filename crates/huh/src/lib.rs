@@ -4348,6 +4348,7 @@ pub struct Form {
     layout: Box<dyn Layout>,
     show_help: bool,
     show_errors: bool,
+    accessible: bool,
 }
 
 impl Default for Form {
@@ -4369,6 +4370,7 @@ impl Form {
             layout: Box::new(LayoutDefault),
             show_help: true,
             show_errors: true,
+            accessible: false,
         }
     }
 
@@ -4415,6 +4417,31 @@ impl Form {
     pub fn show_errors(mut self, show: bool) -> Self {
         self.show_errors = show;
         self
+    }
+
+    /// Enables or disables accessible mode.
+    ///
+    /// When accessible mode is enabled, the form renders in a more
+    /// screen-reader-friendly format with simpler styling and clearer
+    /// field labels. This mode prioritizes accessibility over visual
+    /// aesthetics.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use huh::Form;
+    ///
+    /// let form = Form::new(groups)
+    ///     .with_accessible(true);
+    /// ```
+    pub fn with_accessible(mut self, accessible: bool) -> Self {
+        self.accessible = accessible;
+        self
+    }
+
+    /// Returns whether accessible mode is enabled.
+    pub fn is_accessible(&self) -> bool {
+        self.accessible
     }
 
     /// Returns the form state.

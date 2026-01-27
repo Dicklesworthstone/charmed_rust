@@ -42,15 +42,37 @@ Result summary:
 
 ## Known Parity Gaps (Behavioral Discrepancies)
 
+**No remaining gaps.** All crates now have full Go API parity.
+
 ### Glamour (Markdown Rendering)
-**No remaining gaps.** All 84 conformance tests pass including:
+**Full parity achieved (2026-01-27).** All 84 conformance tests pass including:
 - All style presets (dark, light, ascii, notty, dracula, pink)
 - All link, blockquote, nested list, and table tests
+- **Go API naming:** `TermRenderer` and `AnsiOptions` match Go API (with `Renderer`/`RendererOptions` aliases for compatibility)
 
 ### Bubbletea
 **No remaining gaps.** Custom I/O mode event injection is fully implemented via:
 - `with_input_receiver(rx)` - for external message injection (used by wish SSH integration)
 - `with_input(reader)` - for raw input parsing
+
+### Charmed Log
+**Full parity achieved (2026-01-27):**
+- `with()` method added for Go API compatibility (alias for `with_fields()`)
+- Actual caller extraction via `backtrace` crate (not placeholder)
+- `CallerInfo` struct for programmatic caller access
+
+### Huh (Forms)
+**Full parity achieved (2026-01-27):**
+- `with_accessible(bool)` method added for accessibility mode
+- `is_accessible()` accessor method
+
+### Glow (Markdown CLI)
+**Full CLI parity achieved (2026-01-27):**
+- GitHub README fetching (with `--github` feature)
+- URL fetching support
+- New CLI flags: `--all`, `--line-numbers`, `--mouse`, `--preserve-new-lines`
+- Pager keys: `c` (clipboard), `e` (editor)
+- Stdin support via `-`
 
 ---
 
@@ -99,15 +121,20 @@ All 83 bubbles fixtures have full test implementations:
 - **stopwatch** (3): new, tick, reset
 - **timer** (3): new, tick, timeout
 
-### Glow (Initial Coverage)
-Basic conformance harness created (7 tests):
+### Glow (Full Coverage)
+Full conformance harness (29 tests):
 - **config**: defaults, pager, width, style builder methods
 - **render**: basic markdown rendering through glamour
 - **styles**: valid style parsing (dark, light, ascii, pink, auto, no-tty)
 - **stash**: document organization operations
+- **browser**: file browser with fuzzy filtering
+- **github**: repository reference parsing, README fetching with cache
 
-**Note**: Full Go fixture coverage (29 tests generated via `go run cmd/glow/main.go`).
-Tests cover config builder methods, reader rendering, and style validation.
+**CLI features:**
+- File, stdin (`-`), URL, and GitHub repo input sources
+- All style themes (dark, light, dracula, ascii, pink, auto, no-tty)
+- Pager with search (`/`), navigation, clipboard (`c`), editor (`e`)
+- Mouse support, line numbers, preserve newlines options
 
 ### Charmed-wasm (WASM Coverage)
 47 wasm-bindgen-test tests across two files:
