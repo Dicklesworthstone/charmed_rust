@@ -481,7 +481,7 @@ pub fn calculate_column_widths(table: &ParsedTable, config: &ColumnWidthConfig) 
     // Measure header
     for (i, cell) in table.header.iter().enumerate() {
         if i < column_count {
-            let cell_width = cell.content.width();
+            let cell_width = measure_width(&cell.content);
             widths[i] = widths[i].max(cell_width);
         }
     }
@@ -490,7 +490,7 @@ pub fn calculate_column_widths(table: &ParsedTable, config: &ColumnWidthConfig) 
     for row in &table.rows {
         for (i, cell) in row.iter().enumerate() {
             if i < column_count {
-                let cell_width = cell.content.width();
+                let cell_width = measure_width(&cell.content);
                 widths[i] = widths[i].max(cell_width);
             }
         }
@@ -552,7 +552,7 @@ pub fn calculate_column_widths(table: &ParsedTable, config: &ColumnWidthConfig) 
 /// Measure the display width of a string, handling unicode properly.
 #[must_use]
 pub fn measure_width(s: &str) -> usize {
-    s.width()
+    crate::visible_width(s)
 }
 
 // ============================================================================
@@ -575,7 +575,7 @@ pub fn measure_width(s: &str) -> usize {
 /// ```
 #[must_use]
 pub fn pad_content(content: &str, width: usize, alignment: Alignment) -> String {
-    let content_width = content.width();
+    let content_width = measure_width(content);
 
     if content_width >= width {
         return content.to_string();
@@ -707,7 +707,7 @@ pub fn truncate_content(content: &str, max_width: usize) -> String {
         return String::new();
     }
 
-    let content_width = content.width();
+    let content_width = measure_width(content);
     if content_width <= max_width {
         return content.to_string();
     }
@@ -717,6 +717,8 @@ pub fn truncate_content(content: &str, max_width: usize) -> String {
     let mut result = String::new();
     let mut current_width = 0;
 
+    // TODO: This loop needs to be ANSI-aware too if we want to truncate ANSI strings correctly
+    // For now, we assume truncation happens on plain text or simplistic ANSI handling
     for c in content.chars() {
         let char_width = c.width().unwrap_or(0);
         if current_width + char_width > target_width {
