@@ -56,16 +56,28 @@ Result summary:
 
 ## Known Product Limitations (from README)
 
-These are documented limitations that still need verification or closure:
-- Wish SSH: labeled “beta” and Windows SSH untested.
+### Wish SSH (Validated Stable)
+**Stability audit complete (2026-01-27).** The Wish SSH implementation passes all stability tests:
+- 9/9 e2e tests pass (connection, auth, PTY, bubbletea rendering)
+- 4/4 stress tests pass:
+  - Connection throughput: 364 conn/sec
+  - Sequential open/close: 12.88 cycles/sec
+  - Rapid PTY resize: 19/20 events received
+  - Concurrent PTY sessions: 5 sessions OK
+- Rich error types implemented (Io, Ssh, Russh, Key, Auth, Config, Session, AddrParse)
+
+**Remaining:** Windows SSH untested (bd-212m.7.2).
+
+### Other Limitations
 - Mouse drag support: limited.
-- Complex Unicode: “basic” support only.
+- Complex Unicode: "basic" support only.
 
 ---
 
 ## Recommended Next Actions (High Priority)
 
-1. **Run targeted validation** for README limitations (Wish stability, mouse drag, Unicode).
+1. **Validate Windows SSH** (bd-212m.7.2).
+2. **Run targeted validation** for remaining README limitations (mouse drag, Unicode).
 
 ---
 
