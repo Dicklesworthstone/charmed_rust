@@ -20,7 +20,7 @@ cargo test -p charmed_conformance -- --nocapture
 
 Result summary:
 - **Failed:** 0
-- **Skipped:** 7 (Glamour 3, Huh 4)
+- **Skipped:** 3 (Glamour 3)
 - **Notes:** Benchmark compile tests ran; benchmark execution tests remain ignored.
 
 ### Per-Crate Conformance Results
@@ -31,7 +31,7 @@ Result summary:
 | bubbletea    | 168   | 168  | 0    | 0    | All fixtures pass |
 | charmed_log  | 67    | 67   | 0    | 0    | All fixtures pass |
 | harmonica    | 24    | 24   | 0    | 0    | All fixtures pass |
-| huh          | 46    | 42   | 0    | 4    | Textarea not implemented |
+| huh          | 46    | 46   | 0    | 0    | All fixtures pass |
 | lipgloss     | 58    | 58   | 0    | 0    | All fixtures pass |
 | glamour      | 84    | 81   | 0    | 3    | 3 style presets differ (notty, ascii, dracula) |
 | glow         | 7     | 7    | 0    | 0    | Basic conformance harness (config, render, styles, stash) |
@@ -46,10 +46,6 @@ Result summary:
 Current gaps vs Go (from latest run):
 - **Skips:** `style_preset_notty`, `style_preset_ascii`, `style_preset_dracula`
 - **Note:** All link, blockquote, nested list, and table tests now pass (81/84 = 96%)
-
-### Huh (Forms)
-- Textarea field not implemented (skips: `text_basic`, `text_with_lines`,
-  `text_placeholder`, `text_char_limit`).
 
 ### Bubbletea
 - Custom I/O mode event injection path is noted as “not yet implemented fully”.
@@ -68,9 +64,8 @@ These are documented limitations that still need verification or closure:
 ## Recommended Next Actions (High Priority)
 
 1. **Address remaining Glamour preset discrepancies** (notty/ascii backtick handling, dracula heading prefix).
-2. **Implement Huh textarea field** and extend fixtures.
-3. **Audit Bubbletea custom I/O event injection**.
-4. **Run targeted validation** for README limitations (Wish stability, mouse drag, Unicode).
+2. **Audit Bubbletea custom I/O event injection**.
+3. **Run targeted validation** for README limitations (Wish stability, mouse drag, Unicode).
 
 ---
 
