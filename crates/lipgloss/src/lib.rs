@@ -471,3 +471,176 @@ pub fn place(width: usize, height: usize, h_pos: Position, v_pos: Position, s: &
 
     result.join("\n")
 }
+
+// =============================================================================
+// StyleRanges and Range
+// =============================================================================
+
+/// Range specifies a section of text with a start index, end index, and the Style to apply.
+///
+/// Used with [`style_ranges`] to apply different styles to different parts of a string.
+///
+/// # Example
+///
+/// ```rust
+/// use lipgloss::{Range, Style, style_ranges};
+///
+/// let style = Style::new().bold();
+/// let range = Range {
+///     start: 0,
+///     end: 5,
+///     style,
+/// };
+/// ```
+#[derive(Debug, Clone)]
+pub struct Range {
+    /// The starting index (inclusive, in bytes).
+    pub start: usize,
+    /// The ending index (exclusive, in bytes).
+    pub end: usize,
+    /// The Style to apply to this range.
+    pub style: Style,
+}
+
+impl Range {
+    /// Creates a new Range.
+    pub fn new(start: usize, end: usize, style: Style) -> Self {
+        Self { start, end, style }
+    }
+}
+
+/// Creates a new Range that can be used with [`style_ranges`].
+///
+/// # Arguments
+///
+/// * `start` - The starting index of the range (inclusive, in bytes)
+/// * `end` - The ending index of the range (exclusive, in bytes)
+/// * `style` - The Style to apply to this range
+///
+/// # Example
+///
+/// ```rust
+/// use lipgloss::{new_range, Style, style_ranges};
+///
+/// let styled = style_ranges(
+///     "Hello, World!",
+///     &[
+///         new_range(0, 5, Style::new().bold()),
+///         new_range(7, 12, Style::new().italic()),
+///     ],
+/// );
+/// ```
+pub fn new_range(start: usize, end: usize, style: Style) -> Range {
+    Range::new(start, end, style)
+}
+
+/// Applies styles to ranges in a string. Existing ANSI styles will be taken into account.
+/// Ranges should not overlap.
+///
+/// # Arguments
+///
+/// * `s` - The input string to style
+/// * `ranges` - A slice of Range objects specifying which parts of the string to style
+///
+/// # Returns
+///
+/// The styled string with each range having its specified style applied.
+///
+/// # Example
+///
+/// ```rust
+/// use lipgloss::{style_ranges, new_range, Style};
+///
+/// let styled = style_ranges(
+///     "Hello, World!",
+///     &[
+///         new_range(0, 5, Style::new().bold()),
+///         new_range(7, 12, Style::new().italic()),
+///     ],
+/// );
+/// ```
+pub fn style_ranges(s: &str, ranges: &[Range]) -> String {
+    if ranges.is_empty() {
+        return s.to_string();
+    }
+
+    // Sort ranges by start position
+    let mut sorted_ranges: Vec<_> = ranges.iter().collect();
+    sorted_ranges.sort_by_key(|r| r.start);
+
+    let bytes = s.as_bytes();
+    let mut result = String::new();
+    let mut current_pos = 0;
+
+    for range in sorted_ranges {
+        let start = range.start.min(bytes.len());
+        let end = range.end.min(bytes.len());
+
+        if start > current_pos {
+            // Add unstyled text between ranges
+            if let Ok(text) = std::str::from_utf8(&bytes[current_pos..start]) {
+                result.push_str(text);
+            }
+        }
+
+        if end > start {
+            // Apply style to this range
+            if let Ok(text) = std::str::from_utf8(&bytes[start..end]) {
+                result.push_str(&range.style.render(text));
+            }
+        }
+
+        current_pos = end.max(current_pos);
+    }
+
+    // Add remaining text after last range
+    if current_pos < bytes.len() {
+        if let Ok(text) = std::str::from_utf8(&bytes[current_pos..]) {
+            result.push_str(text);
+        }
+    }
+
+    result
+}
+
+/// Applies styles to runes at the given indices in the string.
+///
+/// You must provide styling options for both matched and unmatched runes.
+/// Indices out of bounds will be ignored.
+///
+/// # Arguments
+///
+/// * `s` - The input string to style
+/// * `indices` - Array of character indices indicating which runes to style
+/// * `matched` - The Style to apply to runes at the specified indices
+/// * `unmatched` - The Style to apply to all other runes
+///
+/// # Example
+///
+/// ```rust
+/// use lipgloss::{style_runes, Style};
+///
+/// let styled = style_runes(
+///     "Hello",
+///     &[0, 1, 2],
+///     Style::new().bold(),
+///     Style::new().faint(),
+/// );
+/// ```
+pub fn style_runes(s: &str, indices: &[usize], matched: Style, unmatched: Style) -> String {
+    use std::collections::HashSet;
+    let indices_set: HashSet<_> = indices.iter().copied().collect();
+
+    let mut result = String::new();
+
+    for (i, c) in s.chars().enumerate() {
+        let char_str = c.to_string();
+        if indices_set.contains(&i) {
+            result.push_str(&matched.render(&char_str));
+        } else {
+            result.push_str(&unmatched.render(&char_str));
+        }
+    }
+
+    result
+}

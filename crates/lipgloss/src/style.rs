@@ -1463,6 +1463,360 @@ impl Style {
 
         result
     }
+
+    // =============================================================================
+    // Unset methods - remove style rules
+    // =============================================================================
+
+    /// Removes the bold style rule.
+    pub fn unset_bold(mut self) -> Self {
+        self.props.remove(Props::BOLD);
+        self.attrs.remove(Attrs::BOLD);
+        self
+    }
+
+    /// Removes the italic style rule.
+    pub fn unset_italic(mut self) -> Self {
+        self.props.remove(Props::ITALIC);
+        self.attrs.remove(Attrs::ITALIC);
+        self
+    }
+
+    /// Removes the underline style rule.
+    pub fn unset_underline(mut self) -> Self {
+        self.props.remove(Props::UNDERLINE);
+        self.attrs.remove(Attrs::UNDERLINE);
+        self
+    }
+
+    /// Removes the strikethrough style rule.
+    pub fn unset_strikethrough(mut self) -> Self {
+        self.props.remove(Props::STRIKETHROUGH);
+        self.attrs.remove(Attrs::STRIKETHROUGH);
+        self
+    }
+
+    /// Removes the reverse style rule.
+    pub fn unset_reverse(mut self) -> Self {
+        self.props.remove(Props::REVERSE);
+        self.attrs.remove(Attrs::REVERSE);
+        self
+    }
+
+    /// Removes the blink style rule.
+    pub fn unset_blink(mut self) -> Self {
+        self.props.remove(Props::BLINK);
+        self.attrs.remove(Attrs::BLINK);
+        self
+    }
+
+    /// Removes the faint style rule.
+    pub fn unset_faint(mut self) -> Self {
+        self.props.remove(Props::FAINT);
+        self.attrs.remove(Attrs::FAINT);
+        self
+    }
+
+    /// Removes the foreground color rule.
+    pub fn unset_foreground(mut self) -> Self {
+        self.props.remove(Props::FOREGROUND);
+        self.fg_color = None;
+        self
+    }
+
+    /// Removes the background color rule.
+    pub fn unset_background(mut self) -> Self {
+        self.props.remove(Props::BACKGROUND);
+        self.bg_color = None;
+        self
+    }
+
+    /// Removes the width style rule.
+    pub fn unset_width(mut self) -> Self {
+        self.props.remove(Props::WIDTH);
+        self.width = 0;
+        self
+    }
+
+    /// Removes the height style rule.
+    pub fn unset_height(mut self) -> Self {
+        self.props.remove(Props::HEIGHT);
+        self.height = 0;
+        self
+    }
+
+    /// Removes the max width style rule.
+    pub fn unset_max_width(mut self) -> Self {
+        self.props.remove(Props::MAX_WIDTH);
+        self.max_width = 0;
+        self
+    }
+
+    /// Removes the max height style rule.
+    pub fn unset_max_height(mut self) -> Self {
+        self.props.remove(Props::MAX_HEIGHT);
+        self.max_height = 0;
+        self
+    }
+
+    /// Removes horizontal and vertical text alignment.
+    pub fn unset_align(mut self) -> Self {
+        self.props.remove(Props::ALIGN_HORIZONTAL);
+        self.props.remove(Props::ALIGN_VERTICAL);
+        self.align_horizontal = Position::Left;
+        self.align_vertical = Position::Top;
+        self
+    }
+
+    /// Removes horizontal text alignment.
+    pub fn unset_align_horizontal(mut self) -> Self {
+        self.props.remove(Props::ALIGN_HORIZONTAL);
+        self.align_horizontal = Position::Left;
+        self
+    }
+
+    /// Removes vertical text alignment.
+    pub fn unset_align_vertical(mut self) -> Self {
+        self.props.remove(Props::ALIGN_VERTICAL);
+        self.align_vertical = Position::Top;
+        self
+    }
+
+    /// Removes all padding style rules.
+    pub fn unset_padding(mut self) -> Self {
+        self.props.remove(Props::PADDING_TOP);
+        self.props.remove(Props::PADDING_RIGHT);
+        self.props.remove(Props::PADDING_BOTTOM);
+        self.props.remove(Props::PADDING_LEFT);
+        self.padding = Sides::default();
+        self
+    }
+
+    /// Removes the left padding rule.
+    pub fn unset_padding_left(mut self) -> Self {
+        self.props.remove(Props::PADDING_LEFT);
+        self.padding.left = 0;
+        self
+    }
+
+    /// Removes the right padding rule.
+    pub fn unset_padding_right(mut self) -> Self {
+        self.props.remove(Props::PADDING_RIGHT);
+        self.padding.right = 0;
+        self
+    }
+
+    /// Removes the top padding rule.
+    pub fn unset_padding_top(mut self) -> Self {
+        self.props.remove(Props::PADDING_TOP);
+        self.padding.top = 0;
+        self
+    }
+
+    /// Removes the bottom padding rule.
+    pub fn unset_padding_bottom(mut self) -> Self {
+        self.props.remove(Props::PADDING_BOTTOM);
+        self.padding.bottom = 0;
+        self
+    }
+
+    /// Removes all margin style rules.
+    pub fn unset_margins(mut self) -> Self {
+        self.props.remove(Props::MARGIN_TOP);
+        self.props.remove(Props::MARGIN_RIGHT);
+        self.props.remove(Props::MARGIN_BOTTOM);
+        self.props.remove(Props::MARGIN_LEFT);
+        self.margin = Sides::default();
+        self
+    }
+
+    /// Removes the left margin rule.
+    pub fn unset_margin_left(mut self) -> Self {
+        self.props.remove(Props::MARGIN_LEFT);
+        self.margin.left = 0;
+        self
+    }
+
+    /// Removes the right margin rule.
+    pub fn unset_margin_right(mut self) -> Self {
+        self.props.remove(Props::MARGIN_RIGHT);
+        self.margin.right = 0;
+        self
+    }
+
+    /// Removes the top margin rule.
+    pub fn unset_margin_top(mut self) -> Self {
+        self.props.remove(Props::MARGIN_TOP);
+        self.margin.top = 0;
+        self
+    }
+
+    /// Removes the bottom margin rule.
+    pub fn unset_margin_bottom(mut self) -> Self {
+        self.props.remove(Props::MARGIN_BOTTOM);
+        self.margin.bottom = 0;
+        self
+    }
+
+    /// Removes the margin background color.
+    pub fn unset_margin_background(mut self) -> Self {
+        self.props.remove(Props::MARGIN_BACKGROUND);
+        self.margin_bg_color = None;
+        self
+    }
+
+    /// Removes the border style rule.
+    pub fn unset_border_style(mut self) -> Self {
+        self.props.remove(Props::BORDER_STYLE);
+        self.border_style = Border::none();
+        self
+    }
+
+    /// Removes the top border rule.
+    pub fn unset_border_top(mut self) -> Self {
+        self.props.remove(Props::BORDER_TOP);
+        self.border_edges.remove(BorderEdges::TOP);
+        self
+    }
+
+    /// Removes the right border rule.
+    pub fn unset_border_right(mut self) -> Self {
+        self.props.remove(Props::BORDER_RIGHT);
+        self.border_edges.remove(BorderEdges::RIGHT);
+        self
+    }
+
+    /// Removes the bottom border rule.
+    pub fn unset_border_bottom(mut self) -> Self {
+        self.props.remove(Props::BORDER_BOTTOM);
+        self.border_edges.remove(BorderEdges::BOTTOM);
+        self
+    }
+
+    /// Removes the left border rule.
+    pub fn unset_border_left(mut self) -> Self {
+        self.props.remove(Props::BORDER_LEFT);
+        self.border_edges.remove(BorderEdges::LEFT);
+        self
+    }
+
+    /// Removes all border foreground colors.
+    pub fn unset_border_foreground(mut self) -> Self {
+        self.props.remove(Props::BORDER_TOP_FG);
+        self.props.remove(Props::BORDER_RIGHT_FG);
+        self.props.remove(Props::BORDER_BOTTOM_FG);
+        self.props.remove(Props::BORDER_LEFT_FG);
+        self.border_fg = [None, None, None, None];
+        self
+    }
+
+    /// Removes the top border foreground color.
+    pub fn unset_border_top_foreground(mut self) -> Self {
+        self.props.remove(Props::BORDER_TOP_FG);
+        self.border_fg[0] = None;
+        self
+    }
+
+    /// Removes the right border foreground color.
+    pub fn unset_border_right_foreground(mut self) -> Self {
+        self.props.remove(Props::BORDER_RIGHT_FG);
+        self.border_fg[1] = None;
+        self
+    }
+
+    /// Removes the bottom border foreground color.
+    pub fn unset_border_bottom_foreground(mut self) -> Self {
+        self.props.remove(Props::BORDER_BOTTOM_FG);
+        self.border_fg[2] = None;
+        self
+    }
+
+    /// Removes the left border foreground color.
+    pub fn unset_border_left_foreground(mut self) -> Self {
+        self.props.remove(Props::BORDER_LEFT_FG);
+        self.border_fg[3] = None;
+        self
+    }
+
+    /// Removes all border background colors.
+    pub fn unset_border_background(mut self) -> Self {
+        self.props.remove(Props::BORDER_TOP_BG);
+        self.props.remove(Props::BORDER_RIGHT_BG);
+        self.props.remove(Props::BORDER_BOTTOM_BG);
+        self.props.remove(Props::BORDER_LEFT_BG);
+        self.border_bg = [None, None, None, None];
+        self
+    }
+
+    /// Removes the top border background color.
+    pub fn unset_border_top_background(mut self) -> Self {
+        self.props.remove(Props::BORDER_TOP_BG);
+        self.border_bg[0] = None;
+        self
+    }
+
+    /// Removes the right border background color.
+    pub fn unset_border_right_background(mut self) -> Self {
+        self.props.remove(Props::BORDER_RIGHT_BG);
+        self.border_bg[1] = None;
+        self
+    }
+
+    /// Removes the bottom border background color.
+    pub fn unset_border_bottom_background(mut self) -> Self {
+        self.props.remove(Props::BORDER_BOTTOM_BG);
+        self.border_bg[2] = None;
+        self
+    }
+
+    /// Removes the left border background color.
+    pub fn unset_border_left_background(mut self) -> Self {
+        self.props.remove(Props::BORDER_LEFT_BG);
+        self.border_bg[3] = None;
+        self
+    }
+
+    /// Removes the inline style rule.
+    pub fn unset_inline(mut self) -> Self {
+        self.props.remove(Props::INLINE);
+        self.attrs.remove(Attrs::INLINE);
+        self
+    }
+
+    /// Removes the tab width style rule.
+    pub fn unset_tab_width(mut self) -> Self {
+        self.props.remove(Props::TAB_WIDTH);
+        self.tab_width = 4;
+        self
+    }
+
+    /// Removes the underline spaces value.
+    pub fn unset_underline_spaces(mut self) -> Self {
+        self.props.remove(Props::UNDERLINE_SPACES);
+        self.attrs.remove(Attrs::UNDERLINE_SPACES);
+        self
+    }
+
+    /// Removes the strikethrough spaces value.
+    pub fn unset_strikethrough_spaces(mut self) -> Self {
+        self.props.remove(Props::STRIKETHROUGH_SPACES);
+        self.attrs.remove(Attrs::STRIKETHROUGH_SPACES);
+        self
+    }
+
+    /// Removes the color whitespace value.
+    pub fn unset_color_whitespace(mut self) -> Self {
+        self.props.remove(Props::COLOR_WHITESPACE);
+        self.attrs.remove(Attrs::COLOR_WHITESPACE);
+        self
+    }
+
+    /// Removes the transform value.
+    pub fn unset_transform(mut self) -> Self {
+        self.props.remove(Props::TRANSFORM);
+        self.transform = None;
+        self
+    }
 }
 
 impl std::fmt::Display for Style {
