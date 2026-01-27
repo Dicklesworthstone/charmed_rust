@@ -42,7 +42,7 @@ async fn test_pty_allocation_and_io() {
     .await;
 
     let client = SshClient::new(server.port());
-    let mut child = client.spawn_interactive().await.expect("ssh spawn");
+    let mut child = client.spawn_interactive().expect("ssh spawn");
 
     let mut stdout = child.stdout.take().expect("stdout");
     let mut stdin = child.stdin.take().expect("stdin");
@@ -94,7 +94,7 @@ async fn test_window_resize() {
     .await;
 
     let pty_system = native_pty_system();
-    let mut pair = pty_system
+    let pair = pty_system
         .openpty(PtySize {
             rows: 24,
             cols: 80,
@@ -184,7 +184,7 @@ struct ResizeModel {
 }
 
 impl ResizeModel {
-    fn new(started: Arc<AtomicBool>, last_size: Arc<Mutex<Option<(u16, u16)>>>) -> Self {
+    const fn new(started: Arc<AtomicBool>, last_size: Arc<Mutex<Option<(u16, u16)>>>) -> Self {
         Self { started, last_size }
     }
 }

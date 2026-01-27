@@ -81,7 +81,7 @@ async fn main() -> Result<(), wish::Error> {
         .address("127.0.0.1:2222")
         .version("SSH-2.0-WishAuth")
         .banner("Welcome! Please authenticate.")
-        .idle_timeout(Duration::from_secs(300))
+        .idle_timeout(Duration::from_mins(5))
         // Set authentication limits
         .max_auth_attempts(3)
         .auth_rejection_delay(100) // 100ms delay on failed auth (timing attack mitigation)

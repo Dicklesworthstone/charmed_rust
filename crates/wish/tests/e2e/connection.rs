@@ -80,7 +80,7 @@ async fn test_graceful_shutdown() {
     .await;
 
     let client = SshClient::new(server.port());
-    let mut child = client.spawn_interactive().await.expect("ssh spawn");
+    let mut child = client.spawn_interactive().expect("ssh spawn");
 
     let mut stdout = child.stdout.take().expect("stdout");
     let _ = read_until_contains(&mut stdout, "bye", DEFAULT_TIMEOUT)

@@ -1,6 +1,6 @@
 # FEATURE_PARITY.md — Charmed Rust
 
-Last updated: 2026-01-25
+Last updated: 2026-01-27
 
 This document tracks conformance and parity status between the Rust ports and
 the original Charm Go libraries. It is intended to be a single source of truth
@@ -20,7 +20,7 @@ cargo test -p charmed_conformance -- --nocapture
 
 Result summary:
 - **Failed:** 0
-- **Skipped:** 8 (Glamour 3, Huh 4, Lipgloss 1)
+- **Skipped:** 7 (Glamour 3, Huh 4)
 - **Notes:** Benchmark compile tests ran; benchmark execution tests remain ignored.
 
 ### Per-Crate Conformance Results
@@ -32,7 +32,7 @@ Result summary:
 | charmed_log  | 67    | 67   | 0    | 0    | All fixtures pass |
 | harmonica    | 24    | 24   | 0    | 0    | All fixtures pass |
 | huh          | 46    | 42   | 0    | 4    | Textarea not implemented |
-| lipgloss     | 58    | 57   | 0    | 1    | Partial border edges |
+| lipgloss     | 58    | 58   | 0    | 0    | All fixtures pass |
 | glamour      | 84    | 81   | 0    | 3    | 3 style presets differ (notty, ascii, dracula) |
 | glow         | 7     | 7    | 0    | 0    | Basic conformance harness (config, render, styles, stash) |
 | charmed-wasm | 47    | 47   | 0    | 0    | WASM smoke tests (style, layout, DOM) |
@@ -46,9 +46,6 @@ Result summary:
 Current gaps vs Go (from latest run):
 - **Skips:** `style_preset_notty`, `style_preset_ascii`, `style_preset_dracula`
 - **Note:** All link, blockquote, nested list, and table tests now pass (81/84 = 96%)
-
-### Lipgloss (Terminal Styling)
-- `border_partial_top_bottom`: partial border edges not implemented.
 
 ### Huh (Forms)
 - Textarea field not implemented (skips: `text_basic`, `text_with_lines`,
@@ -71,10 +68,9 @@ These are documented limitations that still need verification or closure:
 ## Recommended Next Actions (High Priority)
 
 1. **Address remaining Glamour preset discrepancies** (notty/ascii backtick handling, dracula heading prefix).
-2. **Implement Lipgloss partial border edges**.
-3. **Implement Huh textarea field** and extend fixtures.
-4. **Audit Bubbletea custom I/O event injection**.
-5. **Run targeted validation** for README limitations (Wish stability, mouse drag, Unicode).
+2. **Implement Huh textarea field** and extend fixtures.
+3. **Audit Bubbletea custom I/O event injection**.
+4. **Run targeted validation** for README limitations (Wish stability, mouse drag, Unicode).
 
 ---
 

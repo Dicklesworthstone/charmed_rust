@@ -9,7 +9,7 @@ struct Counter {
 }
 
 impl Counter {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self { count: 0 }
     }
 }
@@ -57,7 +57,7 @@ async fn test_bubbletea_rendering() {
     .await;
 
     let client = SshClient::new(server.port());
-    let mut child = client.spawn_interactive().await.expect("ssh spawn");
+    let mut child = client.spawn_interactive().expect("ssh spawn");
 
     let mut stdout = child.stdout.take().expect("stdout");
     let mut stdin = child.stdin.take().expect("stdin");

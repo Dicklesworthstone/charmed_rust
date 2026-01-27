@@ -12,7 +12,7 @@ use super::common::{LONG_TIMEOUT, SshClient, TEST_USER, TestServer, ssh_availabl
 use wish::{AcceptAllAuth, ServerBuilder};
 
 #[tokio::test]
-#[ignore]
+#[ignore = "expensive performance test - run manually"]
 async fn test_connection_throughput() {
     if !ssh_available() {
         eprintln!("ssh not available; skipping test_connection_throughput");
@@ -48,8 +48,8 @@ async fn test_connection_throughput() {
     }
 
     let elapsed = start.elapsed();
-    let rate = connections as f64 / elapsed.as_secs_f64();
-    eprintln!("connection rate: {:.2} conn/sec", rate);
+    let rate = f64::from(connections) / elapsed.as_secs_f64();
+    eprintln!("connection rate: {rate:.2} conn/sec");
     assert!(rate > 5.0, "connection rate too low");
 
     server.stop().await;
@@ -59,7 +59,7 @@ async fn test_connection_throughput() {
 ///
 /// Tests server stability under rapid connection churn.
 #[tokio::test]
-#[ignore]
+#[ignore = "expensive performance test - run manually"]
 async fn test_rapid_open_close_cycles() {
     if !ssh_available() {
         eprintln!("ssh not available; skipping test_rapid_open_close_cycles");
@@ -91,7 +91,7 @@ async fn test_rapid_open_close_cycles() {
     }
 
     let elapsed = start.elapsed();
-    let rate = cycles as f64 / elapsed.as_secs_f64();
+    let rate = f64::from(cycles) / elapsed.as_secs_f64();
     eprintln!(
         "sequential open/close: {} cycles in {:.2}s ({:.2} cycles/sec)",
         cycles,
@@ -107,7 +107,7 @@ async fn test_rapid_open_close_cycles() {
 ///
 /// Tests server stability when receiving many resize events in quick succession.
 #[tokio::test]
-#[ignore]
+#[ignore = "expensive performance test - run manually"]
 async fn test_rapid_pty_resize() {
     if !ssh_available() {
         eprintln!("ssh not available; skipping test_rapid_pty_resize");
@@ -134,7 +134,7 @@ async fn test_rapid_pty_resize() {
     .await;
 
     let pty_system = native_pty_system();
-    let mut pair = pty_system
+    let pair = pty_system
         .openpty(PtySize {
             rows: 24,
             cols: 80,
@@ -159,7 +159,7 @@ async fn test_rapid_pty_resize() {
     cmd.arg("ConnectTimeout=5");
     cmd.arg("-p");
     cmd.arg(server.port().to_string());
-    cmd.arg(format!("{}@127.0.0.1", TEST_USER));
+    cmd.arg(format!("{TEST_USER}@127.0.0.1"));
 
     let mut child = pair.slave.spawn_command(cmd).expect("spawn ssh");
     drop(pair.slave);
@@ -192,8 +192,7 @@ async fn test_rapid_pty_resize() {
 
     let final_count = resize_count.load(Ordering::SeqCst);
     eprintln!(
-        "rapid resize: sent {} resize events, received {}",
-        resize_count_target, final_count
+        "rapid resize: sent {resize_count_target} resize events, received {final_count}"
     );
 
     // We should receive at least some resize events (may be coalesced)
@@ -280,7 +279,7 @@ impl Model for ResizeCounterModel {
 ///
 /// Tests server stability with multiple simultaneous interactive sessions.
 #[tokio::test]
-#[ignore]
+#[ignore = "expensive performance test - run manually"]
 async fn test_concurrent_pty_sessions() {
     if !ssh_available() {
         eprintln!("ssh not available; skipping test_concurrent_pty_sessions");
@@ -297,7 +296,7 @@ async fn test_concurrent_pty_sessions() {
                 }
                 // Wait for input before closing
                 if let Some(data) = session.recv().await {
-                    wish::println(&session, &format!("got: {}", data.len()));
+                    wish::println(&session, format!("got: {}", data.len()));
                 }
                 let _ = session.exit(0);
                 let _ = session.close();
@@ -312,7 +311,7 @@ async fn test_concurrent_pty_sessions() {
         let port = server.port();
         handles.push(tokio::spawn(async move {
             let client = SshClient::new(port);
-            let mut child = client.spawn_interactive().await.expect("ssh spawn");
+            let mut child = client.spawn_interactive().expect("ssh spawn");
 
             let mut stdout = child.stdout.take().expect("stdout");
             let mut stdin = child.stdin.take().expect("stdin");
@@ -336,7 +335,7 @@ async fn test_concurrent_pty_sessions() {
     }
 
     for (i, handle) in handles.into_iter().enumerate() {
-        handle.await.expect(&format!("join session {i}"));
+        handle.await.unwrap_or_else(|_| panic!("join session {i}"));
     }
 
     eprintln!("concurrent PTY sessions: {concurrent} sessions completed successfully");

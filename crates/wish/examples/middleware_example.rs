@@ -103,7 +103,7 @@ async fn main() -> Result<(), wish::Error> {
     let server = ServerBuilder::new()
         .address("127.0.0.1:2222")
         .version("SSH-2.0-WishMiddleware")
-        .idle_timeout(Duration::from_secs(60))
+        .idle_timeout(Duration::from_mins(1))
         // Middleware is applied in order (first added = outermost)
         .with_middleware(ratelimiter::middleware(limiter))
         .with_middleware(logging::middleware())

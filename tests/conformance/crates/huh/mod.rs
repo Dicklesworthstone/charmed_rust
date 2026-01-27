@@ -31,8 +31,8 @@ use crate::harness::{FixtureLoader, TestFixture};
 use bubbletea::{Message, Model};
 use huh::{
     Confirm, EchoMode, Form, FormState, Group, Input, MultiSelect, NextFieldMsg, NextGroupMsg,
-    Note, PrevFieldMsg, PrevGroupMsg, Select, SelectOption, theme_base, theme_base16, theme_charm,
-    theme_dracula, validate_email, validate_min_length_8, validate_required_name,
+    Note, PrevFieldMsg, PrevGroupMsg, Select, SelectOption, Text, theme_base, theme_base16,
+    theme_charm, theme_dracula, validate_email, validate_min_length_8, validate_required_name,
 };
 use serde::Deserialize;
 
@@ -305,6 +305,55 @@ fn run_input_test(fixture: &TestFixture) -> Result<(), String> {
             return Err(format!(
                 "Echo mode mismatch: expected {}, got {}",
                 expected_echo, actual_echo_mode
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+/// Run a single text (textarea) test
+fn run_text_test(fixture: &TestFixture) -> Result<(), String> {
+    let input: TextInput = fixture
+        .input_as()
+        .map_err(|e| format!("Failed to parse input: {}", e))?;
+    let expected: TextOutput = fixture
+        .expected_as()
+        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+
+    // Verify field type
+    if expected.field_type != "text" {
+        return Err(format!(
+            "Field type mismatch: expected 'text', got '{}'",
+            expected.field_type
+        ));
+    }
+
+    // Build the text field using huh::Text
+    let mut text_field = Text::new();
+
+    if let Some(title) = &input.title {
+        text_field = text_field.title(title.as_str());
+    }
+    if let Some(placeholder) = &input.placeholder {
+        text_field = text_field.placeholder(placeholder.as_str());
+    }
+    if let Some(lines) = input.lines {
+        text_field = text_field.lines(lines);
+    }
+    if let Some(limit) = input.char_limit {
+        text_field = text_field.char_limit(limit);
+    }
+
+    // Check the value
+    let actual_value = text_field.get_string_value();
+
+    // If expected initial_value is empty, verify field is empty
+    if let Some(expected_initial) = &expected.initial_value {
+        if expected_initial.is_empty() && !actual_value.is_empty() {
+            return Err(format!(
+                "Expected empty initial value, got {:?}",
+                actual_value
             ));
         }
     }
@@ -844,8 +893,7 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
     if fixture.name.starts_with("input_") {
         run_input_test(fixture)
     } else if fixture.name.starts_with("text_") {
-        // Text (textarea) is not yet implemented in the Rust huh crate
-        Err("SKIPPED: Text field (textarea) not yet implemented in Rust huh crate".to_string())
+        run_text_test(fixture)
     } else if fixture.name.starts_with("select_") {
         run_select_test(fixture)
     } else if fixture.name.starts_with("multiselect_") {

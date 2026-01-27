@@ -47,7 +47,7 @@ impl TestServer {
         Self { port, handle }
     }
 
-    pub fn port(&self) -> u16 {
+    pub const fn port(&self) -> u16 {
         self.port
     }
 
@@ -118,6 +118,7 @@ impl SshClient {
         }
     }
 
+    #[allow(dead_code)] // Available for tests that need custom usernames
     pub fn with_user(mut self, user: impl Into<String>) -> Self {
         self.user = user.into();
         self
@@ -184,7 +185,7 @@ impl SshClient {
         run_with_timeout(cmd, DEFAULT_TIMEOUT).await
     }
 
-    pub async fn spawn_interactive(&self) -> io::Result<tokio::process::Child> {
+    pub fn spawn_interactive(&self) -> io::Result<tokio::process::Child> {
         let mut cmd = self.base_command();
         cmd.arg("-tt").arg("-o").arg("BatchMode=yes");
         cmd.stdin(Stdio::piped())
@@ -290,7 +291,7 @@ fn strip_ansi(input: &str) -> String {
             if let Some(next) = chars.peek().copied() {
                 if next == '[' {
                     chars.next();
-                    while let Some(ctrl) = chars.next() {
+                    for ctrl in chars.by_ref() {
                         if ('@'..='~').contains(&ctrl) {
                             break;
                         }
@@ -299,7 +300,7 @@ fn strip_ansi(input: &str) -> String {
                 } else if next == ']' {
                     chars.next();
                     let mut prev = '\0';
-                    while let Some(ctrl) = chars.next() {
+                    for ctrl in chars.by_ref() {
                         if ctrl == '\x07' {
                             break;
                         }

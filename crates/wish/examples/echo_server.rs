@@ -31,7 +31,7 @@ async fn main() -> Result<(), wish::Error> {
         .address("127.0.0.1:2222")
         .version("SSH-2.0-WishExample")
         .banner("Welcome to the Wish Echo Server!")
-        .idle_timeout(Duration::from_secs(300))
+        .idle_timeout(Duration::from_mins(5))
         // Accept all connections (no authentication)
         .handler(|session| async move {
             // Print a greeting

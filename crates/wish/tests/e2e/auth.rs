@@ -96,7 +96,7 @@ fn generate_test_keypair(dir: &Path) -> io::Result<PathBuf> {
         .status()?;
 
     if !status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "ssh-keygen failed"));
+        return Err(io::Error::other("ssh-keygen failed"));
     }
 
     Ok(key_path)
