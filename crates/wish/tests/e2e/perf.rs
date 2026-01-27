@@ -170,10 +170,10 @@ async fn test_rapid_pty_resize() {
     wait_for_flag(&started, LONG_TIMEOUT).await;
 
     // Send rapid resize events
-    let resize_count_target = 20;
+    let resize_count_target: u16 = 20;
     for i in 0..resize_count_target {
-        let rows = 24 + (i % 10) as u16;
-        let cols = 80 + (i % 20) as u16;
+        let rows = 24 + (i % 10);
+        let cols = 80 + (i % 20);
         pair.master
             .resize(PtySize {
                 rows,
@@ -308,14 +308,14 @@ async fn test_concurrent_pty_sessions() {
     for i in 0..concurrent {
         let port = server.port();
         handles.push(tokio::spawn(async move {
+            use super::common::{DEFAULT_TIMEOUT, read_until_contains};
+            use tokio::io::AsyncWriteExt;
+
             let client = SshClient::new(port);
             let mut child = client.spawn_interactive().expect("ssh spawn");
 
             let mut stdout = child.stdout.take().expect("stdout");
             let mut stdin = child.stdin.take().expect("stdin");
-
-            use super::common::{DEFAULT_TIMEOUT, read_until_contains};
-            use tokio::io::AsyncWriteExt;
 
             let _ = read_until_contains(&mut stdout, "PTY active", DEFAULT_TIMEOUT)
                 .await

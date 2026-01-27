@@ -212,7 +212,8 @@ impl Model for ResizeModel {
     }
 
     fn view(&self) -> String {
-        if let Some((width, height)) = *self.last_size.lock().expect("size lock") {
+        let size = *self.last_size.lock().expect("size lock");
+        if let Some((width, height)) = size {
             format!("Size: {width}x{height}")
         } else {
             "Size: unknown".to_string()
