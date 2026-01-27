@@ -143,11 +143,9 @@ impl Config {
             renderer = renderer.with_word_wrap(width);
         }
         // line_numbers is only available with syntax-highlighting feature
+        #[cfg(feature = "syntax-highlighting")]
         if self.line_numbers {
-            #[cfg(feature = "syntax-highlighting")]
-            {
-                renderer = renderer.set_line_numbers(true);
-            }
+            renderer.set_line_numbers(true);
         }
         Ok(renderer)
     }

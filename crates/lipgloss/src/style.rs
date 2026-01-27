@@ -1193,9 +1193,8 @@ impl Style {
             };
 
             if top > 0 {
-                let mut top_result = String::with_capacity(
-                    top * (blank_line.len() + 1) + result.len() + 1,
-                );
+                let mut top_result =
+                    String::with_capacity(top * (blank_line.len() + 1) + result.len() + 1);
                 for i in 0..top {
                     if i > 0 {
                         top_result.push('\n');
@@ -1325,13 +1324,25 @@ impl Style {
 
         // Pre-compute styled border elements (called once, not per-line)
         let left_border = if edges.left {
-            style_border_str(&border.left, self.border_fg[3].as_deref(), self.border_bg[3].as_deref(), profile, dark_bg)
+            style_border_str(
+                &border.left,
+                self.border_fg[3].as_deref(),
+                self.border_bg[3].as_deref(),
+                profile,
+                dark_bg,
+            )
         } else {
             String::new()
         };
 
         let right_border = if edges.right {
-            style_border_str(&border.right, self.border_fg[1].as_deref(), self.border_bg[1].as_deref(), profile, dark_bg)
+            style_border_str(
+                &border.right,
+                self.border_fg[1].as_deref(),
+                self.border_bg[1].as_deref(),
+                profile,
+                dark_bg,
+            )
         } else {
             String::new()
         };
@@ -1357,7 +1368,11 @@ impl Style {
                     dark_bg,
                 ));
             }
-            let horizontal = if border.top.is_empty() { " " } else { &border.top };
+            let horizontal = if border.top.is_empty() {
+                " "
+            } else {
+                &border.top
+            };
             result.push_str(&style_border_str(
                 &horizontal.repeat(content_width.max(1)),
                 self.border_fg[0].as_deref(),
@@ -1401,7 +1416,11 @@ impl Style {
                     dark_bg,
                 ));
             }
-            let horizontal = if border.bottom.is_empty() { " " } else { &border.bottom };
+            let horizontal = if border.bottom.is_empty() {
+                " "
+            } else {
+                &border.bottom
+            };
             result.push_str(&style_border_str(
                 &horizontal.repeat(content_width.max(1)),
                 self.border_fg[2].as_deref(),
