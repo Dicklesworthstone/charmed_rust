@@ -959,6 +959,61 @@ mod tests {
             parse_sequence(b"\x1b[1;5B"),
             Some(KeyMsg::from_type(KeyType::CtrlDown))
         );
+        assert_eq!(
+            parse_sequence(b"\x1b[1;5C"),
+            Some(KeyMsg::from_type(KeyType::CtrlRight))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[1;5D"),
+            Some(KeyMsg::from_type(KeyType::CtrlLeft))
+        );
+    }
+
+    #[test]
+    fn test_parse_sequence_ctrl_alt_arrows() {
+        // Ctrl+Alt+Arrow keys (modifier 7)
+        assert_eq!(
+            parse_sequence(b"\x1b[1;7A"),
+            Some(KeyMsg::from_type(KeyType::CtrlUp).with_alt())
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[1;7B"),
+            Some(KeyMsg::from_type(KeyType::CtrlDown).with_alt())
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[1;7C"),
+            Some(KeyMsg::from_type(KeyType::CtrlRight).with_alt())
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[1;7D"),
+            Some(KeyMsg::from_type(KeyType::CtrlLeft).with_alt())
+        );
+
+        // Verify alt flag is properly set
+        let key = parse_sequence(b"\x1b[1;7A").unwrap();
+        assert!(key.alt);
+        assert_eq!(key.key_type, KeyType::CtrlUp);
+    }
+
+    #[test]
+    fn test_parse_sequence_ctrl_shift_alt_arrows() {
+        // Ctrl+Shift+Alt+Arrow keys (modifier 8)
+        assert_eq!(
+            parse_sequence(b"\x1b[1;8A"),
+            Some(KeyMsg::from_type(KeyType::CtrlShiftUp).with_alt())
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[1;8B"),
+            Some(KeyMsg::from_type(KeyType::CtrlShiftDown).with_alt())
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[1;8C"),
+            Some(KeyMsg::from_type(KeyType::CtrlShiftRight).with_alt())
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[1;8D"),
+            Some(KeyMsg::from_type(KeyType::CtrlShiftLeft).with_alt())
+        );
     }
 
     #[test]
