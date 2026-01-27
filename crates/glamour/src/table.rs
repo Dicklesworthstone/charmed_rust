@@ -1,7 +1,7 @@
 #![doc = include_str!("../docs/tables/README.md")]
 
 use pulldown_cmark::{Alignment, Event, Tag, TagEnd};
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthChar;
 
 /// Represents a parsed table ready for rendering.
 #[derive(Debug, Clone, Default)]

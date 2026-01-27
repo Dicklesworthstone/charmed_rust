@@ -8,7 +8,10 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bubbletea::{KeyMsg, Message, WindowSizeMsg, key::{is_sequence_prefix, parse_sequence_prefix}};
+use bubbletea::{
+    KeyMsg, Message, WindowSizeMsg,
+    key::{is_sequence_prefix, parse_sequence_prefix},
+};
 use parking_lot::RwLock;
 use russh::MethodSet;
 use russh::server::{Auth, Handler as RusshHandler, Msg, Session as RusshSession};
