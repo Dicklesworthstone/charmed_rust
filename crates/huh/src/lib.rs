@@ -2610,6 +2610,13 @@ impl Note {
         self
     }
 
+    /// Sets the next button label (alias for `next_label`).
+    ///
+    /// This method is provided for compatibility with Go's huh API.
+    pub fn next(self, label: impl Into<String>) -> Self {
+        self.next_label(label)
+    }
+
     fn get_theme(&self) -> Theme {
         self.theme.clone().unwrap_or_else(theme_charm)
     }
