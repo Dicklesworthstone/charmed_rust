@@ -8,6 +8,7 @@ pub mod bubbles;
 pub mod bubbletea;
 pub mod charmed_log;
 pub mod glamour;
+pub mod glow;
 pub mod harmonica;
 pub mod huh;
 pub mod lipgloss;

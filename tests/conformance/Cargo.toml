@@ -15,6 +15,7 @@ bubbles = { path = "../../crates/bubbles" }
 charmed_log = { path = "../../crates/charmed_log" }
 glamour = { path = "../../crates/glamour", features = ["syntax-highlighting"] }
 huh = { path = "../../crates/huh" }
+glow = { path = "../../crates/glow" }
 wish = { path = "../../crates/wish", optional = true }
 
 # Test infrastructure
@@ -28,6 +29,11 @@ parking_lot = "0.12"       # Thread-safe primitives
 once_cell = "1"            # Lazy statics
 chrono = { workspace = true } # Timestamps
 rayon = { workspace = true }  # Parallel test execution
+
+[features]
+# Enable wish conformance tests by default (51 tests, all pass non-interactively)
+default = ["wish"]
+wish = ["dep:wish"]
 
 [dev-dependencies]
 criterion = "0.5"          # Benchmarking
