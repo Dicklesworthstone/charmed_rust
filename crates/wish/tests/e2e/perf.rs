@@ -191,9 +191,7 @@ async fn test_rapid_pty_resize() {
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
     let final_count = resize_count.load(Ordering::SeqCst);
-    eprintln!(
-        "rapid resize: sent {resize_count_target} resize events, received {final_count}"
-    );
+    eprintln!("rapid resize: sent {resize_count_target} resize events, received {final_count}");
 
     // We should receive at least some resize events (may be coalesced)
     assert!(
