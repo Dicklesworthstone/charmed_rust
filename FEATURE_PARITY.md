@@ -34,6 +34,7 @@ Result summary:
 | huh          | 46    | 42   | 0    | 4    | Textarea not implemented |
 | lipgloss     | 58    | 57   | 0    | 1    | Partial border edges |
 | glamour      | 84    | 81   | 0    | 3    | 3 style presets differ (notty, ascii, dracula) |
+| glow         | 7     | 7    | 0    | 0    | Basic conformance harness (config, render, styles, stash) |
 | integration  | 24    | 24   | 0    | 0    | Cross-crate integration OK |
 
 ---
@@ -93,6 +94,16 @@ All 83 bubbles fixtures have full test implementations:
 - **keybinding** (4): simple, multi, disabled, toggle
 - **stopwatch** (3): new, tick, reset
 - **timer** (3): new, tick, timeout
+
+### Glow (Initial Coverage)
+Basic conformance harness created (7 tests):
+- **config**: defaults, pager, width, style builder methods
+- **render**: basic markdown rendering through glamour
+- **styles**: valid style parsing (dark, light, ascii, pink, auto, no-tty)
+- **stash**: document organization operations
+
+**Note**: Glow conformance is new. Fixtures from Go runtime capture pending.
+Current tests validate core library behavior without fixture-based comparison.
 
 ---
 
