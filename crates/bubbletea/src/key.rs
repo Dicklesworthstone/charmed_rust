@@ -651,6 +651,24 @@ pub fn parse_sequence_prefix(input: &[u8]) -> Option<(KeyMsg, usize)> {
     best_match
 }
 
+/// Check if the input bytes form a prefix of any known ANSI sequence.
+///
+/// # Arguments
+///
+/// * `input` - A byte slice
+///
+/// # Returns
+///
+/// Returns `true` if the input is a prefix of a known sequence, `false` otherwise.
+pub fn is_sequence_prefix(input: &[u8]) -> bool {
+    let s = match std::str::from_utf8(input) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+
+    SEQUENCES.keys().any(|seq| seq.starts_with(s))
+}
+
 use std::collections::HashMap;
 use std::sync::LazyLock;
 

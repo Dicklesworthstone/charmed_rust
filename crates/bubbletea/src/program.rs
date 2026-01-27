@@ -28,7 +28,7 @@ use crossterm::{
 };
 
 use crate::command::Cmd;
-use crate::key::from_crossterm_key;
+use crate::key::{from_crossterm_key, is_sequence_prefix};
 use crate::message::{
     BatchMsg, BlurMsg, FocusMsg, InterruptMsg, Message, PrintLineMsg, QuitMsg,
     RequestWindowSizeMsg, SequenceMsg, SetWindowTitleMsg, WindowSizeMsg,
@@ -511,7 +511,8 @@ impl<M: Model> Program<M> {
                     match input.read(&mut buf) {
                         Ok(0) => break,
                         Ok(n) => {
-                            let can_have_more_data = n == buf.len();
+                            // We always assume there could be more data unless we hit EOF (Ok(0))
+                            let can_have_more_data = true;
                             for msg in parser.push_bytes(&buf[..n], can_have_more_data) {
                                 let _ = tx_clone.send(msg);
                             }
@@ -908,7 +909,8 @@ impl<M: Model> Program<M> {
                     match input.read(&mut buf) {
                         Ok(0) => break,
                         Ok(n) => {
-                            let can_have_more_data = n == buf.len();
+                            // We always assume there could be more data unless we hit EOF (Ok(0))
+                            let can_have_more_data = true;
                             for msg in parser.push_bytes(&buf[..n], can_have_more_data) {
                                 if tx_clone.blocking_send(msg).is_err() {
                                     return;
@@ -1327,7 +1329,7 @@ fn parse_one_message(buf: &[u8], can_have_more_data: bool) -> ParseOutcome {
         return outcome;
     }
 
-    if let Some(outcome) = parse_key_sequence(buf) {
+    if let Some(outcome) = parse_key_sequence(buf, can_have_more_data) {
         return outcome;
     }
 
@@ -1412,9 +1414,14 @@ fn parse_bracketed_paste(buf: &[u8], can_have_more_data: bool) -> Option<ParseOu
     })
 }
 
-fn parse_key_sequence(buf: &[u8]) -> Option<ParseOutcome> {
+fn parse_key_sequence(buf: &[u8], can_have_more_data: bool) -> Option<ParseOutcome> {
     if let Some((key, len)) = crate::key::parse_sequence_prefix(buf) {
         return Some(ParseOutcome::Parsed(len, Some(message_from_key(key))));
+    }
+
+    // Check if it's a prefix of a known sequence
+    if can_have_more_data && is_sequence_prefix(buf) {
+        return Some(ParseOutcome::NeedMore);
     }
 
     if buf.starts_with(b"\x1b")
