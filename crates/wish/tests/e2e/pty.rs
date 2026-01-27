@@ -13,7 +13,7 @@ use super::common::{
 };
 use wish::{AcceptAllAuth, ServerBuilder};
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_pty_allocation_and_io() {
     if !ssh_available() {
         eprintln!("ssh not available; skipping test_pty_allocation_and_io");
@@ -67,7 +67,7 @@ async fn test_pty_allocation_and_io() {
     server.stop().await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_window_resize() {
     if !ssh_available() {
         eprintln!("ssh not available; skipping test_window_resize");

@@ -6,7 +6,7 @@ use super::common::{
 };
 use wish::{AuthorizedKeysAuth, PasswordAuth, ServerBuilder};
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_password_auth() {
     if !ssh_available() {
         eprintln!("ssh not available; skipping test_password_auth");
@@ -40,7 +40,7 @@ async fn test_password_auth() {
     server.stop().await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_public_key_auth() {
     if !ssh_available() {
         eprintln!("ssh not available; skipping test_public_key_auth");

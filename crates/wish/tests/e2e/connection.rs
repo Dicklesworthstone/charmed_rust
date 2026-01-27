@@ -14,7 +14,7 @@ fn basic_builder() -> ServerBuilder {
         })
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_ssh_connection() {
     if !ssh_available() {
         eprintln!("ssh not available; skipping test_ssh_connection");
@@ -32,7 +32,7 @@ async fn test_ssh_connection() {
     server.stop().await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_concurrent_connections() {
     if !ssh_available() {
         eprintln!("ssh not available; skipping test_concurrent_connections");
@@ -61,7 +61,7 @@ async fn test_concurrent_connections() {
     server.stop().await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_graceful_shutdown() {
     if !ssh_available() {
         eprintln!("ssh not available; skipping test_graceful_shutdown");
@@ -96,7 +96,7 @@ async fn test_graceful_shutdown() {
     server.stop().await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_log_capture() {
     if !ssh_available() {
         eprintln!("ssh not available; skipping test_log_capture");

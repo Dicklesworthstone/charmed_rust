@@ -38,7 +38,7 @@ impl Model for Counter {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_bubbletea_rendering() {
     if !ssh_available() {
         eprintln!("ssh not available; skipping test_bubbletea_rendering");

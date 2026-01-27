@@ -11,7 +11,7 @@ use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use super::common::{LONG_TIMEOUT, SshClient, TEST_USER, TestServer, ssh_available};
 use wish::{AcceptAllAuth, ServerBuilder};
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "expensive performance test - run manually"]
 async fn test_connection_throughput() {
     if !ssh_available() {
@@ -58,7 +58,7 @@ async fn test_connection_throughput() {
 /// Stress test: rapid sequential open/close cycles.
 ///
 /// Tests server stability under rapid connection churn.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "expensive performance test - run manually"]
 async fn test_rapid_open_close_cycles() {
     if !ssh_available() {
@@ -106,7 +106,7 @@ async fn test_rapid_open_close_cycles() {
 /// Stress test: rapid PTY window resize events.
 ///
 /// Tests server stability when receiving many resize events in quick succession.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "expensive performance test - run manually"]
 async fn test_rapid_pty_resize() {
     if !ssh_available() {
@@ -276,7 +276,7 @@ impl Model for ResizeCounterModel {
 /// Stress test: multiple concurrent PTY sessions.
 ///
 /// Tests server stability with multiple simultaneous interactive sessions.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "expensive performance test - run manually"]
 async fn test_concurrent_pty_sessions() {
     if !ssh_available() {
