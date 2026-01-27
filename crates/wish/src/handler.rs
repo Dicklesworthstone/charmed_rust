@@ -8,7 +8,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bubbletea::{KeyMsg, Message, WindowSizeMsg, parse_sequence_prefix};
+use bubbletea::{KeyMsg, Message, WindowSizeMsg, key::{is_sequence_prefix, parse_sequence_prefix}};
 use parking_lot::RwLock;
 use russh::MethodSet;
 use russh::server::{Auth, Handler as RusshHandler, Msg, Session as RusshSession};
@@ -819,6 +819,12 @@ impl RusshHandler for WishHandler {
                     i += len;
                     consumed_until = i;
                     continue;
+                }
+
+                // If it looks like a sequence prefix but isn't complete, wait for more data.
+                // This prevents breaking split escape sequences.
+                if is_sequence_prefix(slice) {
+                    break;
                 }
 
                 // 2. Try parsing one UTF-8 char
