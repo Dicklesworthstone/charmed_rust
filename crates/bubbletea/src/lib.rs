@@ -193,7 +193,7 @@ pub use message::{
     BlurMsg, FocusMsg, InterruptMsg, Message, QuitMsg, ResumeMsg, SuspendMsg, WindowSizeMsg,
 };
 pub use mouse::{MouseAction, MouseButton, MouseMsg, parse_mouse_event_sequence};
-pub use program::{Error, Model, Program, ProgramOptions, Result};
+pub use program::{Error, Model, Program, ProgramHandle, ProgramOptions, Result};
 
 // Re-export derive macro when macros feature is enabled.
 // Derive macros and traits live in different namespaces, so both can be named `Model`.

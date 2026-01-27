@@ -288,6 +288,76 @@ impl Default for ProgramOptions {
     }
 }
 
+/// Handle to a running program.
+///
+/// Returned by [`Program::start()`] to allow external interaction with the
+/// running TUI program. This is particularly useful for SSH applications
+/// where events need to be injected from outside the program.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use bubbletea::{Program, Message};
+///
+/// let handle = Program::new(MyModel::default())
+///     .with_custom_io()
+///     .start();
+///
+/// // Send a message to the running program
+/// handle.send(MyMessage::DoSomething);
+///
+/// // Wait for the program to finish
+/// let final_model = handle.wait()?;
+/// ```
+pub struct ProgramHandle<M: Model> {
+    tx: Sender<Message>,
+    handle: Option<thread::JoinHandle<Result<M>>>,
+}
+
+impl<M: Model> ProgramHandle<M> {
+    /// Send a message to the running program.
+    ///
+    /// This queues the message for processing in the program's event loop.
+    /// Returns `true` if the message was sent successfully, `false` if the
+    /// program has already exited.
+    pub fn send<T: Into<Message>>(&self, msg: T) -> bool {
+        self.tx.send(msg.into()).is_ok()
+    }
+
+    /// Request the program to quit.
+    ///
+    /// This sends a `QuitMsg` to the program's event loop.
+    pub fn quit(&self) {
+        let _ = self.tx.send(Message::new(QuitMsg));
+    }
+
+    /// Wait for the program to finish and return the final model state.
+    ///
+    /// This blocks until the program exits.
+    pub fn wait(mut self) -> Result<M> {
+        if let Some(handle) = self.handle.take() {
+            handle.join().map_err(|_| {
+                Error::Io(io::Error::new(
+                    io::ErrorKind::Other,
+                    "program thread panicked",
+                ))
+            })?
+        } else {
+            Err(Error::Io(io::Error::new(
+                io::ErrorKind::Other,
+                "program already joined",
+            )))
+        }
+    }
+
+    /// Check if the program is still running.
+    pub fn is_running(&self) -> bool {
+        self.handle
+            .as_ref()
+            .is_some_and(|h| !h.is_finished())
+    }
+}
+
 /// The main program runner.
 ///
 /// Program manages the entire lifecycle of a TUI application:
@@ -487,6 +557,55 @@ impl<M: Model> Program<M> {
         self.run_with_writer(stdout)
     }
 
+    /// Start the program in a background thread and return a handle for interaction.
+    ///
+    /// This is useful for SSH applications and other scenarios where you need to
+    /// inject events from external sources after the program has started.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use bubbletea::{Program, Message};
+    ///
+    /// let handle = Program::new(MyModel::default())
+    ///     .with_custom_io()
+    ///     .start();
+    ///
+    /// // Inject a key event
+    /// handle.send(KeyMsg::from_char('a'));
+    ///
+    /// // Later, quit the program
+    /// handle.quit();
+    ///
+    /// // Wait for completion
+    /// let final_model = handle.wait()?;
+    /// ```
+    pub fn start(mut self) -> ProgramHandle<M> {
+        // Create channel for external message injection
+        let (tx, rx) = mpsc::channel();
+
+        // Set up external receiver (will be forwarded in event_loop)
+        self.external_rx = Some(rx);
+
+        // Take ownership of custom output if provided
+        let output = self.output.take();
+
+        // Spawn program in background thread
+        let handle = thread::spawn(move || {
+            if let Some(output) = output {
+                self.run_with_writer(output)
+            } else {
+                let stdout = io::stdout();
+                self.run_with_writer(stdout)
+            }
+        });
+
+        ProgramHandle {
+            tx,
+            handle: Some(handle),
+        }
+    }
+
     fn event_loop<W: Write>(mut self, writer: &mut W) -> Result<M> {
         // Create message channel
         let (tx, rx): (Sender<Message>, Receiver<Message>) = mpsc::channel();
@@ -552,8 +671,8 @@ impl<M: Model> Program<M> {
         // Event loop
         loop {
             // Poll for events with frame-rate limiting (skip poll if custom IO)
-            // Note: For custom IO, we assume events are injected via other means (not yet implemented fully)
-            // For now, custom IO just skips crossterm polling.
+            // In custom IO mode, events are injected via `with_input_receiver()` or `with_input()`.
+            // Crossterm polling is skipped since input comes from external sources.
             if !self.options.custom_io && event::poll(frame_duration)? {
                 match event::read()? {
                     Event::Key(key_event) => {

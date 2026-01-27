@@ -48,7 +48,9 @@ Result summary:
 - All link, blockquote, nested list, and table tests
 
 ### Bubbletea
-- Custom I/O mode event injection path is noted as “not yet implemented fully”.
+**No remaining gaps.** Custom I/O mode event injection is fully implemented via:
+- `with_input_receiver(rx)` - for external message injection (used by wish SSH integration)
+- `with_input(reader)` - for raw input parsing
 
 ---
 
@@ -63,8 +65,7 @@ These are documented limitations that still need verification or closure:
 
 ## Recommended Next Actions (High Priority)
 
-1. **Audit Bubbletea custom I/O event injection**.
-2. **Run targeted validation** for README limitations (Wish stability, mouse drag, Unicode).
+1. **Run targeted validation** for README limitations (Wish stability, mouse drag, Unicode).
 
 ---
 

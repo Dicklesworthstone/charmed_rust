@@ -58,10 +58,41 @@ impl TestServer {
 }
 
 fn pick_unused_port() -> u16 {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind temp port");
-    let port = listener.local_addr().expect("local addr").port();
-    drop(listener);
-    port
+    use std::sync::atomic::{AtomicU16, Ordering};
+
+    // Use a static counter to avoid port reuse during concurrent test runs.
+    // Start from a high ephemeral port to avoid conflicts with other services.
+    static NEXT_PORT: AtomicU16 = AtomicU16::new(0);
+
+    // Try up to 100 ports to find an available one
+    for _ in 0..100 {
+        // Get next port, starting from 49152 (start of dynamic/private port range)
+        let port = NEXT_PORT.fetch_add(1, Ordering::SeqCst);
+        let port = if port == 0 {
+            // First call - initialize to a random starting point in the high range
+            let listener = TcpListener::bind("127.0.0.1:0").expect("bind temp port");
+            let initial_port = listener.local_addr().expect("local addr").port();
+            drop(listener);
+            NEXT_PORT.store(initial_port + 1, Ordering::SeqCst);
+            initial_port
+        } else {
+            // Wrap around if we go too high
+            if port > 65000 {
+                NEXT_PORT.store(49152, Ordering::SeqCst);
+                49152
+            } else {
+                port
+            }
+        };
+
+        // Verify the port is actually available
+        if let Ok(listener) = TcpListener::bind(format!("127.0.0.1:{port}")) {
+            drop(listener);
+            return port;
+        }
+    }
+
+    panic!("Could not find an available port after 100 attempts");
 }
 
 async fn wait_for_port(port: u16) {
