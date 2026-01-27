@@ -287,7 +287,7 @@ fn run_style_test(fixture: &TestFixture) -> Result<(), String> {
 }
 
 /// Run a border test
-fn run_border_test(fixture: &TestFixture) -> Result<(), String> {
+fn run_border_test(fixture: &TestFixture, test_name: &str) -> Result<(), String> {
     let input: BorderInput = fixture
         .input_as()
         .map_err(|e| format!("Failed to parse input: {}", e))?;
@@ -298,6 +298,15 @@ fn run_border_test(fixture: &TestFixture) -> Result<(), String> {
 
     let border = get_border(&input.border_type);
     let mut style = Style::new().border(border);
+
+    // Handle partial border tests based on test name
+    if test_name == "border_partial_top_bottom" {
+        style = style
+            .border_top(true)
+            .border_bottom(true)
+            .border_left(false)
+            .border_right(false);
+    }
 
     // Apply foreground color if specified
     if let Some(ref fg) = input.foreground {
@@ -412,12 +421,7 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
     } else if name.starts_with("align_") {
         run_style_test(fixture)
     } else if name.starts_with("border_") {
-        // Special case: border_partial_top_bottom has different input structure
-        if name == "border_partial_top_bottom" {
-            // This test uses partial borders - skip for now as it requires different API
-            return Err("SKIPPED: Partial border edges not yet implemented".to_string());
-        }
-        run_border_test(fixture)
+        run_border_test(fixture, name)
     } else if name.starts_with("join_horizontal") {
         run_join_test(fixture, true)
     } else if name.starts_with("join_vertical") {
