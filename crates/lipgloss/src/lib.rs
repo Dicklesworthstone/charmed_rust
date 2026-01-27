@@ -321,8 +321,11 @@ pub fn join_vertical(pos: Position, strs: &[&str]) -> String {
     let factor = pos.factor();
     let is_right_aligned = factor >= 1.0;
 
-    // Count total lines for capacity estimation
-    let line_count: usize = strs.iter().map(|s| s.lines().count()).sum();
+    // Count total lines for capacity estimation (newlines + 1 per string, avoiding double iteration)
+    let line_count: usize = strs
+        .iter()
+        .map(|s| s.bytes().filter(|&b| b == b'\n').count() + 1)
+        .sum();
     let estimated_capacity = line_count * (max_width + 1);
     let mut result = String::with_capacity(estimated_capacity);
 
@@ -473,33 +476,48 @@ pub fn place(width: usize, height: usize, h_pos: Position, v_pos: Position, s: &
     let top_pad = (v_extra as f64 * v_pos.factor()).floor() as usize;
     let bottom_pad = v_extra.saturating_sub(top_pad);
 
-    let mut result = Vec::with_capacity(height);
+    // Pre-compute alignment factor once for content lines
+    let h_factor = h_pos.factor();
 
-    // Top padding
-    for _ in 0..top_pad {
-        result.push(" ".repeat(width));
+    // Pre-allocate blank line once for reuse (avoids allocation per blank line)
+    let blank_line = " ".repeat(width);
+
+    // Pre-allocate result with estimated capacity: height lines * (width + newline)
+    let estimated_capacity = height * (width + 1);
+    let mut result = String::with_capacity(estimated_capacity);
+
+    // Top padding - reuse blank_line
+    for i in 0..top_pad {
+        if i > 0 {
+            result.push('\n');
+        }
+        result.push_str(&blank_line);
     }
 
-    // Content with horizontal padding
-    for line in s.lines() {
+    // Content with horizontal padding - single-pass, avoid format!
+    for (i, line) in s.lines().enumerate() {
+        if top_pad > 0 || i > 0 {
+            result.push('\n');
+        }
+
         let line_width = visible_width(line);
         let line_extra = width.saturating_sub(line_width);
-        let line_left = (line_extra as f64 * h_pos.factor()).floor() as usize;
+        let line_left = (line_extra as f64 * h_factor).floor() as usize;
         let line_right = line_extra.saturating_sub(line_left);
-        result.push(format!(
-            "{}{}{}",
-            " ".repeat(line_left),
-            line,
-            " ".repeat(line_right)
-        ));
+
+        // Use slices of blank_line for padding (no allocation)
+        result.push_str(&blank_line[..line_left]);
+        result.push_str(line);
+        result.push_str(&blank_line[..line_right]);
     }
 
-    // Bottom padding
+    // Bottom padding - reuse blank_line
     for _ in 0..bottom_pad {
-        result.push(" ".repeat(width));
+        result.push('\n');
+        result.push_str(&blank_line);
     }
 
-    result.join("\n")
+    result
 }
 
 // =============================================================================

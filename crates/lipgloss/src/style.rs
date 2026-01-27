@@ -1010,12 +1010,14 @@ impl Style {
         // Convert tabs
         str = self.maybe_convert_tabs(str);
 
-        // Strip carriage returns
-        str = str.replace("\r\n", "\n");
+        // Strip carriage returns (only if present - avoid allocation when not needed)
+        if str.contains('\r') {
+            str = str.replace("\r\n", "\n");
+        }
 
         // Handle inline mode
         let is_inline = self.attrs.contains(Attrs::INLINE);
-        if is_inline {
+        if is_inline && str.contains('\n') {
             str = str.replace('\n', "");
         }
 
@@ -1060,14 +1062,25 @@ impl Style {
             style_start.push_str(&bg.to_ansi_bg(profile, dark_bg));
         }
 
-        // Apply style to each line
+        // Apply style to each line - single-pass, no intermediate Vec
         if !style_start.is_empty() {
-            let lines: Vec<&str> = str.lines().collect();
-            let styled_lines: Vec<String> = lines
-                .iter()
-                .map(|line| format!("{style_start}{line}\x1b[0m"))
-                .collect();
-            str = styled_lines.join("\n");
+            let reset = "\x1b[0m";
+            // Count lines by counting newlines + 1 (avoids separate lines() iteration)
+            let line_count = str.bytes().filter(|&b| b == b'\n').count() + 1;
+            // Estimate capacity: original + (style_start + reset) per line + newlines
+            let extra_per_line = style_start.len() + reset.len();
+            let estimated_capacity = str.len() + line_count * extra_per_line;
+            let mut styled = String::with_capacity(estimated_capacity);
+
+            for (i, line) in str.lines().enumerate() {
+                if i > 0 {
+                    styled.push('\n');
+                }
+                styled.push_str(&style_start);
+                styled.push_str(line);
+                styled.push_str(reset);
+            }
+            str = styled;
         }
 
         // Apply padding (if not inline)
@@ -1286,7 +1299,8 @@ impl Style {
 
         // Pre-allocate result string
         // Estimate: each line gets up to target_width + ANSI codes (~20 bytes) + newline
-        let line_count = s.lines().count();
+        // Count newlines + 1 instead of lines().count() to avoid double iteration
+        let line_count = s.bytes().filter(|&b| b == b'\n').count() + 1;
         let estimated_capacity = line_count * (target_width + 25);
         let mut result = String::with_capacity(estimated_capacity);
 
