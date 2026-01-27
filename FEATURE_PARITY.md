@@ -35,6 +35,7 @@ Result summary:
 | lipgloss     | 58    | 57   | 0    | 1    | Partial border edges |
 | glamour      | 84    | 81   | 0    | 3    | 3 style presets differ (notty, ascii, dracula) |
 | glow         | 7     | 7    | 0    | 0    | Basic conformance harness (config, render, styles, stash) |
+| charmed-wasm | 47    | 47   | 0    | 0    | WASM smoke tests (style, layout, DOM) |
 | integration  | 24    | 24   | 0    | 0    | Cross-crate integration OK |
 
 ---
@@ -104,6 +105,14 @@ Basic conformance harness created (7 tests):
 
 **Note**: Glow conformance is new. Fixtures from Go runtime capture pending.
 Current tests validate core library behavior without fixture-based comparison.
+
+### Charmed-wasm (WASM Coverage)
+47 wasm-bindgen-test tests across two files:
+- **web.rs** (33 tests): Module readiness, style creation, colors, formatting, padding, borders, layout helpers, string utilities
+- **e2e.rs** (14 tests): DOM rendering, multiple styles, responsive layouts, interactive scenarios
+
+**Run manually**: `wasm-pack test --headless --chrome crates/charmed-wasm`
+**CI**: `.github/workflows/wasm.yml` builds and validates WASM packages on push.
 
 ---
 

@@ -18,6 +18,7 @@ use serde::Deserialize;
 
 /// Input for glow reader tests
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Reserved fields for future fixture expansion
 struct GlowInput {
     /// The markdown input to render
     markdown: Option<String>,
@@ -33,6 +34,7 @@ struct GlowInput {
 
 /// Expected output for glow tests
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Reserved fields for future fixture expansion
 struct GlowOutput {
     /// Whether an error is expected
     #[serde(default)]
@@ -76,12 +78,12 @@ fn run_config_test(name: &str, input: &GlowInput, expected: &GlowOutput) -> Resu
         "config_defaults" => {
             let config = Config::new();
             // Verify defaults match expected
-            if let Some(expected_pager) = expected.default_pager {
+            if let Some(_expected_pager) = expected.default_pager {
                 // Config's pager field is private, but we can verify via behavior
                 // For now, just verify the config can be created
                 let _ = config;
             }
-            if let Some(expected_style) = &expected.default_style {
+            if let Some(_expected_style) = &expected.default_style {
                 // Verify dark is the default style
                 let reader = Reader::new(Config::new());
                 let result = reader.render_markdown("test");
@@ -391,10 +393,7 @@ mod tests {
     /// Test config builder methods
     #[test]
     fn test_config_builder() {
-        let config = Config::new()
-            .pager(false)
-            .width(100)
-            .style("light");
+        let config = Config::new().pager(false).width(100).style("light");
 
         let reader = Reader::new(config);
         let result = reader.render_markdown("test");
@@ -445,7 +444,8 @@ mod tests {
     #[test]
     fn test_width_settings() {
         let widths = [40, 80, 120, 200];
-        let markdown = "This is a long line that should wrap at different widths depending on configuration.";
+        let markdown =
+            "This is a long line that should wrap at different widths depending on configuration.";
 
         for width in widths {
             let config = Config::new().width(width);

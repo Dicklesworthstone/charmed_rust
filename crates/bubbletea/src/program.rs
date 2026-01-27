@@ -1417,13 +1417,13 @@ fn parse_key_sequence(buf: &[u8]) -> Option<ParseOutcome> {
         return Some(ParseOutcome::Parsed(len, Some(message_from_key(key))));
     }
 
-    if buf.starts_with(b"\x1b") {
-        if let Some((mut key, len)) = crate::key::parse_sequence_prefix(&buf[1..]) {
-            if !key.alt {
-                key = key.with_alt();
-            }
-            return Some(ParseOutcome::Parsed(len + 1, Some(message_from_key(key))));
+    if buf.starts_with(b"\x1b")
+        && let Some((mut key, len)) = crate::key::parse_sequence_prefix(&buf[1..])
+    {
+        if !key.alt {
+            key = key.with_alt();
         }
+        return Some(ParseOutcome::Parsed(len + 1, Some(message_from_key(key))));
     }
 
     None

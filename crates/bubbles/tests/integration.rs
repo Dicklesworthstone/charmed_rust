@@ -162,7 +162,7 @@ mod timer_tests {
 
     #[test]
     fn test_timer_view_shows_remaining_time() {
-        let timer = Timer::new(Duration::from_secs(60));
+        let timer = Timer::new(Duration::from_mins(1));
         let view = timer.view();
         // Should contain time representation
         assert!(!view.is_empty(), "Timer view should show remaining time");
@@ -653,7 +653,7 @@ mod combination_tests {
     /// Test timer and stopwatch can coexist.
     #[test]
     fn test_timer_and_stopwatch_together() {
-        let timer = Timer::new(Duration::from_secs(60));
+        let timer = Timer::new(Duration::from_mins(1));
         let stopwatch = Stopwatch::new();
 
         let timer_view = timer.view();

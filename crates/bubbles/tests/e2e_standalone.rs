@@ -255,7 +255,7 @@ mod timer_e2e {
 
     #[test]
     fn test_timer_standalone_lifecycle() {
-        let timer = Timer::new(Duration::from_secs(60));
+        let timer = Timer::new(Duration::from_mins(1));
 
         let mut sim = ProgramSimulator::new(timer);
         sim.init();
