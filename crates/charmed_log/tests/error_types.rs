@@ -24,7 +24,8 @@ mod creation_tests {
 
     #[test]
     fn test_various_invalid_inputs() {
-        let invalid_inputs = ["", "foobar", "123", "VERBOSE", "warning"];
+        // Note: "warning" is now a valid alias for "warn" level
+        let invalid_inputs = ["", "foobar", "123", "VERBOSE"];
 
         for input in invalid_inputs {
             let result = Level::from_str(input);
@@ -117,6 +118,23 @@ mod valid_levels_tests {
             let result = Level::from_str(level);
             assert!(result.is_ok(), "Expected OK for level: {level}");
         }
+    }
+
+    #[test]
+    fn test_warning_alias() {
+        // "warning" is an alias for "warn" (common in other logging frameworks)
+        let result = Level::from_str("warning");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Level::Warn);
+
+        // Should also work with uppercase
+        let result = Level::from_str("WARNING");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Level::Warn);
+
+        let result = Level::from_str("Warning");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Level::Warn);
     }
 }
 
