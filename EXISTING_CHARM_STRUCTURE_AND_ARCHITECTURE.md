@@ -2,6 +2,11 @@
 
 > **THE SPEC:** This document is the authoritative reference for implementation.
 > After reading this spec, you should NOT need to consult legacy code.
+>
+> **Note on Source References:** The `Source:` annotations (e.g., `legacy_glamour/`) refer to
+> the conceptual Go origins and estimated line counts, not to directories in this repository.
+> The Go libraries are documented here as the behavioral specification; implementations exist
+> in `crates/`. For cross-crate behavioral contracts, see [CHARM_SPEC.md](CHARM_SPEC.md).
 
 ---
 
@@ -23,8 +28,9 @@
 ## 1. Harmonica — Physics-Based Animations
 
 **Purpose:** Physics-based animation tools for smooth, realistic motion in 2D/3D applications.
+(See [CHARM_SPEC.md §5.1](CHARM_SPEC.md#51-harmonica) for behavioral contract.)
 
-**Source:** `legacy_harmonica/` (~200 lines of Go)
+**Source:** Go `charmbracelet/harmonica` (~200 lines)
 
 ### 1.1 Data Structures
 
@@ -337,8 +343,9 @@ https://www.ryanjuckett.com/damped-springs/
 ## 2. Lipgloss — Terminal Styling
 
 **Purpose:** Declarative terminal styling with colors, borders, padding, margins, and alignment.
+(See [CHARM_SPEC.md §5.2](CHARM_SPEC.md#52-lipgloss) for behavioral contract.)
 
-**Source:** `legacy_lipgloss/` (~1,500 lines of Go)
+**Source:** Go `charmbracelet/lipgloss` (~1,500 lines)
 
 ### 2.1 Property System
 
@@ -936,8 +943,9 @@ let combined = lipgloss::join_horizontal(Position(0.5), &[left, right]);
 ## 3. Bubbletea — TUI Framework
 
 **Purpose:** Elm-architecture TUI framework for building interactive terminal applications.
+(See [CHARM_SPEC.md §5.3](CHARM_SPEC.md#53-bubbletea) for behavioral contract.)
 
-**Source:** `legacy_bubbletea/` (~2,500 lines of Go)
+**Source:** Go `charmbracelet/bubbletea` (~2,500 lines)
 
 ### 3.1 Core Elm Architecture
 
@@ -1116,8 +1124,9 @@ pub fn every(duration: Duration, f: impl Fn(SystemTime) -> Box<dyn Msg>) -> Cmd 
 ## 4. Charmed Log — Logging
 
 **Purpose:** Structured, colorful logging with Lipgloss styling.
+(See [CHARM_SPEC.md §5.4](CHARM_SPEC.md#54-charmed_log) for behavioral contract.)
 
-**Source:** `legacy_log/` (~800 lines of Go)
+**Source:** Go `charmbracelet/log` (~800 lines)
 
 ### 4.1 Logger Structure
 
@@ -1234,8 +1243,9 @@ impl Logger {
 ## 5. Glamour — Markdown Rendering
 
 **Purpose:** Markdown to styled ANSI terminal output.
+(See [CHARM_SPEC.md §5.5](CHARM_SPEC.md#55-glamour) for behavioral contract.)
 
-**Source:** `legacy_glamour/` (~1,800 lines of Go)
+**Source:** Go `charmbracelet/glamour` (~1,800 lines)
 
 ### 5.1 TermRenderer
 
@@ -1493,8 +1503,9 @@ pub struct Chroma {
 ## 6. Bubbles — TUI Components
 
 **Purpose:** Reusable Bubble Tea components.
+(See [CHARM_SPEC.md §5.6](CHARM_SPEC.md#56-bubbles) for behavioral contract.)
 
-**Source:** `legacy_bubbles/` (~4,000 lines of Go)
+**Source:** Go `charmbracelet/bubbles` (~4,000 lines)
 
 ### 6.1 TextInput
 
@@ -1865,13 +1876,150 @@ pub enum CursorMode {
 }
 ```
 
+### 6.12 Timer
+
+Countdown timer component that ticks down from a specified duration.
+(See [CHARM_SPEC.md §5.6](CHARM_SPEC.md#56-bubbles) for behavioral contract.)
+
+```rust
+pub struct Timer {
+    timeout: Duration,
+    interval: Duration,           // Default 1s
+    id: u64,
+    tag: u64,
+    running: bool,
+}
+
+pub struct TickMsg {
+    pub id: u64,
+    pub timeout: bool,
+    tag: u64,
+}
+
+pub struct TimeoutMsg {
+    pub id: u64,
+}
+
+pub struct StartStopMsg {
+    pub id: u64,
+    pub running: bool,
+}
+
+impl Timer {
+    pub fn new(timeout: Duration) -> Self { ... }
+    pub fn with_interval(self, interval: Duration) -> Self { ... }
+    pub fn remaining(&self) -> Duration { ... }
+    pub fn timed_out(&self) -> bool { ... }
+    pub fn running(&self) -> bool { ... }
+    pub fn toggle(&mut self) { ... }
+    pub fn start(&mut self) { ... }
+    pub fn stop(&mut self) { ... }
+}
+```
+
+### 6.13 Stopwatch
+
+Elapsed time tracker that counts up from zero.
+(See [CHARM_SPEC.md §5.6](CHARM_SPEC.md#56-bubbles) for behavioral contract.)
+
+```rust
+pub struct Stopwatch {
+    elapsed: Duration,
+    interval: Duration,           // Default 1s
+    id: u64,
+    tag: u64,
+    running: bool,
+}
+
+pub struct TickMsg {
+    pub id: u64,
+    tag: u64,
+}
+
+pub struct StartStopMsg {
+    pub id: u64,
+    pub running: bool,
+}
+
+pub struct ResetMsg {
+    pub id: u64,
+}
+
+impl Stopwatch {
+    pub fn new() -> Self { ... }
+    pub fn with_interval(self, interval: Duration) -> Self { ... }
+    pub fn elapsed(&self) -> Duration { ... }
+    pub fn running(&self) -> bool { ... }
+    pub fn toggle(&mut self) { ... }
+    pub fn start(&mut self) { ... }
+    pub fn stop(&mut self) { ... }
+    pub fn reset(&mut self) { ... }
+}
+```
+
+### 6.14 Key
+
+Keybinding definitions and matching utilities for creating user-configurable keymaps.
+
+```rust
+pub struct Help {
+    pub key: String,              // Display text (e.g., "↑/k")
+    pub desc: String,             // Description
+}
+
+pub struct Binding {
+    keys: Vec<String>,
+    help: Help,
+    disabled: bool,
+}
+
+impl Binding {
+    pub fn new() -> Self { ... }
+    pub fn keys(self, keys: &[&str]) -> Self { ... }
+    pub fn help(self, key: &str, desc: &str) -> Self { ... }
+    pub fn enabled(self, enabled: bool) -> Self { ... }
+    pub fn get_keys(&self) -> &[String] { ... }
+    pub fn get_help(&self) -> &Help { ... }
+    pub fn is_enabled(&self) -> bool { ... }
+}
+
+/// Check if a key matches any enabled binding.
+pub fn matches(key: &str, bindings: &[&Binding]) -> bool { ... }
+```
+
+### 6.15 Runeutil
+
+Input sanitization utilities for removing control characters and handling tabs/newlines.
+
+```rust
+pub struct Sanitizer {
+    replace_newline: Vec<char>,
+    replace_tab: Vec<char>,
+}
+
+impl Sanitizer {
+    pub fn new() -> Self { ... }           // Tabs→4 spaces, newlines preserved
+    pub fn builder() -> SanitizerBuilder { ... }
+    pub fn with_tab_replacement(self, replacement: &str) -> Self { ... }
+    pub fn with_newline_replacement(self, replacement: &str) -> Self { ... }
+    pub fn sanitize(&self, input: &[char]) -> Vec<char> { ... }
+}
+
+// Sanitization behavior:
+// - Removes Unicode replacement characters (U+FFFD)
+// - Replaces \r\n (CRLF), \r, and \n with configured newline replacement
+// - Replaces \t with configured tab replacement (default: 4 spaces)
+// - Removes other control characters
+```
+
 ---
 
 ## 7. Huh — Forms and Prompts
 
 **Purpose:** Interactive form building with validation.
+(See [CHARM_SPEC.md §5.7](CHARM_SPEC.md#57-huh) for behavioral contract.)
 
-**Source:** `legacy_huh/` (~3,000 lines of Go)
+**Source:** Go `charmbracelet/huh` (~3,000 lines)
 
 ### 7.1 Form Structure
 
@@ -2141,8 +2289,9 @@ impl Form {
 ## 8. Wish — SSH Apps
 
 **Purpose:** SSH server with middleware (Bubble Tea, logging, access control, etc.).
+(See [CHARM_SPEC.md §5.8](CHARM_SPEC.md#58-wish) for behavioral contract.)
 
-**Source:** `legacy_wish/` (~1,500 lines of Go)
+**Source:** Go `charmbracelet/wish` (~1,500 lines)
 
 **Scope for this extraction:** wish core + bubbletea middleware + accesscontrol/activeterm/logging/ratelimiter/recover/comment/elapsed.
 
@@ -2457,8 +2606,9 @@ pub fn Middleware() -> wish::Middleware; // format = "elapsed time: %v\n"
 ## 9. Glow — Markdown CLI
 
 **Purpose:** CLI/TUI markdown reader.
+(See [CHARM_SPEC.md §5.9](CHARM_SPEC.md#59-glow) for behavioral contract.)
 
-**Source:** `legacy_glow/` (~2,000 lines of Go)
+**Source:** Go `charmbracelet/glow` (~2,000 lines)
 
 ### 9.1 CLI Structure
 

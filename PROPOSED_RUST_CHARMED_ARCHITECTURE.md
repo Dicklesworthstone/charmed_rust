@@ -38,38 +38,46 @@ charmed_rust/
 │   └── config.toml               # Cargo configuration
 ├── crates/
 │   ├── harmonica/                # Phase 1: Spring physics
-│   ├── lipgloss/                 # Phase 1: Terminal styling
+│   ├── lipgloss/                 # Phase 1: Terminal styling + theming
 │   ├── bubbletea-macros/         # Proc-macros for bubbletea
 │   ├── bubbletea/                # Phase 2: TUI framework
 │   ├── charmed_log/              # Phase 2: Logging
 │   ├── glamour/                  # Phase 3: Markdown rendering
-│   ├── bubbles/                  # Phase 4: Components
+│   ├── bubbles/                  # Phase 4: Components (16 total)
 │   ├── huh/                      # Phase 5: Forms
 │   ├── wish/                     # Phase 5: SSH apps
 │   ├── glow/                     # Phase 5: CLI binary
 │   └── charmed-wasm/             # WASM bindings for lipgloss
-├── examples/                     # Cross-crate examples
-├── benches/                      # Benchmarks
-└── tests/                        # Integration tests
+├── examples/                     # Cross-crate examples (basic, intermediate, advanced, themes)
+├── tests/
+│   └── conformance/              # Conformance testing harness (workspace member)
+├── docs/                         # Documentation (19 MD files)
+├── demo-website/                 # Web demo assets
+├── reference/                    # Reference materials
+└── scripts/                      # Build/utility scripts
 ```
+
+> **Note**: Benchmarks are defined per-crate in their respective `benches/` directories
+> rather than a top-level `benches/` folder.
 
 ### Root Cargo.toml
 
 ```toml
 [workspace]
-resolver = "3"
+resolver = "2"
 members = [
-    "crates/harmonica",
-    "crates/lipgloss",
-    "crates/bubbletea-macros",
-    "crates/bubbletea",
-    "crates/charmed_log",
-    "crates/glamour",
-    "crates/bubbles",
-    "crates/huh",
-    "crates/wish",
-    "crates/glow",
-    "crates/charmed-wasm",
+    "crates/harmonica",        # Smooth animations (standalone)
+    "crates/lipgloss",         # Style definitions (standalone)
+    "crates/charmed_log",      # Logging (uses lipgloss)
+    "crates/bubbletea-macros", # Proc-macros for bubbletea
+    "crates/bubbletea",        # TUI framework (uses lipgloss, harmonica)
+    "crates/glamour",          # Markdown rendering (uses lipgloss)
+    "crates/bubbles",          # TUI components (uses bubbletea, lipgloss)
+    "crates/huh",              # Forms/prompts (uses bubbletea, lipgloss, bubbles)
+    "crates/wish",             # SSH apps (uses bubbletea)
+    "crates/glow",             # Markdown reader CLI (uses all)
+    "crates/charmed-wasm",     # WASM bindings for web (uses lipgloss)
+    "tests/conformance",       # Conformance testing harness
 ]
 
 [workspace.package]
@@ -91,7 +99,7 @@ cargo = "warn"
 [workspace.dependencies]
 # Shared dependencies - use `dep.workspace = true` in crates
 thiserror = "2"
-crossterm = "0.28"
+crossterm = "0.29"
 unicode-width = "0.2"
 unicode-segmentation = "1.10"
 bitflags = "2"
@@ -330,13 +338,19 @@ let new_pos = proj.update();
 crates/lipgloss/
 ├── src/
 │   ├── lib.rs           # Re-exports, prelude
-│   ├── color.rs         # Color, AnsiColor, RgbColor, AdaptiveColor
-│   ├── style.rs         # Style struct with builder
-│   ├── border.rs        # Border definitions and rendering
-│   ├── position.rs      # Position enum, Sides struct
-│   ├── renderer.rs      # Renderer with color profile detection
-│   └── layout.rs        # Word wrapping, join utilities
+│   ├── color.rs         # Color, AnsiColor, RgbColor, AdaptiveColor (23KB)
+│   ├── style.rs         # Style struct with builder (58KB)
+│   ├── border.rs        # Border definitions and rendering (14KB)
+│   ├── position.rs      # Position enum, Sides struct (4KB)
+│   ├── renderer.rs      # Renderer with color profile detection (5KB)
+│   ├── backend.rs       # Terminal backend abstraction, crossterm integration (26KB)
+│   ├── theme.rs         # Theming system - presets, slots, runtime switching (80KB)
+│   └── wasm.rs          # WebAssembly bindings for browser contexts (18KB)
 ```
+
+> **Note**: The theming system (`theme.rs`) is a major feature providing built-in presets
+> (Dark, Light, Dracula, Nord, Catppuccin, Tokyo Night) with semantic color slots
+> (Primary, Error, Success, Warning, etc.) and runtime theme switching.
 
 ### Color System (from rich_rust)
 
@@ -467,62 +481,67 @@ pub fn default_renderer() -> &'static Renderer {
 ```
 crates/bubbletea/
 ├── src/
-│   ├── lib.rs           # Re-exports, prelude
-│   ├── model.rs         # Model trait, Cmd, Msg
-│   ├── program.rs       # Program runtime
-│   ├── key.rs           # KeyMsg, KeyType
-│   ├── mouse.rs         # MouseMsg, MouseButton
-│   ├── window.rs        # WindowSizeMsg
-│   ├── commands.rs      # Built-in commands (Batch, Sequence, Tick, etc.)
-│   └── options.rs       # Program options (StartupOptions)
+│   ├── lib.rs           # Re-exports, prelude, Model trait definition (6KB)
+│   ├── program.rs       # Program runtime, event loop, terminal lifecycle (56KB)
+│   ├── command.rs       # Cmd type, batch/sequence, built-in commands (32KB)
+│   ├── message.rs       # Message trait, type-safe downcasting (4KB)
+│   ├── key.rs           # KeyMsg, KeyType, rune handling (34KB)
+│   ├── mouse.rs         # MouseMsg, MouseButton, MouseAction (15KB)
+│   ├── screen.rs        # Terminal state, release/restore messages (5KB)
+│   └── simulator.rs     # Headless testing infrastructure (12KB)
 ```
+
+> **Note**: The Model trait is defined in `lib.rs` (not a separate `model.rs`).
+> Window size messages are in `message.rs`. Options are part of `program.rs`.
 
 ### Core Traits and Types
 
 ```rust
 /// The Model trait defines a Bubble Tea component.
-pub trait Model: Sized + Send + 'static {
-    /// Message type this model handles.
-    type Msg: Send + 'static;
-
+/// Uses mutable reference pattern for ergonomic state updates.
+pub trait Model: Send + 'static {
     /// Initialize the model, returning initial command.
-    fn init(&self) -> Cmd<Self::Msg>;
+    fn init(&self) -> Option<Cmd>;
 
-    /// Update model based on message, return new model and command.
-    fn update(self, msg: Self::Msg) -> (Self, Cmd<Self::Msg>);
+    /// Update model based on message, return optional command.
+    /// Uses &mut self for ergonomic state mutation.
+    fn update(&mut self, msg: Message) -> Option<Cmd>;
 
     /// Render the model to a string.
     fn view(&self) -> String;
 }
 
-/// A command is an async operation that produces a message.
-pub struct Cmd<Msg>(Option<Pin<Box<dyn Future<Output = Msg> + Send>>>);
+/// A type-erased message using dynamic dispatch.
+pub type Message = Box<dyn std::any::Any + Send>;
 
-impl<Msg: Send + 'static> Cmd<Msg> {
+/// A command represents a lazy side effect that produces a message.
+pub struct Cmd { /* internal representation */ }
+
+impl Cmd {
     /// No-op command.
-    pub fn none() -> Self {
-        Self(None)
-    }
+    pub fn none() -> Option<Self> { None }
 
-    /// Create a command from an async function.
-    pub fn perform<F, Fut>(f: F) -> Self
+    /// Create a quit command.
+    pub fn quit() -> Self { /* ... */ }
+
+    /// Batch multiple commands (execute concurrently).
+    pub fn batch(cmds: Vec<Self>) -> Self { /* ... */ }
+
+    /// Sequence commands (execute in order).
+    pub fn sequence(cmds: Vec<Self>) -> Self { /* ... */ }
+
+    /// Execute a closure that returns a message.
+    pub fn exec<F, M>(f: F) -> Self
     where
-        F: FnOnce() -> Fut + Send + 'static,
-        Fut: Future<Output = Msg> + Send + 'static,
-    {
-        Self(Some(Box::pin(async move { f().await })))
-    }
-
-    /// Batch multiple commands.
-    pub fn batch(cmds: Vec<Self>) -> Self {
-        // Execute all commands, collect first completed message
-    }
-
-    /// Sequence commands (run in order).
-    pub fn sequence(cmds: Vec<Self>) -> Self {
-        // Execute commands one after another
-    }
+        F: FnOnce() -> M + Send + 'static,
+        M: Send + 'static,
+    { /* ... */ }
 }
+```
+
+> **Design Note**: The actual implementation uses `&mut self` for update (not consuming self)
+> and returns `Option<Cmd>` rather than `(Self, Cmd)`. This is more ergonomic for Rust
+> while achieving the same functional goals as the Go implementation.
 ```
 
 ### Program Runtime
@@ -748,27 +767,31 @@ pub mod themes {
 
 ### Architecture
 
-Each component is a separate module implementing `Model`:
+Each component is a separate flat module implementing the component pattern:
 
 ```
 crates/bubbles/
 ├── src/
-│   ├── lib.rs
-│   ├── textinput.rs     # TextInput component
-│   ├── textarea.rs      # TextArea component
-│   ├── spinner.rs       # Spinner component
-│   ├── progress.rs      # Progress bar
-│   ├── list/            # List component (complex)
-│   │   ├── mod.rs
-│   │   ├── delegate.rs  # ItemDelegate trait
-│   │   └── filter.rs    # Filtering logic
-│   ├── table.rs         # Table component
-│   ├── viewport.rs      # Scrollable viewport
-│   ├── paginator.rs     # Pagination
-│   ├── help.rs          # Keybinding help
-│   ├── filepicker.rs    # File selection
-│   └── cursor.rs        # Cursor utilities
+│   ├── lib.rs           # Re-exports all components (2.5KB)
+│   ├── textinput.rs     # Single-line text input with suggestions (39KB)
+│   ├── textarea.rs      # Multi-line text editor with word transforms (48KB)
+│   ├── list.rs          # Filterable list with fuzzy search (34KB)
+│   ├── table.rs         # Data table with headers and navigation (34KB)
+│   ├── viewport.rs      # Scrollable content area (19KB)
+│   ├── filepicker.rs    # File system browser (53KB)
+│   ├── spinner.rs       # Loading indicator animations (11KB)
+│   ├── progress.rs      # Progress bar with gradients (17KB)
+│   ├── timer.rs         # Countdown timer (17KB)
+│   ├── stopwatch.rs     # Elapsed time tracking (17KB)
+│   ├── paginator.rs     # Pagination control (13KB)
+│   ├── cursor.rs        # Text cursor with blinking (12KB)
+│   ├── help.rs          # Key binding help display (23KB)
+│   ├── key.rs           # Key binding definitions (7.6KB)
+│   └── runeutil.rs      # Input sanitization utilities (8.4KB)
 ```
+
+> **Note**: All components are flat modules (no subdirectories). The list component
+> includes filtering logic inline. Total: 16 component modules.
 
 ### Component Pattern
 
@@ -1197,25 +1220,35 @@ opt-level = 1        # Slightly optimize dev builds
 
 ## Implementation Checklist
 
-### Phase 1: Foundations
-- [ ] harmonica — Spring physics, projectile motion
-- [ ] lipgloss — Colors, styles, borders, layout
+### Phase 1: Foundations ✅
+- [x] harmonica — Spring physics (1.1K LOC), projectile motion, no_std compatible
+- [x] lipgloss — Colors, styles, borders, theming system (5.9K LOC)
 
-### Phase 2: Core Runtime
-- [ ] bubbletea — Model trait, Program, event loop
-- [ ] charmed_log — Logger, formatters, styles
+### Phase 2: Core Runtime ✅
+- [x] bubbletea — Model trait, Program, async event loop (6.2K LOC)
+- [x] bubbletea-macros — Proc-macro helpers for Model trait
+- [x] charmed_log — Logger, formatters, styles (0.7K LOC)
 
-### Phase 3: Rendering
-- [ ] glamour — Markdown parser, themes, syntax highlighting
+### Phase 3: Rendering ✅
+- [x] glamour — Markdown parser, themes, optional syntax highlighting (3.2K LOC)
 
-### Phase 4: Components
-- [ ] bubbles — All 11 components
+### Phase 4: Components ✅
+- [x] bubbles — All 16 components implemented (13.5K LOC)
 
-### Phase 5: Applications
-- [ ] huh — Forms, fields, validation
-- [ ] wish — SSH server, middleware
-- [ ] glow — CLI, browser, pager
+### Phase 5: Applications ⚠️ (Maturing)
+- [x] huh — Forms, fields, validation (5.5K LOC, ~85% parity)
+- [x] wish — SSH server, middleware (3.8K LOC, ~80% parity, beta)
+- [x] glow — CLI, browser, pager (2.4K LOC, ~90% parity)
+- [x] charmed-wasm — WASM bindings for lipgloss (0.2K LOC)
+
+### Additional Infrastructure ✅
+- [x] tests/conformance — Conformance testing harness
+- [x] examples/ — Basic, intermediate, advanced, and theme examples
+- [x] docs/ — Comprehensive documentation (19 MD files)
+
+> **Total Production Code**: ~49.5K lines across all crates.
+> See `FEATURE_PARITY.md` for detailed parity status.
 
 ---
 
-*Last updated: 2026-01-17*
+*Last updated: 2026-01-27*

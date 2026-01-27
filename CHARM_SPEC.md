@@ -101,6 +101,9 @@ Behavioral contract:
 - Themes and themed styles must resolve to concrete colors at render time based
   on a theme context.
 
+Known limitations (see [FEATURE_PARITY.md](FEATURE_PARITY.md)):
+- Partial border edges (e.g., top-bottom only) not fully implemented.
+
 ### 5.3 bubbletea
 
 Purpose: Elm Architecture TUI runtime.
@@ -118,6 +121,9 @@ Behavioral contract:
   restore terminal state.
 - Optional async runtime (`run_async`) must preserve the same semantics while
   using tokio for async command execution and event handling.
+
+Known limitations (see [FEATURE_PARITY.md](FEATURE_PARITY.md)):
+- Custom I/O mode event injection path is not fully implemented.
 
 ### 5.3a bubbletea-macros
 
@@ -154,9 +160,30 @@ Behavioral contract:
 - `GLAMOUR_STYLE` environment variable is honored when rendering with
   environment-based defaults.
 
+Known limitations (see [FEATURE_PARITY.md](FEATURE_PARITY.md)):
+- Style presets `notty`, `ascii`, `dracula` have minor behavioral differences
+  from Go (backtick handling, heading prefixes).
+
 ### 5.6 bubbles
 
 Purpose: Reusable TUI components.
+
+Components included:
+- **cursor** - Text cursor with blink modes (Blink, Static, Hide)
+- **spinner** - Animated loading indicators (12+ preset styles)
+- **timer** - Countdown timer with timeout notifications
+- **stopwatch** - Elapsed time tracking
+- **progress** - Animated progress bars with spring physics
+- **viewport** - Scrollable content viewport
+- **paginator** - Page navigation (dots or arabic numerals)
+- **textinput** - Single-line text input with suggestions
+- **textarea** - Multi-line text editor
+- **list** - Filterable list with fuzzy matching
+- **table** - Data table with keyboard navigation
+- **filepicker** - File system browser
+- **help** - Key binding help display
+- **key** - Keybinding definitions and matching
+- **runeutil** - Input sanitization utilities
 
 Behavioral contract:
 - Each interactive component must integrate with bubbletea as a model-like unit
@@ -165,9 +192,21 @@ Behavioral contract:
   a given sequence of messages.
 - Components must use lipgloss for styling and bubbletea messages for input.
 
+See [EXISTING_CHARM_STRUCTURE_AND_ARCHITECTURE.md §6](EXISTING_CHARM_STRUCTURE_AND_ARCHITECTURE.md#6-bubbles--tui-components)
+for detailed data structures and algorithms.
+
 ### 5.7 huh
 
 Purpose: Interactive forms and prompts.
+
+Field types:
+- **Input** - Single-line text input with validation
+- **Select** - Single selection from options
+- **MultiSelect** - Multiple selection from options
+- **Confirm** - Yes/No confirmation
+- **Text** - Multi-line text input (uses bubbles textarea)
+- **Note** - Read-only informational display
+- **FilePicker** - File selection (uses bubbles filepicker)
 
 Behavioral contract:
 - Forms are composed of fields grouped into pages or sections.
@@ -175,6 +214,9 @@ Behavioral contract:
   aborting the form unless explicitly configured.
 - Users can cancel; cancellation is represented as a typed error or message.
 - Completed forms expose values by key with type-safe accessors.
+
+Known limitations (see [FEATURE_PARITY.md](FEATURE_PARITY.md)):
+- Textarea field not fully implemented (skipped conformance tests).
 
 ### 5.8 wish
 
@@ -186,6 +228,10 @@ Behavioral contract:
   deterministic.
 - Middleware can wrap session handling and must preserve session lifecycles.
 - Server shutdown should be graceful and avoid leaving terminals in bad states.
+
+Known limitations (see [FEATURE_PARITY.md](FEATURE_PARITY.md)):
+- Labeled as "beta" stability level.
+- Windows SSH support is untested.
 
 ### 5.9 glow
 
@@ -222,6 +268,19 @@ Behavioral contract:
   behavioral comparisons with Go Charm.
 - For new features, add or update fixtures before implementation changes.
 - Conformance failures should be investigated before modifying expected output.
+- Current parity status and known gaps are tracked in
+  [FEATURE_PARITY.md](FEATURE_PARITY.md).
+
+Fixture coverage by crate (see FEATURE_PARITY.md for details):
+- bubbles: 83 fixtures (cursor, spinner, timer, stopwatch, progress, viewport,
+  paginator, textinput, textarea, list, table, filepicker, help, keybinding)
+- bubbletea: 168 fixtures
+- charmed_log: 67 fixtures
+- harmonica: 24 fixtures
+- huh: 46 fixtures (42 pass, 4 skip - textarea)
+- lipgloss: 58 fixtures (57 pass, 1 skip - partial borders)
+- glamour: 84 fixtures (81 pass, 3 skip - style presets)
+- integration: 24 fixtures
 
 ## 8. Compatibility and Versioning
 
