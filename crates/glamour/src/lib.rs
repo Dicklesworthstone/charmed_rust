@@ -722,7 +722,7 @@ pub fn ascii_style() -> StyleConfig {
         enumeration: StylePrimitive::new().block_prefix(". "),
         task: StyleTask::new().ticked("[x] ").unticked("[ ] "),
         image_text: StylePrimitive::new().format("Image: {{.text}} →"),
-        code: StyleBlock::new(),
+        code: StyleBlock::new().style(StylePrimitive::new().prefix("`").suffix("`")),
         code_block: StyleCodeBlock::new().block(StyleBlock::new().margin(DEFAULT_MARGIN)),
         table: StyleTable::new().separators("|", "|", "-"),
         definition_description: StylePrimitive::new().block_prefix("\n* "),
