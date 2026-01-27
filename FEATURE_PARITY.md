@@ -34,7 +34,7 @@ Result summary:
 | huh          | 46    | 46   | 0    | 0    | All fixtures pass |
 | lipgloss     | 58    | 58   | 0    | 0    | All fixtures pass |
 | glamour      | 84    | 81   | 0    | 3    | 3 style presets differ (notty, ascii, dracula) |
-| glow         | 7     | 7    | 0    | 0    | Basic conformance harness (config, render, styles, stash) |
+| glow         | 29    | 29   | 0    | 0    | Full fixture coverage (config, render, styles) |
 | charmed-wasm | 47    | 47   | 0    | 0    | WASM smoke tests (style, layout, DOM) |
 | integration  | 24    | 24   | 0    | 0    | Cross-crate integration OK |
 
@@ -94,8 +94,8 @@ Basic conformance harness created (7 tests):
 - **styles**: valid style parsing (dark, light, ascii, pink, auto, no-tty)
 - **stash**: document organization operations
 
-**Note**: Glow conformance is new. Fixtures from Go runtime capture pending.
-Current tests validate core library behavior without fixture-based comparison.
+**Note**: Full Go fixture coverage (29 tests generated via `go run cmd/glow/main.go`).
+Tests cover config builder methods, reader rendering, and style validation.
 
 ### Charmed-wasm (WASM Coverage)
 47 wasm-bindgen-test tests across two files:
