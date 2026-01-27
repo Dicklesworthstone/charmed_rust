@@ -6,6 +6,7 @@
 //!
 //! Currently implemented conformance areas:
 //! - Input fields (input_*)
+//! - Text fields (text_*) - multiline textarea
 //! - Select fields (select_*)
 //! - MultiSelect fields (multiselect_*)
 //! - Confirm fields (confirm_*)
@@ -13,10 +14,6 @@
 //! - Themes (theme_*)
 //! - Form with theme (form_with_theme)
 //! - Validation tests (validation_*) - required, min_length, email
-//!
-//! Tests marked as skipped (pending implementation):
-//! - Text fields (text_*) - multiline textarea not yet implemented
-//! - theme_catppuccin - catppuccin theme not yet implemented
 //!
 //! Additional direct tests (not from fixtures):
 //! - Form navigation (group/field navigation via messages)
