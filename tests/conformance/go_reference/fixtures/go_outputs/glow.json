@@ -1,0 +1,367 @@
+{
+  "metadata": {
+    "crate": "glow",
+    "go_version": "1.24",
+    "library_version": "1.5.1",
+    "captured_at": "2026-01-27T17:02:12Z"
+  },
+  "tests": [
+    {
+      "name": "config_defaults",
+      "category": "unit",
+      "input": {
+        "test_type": "config_defaults"
+      },
+      "expected_output": {
+        "default_pager": true,
+        "default_style": "dark",
+        "default_width": null
+      }
+    },
+    {
+      "name": "config_pager_disabled",
+      "category": "unit",
+      "input": {
+        "pager": false,
+        "style": "dark",
+        "width": null
+      },
+      "expected_output": {
+        "pager": false,
+        "style": "dark",
+        "width": null
+      }
+    },
+    {
+      "name": "config_width_80",
+      "category": "unit",
+      "input": {
+        "pager": true,
+        "style": "dark",
+        "width": 80
+      },
+      "expected_output": {
+        "pager": true,
+        "style": "dark",
+        "width": 80
+      }
+    },
+    {
+      "name": "config_width_120",
+      "category": "unit",
+      "input": {
+        "pager": true,
+        "style": "dark",
+        "width": 120
+      },
+      "expected_output": {
+        "pager": true,
+        "style": "dark",
+        "width": 120
+      }
+    },
+    {
+      "name": "config_style_light",
+      "category": "unit",
+      "input": {
+        "pager": true,
+        "style": "light",
+        "width": null
+      },
+      "expected_output": {
+        "pager": true,
+        "style": "light",
+        "width": null
+      }
+    },
+    {
+      "name": "config_style_ascii",
+      "category": "unit",
+      "input": {
+        "pager": true,
+        "style": "ascii",
+        "width": null
+      },
+      "expected_output": {
+        "pager": true,
+        "style": "ascii",
+        "width": null
+      }
+    },
+    {
+      "name": "config_style_pink",
+      "category": "unit",
+      "input": {
+        "pager": true,
+        "style": "pink",
+        "width": null
+      },
+      "expected_output": {
+        "pager": true,
+        "style": "pink",
+        "width": null
+      }
+    },
+    {
+      "name": "config_combined",
+      "category": "unit",
+      "input": {
+        "pager": false,
+        "style": "ascii",
+        "width": 100
+      },
+      "expected_output": {
+        "pager": false,
+        "style": "ascii",
+        "width": 100
+      }
+    },
+    {
+      "name": "reader_basic_text",
+      "category": "unit",
+      "input": {
+        "markdown": "Hello, World!",
+        "style": "dark",
+        "pager": false
+      },
+      "expected_output": {
+        "error": false,
+        "needs_runtime": true,
+        "output": "[needs Go capture]"
+      }
+    },
+    {
+      "name": "reader_heading",
+      "category": "unit",
+      "input": {
+        "markdown": "# Main Heading",
+        "style": "dark",
+        "pager": false
+      },
+      "expected_output": {
+        "error": false,
+        "needs_runtime": true,
+        "output": "[needs Go capture]"
+      }
+    },
+    {
+      "name": "reader_bold_italic",
+      "category": "unit",
+      "input": {
+        "markdown": "**bold** and *italic*",
+        "style": "dark",
+        "pager": false
+      },
+      "expected_output": {
+        "error": false,
+        "needs_runtime": true,
+        "output": "[needs Go capture]"
+      }
+    },
+    {
+      "name": "reader_code_block",
+      "category": "unit",
+      "input": {
+        "markdown": "```rust\nfn main() {}\n```",
+        "style": "dark",
+        "pager": false
+      },
+      "expected_output": {
+        "error": false,
+        "needs_runtime": true,
+        "output": "[needs Go capture]"
+      }
+    },
+    {
+      "name": "reader_list",
+      "category": "unit",
+      "input": {
+        "markdown": "- item 1\n- item 2\n- item 3",
+        "style": "dark",
+        "pager": false
+      },
+      "expected_output": {
+        "error": false,
+        "needs_runtime": true,
+        "output": "[needs Go capture]"
+      }
+    },
+    {
+      "name": "reader_width_80",
+      "category": "unit",
+      "input": {
+        "markdown": "This is a long line that should wrap at the specified width.",
+        "style": "dark",
+        "width": 80,
+        "pager": false
+      },
+      "expected_output": {
+        "error": false,
+        "needs_runtime": true,
+        "output": "[needs Go capture]"
+      }
+    },
+    {
+      "name": "reader_style_ascii",
+      "category": "unit",
+      "input": {
+        "markdown": "# ASCII Heading\n\nSome text.",
+        "style": "ascii",
+        "pager": false
+      },
+      "expected_output": {
+        "error": false,
+        "needs_runtime": true,
+        "output": "[needs Go capture]"
+      }
+    },
+    {
+      "name": "reader_style_light",
+      "category": "unit",
+      "input": {
+        "markdown": "# Light Theme",
+        "style": "light",
+        "pager": false
+      },
+      "expected_output": {
+        "error": false,
+        "needs_runtime": true,
+        "output": "[needs Go capture]"
+      }
+    },
+    {
+      "name": "reader_empty",
+      "category": "unit",
+      "input": {
+        "markdown": "",
+        "style": "dark",
+        "pager": false
+      },
+      "expected_output": {
+        "error": false,
+        "needs_runtime": true,
+        "output": "[needs Go capture]"
+      }
+    },
+    {
+      "name": "style_valid_dark",
+      "category": "unit",
+      "input": {
+        "style": "dark"
+      },
+      "expected_output": {
+        "valid": true
+      }
+    },
+    {
+      "name": "style_valid_light",
+      "category": "unit",
+      "input": {
+        "style": "light"
+      },
+      "expected_output": {
+        "valid": true
+      }
+    },
+    {
+      "name": "style_valid_ascii",
+      "category": "unit",
+      "input": {
+        "style": "ascii"
+      },
+      "expected_output": {
+        "valid": true
+      }
+    },
+    {
+      "name": "style_valid_pink",
+      "category": "unit",
+      "input": {
+        "style": "pink"
+      },
+      "expected_output": {
+        "valid": true
+      }
+    },
+    {
+      "name": "style_valid_auto",
+      "category": "unit",
+      "input": {
+        "style": "auto"
+      },
+      "expected_output": {
+        "valid": true
+      }
+    },
+    {
+      "name": "style_valid_no-tty",
+      "category": "unit",
+      "input": {
+        "style": "no-tty"
+      },
+      "expected_output": {
+        "valid": true
+      }
+    },
+    {
+      "name": "style_valid_notty",
+      "category": "unit",
+      "input": {
+        "style": "notty"
+      },
+      "expected_output": {
+        "valid": true
+      }
+    },
+    {
+      "name": "style_valid_no_tty",
+      "category": "unit",
+      "input": {
+        "style": "no_tty"
+      },
+      "expected_output": {
+        "valid": true
+      }
+    },
+    {
+      "name": "style_invalid_unknown",
+      "category": "unit",
+      "input": {
+        "style": "unknown"
+      },
+      "expected_output": {
+        "valid": false
+      }
+    },
+    {
+      "name": "style_invalid_empty",
+      "category": "unit",
+      "input": {
+        "style": ""
+      },
+      "expected_output": {
+        "valid": false
+      }
+    },
+    {
+      "name": "style_invalid_dracula",
+      "category": "unit",
+      "input": {
+        "style": "dracula"
+      },
+      "expected_output": {
+        "valid": false
+      }
+    },
+    {
+      "name": "style_invalid_solarized",
+      "category": "unit",
+      "input": {
+        "style": "solarized"
+      },
+      "expected_output": {
+        "valid": false
+      }
+    }
+  ]
+}
