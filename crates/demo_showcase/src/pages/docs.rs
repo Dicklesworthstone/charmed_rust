@@ -522,7 +522,9 @@ impl DocsPage {
             let query = if self.search_query.is_empty() {
                 theme.muted_style().render("type to search...")
             } else {
-                Style::new().foreground(theme.text).render(&format!("{}_", self.search_query))
+                Style::new()
+                    .foreground(theme.text)
+                    .render(&format!("{}_", self.search_query))
             };
             content_lines.push(format!("{prompt} {query}"));
         }
@@ -585,7 +587,10 @@ impl PageModel for DocsPage {
                     KeyType::Runes => {
                         // Add typed characters to search query
                         for c in &key.runes {
-                            if c.is_alphanumeric() || c.is_whitespace() || matches!(c, '-' | '_' | '.' | ':') {
+                            if c.is_alphanumeric()
+                                || c.is_whitespace()
+                                || matches!(c, '-' | '_' | '.' | ':')
+                            {
                                 self.search_query.push(*c);
                             }
                         }
@@ -637,11 +642,17 @@ impl PageModel for DocsPage {
                             return None;
                         }
                         // Search navigation: n/N for next/prev match
-                        ['n'] if self.focus == DocsFocus::Content && !self.search_matches.is_empty() => {
+                        ['n']
+                            if self.focus == DocsFocus::Content
+                                && !self.search_matches.is_empty() =>
+                        {
                             self.next_match();
                             return None;
                         }
-                        ['N'] if self.focus == DocsFocus::Content && !self.search_matches.is_empty() => {
+                        ['N']
+                            if self.focus == DocsFocus::Content
+                                && !self.search_matches.is_empty() =>
+                        {
                             self.prev_match();
                             return None;
                         }
@@ -1082,25 +1093,37 @@ mod tests {
         // List focus hints
         page.focus = DocsFocus::List;
         let list_hints = page.hints();
-        assert!(list_hints.contains("nav"), "List hints should mention navigation");
+        assert!(
+            list_hints.contains("nav"),
+            "List hints should mention navigation"
+        );
 
         // Content focus hints without search
         page.focus = DocsFocus::Content;
         let content_hints = page.hints();
-        assert!(content_hints.contains("search"), "Content hints should mention search");
+        assert!(
+            content_hints.contains("search"),
+            "Content hints should mention search"
+        );
 
         // Content focus hints with search matches
         page.search_query = "the".to_string();
         page.update_search_matches();
         if !page.search_matches.is_empty() {
             let search_hints = page.hints();
-            assert!(search_hints.contains("n/N"), "Should show n/N for match navigation");
+            assert!(
+                search_hints.contains("n/N"),
+                "Should show n/N for match navigation"
+            );
         }
 
         // Search mode hints
         page.focus = DocsFocus::Search;
         let search_mode_hints = page.hints();
-        assert!(search_mode_hints.contains("Esc"), "Search hints should mention Esc");
+        assert!(
+            search_mode_hints.contains("Esc"),
+            "Search hints should mention Esc"
+        );
     }
 
     // =========================================================================
@@ -1113,7 +1136,10 @@ mod tests {
 
         page.search_query = String::new();
         page.update_search_matches();
-        assert!(page.search_matches.is_empty(), "Empty query should have no matches");
+        assert!(
+            page.search_matches.is_empty(),
+            "Empty query should have no matches"
+        );
     }
 
     #[test]
@@ -1185,8 +1211,14 @@ mod tests {
         page.update_search_matches();
         let mixed_count = page.search_matches.len();
 
-        assert_eq!(upper_count, lower_count, "Case should not affect match count");
-        assert_eq!(lower_count, mixed_count, "Case should not affect match count");
+        assert_eq!(
+            upper_count, lower_count,
+            "Case should not affect match count"
+        );
+        assert_eq!(
+            lower_count, mixed_count,
+            "Case should not affect match count"
+        );
     }
 
     #[test]
@@ -1204,7 +1236,10 @@ mod tests {
         let second_current = page.current_match;
 
         assert_eq!(first_count, second_count, "Search should be idempotent");
-        assert_eq!(first_current, second_current, "Current match should reset to 0");
+        assert_eq!(
+            first_current, second_current,
+            "Current match should reset to 0"
+        );
     }
 
     #[test]
@@ -1227,7 +1262,11 @@ mod tests {
 
             // Prev should wrap to last
             page.prev_match();
-            assert_eq!(page.current_match, page.search_matches.len() - 1, "Should wrap from first to last");
+            assert_eq!(
+                page.current_match,
+                page.search_matches.len() - 1,
+                "Should wrap from first to last"
+            );
         }
     }
 
@@ -1260,13 +1299,19 @@ mod tests {
     #[test]
     fn syntax_highlighting_default() {
         let page = DocsPage::new();
-        assert!(page.syntax_highlighting_enabled(), "Syntax highlighting should be on by default");
+        assert!(
+            page.syntax_highlighting_enabled(),
+            "Syntax highlighting should be on by default"
+        );
     }
 
     #[test]
     fn line_numbers_default() {
         let page = DocsPage::new();
-        assert!(!page.line_numbers_enabled(), "Line numbers should be off by default");
+        assert!(
+            !page.line_numbers_enabled(),
+            "Line numbers should be off by default"
+        );
     }
 
     #[test]
@@ -1276,12 +1321,18 @@ mod tests {
 
         page.toggle_syntax_highlighting();
         assert!(!page.syntax_highlighting);
-        assert!(*page.needs_render.read().unwrap(), "Should need re-render after toggle");
+        assert!(
+            *page.needs_render.read().unwrap(),
+            "Should need re-render after toggle"
+        );
 
         *page.needs_render.write().unwrap() = false;
         page.toggle_syntax_highlighting();
         assert!(page.syntax_highlighting);
-        assert!(*page.needs_render.read().unwrap(), "Should need re-render after toggle");
+        assert!(
+            *page.needs_render.read().unwrap(),
+            "Should need re-render after toggle"
+        );
     }
 
     #[test]
@@ -1291,11 +1342,17 @@ mod tests {
 
         page.toggle_line_numbers();
         assert!(page.line_numbers);
-        assert!(*page.needs_render.read().unwrap(), "Should need re-render after toggle");
+        assert!(
+            *page.needs_render.read().unwrap(),
+            "Should need re-render after toggle"
+        );
 
         *page.needs_render.write().unwrap() = false;
         page.toggle_line_numbers();
         assert!(!page.line_numbers);
-        assert!(*page.needs_render.read().unwrap(), "Should need re-render after toggle");
+        assert!(
+            *page.needs_render.read().unwrap(),
+            "Should need re-render after toggle"
+        );
     }
 }

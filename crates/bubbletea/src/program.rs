@@ -673,7 +673,9 @@ impl<M: Model> Program<M> {
         // Get initial window size (only if not custom IO, otherwise trust init msg)
         if !self.options.custom_io
             && let Ok((width, height)) = terminal::size()
-            && tx.send(Message::new(WindowSizeMsg { width, height })).is_err()
+            && tx
+                .send(Message::new(WindowSizeMsg { width, height }))
+                .is_err()
         {
             debug!(target: "bubbletea::event", "initial window size dropped — receiver disconnected");
         }
@@ -721,7 +723,10 @@ impl<M: Model> Program<M> {
                         }
                     }
                     Event::Resize(width, height) => {
-                        if tx.send(Message::new(WindowSizeMsg { width, height })).is_err() {
+                        if tx
+                            .send(Message::new(WindowSizeMsg { width, height }))
+                            .is_err()
+                        {
                             debug!(target: "bubbletea::event", "resize message dropped — receiver disconnected");
                         }
                     }
@@ -778,7 +783,9 @@ impl<M: Model> Program<M> {
                 if msg.is::<RequestWindowSizeMsg>() {
                     if !self.options.custom_io
                         && let Ok((width, height)) = terminal::size()
-                        && tx.send(Message::new(WindowSizeMsg { width, height })).is_err()
+                        && tx
+                            .send(Message::new(WindowSizeMsg { width, height }))
+                            .is_err()
                     {
                         debug!(target: "bubbletea::event", "window size response dropped — receiver disconnected");
                     }
@@ -1125,7 +1132,11 @@ impl<M: Model> Program<M> {
         // Get initial window size
         if !self.options.custom_io {
             let (width, height) = terminal::size()?;
-            if tx.send(Message::new(WindowSizeMsg { width, height })).await.is_err() {
+            if tx
+                .send(Message::new(WindowSizeMsg { width, height }))
+                .await
+                .is_err()
+            {
                 debug!(target: "bubbletea::event", "async initial window size dropped — receiver disconnected");
             }
         }
@@ -1984,8 +1995,8 @@ mod tests {
 
     #[test]
     fn spawn_batch_executes_closure() {
-        use std::sync::atomic::{AtomicBool, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
 
         let executed = Arc::new(AtomicBool::new(false));
         let clone = executed.clone();
@@ -1996,13 +2007,16 @@ mod tests {
 
         // Allow time for the task to run
         thread::sleep(Duration::from_millis(200));
-        assert!(executed.load(Ordering::SeqCst), "spawn_batch should execute the closure");
+        assert!(
+            executed.load(Ordering::SeqCst),
+            "spawn_batch should execute the closure"
+        );
     }
 
     #[test]
     fn spawn_batch_handles_many_concurrent_tasks() {
-        use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
         let counter = Arc::new(AtomicUsize::new(0));
         let task_count = 200;
@@ -2016,9 +2030,7 @@ mod tests {
 
         // Wait for all tasks with generous timeout
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
-        while counter.load(Ordering::SeqCst) < task_count
-            && std::time::Instant::now() < deadline
-        {
+        while counter.load(Ordering::SeqCst) < task_count && std::time::Instant::now() < deadline {
             thread::sleep(Duration::from_millis(50));
         }
 
@@ -2052,17 +2064,24 @@ mod tests {
             }
         }
 
-        assert_eq!(results.len(), 50, "All 50 batch sub-commands should produce results");
+        assert_eq!(
+            results.len(),
+            50,
+            "All 50 batch sub-commands should produce results"
+        );
         results.sort();
         let expected: Vec<i32> = (0..50).collect();
-        assert_eq!(results, expected, "Each sub-command value should be received exactly once");
+        assert_eq!(
+            results, expected,
+            "Each sub-command value should be received exactly once"
+        );
     }
 
     #[cfg(feature = "thread-pool")]
     #[test]
     fn handle_command_batch_bounded_parallelism() {
-        use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
         let model = TestModel { count: 0 };
         let program = Program::new(model);

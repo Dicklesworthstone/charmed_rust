@@ -137,7 +137,8 @@ impl Model for StyledModel {
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         if let Some(key) = msg.downcast::<KeyMsg>()
-            && key.key_type == KeyType::Runes && key.runes.contains(&'q')
+            && key.key_type == KeyType::Runes
+            && key.runes.contains(&'q')
         {
             return Some(quit());
         }
@@ -161,7 +162,8 @@ impl Model for ColorModel {
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         if let Some(key) = msg.downcast::<KeyMsg>()
-            && key.key_type == KeyType::Runes && key.runes.contains(&'q')
+            && key.key_type == KeyType::Runes
+            && key.runes.contains(&'q')
         {
             return Some(quit());
         }
@@ -169,9 +171,7 @@ impl Model for ColorModel {
     }
 
     fn view(&self) -> String {
-        let style = lipgloss::Style::new()
-            .bold()
-            .foreground("#ff0000");
+        let style = lipgloss::Style::new().bold().foreground("#ff0000");
         style.render("Colored Output")
     }
 }
@@ -221,7 +221,8 @@ impl Model for MultilineModel {
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         if let Some(key) = msg.downcast::<KeyMsg>()
-            && key.key_type == KeyType::Runes && key.runes.contains(&'q')
+            && key.key_type == KeyType::Runes
+            && key.runes.contains(&'q')
         {
             return Some(quit());
         }
@@ -538,16 +539,21 @@ fn render_output_contains_cursor_and_clear() {
 fn empty_view_no_panic() {
     struct EmptyModel;
     impl Model for EmptyModel {
-        fn init(&self) -> Option<Cmd> { None }
+        fn init(&self) -> Option<Cmd> {
+            None
+        }
         fn update(&mut self, msg: Message) -> Option<Cmd> {
             if let Some(key) = msg.downcast::<KeyMsg>()
-                && key.key_type == KeyType::Runes && key.runes.contains(&'q')
+                && key.key_type == KeyType::Runes
+                && key.runes.contains(&'q')
             {
                 return Some(quit());
             }
             None
         }
-        fn view(&self) -> String { String::new() }
+        fn view(&self) -> String {
+            String::new()
+        }
     }
 
     let input = Cursor::new(b"q".to_vec());
@@ -564,16 +570,21 @@ fn empty_view_no_panic() {
 fn unicode_in_view_output() {
     struct UnicodeModel;
     impl Model for UnicodeModel {
-        fn init(&self) -> Option<Cmd> { None }
+        fn init(&self) -> Option<Cmd> {
+            None
+        }
         fn update(&mut self, msg: Message) -> Option<Cmd> {
             if let Some(key) = msg.downcast::<KeyMsg>()
-                && key.key_type == KeyType::Runes && key.runes.contains(&'q')
+                && key.key_type == KeyType::Runes
+                && key.runes.contains(&'q')
             {
                 return Some(quit());
             }
             None
         }
-        fn view(&self) -> String { "こんにちは 🦀".to_string() }
+        fn view(&self) -> String {
+            "こんにちは 🦀".to_string()
+        }
     }
 
     let input = Cursor::new(b"q".to_vec());
@@ -598,10 +609,13 @@ fn unicode_in_view_output() {
 fn long_view_output() {
     struct LongModel;
     impl Model for LongModel {
-        fn init(&self) -> Option<Cmd> { None }
+        fn init(&self) -> Option<Cmd> {
+            None
+        }
         fn update(&mut self, msg: Message) -> Option<Cmd> {
             if let Some(key) = msg.downcast::<KeyMsg>()
-                && key.key_type == KeyType::Runes && key.runes.contains(&'q')
+                && key.key_type == KeyType::Runes
+                && key.runes.contains(&'q')
             {
                 return Some(quit());
             }
@@ -637,7 +651,11 @@ fn model_state_preserved_after_run() {
         .run()
         .expect("program should complete");
 
-    assert_eq!(model.chars, "hi", "Model state preserved: {:?}", model.chars);
+    assert_eq!(
+        model.chars, "hi",
+        "Model state preserved: {:?}",
+        model.chars
+    );
 }
 
 #[test]

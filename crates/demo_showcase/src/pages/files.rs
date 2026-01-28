@@ -350,7 +350,10 @@ impl FilesPage {
                 } else {
                     // Non-markdown: show raw content directly
                     self.raw_content = None;
-                    self.preview_viewport.write().unwrap().set_content(&truncated_content);
+                    self.preview_viewport
+                        .write()
+                        .unwrap()
+                        .set_content(&truncated_content);
                 }
                 self.preview_truncated = was_truncated;
             } else {
@@ -475,7 +478,10 @@ impl FilesPage {
                 if last_w != width || last_t != theme_name {
                     let content_width = width.saturating_sub(2);
                     let rendered = self.render_markdown(raw, theme, content_width);
-                    self.preview_viewport.write().unwrap().set_content(&rendered);
+                    self.preview_viewport
+                        .write()
+                        .unwrap()
+                        .set_content(&rendered);
                     *self.last_width.write().unwrap() = width;
                     *self.last_theme.write().unwrap() = theme_name;
                 }
@@ -484,8 +490,8 @@ impl FilesPage {
 
         // Content via viewport
         let viewport = self.preview_viewport.read().unwrap();
-        let has_content = viewport.total_line_count() > 0
-            || (self.is_markdown && self.raw_content.is_some());
+        let has_content =
+            viewport.total_line_count() > 0 || (self.is_markdown && self.raw_content.is_some());
         if has_content {
             // Create a viewport clone with correct dimensions for rendering
             let mut render_viewport = viewport.clone();
@@ -525,7 +531,10 @@ impl FilesPage {
                 String::new()
             };
 
-            let status = format!("{}{}{}", scroll_indicator, truncated_indicator, toggle_indicator);
+            let status = format!(
+                "{}{}{}",
+                scroll_indicator, truncated_indicator, toggle_indicator
+            );
             lines.push(theme.muted_style().render(&status));
         } else if self.preview_name.is_some() {
             lines.push(theme.muted_style().render("(directory)"));
@@ -885,7 +894,10 @@ mod tests {
             page.update_preview();
 
             // Verify content was loaded into viewport
-            assert!(page.preview_viewport.read().unwrap().total_line_count() > 0 || page.preview_name.is_some());
+            assert!(
+                page.preview_viewport.read().unwrap().total_line_count() > 0
+                    || page.preview_name.is_some()
+            );
         }
     }
 

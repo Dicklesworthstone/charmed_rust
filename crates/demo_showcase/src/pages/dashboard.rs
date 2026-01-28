@@ -906,12 +906,7 @@ impl PageModel for DashboardPage {
         // Update card bounds (interior mutability via RwLock)
         if let Ok(mut bounds) = self.card_bounds.write() {
             // Services: left column, starts at header_lines
-            bounds.services = Some((
-                header_lines,
-                header_lines + services_lines,
-                0,
-                left_width,
-            ));
+            bounds.services = Some((header_lines, header_lines + services_lines, 0, left_width));
 
             // Jobs: left column, after services + 2 blank lines
             let jobs_start = header_lines + services_lines + 2;

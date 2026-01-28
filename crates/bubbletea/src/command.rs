@@ -603,11 +603,7 @@ mod tests {
     #[test]
     fn test_batch_mixed_with_single_some() {
         // Batch with only one Some among Nones
-        let cmd = batch(vec![
-            None,
-            Some(Cmd::new(|| Message::new(42i32))),
-            None,
-        ]);
+        let cmd = batch(vec![None, Some(Cmd::new(|| Message::new(42i32))), None]);
         assert!(cmd.is_some());
     }
 
@@ -699,8 +695,8 @@ mod tests {
     #[test]
     fn test_blocking_executes() {
         // Test Cmd::blocking actually executes
-        use std::sync::atomic::{AtomicBool, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
 
         let executed = Arc::new(AtomicBool::new(false));
         let executed_clone = Arc::clone(&executed);

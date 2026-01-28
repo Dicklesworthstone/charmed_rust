@@ -296,9 +296,18 @@ mod tests {
         assert_eq!(FocusMsg, FocusMsg);
         assert_eq!(BlurMsg, BlurMsg);
 
-        let size1 = WindowSizeMsg { width: 80, height: 24 };
-        let size2 = WindowSizeMsg { width: 80, height: 24 };
-        let size3 = WindowSizeMsg { width: 120, height: 40 };
+        let size1 = WindowSizeMsg {
+            width: 80,
+            height: 24,
+        };
+        let size2 = WindowSizeMsg {
+            width: 80,
+            height: 24,
+        };
+        let size3 = WindowSizeMsg {
+            width: 120,
+            height: 40,
+        };
         assert_eq!(size1, size2);
         assert_ne!(size1, size3);
     }
@@ -310,7 +319,10 @@ mod tests {
         let quit_clone = quit.clone();
         assert_eq!(quit, quit_clone);
 
-        let size = WindowSizeMsg { width: 80, height: 24 };
+        let size = WindowSizeMsg {
+            width: 80,
+            height: 24,
+        };
         let size_clone = size.clone();
         assert_eq!(size, size_clone);
     }
@@ -322,7 +334,10 @@ mod tests {
         let quit_copy = quit; // Copy, not move
         assert_eq!(quit, quit_copy);
 
-        let size = WindowSizeMsg { width: 80, height: 24 };
+        let size = WindowSizeMsg {
+            width: 80,
+            height: 24,
+        };
         let size_copy = size; // Copy, not move
         assert_eq!(size, size_copy);
     }

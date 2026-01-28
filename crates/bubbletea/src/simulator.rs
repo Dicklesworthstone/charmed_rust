@@ -172,7 +172,10 @@ impl<M: Model> ProgramSimulator<M> {
     pub fn run_until_empty(&mut self) -> usize {
         const MAX_ITERATIONS: usize = 1000;
         let mut processed = 0;
-        while !self.input_queue.is_empty() && !self.stats.quit_requested && processed < MAX_ITERATIONS {
+        while !self.input_queue.is_empty()
+            && !self.stats.quit_requested
+            && processed < MAX_ITERATIONS
+        {
             if let Some(cmd) = self.step() {
                 // Execute command and queue resulting message
                 if let Some(msg) = cmd.execute() {
@@ -623,7 +626,11 @@ mod tests {
         sim.run_until_empty();
 
         // Value should be 10 + 5 = 15
-        assert_eq!(sim.model().value, 15, "Batch commands should set 10 then add 5");
+        assert_eq!(
+            sim.model().value,
+            15,
+            "Batch commands should set 10 then add 5"
+        );
     }
 
     // ========================================================================
@@ -639,7 +646,9 @@ mod tests {
         }
 
         impl Model for KeyModel {
-            fn init(&self) -> Option<crate::Cmd> { None }
+            fn init(&self) -> Option<crate::Cmd> {
+                None
+            }
             fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
                 if let Some(key) = msg.downcast_ref::<KeyMsg>() {
                     if key.key_type == KeyType::Runes {
@@ -648,7 +657,9 @@ mod tests {
                 }
                 None
             }
-            fn view(&self) -> String { format!("Keys: {:?}", self.keys) }
+            fn view(&self) -> String {
+                format!("Keys: {:?}", self.keys)
+            }
         }
 
         let mut sim = ProgramSimulator::new(KeyModel { keys: Vec::new() });
@@ -670,7 +681,9 @@ mod tests {
         }
 
         impl Model for KeyModel {
-            fn init(&self) -> Option<crate::Cmd> { None }
+            fn init(&self) -> Option<crate::Cmd> {
+                None
+            }
             fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
                 if let Some(key) = msg.downcast_ref::<KeyMsg>() {
                     if key.key_type != KeyType::Runes {
@@ -679,10 +692,14 @@ mod tests {
                 }
                 None
             }
-            fn view(&self) -> String { format!("Keys: {:?}", self.special_keys) }
+            fn view(&self) -> String {
+                format!("Keys: {:?}", self.special_keys)
+            }
         }
 
-        let mut sim = ProgramSimulator::new(KeyModel { special_keys: Vec::new() });
+        let mut sim = ProgramSimulator::new(KeyModel {
+            special_keys: Vec::new(),
+        });
         sim.init();
         sim.sim_key_type(KeyType::Enter);
         sim.sim_key_type(KeyType::Esc);
@@ -691,25 +708,30 @@ mod tests {
         sim.sim_key_type(KeyType::Down);
         sim.run_until_empty();
 
-        assert_eq!(sim.model().special_keys, vec![
-            KeyType::Enter,
-            KeyType::Esc,
-            KeyType::Tab,
-            KeyType::Up,
-            KeyType::Down,
-        ]);
+        assert_eq!(
+            sim.model().special_keys,
+            vec![
+                KeyType::Enter,
+                KeyType::Esc,
+                KeyType::Tab,
+                KeyType::Up,
+                KeyType::Down,
+            ]
+        );
     }
 
     #[test]
     fn test_sim_mouse_sends_clicks() {
-        use crate::mouse::{MouseMsg, MouseButton, MouseAction};
+        use crate::mouse::{MouseAction, MouseButton, MouseMsg};
 
         struct MouseModel {
             clicks: Vec<(u16, u16)>,
         }
 
         impl Model for MouseModel {
-            fn init(&self) -> Option<crate::Cmd> { None }
+            fn init(&self) -> Option<crate::Cmd> {
+                None
+            }
             fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
                 if let Some(mouse) = msg.downcast_ref::<MouseMsg>() {
                     if mouse.button == MouseButton::Left && mouse.action == MouseAction::Press {
@@ -718,7 +740,9 @@ mod tests {
                 }
                 None
             }
-            fn view(&self) -> String { format!("Clicks: {:?}", self.clicks) }
+            fn view(&self) -> String {
+                format!("Clicks: {:?}", self.clicks)
+            }
         }
 
         let mut sim = ProgramSimulator::new(MouseModel { clicks: Vec::new() });
@@ -740,7 +764,9 @@ mod tests {
         }
 
         impl Model for SizeModel {
-            fn init(&self) -> Option<crate::Cmd> { None }
+            fn init(&self) -> Option<crate::Cmd> {
+                None
+            }
             fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
                 if let Some(size) = msg.downcast_ref::<WindowSizeMsg>() {
                     self.width = size.width;
@@ -748,10 +774,15 @@ mod tests {
                 }
                 None
             }
-            fn view(&self) -> String { format!("{}x{}", self.width, self.height) }
+            fn view(&self) -> String {
+                format!("{}x{}", self.width, self.height)
+            }
         }
 
-        let mut sim = ProgramSimulator::new(SizeModel { width: 0, height: 0 });
+        let mut sim = ProgramSimulator::new(SizeModel {
+            width: 0,
+            height: 0,
+        });
         sim.init();
         sim.sim_resize(120, 40);
         sim.run_until_empty();
@@ -769,7 +800,9 @@ mod tests {
         }
 
         impl Model for PasteModel {
-            fn init(&self) -> Option<crate::Cmd> { None }
+            fn init(&self) -> Option<crate::Cmd> {
+                None
+            }
             fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
                 if let Some(key) = msg.downcast_ref::<KeyMsg>() {
                     if key.paste {
@@ -778,10 +811,14 @@ mod tests {
                 }
                 None
             }
-            fn view(&self) -> String { format!("Pasted: {}", self.pasted) }
+            fn view(&self) -> String {
+                format!("Pasted: {}", self.pasted)
+            }
         }
 
-        let mut sim = ProgramSimulator::new(PasteModel { pasted: String::new() });
+        let mut sim = ProgramSimulator::new(PasteModel {
+            pasted: String::new(),
+        });
         sim.init();
         sim.sim_paste("Hello, World!");
         sim.run_until_empty();
@@ -806,7 +843,9 @@ mod tests {
         }
 
         impl Model for SequenceModel {
-            fn init(&self) -> Option<crate::Cmd> { None }
+            fn init(&self) -> Option<crate::Cmd> {
+                None
+            }
             fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
                 if msg.is::<SequenceTrigger>() {
                     return sequence(vec![
@@ -820,10 +859,14 @@ mod tests {
                 }
                 None
             }
-            fn view(&self) -> String { self.chars.clone() }
+            fn view(&self) -> String {
+                self.chars.clone()
+            }
         }
 
-        let mut sim = ProgramSimulator::new(SequenceModel { chars: String::new() });
+        let mut sim = ProgramSimulator::new(SequenceModel {
+            chars: String::new(),
+        });
         sim.init();
         sim.send(Message::new(SequenceTrigger));
 
@@ -857,8 +900,12 @@ mod tests {
                 // Return an empty batch
                 batch(vec![])
             }
-            fn update(&mut self, _: Message) -> Option<crate::Cmd> { None }
-            fn view(&self) -> String { "ok".to_string() }
+            fn update(&mut self, _: Message) -> Option<crate::Cmd> {
+                None
+            }
+            fn view(&self) -> String {
+                "ok".to_string()
+            }
         }
 
         let mut sim = ProgramSimulator::new(EmptyBatchModel);
@@ -884,7 +931,9 @@ mod tests {
         }
 
         impl Model for RecursiveModel {
-            fn init(&self) -> Option<crate::Cmd> { None }
+            fn init(&self) -> Option<crate::Cmd> {
+                None
+            }
             fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
                 if let Some(&n) = msg.downcast_ref::<usize>() {
                     self.count += 1;
@@ -895,7 +944,9 @@ mod tests {
                 }
                 None
             }
-            fn view(&self) -> String { format!("Count: {}", self.count) }
+            fn view(&self) -> String {
+                format!("Count: {}", self.count)
+            }
         }
 
         let mut sim = ProgramSimulator::new(RecursiveModel { count: 0 });

@@ -184,24 +184,15 @@ fn dark_link_renders_text_and_url() {
     // Links in dark style render as "text url" (the styling properties exist
     // in config but the rendering path produces inline text, not ANSI)
     let plain = strip_ansi(&output);
-    assert!(
-        plain.contains("click"),
-        "Link text present: {plain:?}"
-    );
-    assert!(
-        plain.contains("example.com"),
-        "Link URL present: {plain:?}"
-    );
+    assert!(plain.contains("click"), "Link text present: {plain:?}");
+    assert!(plain.contains("example.com"), "Link URL present: {plain:?}");
 }
 
 #[test]
 fn dark_link_formatted_as_text_url() {
     let output = render_with("[Go here](https://rust-lang.org)", Style::Dark);
     let plain = strip_ansi(&output);
-    assert!(
-        plain.contains("Go here"),
-        "Link text present: {plain:?}"
-    );
+    assert!(plain.contains("Go here"), "Link text present: {plain:?}");
     assert!(
         plain.contains("rust-lang.org"),
         "Link URL present: {plain:?}"
@@ -587,12 +578,12 @@ fn word_wrap_does_not_corrupt_ansi() {
         .with_word_wrap(40)
         .render("# Title\n\nThis is a long paragraph that should be wrapped correctly.");
     // Heading should have ANSI
-    assert!(contains_ansi(&output), "Should have ANSI from heading: {output:?}");
-    let plain = strip_ansi(&output);
     assert!(
-        plain.contains("Title"),
-        "Heading preserved: {plain:?}"
+        contains_ansi(&output),
+        "Should have ANSI from heading: {output:?}"
     );
+    let plain = strip_ansi(&output);
+    assert!(plain.contains("Title"), "Heading preserved: {plain:?}");
     assert!(
         plain.contains("This is a long paragraph"),
         "Paragraph content preserved: {plain:?}"
@@ -657,8 +648,10 @@ fn horizontal_rule_renders() {
     let plain = strip_ansi(&output);
     assert!(plain.contains("Above"), "Text above HR");
     assert!(plain.contains("Below"), "Text below HR");
-    assert!(plain.contains("---") || plain.contains("───") || plain.contains("--------"),
-        "HR rendered: {plain:?}");
+    assert!(
+        plain.contains("---") || plain.contains("───") || plain.contains("--------"),
+        "HR rendered: {plain:?}"
+    );
 }
 
 #[test]
@@ -700,7 +693,13 @@ fn render_is_deterministic() {
 #[test]
 fn colored_styles_have_ansi_uncolored_do_not() {
     let md = "# Hello\n\nWorld";
-    let colored = [Style::Dark, Style::Light, Style::Dracula, Style::Pink, Style::TokyoNight];
+    let colored = [
+        Style::Dark,
+        Style::Light,
+        Style::Dracula,
+        Style::Pink,
+        Style::TokyoNight,
+    ];
     let uncolored = [Style::Ascii, Style::NoTty];
 
     for style in colored {

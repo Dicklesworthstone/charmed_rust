@@ -454,7 +454,10 @@ impl ScenarioRecorder {
         let mut event = self.create_event(
             EventLevel::Trace,
             "frame_capture_ansi",
-            format!("Captured ANSI frame: {frame_name} ({} bytes)", content.len()),
+            format!(
+                "Captured ANSI frame: {frame_name} ({} bytes)",
+                content.len()
+            ),
         );
         event.frame_path = Some(format!("frames/{frame_name}"));
         self.events.push(event);
@@ -1090,8 +1093,8 @@ mod tests {
 
         let diff = compute_frame_diff(old, new);
         assert_eq!(diff.stats.unchanged, 2); // Line 1, Line 3
-        assert_eq!(diff.stats.changed, 1);   // Line 2 -> Modified 2
-        assert_eq!(diff.stats.added, 1);     // Line 4
+        assert_eq!(diff.stats.changed, 1); // Line 2 -> Modified 2
+        assert_eq!(diff.stats.added, 1); // Line 4
         assert_eq!(diff.stats.removed, 0);
         assert!(diff.has_changes());
     }
@@ -1765,7 +1768,9 @@ mod e2e_settings_tests {
         runner.step("Toggle ASCII mode");
         runner.press_key('c');
         let ascii_enabled = runner.model().is_force_ascii();
-        runner.recorder.assert_true("ASCII mode is now enabled", ascii_enabled);
+        runner
+            .recorder
+            .assert_true("ASCII mode is now enabled", ascii_enabled);
 
         // Toggle mouse
         runner.step("Toggle mouse");
@@ -1902,9 +1907,15 @@ mod e2e_smoke_tour_tests {
         let view_with_help = runner.view();
         runner.recorder.record_assertion(
             "help overlay opened",
-            view_with_help.contains("help") || view_with_help.contains("?") || view_with_help.len() > 100,
+            view_with_help.contains("help")
+                || view_with_help.contains("?")
+                || view_with_help.len() > 100,
             "help content visible",
-            if view_with_help.len() > 100 { "long content" } else { "short content" },
+            if view_with_help.len() > 100 {
+                "long content"
+            } else {
+                "short content"
+            },
         );
 
         runner.step("Close help overlay");
@@ -2071,10 +2082,9 @@ mod e2e_smoke_tour_tests {
 
         // Verify wizard has content
         let wizard_view = runner.view();
-        runner.recorder.assert_true(
-            "wizard page has content",
-            !wizard_view.trim().is_empty(),
-        );
+        runner
+            .recorder
+            .assert_true("wizard page has content", !wizard_view.trim().is_empty());
 
         // =========================================================================
         // Step 2: Interact with wizard (navigate steps)
@@ -2107,10 +2117,9 @@ mod e2e_smoke_tour_tests {
 
         let jobs_view = runner.view();
         // Jobs page should have some job-related content
-        runner.recorder.assert_true(
-            "jobs page renders content",
-            !jobs_view.trim().is_empty(),
-        );
+        runner
+            .recorder
+            .assert_true("jobs page renders content", !jobs_view.trim().is_empty());
 
         // Interact with Jobs page
         runner.step("Interact with Jobs page");
@@ -2128,10 +2137,9 @@ mod e2e_smoke_tour_tests {
         runner.assert_page(Page::Logs);
 
         let logs_view = runner.view();
-        runner.recorder.assert_true(
-            "logs page renders content",
-            !logs_view.trim().is_empty(),
-        );
+        runner
+            .recorder
+            .assert_true("logs page renders content", !logs_view.trim().is_empty());
 
         // Interact with Logs page
         runner.step("Interact with Logs page");
@@ -2174,7 +2182,9 @@ mod e2e_smoke_tour_tests {
             !final_view.trim().is_empty(),
         );
 
-        runner.finish().expect("wizard_job_logs_correlation should pass");
+        runner
+            .finish()
+            .expect("wizard_job_logs_correlation should pass");
     }
 }
 
@@ -2212,10 +2222,9 @@ mod e2e_files_tests {
 
         // Verify the Files page shows the fixture root
         let files_view = runner.view();
-        runner.recorder.assert_true(
-            "Files page shows content",
-            !files_view.trim().is_empty(),
-        );
+        runner
+            .recorder
+            .assert_true("Files page shows content", !files_view.trim().is_empty());
 
         // =========================================================================
         // Step 2: Navigate the file picker
@@ -2249,10 +2258,9 @@ mod e2e_files_tests {
         runner.drain();
 
         let after_enter = runner.view();
-        runner.recorder.assert_true(
-            "view updated after Enter",
-            !after_enter.trim().is_empty(),
-        );
+        runner
+            .recorder
+            .assert_true("view updated after Enter", !after_enter.trim().is_empty());
 
         // =========================================================================
         // Step 4: Navigate back with Backspace
@@ -2434,7 +2442,9 @@ mod e2e_navigation_tests {
         runner.press_key('1');
         runner.assert_page(Page::Dashboard);
 
-        runner.finish().expect("shortcut 1 should navigate to Dashboard");
+        runner
+            .finish()
+            .expect("shortcut 1 should navigate to Dashboard");
     }
 
     /// Verifies keyboard shortcut '2' navigates to Services.
@@ -2450,7 +2460,9 @@ mod e2e_navigation_tests {
         runner.press_key('2');
         runner.assert_page(Page::Services);
 
-        runner.finish().expect("shortcut 2 should navigate to Services");
+        runner
+            .finish()
+            .expect("shortcut 2 should navigate to Services");
     }
 
     /// Verifies keyboard shortcut '3' navigates to Jobs.
@@ -2514,7 +2526,9 @@ mod e2e_navigation_tests {
         runner.press_key('6');
         runner.assert_page(Page::Files);
 
-        runner.finish().expect("shortcut 6 should navigate to Files");
+        runner
+            .finish()
+            .expect("shortcut 6 should navigate to Files");
     }
 
     /// Verifies keyboard shortcut '7' navigates to Wizard.
@@ -2530,7 +2544,9 @@ mod e2e_navigation_tests {
         runner.press_key('7');
         runner.assert_page(Page::Wizard);
 
-        runner.finish().expect("shortcut 7 should navigate to Wizard");
+        runner
+            .finish()
+            .expect("shortcut 7 should navigate to Wizard");
     }
 
     /// Verifies keyboard shortcut '8' navigates to Settings.
@@ -2546,7 +2562,9 @@ mod e2e_navigation_tests {
         runner.press_key('8');
         runner.assert_page(Page::Settings);
 
-        runner.finish().expect("shortcut 8 should navigate to Settings");
+        runner
+            .finish()
+            .expect("shortcut 8 should navigate to Settings");
     }
 
     /// Verifies all 8 shortcuts in sequence.
@@ -2571,7 +2589,10 @@ mod e2e_navigation_tests {
         ];
 
         for (shortcut, expected_page) in pages {
-            runner.step(&format!("Navigate to {:?} with '{}'", expected_page, shortcut));
+            runner.step(&format!(
+                "Navigate to {:?} with '{}'",
+                expected_page, shortcut
+            ));
             runner.press_key(shortcut);
             runner.assert_page(expected_page);
         }
@@ -2659,7 +2680,9 @@ mod e2e_navigation_tests {
         runner.press_special(KeyType::Enter);
         runner.assert_page(Page::Services);
 
-        runner.finish().expect("sidebar arrow navigation should work");
+        runner
+            .finish()
+            .expect("sidebar arrow navigation should work");
     }
 
     // =========================================================================
@@ -2702,7 +2725,9 @@ mod e2e_navigation_tests {
             &format!("{}", runner.model().mouse_enabled()),
         );
 
-        runner.finish().expect("state should persist during navigation");
+        runner
+            .finish()
+            .expect("state should persist during navigation");
     }
 
     /// Verifies theme persists during navigation.
@@ -2730,7 +2755,9 @@ mod e2e_navigation_tests {
             &format!("{:?}", runner.model().theme_preset()),
         );
 
-        runner.finish().expect("theme should persist during navigation");
+        runner
+            .finish()
+            .expect("theme should persist during navigation");
     }
 
     // =========================================================================
@@ -2931,7 +2958,9 @@ mod e2e_navigation_tests {
         runner.assert_page(Page::Services);
         runner.assert_view_not_empty();
 
-        runner.finish().expect("same page navigation should be idempotent");
+        runner
+            .finish()
+            .expect("same page navigation should be idempotent");
     }
 
     /// Verifies invalid shortcuts are ignored.
@@ -2954,7 +2983,9 @@ mod e2e_navigation_tests {
         runner.press_key('z');
         runner.assert_page(Page::Dashboard);
 
-        runner.finish().expect("invalid shortcuts should be ignored");
+        runner
+            .finish()
+            .expect("invalid shortcuts should be ignored");
     }
 
     /// Verifies help overlay blocks navigation shortcuts.
@@ -2978,7 +3009,9 @@ mod e2e_navigation_tests {
         runner.press_special(KeyType::Esc);
         runner.assert_not_contains("Keyboard Shortcuts");
 
-        runner.finish().expect("help interaction should work correctly");
+        runner
+            .finish()
+            .expect("help interaction should work correctly");
     }
 
     /// Verifies navigation after resize.
@@ -3007,7 +3040,9 @@ mod e2e_navigation_tests {
         runner.assert_page(Page::Docs);
         runner.assert_view_not_empty();
 
-        runner.finish().expect("navigation should work after resize");
+        runner
+            .finish()
+            .expect("navigation should work after resize");
     }
 
     // =========================================================================
@@ -3079,7 +3114,9 @@ mod e2e_navigation_tests {
         runner.press_special(KeyType::Enter);
         runner.assert_page(Page::Services);
 
-        runner.finish().expect("full navigation scenario should pass");
+        runner
+            .finish()
+            .expect("full navigation scenario should pass");
     }
 }
 
@@ -3111,7 +3148,9 @@ mod e2e_wizard_tests {
         runner.assert_view_not_empty();
         runner.assert_contains("Wizard");
 
-        runner.finish().expect("wizard initial state should be correct");
+        runner
+            .finish()
+            .expect("wizard initial state should be correct");
     }
 
     /// Verifies navigation through wizard steps using Enter key.
@@ -3351,7 +3390,9 @@ mod e2e_wizard_tests {
             runner.assert_view_not_empty();
         }
 
-        runner.finish().expect("wizard should be accessible from all pages");
+        runner
+            .finish()
+            .expect("wizard should be accessible from all pages");
     }
 
     /// Verifies wizard state after navigation away and back.
@@ -3380,7 +3421,9 @@ mod e2e_wizard_tests {
         runner.assert_page(Page::Wizard);
         runner.assert_view_not_empty();
 
-        runner.finish().expect("wizard should be functional after navigation");
+        runner
+            .finish()
+            .expect("wizard should be functional after navigation");
     }
 
     // =========================================================================
@@ -3632,31 +3675,35 @@ mod e2e_logs_tests {
         runner.assert_page(Page::Logs);
         runner.assert_view_not_empty();
 
-        // Toggle each level filter
+        // Toggle each level filter - keys 1-5 should toggle filters, not navigate
         runner.step("Toggle ERROR filter with '1'");
         runner.press_key('1');
         runner.drain();
+        runner.assert_page(Page::Logs); // Must stay on Logs, not navigate to Dashboard
         runner.assert_view_not_empty();
 
         runner.step("Toggle WARN filter with '2'");
         runner.press_key('2');
         runner.drain();
+        runner.assert_page(Page::Logs); // Must stay on Logs, not navigate to Services
         runner.assert_view_not_empty();
 
         runner.step("Toggle INFO filter with '3'");
         runner.press_key('3');
         runner.drain();
+        runner.assert_page(Page::Logs); // Must stay on Logs, not navigate to Jobs
         runner.assert_view_not_empty();
 
         runner.step("Toggle DEBUG filter with '4'");
         runner.press_key('4');
         runner.drain();
-        // This navigates to Logs page again, so just check view
+        runner.assert_page(Page::Logs); // Must stay on Logs
         runner.assert_view_not_empty();
 
         runner.step("Toggle TRACE filter with '5'");
         runner.press_key('5');
         runner.drain();
+        runner.assert_page(Page::Logs); // Must stay on Logs, not navigate to Docs
         runner.assert_view_not_empty();
 
         runner.finish().expect("level filter toggles should work");
@@ -3675,11 +3722,13 @@ mod e2e_logs_tests {
         runner.step("Toggle INFO filter off");
         runner.press_key('3'); // Toggle INFO off
         runner.drain();
+        runner.assert_page(Page::Logs); // Must stay on Logs, not navigate
         runner.assert_view_not_empty();
 
         runner.step("Toggle INFO filter back on");
         runner.press_key('3'); // Toggle INFO back on
         runner.drain();
+        runner.assert_page(Page::Logs); // Must stay on Logs
         runner.assert_view_not_empty();
 
         runner.finish().expect("filtering should affect display");
@@ -3997,7 +4046,9 @@ mod e2e_logs_tests {
             runner.assert_view_not_empty();
         }
 
-        runner.finish().expect("logs should be accessible from all pages");
+        runner
+            .finish()
+            .expect("logs should be accessible from all pages");
     }
 
     // =========================================================================
@@ -4028,6 +4079,7 @@ mod e2e_logs_tests {
             runner.press_key('3');
         }
         runner.drain();
+        runner.assert_page(Page::Logs); // Must stay on Logs, not navigate away
 
         runner.step("Rapid search entry/exit");
         runner.press_key('/');
@@ -4177,5 +4229,529 @@ mod e2e_logs_tests {
         runner.assert_view_not_empty();
 
         runner.finish().expect("logs full scenario should pass");
+    }
+}
+
+// =============================================================================
+// E2E SCENARIO: THEME AND SETTINGS (bd-21sm)
+// =============================================================================
+
+#[cfg(test)]
+mod e2e_settings_page_tests {
+    use super::*;
+
+    // =========================================================================
+    // SETTINGS PAGE NAVIGATION TESTS
+    // =========================================================================
+
+    /// Verifies Settings page renders correctly.
+    #[test]
+    fn e2e_settings_page_renders() {
+        let mut runner = E2ERunner::new("settings_page_renders");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+
+        runner.step("Navigate to Settings page");
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+
+        runner.step("Verify Settings content");
+        runner.assert_view_not_empty();
+        runner.assert_contains("Settings");
+        runner.assert_contains("Toggles");
+        runner.assert_contains("Theme");
+
+        runner
+            .finish()
+            .expect("settings page should render correctly");
+    }
+
+    /// Verifies section switching with Tab.
+    #[test]
+    fn e2e_settings_section_switch() {
+        let mut runner = E2ERunner::new("settings_section_switch");
+
+        runner.step("Navigate to Settings");
+        runner.resize(120, 40);
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+
+        runner.step("Switch sections with Tab");
+        runner.press_special(KeyType::Tab);
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.step("Switch back with Tab");
+        runner.press_special(KeyType::Tab);
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("section switching should work");
+    }
+
+    /// Verifies navigation with j/k keys.
+    #[test]
+    fn e2e_settings_navigation() {
+        let mut runner = E2ERunner::new("settings_navigation");
+
+        runner.step("Navigate to Settings");
+        runner.resize(120, 40);
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+
+        runner.step("Navigate down with 'j'");
+        for _ in 0..3 {
+            runner.press_key('j');
+            runner.drain();
+        }
+        runner.assert_view_not_empty();
+
+        runner.step("Navigate up with 'k'");
+        for _ in 0..2 {
+            runner.press_key('k');
+            runner.drain();
+        }
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("settings navigation should work");
+    }
+
+    // =========================================================================
+    // TOGGLE TESTS
+    // =========================================================================
+
+    /// Verifies mouse toggle with 'm' key.
+    #[test]
+    fn e2e_settings_mouse_toggle() {
+        let mut runner = E2ERunner::new("settings_mouse_toggle");
+
+        runner.step("Navigate to Settings");
+        runner.resize(120, 40);
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+
+        runner.step("Toggle mouse with 'm'");
+        runner.press_key('m');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.step("Toggle mouse again with 'm'");
+        runner.press_key('m');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("mouse toggle should work");
+    }
+
+    /// Verifies animations toggle with 'a' key.
+    #[test]
+    fn e2e_settings_animations_toggle() {
+        let mut runner = E2ERunner::new("settings_animations_toggle");
+
+        runner.step("Navigate to Settings");
+        runner.resize(120, 40);
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+
+        runner.step("Toggle animations with 'a'");
+        runner.press_key('a');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.step("Toggle animations again");
+        runner.press_key('a');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("animations toggle should work");
+    }
+
+    /// Verifies ASCII mode toggle with 'c' key.
+    #[test]
+    fn e2e_settings_ascii_toggle() {
+        let mut runner = E2ERunner::new("settings_ascii_toggle");
+
+        runner.step("Navigate to Settings");
+        runner.resize(120, 40);
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+
+        runner.step("Toggle ASCII mode with 'c'");
+        runner.press_key('c');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.step("Toggle ASCII mode again");
+        runner.press_key('c');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("ASCII mode toggle should work");
+    }
+
+    /// Verifies syntax highlighting toggle with 's' key.
+    #[test]
+    fn e2e_settings_syntax_toggle() {
+        let mut runner = E2ERunner::new("settings_syntax_toggle");
+
+        runner.step("Navigate to Settings");
+        runner.resize(120, 40);
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+
+        runner.step("Toggle syntax with 's'");
+        runner.press_key('s');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.step("Toggle syntax again");
+        runner.press_key('s');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("syntax toggle should work");
+    }
+
+    /// Verifies toggle with Enter/Space.
+    #[test]
+    fn e2e_settings_toggle_with_enter() {
+        let mut runner = E2ERunner::new("settings_toggle_enter");
+
+        runner.step("Navigate to Settings");
+        runner.resize(120, 40);
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+
+        runner.step("Toggle with Enter");
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.step("Toggle with Space");
+        runner.press_key(' ');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("Enter/Space toggle should work");
+    }
+
+    // =========================================================================
+    // THEME TESTS
+    // =========================================================================
+
+    /// Verifies theme selection in Settings.
+    #[test]
+    fn e2e_settings_theme_selection() {
+        let mut runner = E2ERunner::new("settings_theme_selection");
+
+        runner.step("Navigate to Settings");
+        runner.resize(120, 40);
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+
+        runner.step("Switch to Theme section");
+        runner.press_special(KeyType::Tab);
+        runner.drain();
+
+        runner.step("Navigate through themes");
+        runner.press_key('j');
+        runner.drain();
+        runner.press_key('j');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.step("Select theme with Enter");
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("theme selection should work");
+    }
+
+    /// Verifies global theme toggle with 't' key.
+    #[test]
+    fn e2e_settings_global_theme_toggle() {
+        let mut runner = E2ERunner::new("settings_global_theme");
+
+        runner.step("Initialize on Dashboard");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Toggle theme with 't'");
+        runner.press_key('t');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.step("Toggle theme again");
+        runner.press_key('t');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.step("Toggle theme several times");
+        for _ in 0..4 {
+            runner.press_key('t');
+            runner.drain();
+        }
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("global theme toggle should work");
+    }
+
+    /// Verifies theme persists across pages.
+    #[test]
+    fn e2e_theme_persists_across_pages() {
+        let mut runner = E2ERunner::new("theme_persists_pages");
+
+        runner.step("Initialize");
+        runner.resize(120, 40);
+
+        runner.step("Toggle theme on Dashboard");
+        runner.press_key('t');
+        runner.drain();
+
+        runner.step("Navigate to different pages and verify theme persists");
+        let pages = [
+            ('2', Page::Services),
+            ('3', Page::Jobs),
+            ('4', Page::Logs),
+            ('5', Page::Docs),
+        ];
+
+        for (key, page) in pages {
+            runner.press_key(key);
+            runner.assert_page(page);
+            runner.assert_view_not_empty();
+        }
+
+        runner.step("Return to Dashboard");
+        runner.press_key('1');
+        runner.assert_page(Page::Dashboard);
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("theme should persist across pages");
+    }
+
+    // =========================================================================
+    // CROSS-PAGE TESTS
+    // =========================================================================
+
+    /// Verifies Settings accessible from all pages.
+    #[test]
+    fn e2e_settings_accessible_from_all_pages() {
+        let mut runner = E2ERunner::new("settings_accessible_from_all");
+
+        runner.step("Initialize");
+        runner.resize(120, 40);
+
+        let pages = [
+            ('1', Page::Dashboard),
+            ('2', Page::Services),
+            ('3', Page::Jobs),
+            ('4', Page::Logs),
+            ('5', Page::Docs),
+            ('6', Page::Files),
+            ('7', Page::Wizard),
+        ];
+
+        for (key, page) in pages {
+            runner.step(&format!("Navigate to {:?}", page));
+            runner.press_key(key);
+            runner.assert_page(page);
+
+            runner.step(&format!("Navigate to Settings from {:?}", page));
+            runner.press_key('8');
+            runner.assert_page(Page::Settings);
+            runner.assert_view_not_empty();
+        }
+
+        runner
+            .finish()
+            .expect("settings should be accessible from all pages");
+    }
+
+    // =========================================================================
+    // ROBUSTNESS TESTS
+    // =========================================================================
+
+    /// Verifies Settings handles rapid toggles.
+    #[test]
+    fn e2e_settings_rapid_toggles() {
+        let mut runner = E2ERunner::new("settings_rapid_toggles");
+
+        runner.step("Navigate to Settings");
+        runner.resize(120, 40);
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+
+        runner.step("Rapid toggle keys");
+        for _ in 0..3 {
+            runner.press_key('m');
+            runner.press_key('a');
+            runner.press_key('c');
+            runner.press_key('s');
+        }
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.step("Rapid navigation");
+        for _ in 0..5 {
+            runner.press_key('j');
+            runner.press_key('k');
+        }
+        runner.drain();
+
+        runner.step("Rapid section switching");
+        for _ in 0..4 {
+            runner.press_special(KeyType::Tab);
+        }
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("settings should handle rapid input");
+    }
+
+    /// Verifies Settings handles resize.
+    #[test]
+    fn e2e_settings_resize_handling() {
+        let mut runner = E2ERunner::new("settings_resize");
+
+        runner.step("Initialize with large size");
+        runner.resize(160, 50);
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+        runner.assert_view_not_empty();
+
+        runner.step("Resize to small");
+        runner.resize(80, 24);
+        runner.assert_view_not_empty();
+        runner.assert_page(Page::Settings);
+
+        runner.step("Resize to medium");
+        runner.resize(120, 35);
+        runner.assert_view_not_empty();
+        runner.assert_page(Page::Settings);
+
+        runner.step("Resize to large");
+        runner.resize(200, 60);
+        runner.assert_view_not_empty();
+        runner.assert_page(Page::Settings);
+
+        runner.finish().expect("settings should handle resize");
+    }
+
+    // =========================================================================
+    // COMPREHENSIVE SETTINGS SCENARIO
+    // =========================================================================
+
+    /// Full Settings scenario: toggles, themes, and navigation.
+    #[test]
+    fn e2e_settings_full_scenario() {
+        let mut runner = E2ERunner::new("settings_full_scenario");
+
+        // =====================================================================
+        // Initialization
+        // =====================================================================
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        // =====================================================================
+        // Navigate to Settings
+        // =====================================================================
+        runner.step("Navigate to Settings");
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+        runner.assert_view_not_empty();
+        runner.assert_contains("Settings");
+        runner.assert_contains("Toggles");
+        runner.assert_contains("Theme");
+
+        // =====================================================================
+        // Test Toggles Section
+        // =====================================================================
+        runner.step("Test toggles section");
+        runner.assert_view_not_empty();
+
+        // Navigate through toggles
+        runner.press_key('j');
+        runner.press_key('j');
+        runner.drain();
+
+        // Toggle some options
+        runner.step("Toggle animations off");
+        runner.press_key('a');
+        runner.drain();
+
+        runner.step("Toggle syntax highlighting");
+        runner.press_key('s');
+        runner.drain();
+
+        // =====================================================================
+        // Test Theme Section
+        // =====================================================================
+        runner.step("Switch to Theme section");
+        runner.press_special(KeyType::Tab);
+        runner.drain();
+
+        runner.step("Navigate through themes");
+        runner.press_key('j');
+        runner.drain();
+        runner.press_key('j');
+        runner.drain();
+
+        runner.step("Apply selected theme");
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        // =====================================================================
+        // Test Global Theme Toggle
+        // =====================================================================
+        runner.step("Test global theme toggle");
+        runner.press_key('t');
+        runner.drain();
+        runner.press_key('t');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        // =====================================================================
+        // Cross-Page Verification
+        // =====================================================================
+        runner.step("Navigate to other pages to verify settings apply");
+        runner.press_key('1');
+        runner.assert_page(Page::Dashboard);
+        runner.assert_view_not_empty();
+
+        runner.press_key('5');
+        runner.assert_page(Page::Docs);
+        runner.assert_view_not_empty();
+
+        runner.press_key('4');
+        runner.assert_page(Page::Logs);
+        runner.assert_view_not_empty();
+
+        // Return to Settings
+        runner.step("Return to Settings");
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+        runner.assert_view_not_empty();
+
+        // =====================================================================
+        // Restore Settings
+        // =====================================================================
+        runner.step("Restore default toggles");
+        runner.press_key('a');
+        runner.press_key('s');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        // =====================================================================
+        // Final Verification
+        // =====================================================================
+        runner.step("Final verification");
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("settings full scenario should pass");
     }
 }

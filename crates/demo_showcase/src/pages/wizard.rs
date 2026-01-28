@@ -1160,7 +1160,9 @@ impl WizardPage {
         self.state.deployment_status = DeploymentStatus::InProgress(0);
         let config = self.deployment_config();
 
-        Some(Cmd::new(move || WizardMsg::DeploymentStarted(config).into_message()))
+        Some(Cmd::new(move || {
+            WizardMsg::DeploymentStarted(config).into_message()
+        }))
     }
 
     /// Tick the deployment progress (called from app tick).

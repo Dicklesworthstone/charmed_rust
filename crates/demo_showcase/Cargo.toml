@@ -53,6 +53,7 @@ rand_pcg = "0.9"
 tempfile.workspace = true
 assert_cmd.workspace = true
 predicates.workspace = true
+insta.workspace = true
 
 [lints]
 workspace = true

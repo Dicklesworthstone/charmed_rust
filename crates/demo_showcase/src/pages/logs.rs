@@ -463,8 +463,7 @@ impl LogsPage {
                     NotificationMsg::Show(notification).into_message()
                 }
                 Err(e) => {
-                    let notification =
-                        Notification::error(0, format!("Export failed: {e}"));
+                    let notification = Notification::error(0, format!("Export failed: {e}"));
                     NotificationMsg::Show(notification).into_message()
                 }
             }
@@ -509,10 +508,8 @@ impl LogsPage {
 
             match std::fs::write(&filepath, content) {
                 Ok(()) => {
-                    let notification = Notification::success(
-                        0,
-                        format!("Copied to {}", filepath.display()),
-                    );
+                    let notification =
+                        Notification::success(0, format!("Copied to {}", filepath.display()));
                     NotificationMsg::Show(notification).into_message()
                 }
                 Err(e) => {
@@ -1135,8 +1132,14 @@ mod tests {
         page.apply_filters();
         let mixed_count = page.filtered_indices.len();
 
-        assert_eq!(upper_count, lower_count, "Case should not affect match count");
-        assert_eq!(lower_count, mixed_count, "Case should not affect match count");
+        assert_eq!(
+            upper_count, lower_count,
+            "Case should not affect match count"
+        );
+        assert_eq!(
+            lower_count, mixed_count,
+            "Case should not affect match count"
+        );
     }
 
     #[test]
@@ -1167,7 +1170,10 @@ mod tests {
 
         // Logs should be cleared
         assert!(page.logs.is_empty(), "Logs should be empty after clear");
-        assert!(page.filtered_indices.is_empty(), "Filtered indices should be empty");
+        assert!(
+            page.filtered_indices.is_empty(),
+            "Filtered indices should be empty"
+        );
         // Should return a notification command
         assert!(cmd.is_some(), "Should return a notification command");
     }

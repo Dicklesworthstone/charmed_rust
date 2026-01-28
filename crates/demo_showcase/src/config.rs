@@ -564,7 +564,10 @@ mod tests {
     #[test]
     fn default_has_no_seed() {
         let config = Config::default();
-        assert!(config.seed.is_none(), "default config should have no fixed seed");
+        assert!(
+            config.seed.is_none(),
+            "default config should have no fixed seed"
+        );
     }
 
     #[test]
@@ -894,7 +897,10 @@ mod tests {
             ..Default::default()
         };
         assert!(config.use_animations(), "Reduced still means animations on");
-        assert!(config.reduce_motion(), "Reduced should report reduce_motion");
+        assert!(
+            config.reduce_motion(),
+            "Reduced should report reduce_motion"
+        );
     }
 
     #[test]
@@ -919,12 +925,7 @@ mod tests {
 
     #[test]
     fn cli_seed_max_u64() {
-        let cli = Cli::try_parse_from([
-            "demo_showcase",
-            "--seed",
-            &u64::MAX.to_string(),
-        ])
-        .unwrap();
+        let cli = Cli::try_parse_from(["demo_showcase", "--seed", &u64::MAX.to_string()]).unwrap();
         let config = Config::from_cli(&cli);
         assert_eq!(config.seed, Some(u64::MAX));
     }

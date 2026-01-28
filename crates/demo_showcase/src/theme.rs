@@ -1317,11 +1317,20 @@ mod tests {
                 ThemePreset::Dracula => Theme::dracula(),
             };
 
-            assert_eq!(theme.primary, reference.primary, "primary mismatch for {preset:?}");
+            assert_eq!(
+                theme.primary, reference.primary,
+                "primary mismatch for {preset:?}"
+            );
             assert_eq!(theme.bg, reference.bg, "bg mismatch for {preset:?}");
             assert_eq!(theme.text, reference.text, "text mismatch for {preset:?}");
-            assert_eq!(theme.success, reference.success, "success mismatch for {preset:?}");
-            assert_eq!(theme.error, reference.error, "error mismatch for {preset:?}");
+            assert_eq!(
+                theme.success, reference.success,
+                "success mismatch for {preset:?}"
+            );
+            assert_eq!(
+                theme.error, reference.error,
+                "error mismatch for {preset:?}"
+            );
         }
     }
 

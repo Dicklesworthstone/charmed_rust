@@ -587,7 +587,9 @@ impl JobsPage {
 
                 // Create a notification message
                 let notification = Notification::new(0, message.clone(), level);
-                let notification_cmd = Some(Cmd::new(move || NotificationMsg::Show(notification).into_message()));
+                let notification_cmd = Some(Cmd::new(move || {
+                    NotificationMsg::Show(notification).into_message()
+                }));
 
                 // bd-7iul: Emit println for job lifecycle events (visible in no-alt-screen mode)
                 // Only emit for Info/Success (job started, completed) to avoid noise
@@ -1463,8 +1465,14 @@ mod tests {
         page.apply_filter_and_sort();
         let mixed_count = page.filtered_indices.len();
 
-        assert_eq!(upper_count, lower_count, "Case should not affect match count");
-        assert_eq!(lower_count, mixed_count, "Case should not affect match count");
+        assert_eq!(
+            upper_count, lower_count,
+            "Case should not affect match count"
+        );
+        assert_eq!(
+            lower_count, mixed_count,
+            "Case should not affect match count"
+        );
     }
 
     #[test]
@@ -1513,7 +1521,10 @@ mod tests {
         page.apply_filter_and_sort();
 
         // With no status enabled, should show no jobs
-        assert!(page.filtered_indices.is_empty(), "No status enabled should show no jobs");
+        assert!(
+            page.filtered_indices.is_empty(),
+            "No status enabled should show no jobs"
+        );
 
         // Enable one status
         page.status_filter.running = true;
@@ -1556,7 +1567,9 @@ mod tests {
 
         if let Some(idx) = queued_idx {
             // Navigate to the queued job
-            while page.selected_job_index() != Some(idx) && page.table.cursor() < page.filtered_indices.len() {
+            while page.selected_job_index() != Some(idx)
+                && page.table.cursor() < page.filtered_indices.len()
+            {
                 page.table.move_down(1);
             }
 
@@ -1578,11 +1591,16 @@ mod tests {
         let mut page = JobsPage::new();
 
         // Find a running job
-        let running_idx = page.jobs.iter().position(|j| j.status == JobStatus::Running);
+        let running_idx = page
+            .jobs
+            .iter()
+            .position(|j| j.status == JobStatus::Running);
 
         if let Some(idx) = running_idx {
             // Navigate to the running job
-            while page.selected_job_index() != Some(idx) && page.table.cursor() < page.filtered_indices.len() {
+            while page.selected_job_index() != Some(idx)
+                && page.table.cursor() < page.filtered_indices.len()
+            {
                 page.table.move_down(1);
             }
 
@@ -1599,11 +1617,16 @@ mod tests {
         let mut page = JobsPage::new();
 
         // Find a running job
-        let running_idx = page.jobs.iter().position(|j| j.status == JobStatus::Running);
+        let running_idx = page
+            .jobs
+            .iter()
+            .position(|j| j.status == JobStatus::Running);
 
         if let Some(idx) = running_idx {
             // Navigate to the running job
-            while page.selected_job_index() != Some(idx) && page.table.cursor() < page.filtered_indices.len() {
+            while page.selected_job_index() != Some(idx)
+                && page.table.cursor() < page.filtered_indices.len()
+            {
                 page.table.move_down(1);
             }
 
@@ -1625,11 +1648,16 @@ mod tests {
         let mut page = JobsPage::new();
 
         // Find a completed job
-        let completed_idx = page.jobs.iter().position(|j| j.status == JobStatus::Completed);
+        let completed_idx = page
+            .jobs
+            .iter()
+            .position(|j| j.status == JobStatus::Completed);
 
         if let Some(idx) = completed_idx {
             // Navigate to the completed job
-            while page.selected_job_index() != Some(idx) && page.table.cursor() < page.filtered_indices.len() {
+            while page.selected_job_index() != Some(idx)
+                && page.table.cursor() < page.filtered_indices.len()
+            {
                 page.table.move_down(1);
             }
 
@@ -1650,7 +1678,9 @@ mod tests {
 
         if let Some(idx) = failed_idx {
             // Navigate to the failed job
-            while page.selected_job_index() != Some(idx) && page.table.cursor() < page.filtered_indices.len() {
+            while page.selected_job_index() != Some(idx)
+                && page.table.cursor() < page.filtered_indices.len()
+            {
                 page.table.move_down(1);
             }
 
@@ -1677,11 +1707,16 @@ mod tests {
         let mut page = JobsPage::new();
 
         // Find a running job
-        let running_idx = page.jobs.iter().position(|j| j.status == JobStatus::Running);
+        let running_idx = page
+            .jobs
+            .iter()
+            .position(|j| j.status == JobStatus::Running);
 
         if let Some(idx) = running_idx {
             // Navigate to the running job
-            while page.selected_job_index() != Some(idx) && page.table.cursor() < page.filtered_indices.len() {
+            while page.selected_job_index() != Some(idx)
+                && page.table.cursor() < page.filtered_indices.len()
+            {
                 page.table.move_down(1);
             }
 

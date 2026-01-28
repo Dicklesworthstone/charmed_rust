@@ -27,7 +27,7 @@
 //! When running in headless/self-check mode, these functions return `None`
 //! (no-op) to prevent hanging on user input.
 
-use bubbletea::{screen, sequence, Cmd, Message};
+use bubbletea::{Cmd, Message, screen, sequence};
 use std::env;
 use std::io::{self, Read, Write};
 use std::process::Command;
@@ -206,10 +206,7 @@ pub fn generate_diagnostics() -> String {
 
     // Version info
     lines.push("Version Information:".to_string());
-    lines.push(format!(
-        "  Package Version: {}",
-        env!("CARGO_PKG_VERSION")
-    ));
+    lines.push(format!("  Package Version: {}", env!("CARGO_PKG_VERSION")));
     lines.push(format!("  Rust Version: {}", rustc_version()));
     lines.push(String::new());
 
@@ -220,7 +217,10 @@ pub fn generate_diagnostics() -> String {
         "  COLORTERM: {}",
         env::var("COLORTERM").unwrap_or_default()
     ));
-    lines.push(format!("  PAGER: {}", env::var("PAGER").unwrap_or_default()));
+    lines.push(format!(
+        "  PAGER: {}",
+        env::var("PAGER").unwrap_or_default()
+    ));
     lines.push(format!(
         "  NO_COLOR: {}",
         if env::var("NO_COLOR").is_ok() {
@@ -430,7 +430,10 @@ mod tests {
         // Step 1: release_terminal produces a terminal control message (not ShellOutMsg).
         let release_cmd = seq.0.into_iter().next().unwrap();
         let release_msg = release_cmd.execute();
-        assert!(release_msg.is_some(), "release cmd should produce a message");
+        assert!(
+            release_msg.is_some(),
+            "release cmd should produce a message"
+        );
         assert!(
             !release_msg.unwrap().is::<ShellOutMsg>(),
             "first step must be a terminal control message, not ShellOutMsg"

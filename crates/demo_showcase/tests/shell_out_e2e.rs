@@ -53,7 +53,9 @@ fn e2e_shell_out_d_key_headless_no_hang() {
     runner.press_key('2');
     runner.assert_page(Page::Services);
 
-    runner.finish().expect("D key in headless mode should not hang");
+    runner
+        .finish()
+        .expect("D key in headless mode should not hang");
 }
 
 /// Verifies that 'D' key can be pressed from any page without issues.
@@ -160,7 +162,9 @@ fn e2e_shell_out_headless_instant() {
     runner.press_key('4');
     runner.assert_page(Page::Logs);
 
-    runner.finish().expect("headless shell-out should be instant");
+    runner
+        .finish()
+        .expect("headless shell-out should be instant");
 }
 
 /// Verifies that multiple D key presses don't accumulate or cause issues.
@@ -189,7 +193,9 @@ fn e2e_shell_out_multiple_d_presses() {
     runner.press_key('5');
     runner.assert_page(Page::Docs);
 
-    runner.finish().expect("multiple D presses should not cause issues");
+    runner
+        .finish()
+        .expect("multiple D presses should not cause issues");
 }
 
 // =============================================================================
@@ -247,10 +253,7 @@ fn e2e_shell_out_view_intact() {
     runner.step("Verify view has similar length (not corrupted)");
     let after_view_len = runner.view().len();
     // Allow some variance but view should not be empty or drastically different
-    assert!(
-        after_view_len > 0,
-        "view should not be empty after D key"
-    );
+    assert!(after_view_len > 0, "view should not be empty after D key");
     assert!(
         after_view_len > before_view_len / 2,
         "view should not be drastically smaller after D key"
@@ -259,7 +262,9 @@ fn e2e_shell_out_view_intact() {
     runner.step("Verify Settings page content visible");
     runner.assert_contains("Settings");
 
-    runner.finish().expect("view should remain intact after shell-out");
+    runner
+        .finish()
+        .expect("view should remain intact after shell-out");
 }
 
 /// Verifies mouse capture is not affected by shell-out in headless mode.
@@ -322,7 +327,9 @@ fn e2e_shell_out_graceful_recovery() {
     runner.step("Verify form still interactive");
     runner.assert_page(Page::Wizard);
 
-    runner.finish().expect("app should recover gracefully from shell-out");
+    runner
+        .finish()
+        .expect("app should recover gracefully from shell-out");
 }
 
 // =============================================================================
@@ -352,7 +359,9 @@ fn e2e_shell_out_with_theme_switch() {
     runner.step("Verify theme switching still works after D");
     runner.assert_view_not_empty();
 
-    runner.finish().expect("D key should work with theme switching");
+    runner
+        .finish()
+        .expect("D key should work with theme switching");
 }
 
 /// Verifies that D key works with resize events.
@@ -383,7 +392,9 @@ fn e2e_shell_out_with_resize() {
     runner.press_key('2');
     runner.assert_page(Page::Services);
 
-    runner.finish().expect("D key should work with resize events");
+    runner
+        .finish()
+        .expect("D key should work with resize events");
 }
 
 // =============================================================================
@@ -458,7 +469,9 @@ fn e2e_shell_out_smoke_test() {
 
 /// Tests that are more unit-test-like but run via E2E infrastructure.
 mod shell_out_unit_style {
-    use demo_showcase::shell_action::{generate_diagnostics, open_in_pager, open_diagnostics_in_pager};
+    use demo_showcase::shell_action::{
+        generate_diagnostics, open_diagnostics_in_pager, open_in_pager,
+    };
 
     #[test]
     fn diagnostics_content_not_empty() {
@@ -469,14 +482,23 @@ mod shell_out_unit_style {
     #[test]
     fn diagnostics_contains_version_info() {
         let diag = generate_diagnostics();
-        assert!(diag.contains("Version Information"), "should have version section");
-        assert!(diag.contains("Package Version"), "should have package version");
+        assert!(
+            diag.contains("Version Information"),
+            "should have version section"
+        );
+        assert!(
+            diag.contains("Package Version"),
+            "should have package version"
+        );
     }
 
     #[test]
     fn diagnostics_contains_environment_info() {
         let diag = generate_diagnostics();
-        assert!(diag.contains("Environment"), "should have environment section");
+        assert!(
+            diag.contains("Environment"),
+            "should have environment section"
+        );
         assert!(diag.contains("TERM"), "should show TERM var");
         assert!(diag.contains("COLORTERM"), "should show COLORTERM var");
     }
@@ -492,7 +514,10 @@ mod shell_out_unit_style {
     #[test]
     fn diagnostics_contains_charmed_components() {
         let diag = generate_diagnostics();
-        assert!(diag.contains("Charmed Rust Components"), "should list charmed crates");
+        assert!(
+            diag.contains("Charmed Rust Components"),
+            "should list charmed crates"
+        );
         assert!(diag.contains("bubbletea"), "should mention bubbletea");
         assert!(diag.contains("lipgloss"), "should mention lipgloss");
     }

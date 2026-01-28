@@ -165,7 +165,12 @@ fn logger_set_level_roundtrip() {
         Level::Fatal,
     ] {
         logger.set_level(level);
-        assert_eq!(logger.level(), level, "Level round-trip failed for {:?}", level);
+        assert_eq!(
+            logger.level(),
+            level,
+            "Level round-trip failed for {:?}",
+            level
+        );
     }
 }
 
@@ -365,7 +370,11 @@ fn short_caller_formatter_trims_path() {
         "Should contain filename: {}",
         result
     );
-    assert!(result.contains("42"), "Should contain line number: {}", result);
+    assert!(
+        result.contains("42"),
+        "Should contain line number: {}",
+        result
+    );
 }
 
 #[test]
@@ -390,7 +399,11 @@ fn long_caller_formatter_full_path() {
         "Should contain full path: {}",
         result
     );
-    assert!(result.contains("42"), "Should contain line number: {}", result);
+    assert!(
+        result.contains("42"),
+        "Should contain line number: {}",
+        result
+    );
 }
 
 #[test]
@@ -878,7 +891,10 @@ fn logger_many_fields() {
     let fields: Vec<(String, String)> = (0..100)
         .map(|i| (format!("key_{i}"), format!("value_{i}")))
         .collect();
-    let field_refs: Vec<(&str, &str)> = fields.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    let field_refs: Vec<(&str, &str)> = fields
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
     logger.info("many fields", &field_refs);
 }
 

@@ -788,10 +788,7 @@ mod tests {
         sluggish.animate_to(100.0);
         for i in 0..600 {
             sluggish.tick();
-            assert!(
-                sluggish.get().is_finite(),
-                "NaN/Inf (sluggish) at tick {i}"
-            );
+            assert!(sluggish.get().is_finite(), "NaN/Inf (sluggish) at tick {i}");
         }
     }
 
@@ -869,7 +866,10 @@ mod tests {
             animator.tick();
         }
         let mid_value = animator.get("x").unwrap();
-        assert!(mid_value > 0.0 && mid_value < 100.0, "should be mid-animation");
+        assert!(
+            mid_value > 0.0 && mid_value < 100.0,
+            "should be mid-animation"
+        );
 
         // Disable animations
         animator.set_enabled(false);

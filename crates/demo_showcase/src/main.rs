@@ -33,14 +33,14 @@
 use bubbletea::Program;
 
 // Re-export from library for use in main
+use clap::Parser;
 use demo_showcase::app::App;
 use demo_showcase::cli::{Cli, Command};
 use demo_showcase::config::Config;
 use demo_showcase::messages;
-use demo_showcase::test_support;
 #[cfg(feature = "ssh")]
 use demo_showcase::ssh;
-use clap::Parser;
+use demo_showcase::test_support;
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
