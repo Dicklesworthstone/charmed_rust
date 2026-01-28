@@ -34,10 +34,13 @@ mod app;
 pub mod cli;
 mod components;
 pub mod config;
+pub mod content;
 mod data;
 mod keymap;
 mod messages;
 mod pages;
+#[cfg(feature = "ssh")]
+mod ssh;
 pub mod test_support;
 mod theme;
 
@@ -53,8 +56,7 @@ fn main() -> anyhow::Result<()> {
 
     // Handle subcommands
     if let Some(cmd) = &cli.command {
-        handle_subcommand(cmd, &cli);
-        return Ok(());
+        return handle_subcommand(cmd, &cli);
     }
 
     // Build runtime config from CLI
@@ -107,13 +109,44 @@ const fn build_app_config(config: &Config) -> AppConfig {
 }
 
 /// Handle subcommands.
-fn handle_subcommand(cmd: &Command, cli: &Cli) {
+///
+/// # Errors
+///
+/// Returns an error if the subcommand fails.
+fn handle_subcommand(cmd: &Command, cli: &Cli) -> anyhow::Result<()> {
     match cmd {
         #[cfg(feature = "ssh")]
         Command::Ssh(args) => {
-            eprintln!("SSH mode not yet implemented");
-            eprintln!("Would listen on: {}", args.addr);
-            eprintln!("Host key: {}", args.host_key.display());
+            let config = Config::from_cli(cli);
+            let ssh_config = ssh::SshConfig::from_args(args, &config);
+
+            // Initialize tracing for logging
+            init_tracing(cli.verbose);
+
+            // Run the SSH server using tokio runtime
+            let runtime = tokio::runtime::Runtime::new()?;
+            runtime.block_on(async {
+                if let Err(e) = ssh::run_ssh_server(ssh_config).await {
+                    // Print user-friendly error messages
+                    match &e {
+                        ssh::SshError::HostKeyNotFound(path) => {
+                            eprintln!("Error: Host key file not found: {path}");
+                            eprintln!();
+                            eprintln!("To generate a host key, run:");
+                            eprintln!("  ssh-keygen -t ed25519 -f {path} -N \"\"");
+                            eprintln!("  chmod 600 {path}");
+                        }
+                        ssh::SshError::BindFailed(addr, reason) => {
+                            eprintln!("Error: Failed to bind to {addr}");
+                            eprintln!("  {reason}");
+                        }
+                        _ => {
+                            eprintln!("Error: {e}");
+                        }
+                    }
+                    std::process::exit(1);
+                }
+            });
         }
         Command::Export(args) => {
             eprintln!("Export not yet implemented");
@@ -127,6 +160,28 @@ fn handle_subcommand(cmd: &Command, cli: &Cli) {
             print_diagnostics(cli);
         }
     }
+    Ok(())
+}
+
+/// Initialize tracing with the given verbosity level.
+#[cfg(feature = "ssh")]
+fn init_tracing(verbosity: u8) {
+    use tracing_subscriber::EnvFilter;
+
+    let level = match verbosity {
+        0 => "warn",
+        1 => "info",
+        2 => "debug",
+        _ => "trace",
+    };
+
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new(format!("demo_showcase={level},wish={level}")));
+
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_target(false)
+        .init();
 }
 
 /// Run headless self-check mode.

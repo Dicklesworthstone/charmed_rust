@@ -10,7 +10,7 @@ description = "Flagship showcase demonstrating all charmed_rust capabilities"
 [features]
 default = ["syntax-highlighting"]
 syntax-highlighting = ["glamour/syntax-highlighting"]
-ssh = ["dep:wish"]
+ssh = ["dep:wish", "dep:tracing", "dep:tracing-subscriber"]
 
 [dependencies]
 # Core TUI framework
@@ -26,6 +26,8 @@ charmed_log = { path = "../charmed_log" }
 
 # Optional SSH support
 wish = { path = "../wish", optional = true }
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 
 # CLI
 clap = { version = "4.4", features = ["derive", "env"] }

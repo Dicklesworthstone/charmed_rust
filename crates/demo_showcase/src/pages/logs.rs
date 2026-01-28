@@ -2,8 +2,10 @@
 //!
 //! This page displays a scrollable log stream with color-coded levels,
 //! follow mode for live tailing, and smooth navigation.
+//!
+//! Uses `RwLock` for thread-safe interior mutability, enabling SSH mode.
 
-use std::cell::RefCell;
+use std::sync::RwLock;
 
 use bubbles::viewport::Viewport;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message};
@@ -22,8 +24,8 @@ const MAX_LOG_ENTRIES: usize = 1000;
 
 /// Logs page showing real-time log viewer with follow mode.
 pub struct LogsPage {
-    /// The viewport for scrollable content (`RefCell` for interior mutability in view).
-    viewport: RefCell<Viewport>,
+    /// The viewport for scrollable content (`RwLock` for thread-safe interior mutability).
+    viewport: RwLock<Viewport>,
     /// The log stream containing entries.
     logs: LogStream,
     /// Whether follow mode is enabled (tail -f behavior).
@@ -33,12 +35,12 @@ pub struct LogsPage {
     selected_line: Option<usize>,
     /// Current seed for data generation.
     seed: u64,
-    /// Cached formatted content (`RefCell` for interior mutability in view).
-    formatted_content: RefCell<String>,
+    /// Cached formatted content (`RwLock` for thread-safe interior mutability).
+    formatted_content: RwLock<String>,
     /// Whether content needs to be reformatted.
-    needs_reformat: RefCell<bool>,
+    needs_reformat: RwLock<bool>,
     /// Last known dimensions (for detecting resize).
-    last_dims: RefCell<(usize, usize)>,
+    last_dims: RwLock<(usize, usize)>,
 }
 
 impl LogsPage {
@@ -60,14 +62,14 @@ impl LogsPage {
         viewport.mouse_wheel_delta = 3;
 
         Self {
-            viewport: RefCell::new(viewport),
+            viewport: RwLock::new(viewport),
             logs,
             following: true,
             selected_line: None,
             seed,
-            formatted_content: RefCell::new(String::new()),
-            needs_reformat: RefCell::new(true),
-            last_dims: RefCell::new((0, 0)),
+            formatted_content: RwLock::new(String::new()),
+            needs_reformat: RwLock::new(true),
+            last_dims: RwLock::new((0, 0)),
         }
     }
 
@@ -186,9 +188,9 @@ impl LogsPage {
         self.seed = self.seed.wrapping_add(1);
         let data = GeneratedData::generate(self.seed);
         self.logs = Self::generate_initial_logs(&data, self.seed);
-        *self.needs_reformat.borrow_mut() = true;
+        *self.needs_reformat.write().unwrap() = true;
         if self.following {
-            self.viewport.borrow_mut().goto_bottom();
+            self.viewport.write().unwrap().goto_bottom();
         }
     }
 
@@ -196,9 +198,9 @@ impl LogsPage {
     #[allow(dead_code)] // Reserved for simulation tick integration
     pub fn push_log(&mut self, entry: LogEntry) {
         self.logs.push(entry);
-        *self.needs_reformat.borrow_mut() = true;
+        *self.needs_reformat.write().unwrap() = true;
         if self.following {
-            self.viewport.borrow_mut().goto_bottom();
+            self.viewport.write().unwrap().goto_bottom();
         }
     }
 
@@ -206,13 +208,13 @@ impl LogsPage {
     pub fn toggle_follow(&mut self) {
         self.following = !self.following;
         if self.following {
-            self.viewport.borrow_mut().goto_bottom();
+            self.viewport.write().unwrap().goto_bottom();
         }
     }
 
     /// Check if follow mode should pause (user scrolled up).
     fn check_follow_pause(&mut self) {
-        if self.following && !self.viewport.borrow().at_bottom() {
+        if self.following && !self.viewport.read().unwrap().at_bottom() {
             self.following = false;
         }
     }
@@ -252,7 +254,7 @@ impl LogsPage {
         );
         let stats_styled = theme.muted_style().render(&stats);
 
-        let viewport = self.viewport.borrow();
+        let viewport = self.viewport.read().unwrap();
         let position = format!(
             "{}/{}",
             viewport.y_offset() + viewport.visible_line_count(),
@@ -291,12 +293,12 @@ impl PageModel for LogsPage {
             // Handle special keys
             match key.key_type {
                 KeyType::Home => {
-                    self.viewport.borrow_mut().goto_top();
+                    self.viewport.write().unwrap().goto_top();
                     self.following = false;
                     return None;
                 }
                 KeyType::End => {
-                    self.viewport.borrow_mut().goto_bottom();
+                    self.viewport.write().unwrap().goto_bottom();
                     self.following = true;
                     return None;
                 }
@@ -310,13 +312,13 @@ impl PageModel for LogsPage {
                         }
                         // Go to top with 'g'
                         ['g'] => {
-                            self.viewport.borrow_mut().goto_top();
+                            self.viewport.write().unwrap().goto_top();
                             self.following = false;
                             return None;
                         }
                         // Go to bottom with 'G'
                         ['G'] => {
-                            self.viewport.borrow_mut().goto_bottom();
+                            self.viewport.write().unwrap().goto_bottom();
                             self.following = true;
                             return None;
                         }
@@ -333,7 +335,7 @@ impl PageModel for LogsPage {
         }
 
         // Delegate to viewport for scroll handling
-        self.viewport.borrow_mut().update(msg);
+        self.viewport.write().unwrap().update(msg);
 
         // Check if scrolling paused follow mode
         self.check_follow_pause();
@@ -346,20 +348,20 @@ impl PageModel for LogsPage {
         let content_height = height.saturating_sub(1);
 
         // Check if dimensions changed or content needs reformatting
-        let last_dims = *self.last_dims.borrow();
+        let last_dims = *self.last_dims.read().unwrap();
         let needs_resize = last_dims.0 != width || last_dims.1 != content_height;
-        let needs_reformat = *self.needs_reformat.borrow();
+        let needs_reformat = *self.needs_reformat.read().unwrap();
 
         if needs_resize || needs_reformat {
-            let mut viewport = self.viewport.borrow_mut();
+            let mut viewport = self.viewport.write().unwrap();
             viewport.width = width;
             viewport.height = content_height;
 
             let formatted = self.format_logs(theme, width);
             viewport.set_content(&formatted);
-            *self.formatted_content.borrow_mut() = formatted;
-            *self.needs_reformat.borrow_mut() = false;
-            *self.last_dims.borrow_mut() = (width, content_height);
+            *self.formatted_content.write().unwrap() = formatted;
+            *self.needs_reformat.write().unwrap() = false;
+            *self.last_dims.write().unwrap() = (width, content_height);
 
             // Maintain follow mode position
             if self.following {
@@ -368,7 +370,7 @@ impl PageModel for LogsPage {
         }
 
         // Render viewport content
-        let content = self.viewport.borrow().view();
+        let content = self.viewport.read().unwrap().view();
 
         // Render status bar
         let status = self.render_status_bar(theme, width);
@@ -387,9 +389,9 @@ impl PageModel for LogsPage {
 
     fn on_enter(&mut self) -> Option<Cmd> {
         // Mark content for reformatting when page becomes active
-        *self.needs_reformat.borrow_mut() = true;
+        *self.needs_reformat.write().unwrap() = true;
         if self.following {
-            self.viewport.borrow_mut().goto_bottom();
+            self.viewport.write().unwrap().goto_bottom();
         }
         None
     }
