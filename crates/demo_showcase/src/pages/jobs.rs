@@ -555,6 +555,8 @@ impl PageModel for JobsPage {
             }
         }
 
+        // Delegate to table for mouse events and other unhandled messages
+        self.table.update(msg);
         None
     }
 
