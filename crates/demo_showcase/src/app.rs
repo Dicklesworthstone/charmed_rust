@@ -10,7 +10,8 @@ use bubbletea::{
 };
 use lipgloss::{Position, Style};
 
-use crate::components::{StatusLevel, banner};
+use crate::components::{StatusLevel, banner, key_hint};
+use crate::keymap::{HELP_SECTIONS, help_total_lines};
 use crate::messages::{AppMsg, Notification, NotificationMsg, Page};
 use crate::pages::Pages;
 use crate::theme::{Theme, ThemePreset, spacing};
@@ -57,6 +58,8 @@ pub struct App {
     ready: bool,
     /// Whether help overlay is shown.
     show_help: bool,
+    /// Scroll offset for help overlay content.
+    help_scroll_offset: usize,
     /// Whether sidebar is visible.
     sidebar_visible: bool,
     /// Active notifications (newest at end).
@@ -85,6 +88,7 @@ impl App {
             height: 24,
             ready: false,
             show_help: false,
+            help_scroll_offset: 0,
             sidebar_visible: true,
             notifications: Vec::new(),
             next_notification_id: 1,
@@ -155,23 +159,25 @@ impl App {
 
     /// Handle global keyboard shortcuts.
     fn handle_global_key(&mut self, key: &KeyMsg) -> Option<Cmd> {
+        // Handle help overlay scrolling
+        if self.show_help {
+            return self.handle_help_key(key);
+        }
+
         match key.key_type {
-            KeyType::CtrlC | KeyType::Esc if !self.show_help => return Some(quit()),
-            KeyType::Esc if self.show_help => {
-                self.show_help = false;
-                return None;
-            }
+            KeyType::CtrlC | KeyType::Esc => return Some(quit()),
             KeyType::Runes => match key.runes.as_slice() {
-                ['q'] if !self.show_help => return Some(quit()),
+                ['q'] => return Some(quit()),
                 ['?'] => {
-                    self.show_help = !self.show_help;
+                    self.show_help = true;
+                    self.help_scroll_offset = 0;
                     return None;
                 }
                 ['['] => {
                     self.sidebar_visible = !self.sidebar_visible;
                     return None;
                 }
-                [c] if !self.show_help => {
+                [c] => {
                     if let Some(page) = Page::from_shortcut(*c) {
                         return self.navigate(page);
                     }
@@ -181,6 +187,88 @@ impl App {
             _ => {}
         }
         None
+    }
+
+    /// Handle keyboard input when help overlay is shown.
+    fn handle_help_key(&mut self, key: &KeyMsg) -> Option<Cmd> {
+        let total_lines = help_total_lines();
+        let visible_lines = self.help_visible_lines();
+        let max_scroll = total_lines.saturating_sub(visible_lines);
+
+        match key.key_type {
+            KeyType::Esc => {
+                self.show_help = false;
+                return None;
+            }
+            KeyType::Up => {
+                self.help_scroll_offset = self.help_scroll_offset.saturating_sub(1);
+                return None;
+            }
+            KeyType::Down => {
+                self.help_scroll_offset = (self.help_scroll_offset + 1).min(max_scroll);
+                return None;
+            }
+            KeyType::Home => {
+                self.help_scroll_offset = 0;
+                return None;
+            }
+            KeyType::End => {
+                self.help_scroll_offset = max_scroll;
+                return None;
+            }
+            KeyType::PgUp => {
+                self.help_scroll_offset = self
+                    .help_scroll_offset
+                    .saturating_sub(visible_lines.saturating_sub(2));
+                return None;
+            }
+            KeyType::PgDown => {
+                self.help_scroll_offset =
+                    (self.help_scroll_offset + visible_lines.saturating_sub(2)).min(max_scroll);
+                return None;
+            }
+            KeyType::CtrlU => {
+                self.help_scroll_offset = self.help_scroll_offset.saturating_sub(visible_lines / 2);
+                return None;
+            }
+            KeyType::CtrlD => {
+                self.help_scroll_offset =
+                    (self.help_scroll_offset + visible_lines / 2).min(max_scroll);
+                return None;
+            }
+            KeyType::Runes => match key.runes.as_slice() {
+                ['?'] | ['q'] => {
+                    self.show_help = false;
+                    return None;
+                }
+                ['j'] => {
+                    self.help_scroll_offset = (self.help_scroll_offset + 1).min(max_scroll);
+                    return None;
+                }
+                ['k'] => {
+                    self.help_scroll_offset = self.help_scroll_offset.saturating_sub(1);
+                    return None;
+                }
+                ['g'] => {
+                    self.help_scroll_offset = 0;
+                    return None;
+                }
+                ['G'] => {
+                    self.help_scroll_offset = max_scroll;
+                    return None;
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+        None
+    }
+
+    /// Calculate the number of visible lines in the help overlay.
+    fn help_visible_lines(&self) -> usize {
+        // Help modal uses most of the screen with some padding
+        // Header (1) + title bar (1) + footer hint (1) + border padding (4)
+        self.height.saturating_sub(8)
     }
 
     /// Render the sidebar.
@@ -284,30 +372,50 @@ impl App {
 
     /// Render the help overlay.
     fn render_help(&self) -> String {
-        let help_text = [
-            "",
-            "  Keyboard Shortcuts",
-            "  ------------------",
-            "",
-            "  Navigation",
-            "  1-7        Jump to page",
-            "  [          Toggle sidebar",
-            "",
-            "  Global",
-            "  ?          Toggle this help",
-            "  q / Esc    Quit",
-            "",
-            "  Page-specific shortcuts",
-            "  shown in footer when active",
-            "",
-            "  Press ? or Esc to close",
-        ];
-
-        let box_width: usize = 36;
-        let box_height = help_text.len() + 2;
+        // Calculate dimensions - wider box for better readability
+        let box_width: usize = 52.min(self.width.saturating_sub(4));
+        let box_height = self.height.saturating_sub(4);
         let start_x = self.width.saturating_sub(box_width) / 2;
-        let start_y = self.height.saturating_sub(box_height) / 2;
+        let start_y = 2; // Small top margin
 
+        let content_width = box_width.saturating_sub(6); // Padding on sides
+        let visible_lines = self.help_visible_lines();
+
+        // Build all content lines
+        let mut content_lines: Vec<String> = Vec::new();
+
+        // Add current page context at top
+        let page_name = self.current_page.name();
+        let page_hints = self.pages.get(self.current_page).hints();
+        content_lines.push(format!("Current Page: {page_name}"));
+        content_lines.push(format!("  {page_hints}"));
+        content_lines.push(String::new());
+
+        // Add sections from keymap
+        for section in HELP_SECTIONS {
+            // Section title (bold styling applied in render)
+            content_lines.push(format!("[ {} ]", section.title));
+
+            // Entries with aligned columns
+            for entry in section.entries {
+                let key_col = format!("{:>12}", entry.key);
+                let line = format!("  {key_col}  {}", entry.action);
+                content_lines.push(line);
+            }
+            content_lines.push(String::new()); // Blank line after section
+        }
+
+        // Calculate total and apply scroll offset
+        let total_lines = content_lines.len();
+        let max_scroll = total_lines.saturating_sub(visible_lines);
+        let skip = self.help_scroll_offset.min(max_scroll);
+        let visible_content: Vec<&String> = content_lines
+            .iter()
+            .skip(skip)
+            .take(visible_lines)
+            .collect();
+
+        // Build output
         let mut lines: Vec<String> = Vec::new();
 
         // Top padding
@@ -318,32 +426,93 @@ impl App {
         #[expect(clippy::cast_possible_truncation)]
         let box_width_u16 = box_width as u16;
 
-        // Use modal style for the help overlay
-        let modal_style = self.theme.modal_style();
-
-        // Top border with title
+        // Title bar with modal style
+        let title = " Keyboard Shortcuts ";
+        let title_padding = (box_width.saturating_sub(title.len())) / 2;
+        let title_line = format!(
+            "{}{}{}",
+            " ".repeat(title_padding),
+            title,
+            " ".repeat(box_width.saturating_sub(title_padding + title.len()))
+        );
         lines.push(format!(
             "{}{}",
             " ".repeat(start_x),
-            modal_style.width(box_width_u16).render(&format!(
-                "{}Help{}",
-                " ".repeat(14),
-                " ".repeat(14)
-            ))
+            self.theme
+                .modal_style()
+                .bold()
+                .width(box_width_u16)
+                .render(&title_line)
         ));
 
-        // Content
-        for text in &help_text {
-            let padded = format!("{:width$}", text, width = box_width - 4);
+        // Content area styling
+        let content_style = Style::new()
+            .foreground(self.theme.text)
+            .background(self.theme.bg_highlight);
+        let section_style = Style::new()
+            .foreground(self.theme.primary)
+            .background(self.theme.bg_highlight)
+            .bold();
+
+        for line in &visible_content {
+            // Truncate long lines gracefully
+            let truncated = if line.len() > content_width {
+                format!("{}...", &line[..content_width.saturating_sub(3)])
+            } else {
+                (*line).clone()
+            };
+            let padded = format!("{:width$}", truncated, width = content_width);
+
+            // Apply section title styling if this is a section header
+            let styled_content = if line.starts_with("[ ") && line.ends_with(" ]") {
+                section_style.render(&format!("   {padded}   "))
+            } else {
+                content_style.render(&format!("   {padded}   "))
+            };
+
+            lines.push(format!("{}{}", " ".repeat(start_x), styled_content));
+        }
+
+        // Pad to fill box height
+        let content_rows = visible_content.len();
+        let remaining_height = box_height.saturating_sub(content_rows + 3); // title + footer + spacing
+        let empty_line = " ".repeat(box_width);
+        for _ in 0..remaining_height {
             lines.push(format!(
                 "{}{}",
                 " ".repeat(start_x),
-                Style::new()
-                    .foreground(self.theme.text)
-                    .background(self.theme.bg_highlight)
-                    .render(&format!("  {padded}  "))
+                content_style
+                    .clone()
+                    .width(box_width_u16)
+                    .render(&empty_line)
             ));
         }
+
+        // Scroll indicator
+        let scroll_info = if total_lines > visible_lines {
+            let percent = if max_scroll == 0 {
+                100
+            } else {
+                ((skip * 100) / max_scroll).min(100)
+            };
+            format!("[{percent:>3}%]")
+        } else {
+            String::new()
+        };
+
+        // Footer with hints and scroll indicator
+        let hints_text = key_hint(&self.theme, "j/k", "scroll");
+        let close_text = key_hint(&self.theme, "q/?/Esc", "close");
+        let footer_hints = format!("{hints_text}  {close_text}  {scroll_info}");
+        let footer_padded = format!("{:^width$}", footer_hints, width = box_width);
+        lines.push(format!(
+            "{}{}",
+            " ".repeat(start_x),
+            self.theme
+                .footer_style()
+                .width(box_width_u16)
+                .render(&footer_padded)
+        ));
 
         lines.join("\n")
     }

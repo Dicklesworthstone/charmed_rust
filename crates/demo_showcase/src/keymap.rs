@@ -408,6 +408,128 @@ pub mod hints {
     pub const VIEWPORT: &str = "j/k scroll  g/G top/bottom  C-d/C-u half page";
 }
 
+// ============================================================================
+// Help Overlay Content Generation
+// ============================================================================
+
+/// A single keybinding entry for help display.
+#[derive(Debug, Clone)]
+pub struct HelpEntry {
+    /// The key combination (e.g., "j/↓", "Ctrl+C").
+    pub key: &'static str,
+    /// The action description (e.g., "Move down").
+    pub action: &'static str,
+}
+
+impl HelpEntry {
+    /// Create a new help entry.
+    #[must_use]
+    pub const fn new(key: &'static str, action: &'static str) -> Self {
+        Self { key, action }
+    }
+}
+
+/// A section of keybindings for help display.
+#[derive(Debug, Clone)]
+pub struct HelpSection {
+    /// Section title (e.g., "Global", "Navigation").
+    pub title: &'static str,
+    /// Keybinding entries in this section.
+    pub entries: &'static [HelpEntry],
+}
+
+/// Global keybindings section.
+pub const HELP_GLOBAL: HelpSection = HelpSection {
+    title: "Global",
+    entries: &[
+        HelpEntry::new("?", "Toggle this help"),
+        HelpEntry::new("q / Esc", "Quit application"),
+        HelpEntry::new("Ctrl+C", "Force quit"),
+        HelpEntry::new("1-7", "Jump to page"),
+        HelpEntry::new("[", "Toggle sidebar"),
+        HelpEntry::new("t", "Cycle theme"),
+        HelpEntry::new("Tab", "Focus next pane"),
+        HelpEntry::new("S-Tab", "Focus previous pane"),
+    ],
+};
+
+/// Navigation keybindings section.
+pub const HELP_NAVIGATION: HelpSection = HelpSection {
+    title: "Navigation",
+    entries: &[
+        HelpEntry::new("j / ↓", "Move down"),
+        HelpEntry::new("k / ↑", "Move up"),
+        HelpEntry::new("h / ←", "Left / collapse"),
+        HelpEntry::new("l / →", "Right / expand"),
+        HelpEntry::new("g / Home", "Go to top"),
+        HelpEntry::new("G / End", "Go to bottom"),
+        HelpEntry::new("Ctrl+d", "Half page down"),
+        HelpEntry::new("Ctrl+u", "Half page up"),
+        HelpEntry::new("PgDn", "Page down"),
+        HelpEntry::new("PgUp", "Page up"),
+    ],
+};
+
+/// Selection and action keybindings section.
+pub const HELP_SELECTION: HelpSection = HelpSection {
+    title: "Selection & Actions",
+    entries: &[
+        HelpEntry::new("Enter", "Select / activate"),
+        HelpEntry::new("Space", "Toggle selection"),
+        HelpEntry::new("a", "Select all"),
+        HelpEntry::new("x", "Clear selection"),
+        HelpEntry::new("d", "Delete selected"),
+        HelpEntry::new("e", "Edit selected"),
+        HelpEntry::new("c", "Copy selected"),
+        HelpEntry::new("r", "Refresh view"),
+        HelpEntry::new("n", "New item"),
+    ],
+};
+
+/// Search keybindings section.
+pub const HELP_SEARCH: HelpSection = HelpSection {
+    title: "Search",
+    entries: &[
+        HelpEntry::new("/", "Open search"),
+        HelpEntry::new("n", "Next match"),
+        HelpEntry::new("N", "Previous match"),
+        HelpEntry::new("Esc", "Clear search"),
+    ],
+};
+
+/// Mouse interaction section.
+pub const HELP_MOUSE: HelpSection = HelpSection {
+    title: "Mouse (when enabled)",
+    entries: &[
+        HelpEntry::new("Click", "Focus / select"),
+        HelpEntry::new("Double-click", "Primary action"),
+        HelpEntry::new("Scroll", "Scroll viewport"),
+    ],
+};
+
+/// All help sections in display order.
+pub const HELP_SECTIONS: &[&HelpSection] = &[
+    &HELP_GLOBAL,
+    &HELP_NAVIGATION,
+    &HELP_SELECTION,
+    &HELP_SEARCH,
+    &HELP_MOUSE,
+];
+
+/// Calculate the total number of lines in the help content.
+///
+/// Each section has: title line + entries + blank line.
+#[must_use]
+pub fn help_total_lines() -> usize {
+    let mut lines = 0;
+    for section in HELP_SECTIONS {
+        lines += 1; // Section title
+        lines += section.entries.len(); // Entries
+        lines += 1; // Blank line after section
+    }
+    lines
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
