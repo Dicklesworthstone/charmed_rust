@@ -361,16 +361,60 @@ pub fn join_vertical(pos: Position, strs: &[&str]) -> String {
     result
 }
 
-/// Calculate the visible width of a string (excluding ANSI escapes).
-fn visible_width(s: &str) -> usize {
+/// Calculate the visible width of a string, excluding ANSI escape sequences.
+///
+/// This is the canonical implementation used throughout lipgloss for measuring
+/// the display width of styled text. It properly handles:
+///
+/// - **SGR sequences** (e.g., `\x1b[31m` for red text)
+/// - **CSI sequences** (e.g., `\x1b[2J` for clear screen, `\x1b[10;20H` for cursor positioning)
+/// - **OSC sequences** (e.g., `\x1b]0;title\x07` for window titles)
+/// - **Simple escapes** (e.g., `\x1b7` for save cursor, `\x1b>` for keypad mode)
+/// - **Unicode width** (correctly handles wide characters like CJK and emoji)
+///
+/// # Examples
+///
+/// ```
+/// use lipgloss::visible_width;
+///
+/// // Plain ASCII text
+/// assert_eq!(visible_width("hello"), 5);
+///
+/// // Text with ANSI color codes (SGR)
+/// assert_eq!(visible_width("\x1b[31mred\x1b[0m"), 3);
+///
+/// // Text with cursor movement (CSI)
+/// assert_eq!(visible_width("\x1b[2Jcleared"), 7);
+///
+/// // Unicode wide characters (CJK)
+/// assert_eq!(visible_width("日本語"), 6);  // Each character is width 2
+///
+/// // Mixed content
+/// assert_eq!(visible_width("\x1b[1;32mHello 世界\x1b[0m"), 10);
+/// ```
+///
+/// # Performance
+///
+/// Includes a fast path for ASCII-only strings without escape sequences,
+/// which is the common case for most terminal text.
+#[inline]
+pub fn visible_width(s: &str) -> usize {
+    // Fast path: ASCII-only content without escapes (common case)
+    if s.is_ascii() && !s.contains('\x1b') {
+        return s.len();
+    }
+
+    // Full state machine for proper ANSI handling
     let mut width = 0;
-    #[derive(Clone, Copy, PartialEq)]
+
+    #[derive(Clone, Copy)]
     enum State {
         Normal,
         Esc,
         Csi,
         Osc,
     }
+
     let mut state = State::Normal;
 
     for c in s.chars() {
@@ -388,25 +432,22 @@ fn visible_width(s: &str) -> usize {
                 } else if c == ']' {
                     state = State::Osc;
                 } else {
-                    // Handle simple escapes like \x1b7 (save cursor) or \x1b> (keypad)
-                    // They are single char after ESC.
+                    // Simple escapes: single char after ESC (e.g., \x1b7 save cursor)
                     state = State::Normal;
                 }
             }
             State::Csi => {
-                // CSI sequence: [params] [intermediate] final
-                // Final byte is 0x40-0x7E (@ to ~)
+                // CSI sequence ends with final byte 0x40-0x7E (@ to ~)
                 if ('@'..='~').contains(&c) {
                     state = State::Normal;
                 }
             }
             State::Osc => {
-                // OSC sequence: ] [params] ; [text] BEL/ST
-                // Handle BEL (\x07)
+                // OSC ends with BEL (\x07) or ST (ESC \)
                 if c == '\x07' {
                     state = State::Normal;
                 } else if c == '\x1b' {
-                    // Handle ST (ESC \) - we see ESC, transition to Esc to handle the backslash
+                    // Start of ST sequence
                     state = State::Esc;
                 }
             }
@@ -449,6 +490,143 @@ mod tests {
         // This suggests Go might use rounding, let's check both
         let expected_go = "   Short  \nLongerText"; // 3 left, 2 right
         assert_eq!(result, expected_go);
+    }
+
+    // =========================================================================
+    // visible_width tests - comprehensive coverage of ANSI escape handling
+    // =========================================================================
+
+    #[test]
+    fn test_visible_width_plain_ascii() {
+        assert_eq!(visible_width("hello"), 5);
+        assert_eq!(visible_width(""), 0);
+        assert_eq!(visible_width(" "), 1);
+        assert_eq!(visible_width("hello world"), 11);
+    }
+
+    #[test]
+    fn test_visible_width_sgr_sequences() {
+        // Basic SGR: ESC[Nm where N is parameter
+        assert_eq!(visible_width("\x1b[31mred\x1b[0m"), 3);
+        assert_eq!(visible_width("\x1b[1mbold\x1b[0m"), 4);
+        assert_eq!(visible_width("\x1b[1;32mbold green\x1b[0m"), 10);
+
+        // Multiple SGR codes
+        assert_eq!(visible_width("\x1b[1m\x1b[31m\x1b[4mhello\x1b[0m"), 5);
+
+        // SGR with no visible content
+        assert_eq!(visible_width("\x1b[31m\x1b[0m"), 0);
+    }
+
+    #[test]
+    fn test_visible_width_csi_sequences() {
+        // Cursor movement: ESC[H (cursor home), ESC[2J (clear screen)
+        assert_eq!(visible_width("\x1b[Hstart"), 5);
+        assert_eq!(visible_width("\x1b[2Jcleared"), 7);
+
+        // Cursor positioning: ESC[10;20H
+        assert_eq!(visible_width("\x1b[10;20Htext"), 4);
+
+        // Erase in line: ESC[K
+        assert_eq!(visible_width("text\x1b[Kmore"), 8);
+
+        // Scroll: ESC[5S (scroll up 5)
+        assert_eq!(visible_width("\x1b[5Sscrolled"), 8);
+    }
+
+    #[test]
+    fn test_visible_width_osc_sequences() {
+        // Window title (terminated with BEL \x07)
+        assert_eq!(visible_width("\x1b]0;My Title\x07text"), 4);
+
+        // Window title (terminated with ST: ESC \)
+        assert_eq!(visible_width("\x1b]0;Title\x1b\\visible"), 7);
+
+        // OSC with no visible content
+        assert_eq!(visible_width("\x1b]0;title\x07"), 0);
+    }
+
+    #[test]
+    fn test_visible_width_simple_escapes() {
+        // Save cursor: ESC 7
+        assert_eq!(visible_width("\x1b7text"), 4);
+
+        // Restore cursor: ESC 8
+        assert_eq!(visible_width("\x1b8text"), 4);
+
+        // Keypad mode: ESC > and ESC =
+        assert_eq!(visible_width("\x1b>text\x1b="), 4);
+    }
+
+    #[test]
+    fn test_visible_width_unicode() {
+        // CJK characters (width 2 each)
+        assert_eq!(visible_width("日本語"), 6);
+        assert_eq!(visible_width("中文"), 4);
+        assert_eq!(visible_width("한글"), 4);
+
+        // Emoji (typically width 2)
+        assert_eq!(visible_width("🦀"), 2);
+        assert_eq!(visible_width("🎉"), 2);
+        assert_eq!(visible_width("👋"), 2);
+    }
+
+    #[test]
+    fn test_visible_width_mixed_content() {
+        // ASCII + CJK
+        assert_eq!(visible_width("Hi日本"), 6); // 2 + 4
+
+        // ASCII + emoji
+        assert_eq!(visible_width("Hi 🦀!"), 6); // 2 + 1 + 2 + 1
+
+        // ANSI + Unicode
+        assert_eq!(visible_width("\x1b[31m日本\x1b[0m"), 4);
+        assert_eq!(visible_width("\x1b[1m🦀\x1b[0m"), 2);
+
+        // Complex mixed
+        assert_eq!(visible_width("\x1b[1;32mHello 世界\x1b[0m"), 10);
+    }
+
+    #[test]
+    fn test_visible_width_combining_chars() {
+        // e + combining acute accent = é (width 1)
+        let combining = "e\u{0301}";
+        assert_eq!(visible_width(combining), 1);
+
+        // Precomposed é (width 1)
+        let precomposed = "\u{00e9}";
+        assert_eq!(visible_width(precomposed), 1);
+    }
+
+    #[test]
+    fn test_visible_width_edge_cases() {
+        // Unterminated escape (escape at end)
+        assert_eq!(visible_width("text\x1b"), 4);
+
+        // Unterminated CSI
+        assert_eq!(visible_width("text\x1b[31"), 4);
+
+        // Double escape: second ESC acts as simple escape, then [31m is literal
+        // \x1b\x1b -> first ESC starts escape, second ESC is simple escape (back to normal)
+        // "[31m" is now literal text (width 4), then "red" (width 3) = 7
+        assert_eq!(visible_width("\x1b\x1b[31mred"), 7);
+
+        // Escape character itself has no width
+        assert_eq!(visible_width("\x1b"), 0);
+
+        // Empty CSI has no width (no final byte, but ESC[ consumed)
+        assert_eq!(visible_width("\x1b["), 0);
+    }
+
+    #[test]
+    fn test_visible_width_fast_path() {
+        // Pure ASCII without escapes uses fast path
+        let ascii = "The quick brown fox jumps over the lazy dog";
+        assert_eq!(visible_width(ascii), 43);
+
+        // Long ASCII string
+        let long_ascii = "x".repeat(1000);
+        assert_eq!(visible_width(&long_ascii), 1000);
     }
 }
 

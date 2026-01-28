@@ -24,6 +24,7 @@ use crate::color::{Color, ColorProfile, NoColor, TerminalColor};
 use crate::position::{Position, Sides};
 use crate::renderer::Renderer;
 use crate::theme::{ColorSlot, Theme, ThemeRole};
+use crate::visible_width;
 
 bitflags! {
     /// Flags indicating which style properties are explicitly set.
@@ -1957,43 +1958,7 @@ impl std::fmt::Display for Style {
 }
 
 // Helper functions
-
-/// Calculate the visible width of a string (excluding ANSI escapes).
-///
-/// Optimized with fast path for ASCII-only content (common case).
-#[inline]
-fn visible_width(s: &str) -> usize {
-    // Fast path: check if string is ASCII-only and has no escapes
-    // This is the common case for most terminal text
-    if s.is_ascii() && !s.contains('\x1b') {
-        return s.len();
-    }
-
-    // Slow path: handle ANSI escapes and Unicode width
-    let mut width = 0;
-    let mut in_escape = false;
-
-    for c in s.chars() {
-        if c == '\x1b' {
-            in_escape = true;
-            continue;
-        }
-        if in_escape {
-            if c == 'm' {
-                in_escape = false;
-            }
-            continue;
-        }
-        // Fast path for ASCII in mixed content
-        if c.is_ascii() {
-            width += 1;
-        } else {
-            width += unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
-        }
-    }
-
-    width
-}
+// Note: visible_width is imported from crate root (canonical implementation)
 
 /// Simple text wrapping.
 fn wrap_text(s: &str, width: usize) -> String {

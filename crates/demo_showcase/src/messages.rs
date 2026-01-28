@@ -257,3 +257,46 @@ impl NotificationMsg {
         Message::new(self)
     }
 }
+
+// ============================================================================
+// Export
+// ============================================================================
+
+/// Format for exporting the current view.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExportFormat {
+    /// Plain text (ANSI codes stripped).
+    PlainText,
+    /// HTML with inline styles.
+    Html,
+}
+
+impl ExportFormat {
+    /// Get the file extension for this format.
+    #[must_use]
+    pub const fn extension(self) -> &'static str {
+        match self {
+            Self::PlainText => "txt",
+            Self::Html => "html",
+        }
+    }
+}
+
+/// Export-related messages.
+#[derive(Debug, Clone)]
+pub enum ExportMsg {
+    /// Export the current view to file.
+    Export(ExportFormat),
+    /// Export completed successfully.
+    ExportCompleted(String),
+    /// Export failed.
+    ExportFailed(String),
+}
+
+impl ExportMsg {
+    /// Create a bubbletea Message from this `ExportMsg`.
+    #[must_use]
+    pub fn into_message(self) -> Message {
+        Message::new(self)
+    }
+}

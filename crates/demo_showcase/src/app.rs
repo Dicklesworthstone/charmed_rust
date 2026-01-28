@@ -12,9 +12,228 @@ use lipgloss::{Position, Style};
 
 use crate::components::{Sidebar, SidebarFocus, StatusLevel, banner, key_hint};
 use crate::keymap::{HELP_SECTIONS, help_total_lines};
-use crate::messages::{AppMsg, Notification, NotificationMsg, Page};
+use crate::messages::{AppMsg, ExportFormat, ExportMsg, Notification, NotificationMsg, Page};
 use crate::pages::Pages;
 use crate::theme::{Theme, ThemePreset, spacing};
+
+/// Convert ANSI-styled terminal output to HTML with inline styles.
+///
+/// This function parses ANSI escape codes and converts them to HTML spans
+/// with appropriate CSS styling, preserving colors and text attributes.
+#[allow(clippy::too_many_lines, clippy::similar_names, clippy::collapsible_if)]
+fn ansi_to_html(input: &str) -> String {
+    let mut html = String::with_capacity(input.len() * 2);
+    html.push_str("<!DOCTYPE html>\n<html>\n<head>\n");
+    html.push_str("<meta charset=\"utf-8\">\n");
+    html.push_str("<title>Demo Showcase Export</title>\n");
+    html.push_str("<style>\n");
+    html.push_str("body { background: #1a1a2e; color: #eaeaea; font-family: 'Monaco', 'Menlo', 'Consolas', monospace; font-size: 14px; line-height: 1.4; padding: 20px; white-space: pre; }\n");
+    html.push_str(".bold { font-weight: bold; }\n");
+    html.push_str(".italic { font-style: italic; }\n");
+    html.push_str(".underline { text-decoration: underline; }\n");
+    html.push_str(".dim { opacity: 0.6; }\n");
+    html.push_str(".strikethrough { text-decoration: line-through; }\n");
+    html.push_str("</style>\n</head>\n<body>\n");
+
+    let mut in_escape = false;
+    let mut escape_buf = String::new();
+    let mut current_styles: Vec<&str> = Vec::new();
+    let mut current_fg: Option<String> = None;
+    let mut current_bg: Option<String> = None;
+
+    for c in input.chars() {
+        if c == '\x1b' {
+            in_escape = true;
+            escape_buf.clear();
+            continue;
+        }
+
+        if in_escape {
+            escape_buf.push(c);
+            if c == 'm' {
+                // Parse the escape sequence
+                let seq = escape_buf.trim_start_matches('[').trim_end_matches('m');
+                for code in seq.split(';') {
+                    match code {
+                        "0" => {
+                            // Reset
+                            if !current_styles.is_empty() || current_fg.is_some() || current_bg.is_some() {
+                                html.push_str("</span>");
+                            }
+                            current_styles.clear();
+                            current_fg = None;
+                            current_bg = None;
+                        }
+                        "1" => current_styles.push("bold"),
+                        "2" => current_styles.push("dim"),
+                        "3" => current_styles.push("italic"),
+                        "4" => current_styles.push("underline"),
+                        "9" => current_styles.push("strikethrough"),
+                        // Basic foreground colors (30-37)
+                        "30" => current_fg = Some("#000000".to_string()),
+                        "31" => current_fg = Some("#cc0000".to_string()),
+                        "32" => current_fg = Some("#00cc00".to_string()),
+                        "33" => current_fg = Some("#cccc00".to_string()),
+                        "34" => current_fg = Some("#0000cc".to_string()),
+                        "35" => current_fg = Some("#cc00cc".to_string()),
+                        "36" => current_fg = Some("#00cccc".to_string()),
+                        "37" => current_fg = Some("#cccccc".to_string()),
+                        // Bright foreground colors (90-97)
+                        "90" => current_fg = Some("#666666".to_string()),
+                        "91" => current_fg = Some("#ff0000".to_string()),
+                        "92" => current_fg = Some("#00ff00".to_string()),
+                        "93" => current_fg = Some("#ffff00".to_string()),
+                        "94" => current_fg = Some("#0000ff".to_string()),
+                        "95" => current_fg = Some("#ff00ff".to_string()),
+                        "96" => current_fg = Some("#00ffff".to_string()),
+                        "97" => current_fg = Some("#ffffff".to_string()),
+                        // Basic background colors (40-47)
+                        "40" => current_bg = Some("#000000".to_string()),
+                        "41" => current_bg = Some("#cc0000".to_string()),
+                        "42" => current_bg = Some("#00cc00".to_string()),
+                        "43" => current_bg = Some("#cccc00".to_string()),
+                        "44" => current_bg = Some("#0000cc".to_string()),
+                        "45" => current_bg = Some("#cc00cc".to_string()),
+                        "46" => current_bg = Some("#00cccc".to_string()),
+                        "47" => current_bg = Some("#cccccc".to_string()),
+                        // 256-color and RGB handled via 38;5;N or 38;2;R;G;B
+                        _ => {
+                            // Handle 256-color: 38;5;N or 48;5;N
+                            if let Some(rest) = seq.strip_prefix("38;5;") {
+                                if let Ok(n) = rest.parse::<u8>() {
+                                    current_fg = Some(ansi256_to_hex(n));
+                                }
+                            } else if let Some(rest) = seq.strip_prefix("48;5;") {
+                                if let Ok(n) = rest.parse::<u8>() {
+                                    current_bg = Some(ansi256_to_hex(n));
+                                }
+                            }
+                            // Handle RGB: 38;2;R;G;B or 48;2;R;G;B
+                            else if let Some(rest) = seq.strip_prefix("38;2;") {
+                                let parts: Vec<&str> = rest.split(';').collect();
+                                if parts.len() == 3 {
+                                    if let (Ok(r), Ok(g), Ok(b)) = (
+                                        parts[0].parse::<u8>(),
+                                        parts[1].parse::<u8>(),
+                                        parts[2].parse::<u8>(),
+                                    ) {
+                                        current_fg = Some(format!("#{r:02x}{g:02x}{b:02x}"));
+                                    }
+                                }
+                            } else if let Some(rest) = seq.strip_prefix("48;2;") {
+                                let parts: Vec<&str> = rest.split(';').collect();
+                                if parts.len() == 3 {
+                                    if let (Ok(r), Ok(g), Ok(b)) = (
+                                        parts[0].parse::<u8>(),
+                                        parts[1].parse::<u8>(),
+                                        parts[2].parse::<u8>(),
+                                    ) {
+                                        current_bg = Some(format!("#{r:02x}{g:02x}{b:02x}"));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Open a new span if we have styles
+                if !current_styles.is_empty() || current_fg.is_some() || current_bg.is_some() {
+                    html.push_str("<span");
+                    let mut style_parts = Vec::new();
+                    if let Some(ref fg) = current_fg {
+                        style_parts.push(format!("color:{fg}"));
+                    }
+                    if let Some(ref bg) = current_bg {
+                        style_parts.push(format!("background:{bg}"));
+                    }
+                    if !style_parts.is_empty() {
+                        html.push_str(&format!(" style=\"{}\"", style_parts.join(";")));
+                    }
+                    if !current_styles.is_empty() {
+                        html.push_str(&format!(" class=\"{}\"", current_styles.join(" ")));
+                    }
+                    html.push('>');
+                }
+                in_escape = false;
+            }
+            continue;
+        }
+
+        // Escape HTML special characters
+        match c {
+            '&' => html.push_str("&amp;"),
+            '<' => html.push_str("&lt;"),
+            '>' => html.push_str("&gt;"),
+            '"' => html.push_str("&quot;"),
+            '\n' => html.push('\n'),
+            _ => html.push(c),
+        }
+    }
+
+    // Close any remaining span
+    if !current_styles.is_empty() || current_fg.is_some() || current_bg.is_some() {
+        html.push_str("</span>");
+    }
+
+    html.push_str("\n</body>\n</html>");
+    html
+}
+
+/// Convert ANSI 256-color index to hex color.
+fn ansi256_to_hex(n: u8) -> String {
+    match n {
+        // Standard colors (0-15)
+        0 => "#000000".to_string(),
+        1 => "#800000".to_string(),
+        2 => "#008000".to_string(),
+        3 => "#808000".to_string(),
+        4 => "#000080".to_string(),
+        5 => "#800080".to_string(),
+        6 => "#008080".to_string(),
+        7 => "#c0c0c0".to_string(),
+        8 => "#808080".to_string(),
+        9 => "#ff0000".to_string(),
+        10 => "#00ff00".to_string(),
+        11 => "#ffff00".to_string(),
+        12 => "#0000ff".to_string(),
+        13 => "#ff00ff".to_string(),
+        14 => "#00ffff".to_string(),
+        15 => "#ffffff".to_string(),
+        // 216 colors (16-231)
+        16..=231 => {
+            let n = n - 16;
+            let r = (n / 36) * 51;
+            let g = ((n % 36) / 6) * 51;
+            let b = (n % 6) * 51;
+            format!("#{r:02x}{g:02x}{b:02x}")
+        }
+        // Grayscale (232-255)
+        232..=255 => {
+            let gray = (n - 232) * 10 + 8;
+            format!("#{gray:02x}{gray:02x}{gray:02x}")
+        }
+    }
+}
+
+/// Strip ANSI escape codes from a string.
+fn strip_ansi(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut in_escape = false;
+    for c in input.chars() {
+        if c == '\x1b' {
+            in_escape = true;
+            continue;
+        }
+        if in_escape {
+            if c == 'm' {
+                in_escape = false;
+            }
+            continue;
+        }
+        result.push(c);
+    }
+    result
+}
 
 /// Application configuration.
 ///
@@ -305,6 +524,14 @@ impl App {
                     // Cycle through themes
                     self.cycle_theme();
                     return None;
+                }
+                ['e'] => {
+                    // Export current view as plain text
+                    return Some(Cmd::new(|| ExportMsg::Export(ExportFormat::PlainText).into_message()));
+                }
+                ['E'] => {
+                    // Export current view as HTML
+                    return Some(Cmd::new(|| ExportMsg::Export(ExportFormat::Html).into_message()));
                 }
                 [c] => {
                     if let Some(page) = Page::from_shortcut(*c) {
@@ -708,6 +935,61 @@ impl Model for App {
                 }
                 NotificationMsg::ClearAll => {
                     self.clear_notifications();
+                }
+            }
+            return None;
+        }
+
+        // Handle export messages
+        if let Some(export_msg) = msg.downcast_ref::<ExportMsg>() {
+            match export_msg {
+                ExportMsg::Export(format) => {
+                    // Render the current view
+                    let ansi_content = self.view();
+
+                    // Convert to requested format
+                    let (content, ext) = match format {
+                        ExportFormat::PlainText => (strip_ansi(&ansi_content), "txt"),
+                        ExportFormat::Html => (ansi_to_html(&ansi_content), "html"),
+                    };
+
+                    // Generate filename with timestamp
+                    let timestamp = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    let page_name = self.current_page.name().to_lowercase();
+                    let filename = format!("demo_{page_name}_{timestamp}.{ext}");
+
+                    // Write to file (blocking I/O)
+                    return Some(Cmd::blocking(move || {
+                        match std::fs::write(&filename, content) {
+                            Ok(()) => ExportMsg::ExportCompleted(filename).into_message(),
+                            Err(e) => ExportMsg::ExportFailed(e.to_string()).into_message(),
+                        }
+                    }));
+                }
+                ExportMsg::ExportCompleted(filename) => {
+                    let id = self.next_notification_id;
+                    self.next_notification_id += 1;
+                    self.notifications.push(Notification::success(
+                        id,
+                        format!("Exported to {filename}"),
+                    ));
+                    while self.notifications.len() > MAX_NOTIFICATIONS {
+                        self.notifications.remove(0);
+                    }
+                }
+                ExportMsg::ExportFailed(error) => {
+                    let id = self.next_notification_id;
+                    self.next_notification_id += 1;
+                    self.notifications.push(Notification::error(
+                        id,
+                        format!("Export failed: {error}"),
+                    ));
+                    while self.notifications.len() > MAX_NOTIFICATIONS {
+                        self.notifications.remove(0);
+                    }
                 }
             }
             return None;

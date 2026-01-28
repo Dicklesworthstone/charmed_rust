@@ -18,6 +18,7 @@
 use crate::border::Border;
 use crate::color::{ColorProfile, TerminalColor, ansi256_to_rgb};
 use crate::style::{Attrs, Style};
+use crate::visible_width;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, HashMap};
 use std::hash::{Hash, Hasher};
@@ -617,27 +618,7 @@ impl OutputBackend for HtmlBackend {
     }
 }
 
-/// Calculate the visible width of a string (excluding ANSI escapes).
-fn visible_width(s: &str) -> usize {
-    let mut width = 0;
-    let mut in_escape = false;
-
-    for c in s.chars() {
-        if c == '\x1b' {
-            in_escape = true;
-            continue;
-        }
-        if in_escape {
-            if c == 'm' {
-                in_escape = false;
-            }
-            continue;
-        }
-        width += unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
-    }
-
-    width
-}
+// Note: visible_width is imported from crate root (canonical implementation)
 
 /// Strip ANSI escape codes from a string.
 fn strip_ansi(s: &str) -> String {
