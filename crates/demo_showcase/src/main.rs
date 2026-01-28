@@ -38,6 +38,7 @@ mod data;
 mod keymap;
 mod messages;
 mod pages;
+pub mod test_support;
 mod theme;
 
 use bubbletea::{Model, Program};
