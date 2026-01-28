@@ -1,0 +1,157 @@
+//! Message taxonomy for `demo_showcase`.
+//!
+//! This module defines all message types used in the application, providing
+//! a clean taxonomy that minimizes ad-hoc `Any` downcasts.
+
+use bubbletea::Message;
+
+/// Application-level messages for routing and global state changes.
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // Variants will be used in future implementations
+pub enum AppMsg {
+    /// Navigate to a different page.
+    Navigate(Page),
+    /// Toggle sidebar visibility.
+    ToggleSidebar,
+    /// Toggle animations on/off.
+    ToggleAnimations,
+    /// Show help overlay.
+    ShowHelp,
+    /// Hide help overlay.
+    HideHelp,
+    /// Quit the application.
+    Quit,
+}
+
+impl AppMsg {
+    /// Create a bubbletea Message from this `AppMsg`.
+    #[must_use]
+    #[allow(dead_code)] // Will be used in future implementations
+    pub fn into_message(self) -> Message {
+        Message::new(self)
+    }
+}
+
+/// Available pages in the application.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Page {
+    /// Dashboard - platform health overview.
+    #[default]
+    Dashboard,
+    /// Services - service catalog.
+    Services,
+    /// Jobs - background task monitoring.
+    Jobs,
+    /// Logs - aggregated log viewer.
+    Logs,
+    /// Docs - documentation browser.
+    Docs,
+    /// Wizard - multi-step workflows.
+    Wizard,
+    /// Settings - preferences and about.
+    Settings,
+}
+
+impl Page {
+    /// Get the display name for this page.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Dashboard => "Dashboard",
+            Self::Services => "Services",
+            Self::Jobs => "Jobs",
+            Self::Logs => "Logs",
+            Self::Docs => "Docs",
+            Self::Wizard => "Wizard",
+            Self::Settings => "Settings",
+        }
+    }
+
+    /// Get the keyboard shortcut for this page (1-7).
+    #[must_use]
+    #[allow(dead_code)] // Will be used in future implementations
+    pub const fn shortcut(self) -> char {
+        match self {
+            Self::Dashboard => '1',
+            Self::Services => '2',
+            Self::Jobs => '3',
+            Self::Logs => '4',
+            Self::Docs => '5',
+            Self::Wizard => '6',
+            Self::Settings => '7',
+        }
+    }
+
+    /// Get page from keyboard shortcut.
+    #[must_use]
+    pub const fn from_shortcut(c: char) -> Option<Self> {
+        match c {
+            '1' => Some(Self::Dashboard),
+            '2' => Some(Self::Services),
+            '3' => Some(Self::Jobs),
+            '4' => Some(Self::Logs),
+            '5' => Some(Self::Docs),
+            '6' => Some(Self::Wizard),
+            '7' => Some(Self::Settings),
+            _ => None,
+        }
+    }
+
+    /// Get all pages in navigation order.
+    #[must_use]
+    pub const fn all() -> [Self; 7] {
+        [
+            Self::Dashboard,
+            Self::Services,
+            Self::Jobs,
+            Self::Logs,
+            Self::Docs,
+            Self::Wizard,
+            Self::Settings,
+        ]
+    }
+
+    /// Get the icon for this page.
+    #[must_use]
+    pub const fn icon(self) -> &'static str {
+        match self {
+            Self::Dashboard => "[]",
+            Self::Services => ">_",
+            Self::Jobs => ">>",
+            Self::Logs => " #",
+            Self::Docs => " ?",
+            Self::Wizard => " *",
+            Self::Settings => " @",
+        }
+    }
+}
+
+/// Page-level messages that are handled by individual page models.
+///
+/// These are wrapped in the appropriate page context before dispatch.
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used in future page implementations
+pub enum PageMsg {
+    /// Tick for animations and updates.
+    Tick,
+    /// Search/filter input changed.
+    FilterChanged(String),
+    /// Item selected in a list.
+    ItemSelected(usize),
+    /// Action triggered (page-specific meaning).
+    Action(String),
+    /// Scroll viewport.
+    Scroll(ScrollDirection),
+}
+
+/// Scroll direction for viewports.
+#[derive(Debug, Clone, Copy)]
+#[allow(dead_code)] // Will be used with PageMsg
+pub enum ScrollDirection {
+    Up,
+    Down,
+    PageUp,
+    PageDown,
+    Top,
+    Bottom,
+}
