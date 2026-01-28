@@ -8,6 +8,7 @@ use std::time::Instant;
 use bubbletea::Message;
 
 use crate::components::StatusLevel;
+use crate::theme::ThemePreset;
 
 /// Application-level messages for routing and global state changes.
 #[derive(Debug, Clone)]
@@ -19,6 +20,10 @@ pub enum AppMsg {
     ToggleSidebar,
     /// Toggle animations on/off.
     ToggleAnimations,
+    /// Change the application theme.
+    SetTheme(ThemePreset),
+    /// Cycle to the next theme preset.
+    CycleTheme,
     /// Show help overlay.
     ShowHelp,
     /// Hide help overlay.

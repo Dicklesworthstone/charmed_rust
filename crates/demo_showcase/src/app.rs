@@ -198,6 +198,43 @@ impl App {
     }
 
     // =========================================================================
+    // Theme Switching (bd-k52c)
+    // =========================================================================
+
+    /// Get the current theme.
+    #[must_use]
+    #[allow(dead_code)] // Used by pages and components
+    pub const fn theme(&self) -> &Theme {
+        &self.theme
+    }
+
+    /// Get the current theme preset.
+    #[must_use]
+    #[allow(dead_code)] // Used by pages and tests
+    pub const fn theme_preset(&self) -> ThemePreset {
+        self.theme.preset
+    }
+
+    /// Set the application theme.
+    ///
+    /// This instantly updates the theme across the entire application.
+    /// All rendered content will use the new theme colors on next `view()`.
+    pub const fn set_theme(&mut self, preset: ThemePreset) {
+        self.theme = Theme::from_preset(preset);
+        self.config.theme = preset;
+    }
+
+    /// Cycle to the next theme preset.
+    ///
+    /// Useful for quick theme switching via keyboard shortcut.
+    pub fn cycle_theme(&mut self) {
+        let presets = ThemePreset::all();
+        let current_idx = presets.iter().position(|&p| p == self.theme.preset).unwrap_or(0);
+        let next_idx = (current_idx + 1) % presets.len();
+        self.set_theme(presets[next_idx]);
+    }
+
+    // =========================================================================
     // Navigation
     // =========================================================================
 
@@ -236,6 +273,11 @@ impl App {
                 }
                 ['['] => {
                     self.sidebar_visible = !self.sidebar_visible;
+                    return None;
+                }
+                ['t'] => {
+                    // Cycle through themes
+                    self.cycle_theme();
                     return None;
                 }
                 [c] => {
@@ -633,6 +675,14 @@ impl Model for App {
                     self.toggle_animations();
                     None
                 }
+                AppMsg::SetTheme(preset) => {
+                    self.set_theme(*preset);
+                    None
+                }
+                AppMsg::CycleTheme => {
+                    self.cycle_theme();
+                    None
+                }
                 AppMsg::ShowHelp => {
                     self.show_help = true;
                     None
@@ -926,5 +976,73 @@ mod tests {
         // All animation checks should return false
         assert!(!app.use_animations());
         // Layout should still work (not tested here, but this is the contract)
+    }
+
+    // =========================================================================
+    // Theme Switching tests (bd-k52c)
+    // =========================================================================
+
+    #[test]
+    fn app_default_theme_is_dark() {
+        let app = App::new();
+        assert_eq!(app.theme_preset(), ThemePreset::Dark);
+    }
+
+    #[test]
+    fn app_set_theme_changes_preset() {
+        let mut app = App::new();
+        assert_eq!(app.theme_preset(), ThemePreset::Dark);
+
+        app.set_theme(ThemePreset::Light);
+        assert_eq!(app.theme_preset(), ThemePreset::Light);
+
+        app.set_theme(ThemePreset::Dracula);
+        assert_eq!(app.theme_preset(), ThemePreset::Dracula);
+    }
+
+    #[test]
+    fn app_set_theme_updates_colors() {
+        let mut app = App::new();
+        let dark_bg = app.theme().bg;
+
+        app.set_theme(ThemePreset::Light);
+        let light_bg = app.theme().bg;
+
+        // Background colors should differ between themes
+        assert_ne!(dark_bg, light_bg);
+    }
+
+    #[test]
+    fn app_cycle_theme_cycles_through_presets() {
+        let mut app = App::new();
+        assert_eq!(app.theme_preset(), ThemePreset::Dark);
+
+        app.cycle_theme();
+        assert_eq!(app.theme_preset(), ThemePreset::Light);
+
+        app.cycle_theme();
+        assert_eq!(app.theme_preset(), ThemePreset::Dracula);
+
+        app.cycle_theme();
+        assert_eq!(app.theme_preset(), ThemePreset::Dark); // Wraps around
+    }
+
+    #[test]
+    fn app_config_theme_is_updated() {
+        let mut app = App::new();
+        assert_eq!(app.config.theme, ThemePreset::Dark);
+
+        app.set_theme(ThemePreset::Light);
+        assert_eq!(app.config.theme, ThemePreset::Light);
+    }
+
+    #[test]
+    fn app_with_config_respects_theme() {
+        let config = AppConfig {
+            theme: ThemePreset::Dracula,
+            ..Default::default()
+        };
+        let app = App::with_config(config);
+        assert_eq!(app.theme_preset(), ThemePreset::Dracula);
     }
 }
