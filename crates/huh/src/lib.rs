@@ -2061,6 +2061,53 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> MultiSelect<T> {
         self
     }
 
+    /// Enables or disables filtering mode.
+    ///
+    /// When enabled, pressing '/' enters filter mode where typing filters options.
+    pub fn filterable(mut self, enabled: bool) -> Self {
+        self.filtering = enabled;
+        self
+    }
+
+    /// Updates the filter value with proper cursor adjustment.
+    ///
+    /// This method ensures the cursor stays on the same item when possible,
+    /// or clamps to valid bounds if the current item is filtered out.
+    fn update_filter(&mut self, new_value: String) {
+        // Remember what item cursor is currently pointing to (original index)
+        let old_filtered = self.filtered_options();
+        let current_item_idx = old_filtered.get(self.cursor).map(|(idx, _)| *idx);
+
+        // Update the filter
+        self.filter_value = new_value;
+
+        // Recalculate filtered options
+        let new_filtered = self.filtered_options();
+
+        // Try to keep cursor on the same item
+        if let Some(item_idx) = current_item_idx
+            && let Some(new_pos) = new_filtered.iter().position(|(idx, _)| *idx == item_idx)
+        {
+            self.cursor = new_pos;
+            self.adjust_offset();
+            return;
+        }
+
+        // Item no longer visible, clamp cursor to valid range
+        self.cursor = self.cursor.min(new_filtered.len().saturating_sub(1));
+        self.adjust_offset();
+    }
+
+    /// Adjusts the offset to keep the cursor visible within the view.
+    fn adjust_offset(&mut self) {
+        // Ensure cursor is within visible window
+        if self.cursor < self.offset {
+            self.offset = self.cursor;
+        } else if self.cursor >= self.offset + self.height {
+            self.offset = self.cursor.saturating_sub(self.height - 1);
+        }
+    }
+
     fn get_theme(&self) -> Theme {
         self.theme.clone().unwrap_or_else(theme_charm)
     }
@@ -2174,6 +2221,45 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for MultiSele
         if let Some(key_msg) = msg.downcast_ref::<KeyMsg>() {
             self.error = None;
 
+            // Handle filter input when filtering is enabled
+            if self.filtering {
+                // Clear filter on Escape
+                if key_msg.key_type == KeyType::Esc {
+                    self.update_filter(String::new());
+                    return None;
+                }
+
+                // Remove character on Backspace
+                if key_msg.key_type == KeyType::Backspace {
+                    if !self.filter_value.is_empty() {
+                        let mut new_filter = self.filter_value.clone();
+                        new_filter.pop();
+                        self.update_filter(new_filter);
+                    }
+                    return None;
+                }
+
+                // Add characters to filter
+                if key_msg.key_type == KeyType::Runes {
+                    let mut new_filter = self.filter_value.clone();
+                    for c in &key_msg.runes {
+                        // Only add printable characters that aren't navigation/toggle keys
+                        // Always skip these keys so they work for navigation/toggle
+                        match c {
+                            'j' | 'k' | 'g' | 'G' | ' ' | 'x' | '/' => continue,
+                            _ => {}
+                        }
+                        if c.is_alphanumeric() || c.is_whitespace() || c.is_ascii_punctuation() {
+                            new_filter.push(*c);
+                        }
+                    }
+                    if new_filter != self.filter_value {
+                        self.update_filter(new_filter);
+                        return None;
+                    }
+                }
+            }
+
             // Check for prev
             if binding_matches(&self.keymap.prev, key_msg) {
                 return Some(Cmd::new(|| Message::new(PrevFieldMsg)));
@@ -2246,6 +2332,13 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for MultiSele
         // Description
         if !self.description.is_empty() {
             output.push_str(&styles.description.render(&self.description));
+            output.push('\n');
+        }
+
+        // Filter input (if filtering is enabled and filter is active)
+        if self.filtering && !self.filter_value.is_empty() {
+            let filter_display = format!("Filter: {}_", self.filter_value);
+            output.push_str(&styles.description.render(&filter_display));
             output.push('\n');
         }
 
@@ -5814,5 +5907,153 @@ mod tests {
             assert!(text.get_string_value().contains('\n'));
             assert_eq!(text.cursor_row, 100); // 100 newlines = row 100
         }
+    }
+
+    #[test]
+    fn test_multiselect_filter_cursor_stays_on_item() {
+        // Test that cursor stays on the same item when filter narrows results
+        let mut multi: MultiSelect<String> = MultiSelect::new()
+            .filterable(true)
+            .options(vec![
+                SelectOption::new("Apple", "apple".to_string()),
+                SelectOption::new("Banana", "banana".to_string()),
+                SelectOption::new("Cherry", "cherry".to_string()),
+                SelectOption::new("Blueberry", "blueberry".to_string()),
+            ]);
+
+        multi.focus();
+
+        // Move cursor to "Banana" (index 1)
+        let down_msg = Message::new(KeyMsg {
+            key_type: KeyType::Down,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        multi.update(&down_msg);
+        assert_eq!(multi.cursor, 1);
+
+        // Apply filter "b" - should match Banana, Blueberry
+        multi.update_filter("b".to_string());
+
+        // Cursor should still be on "Banana" which is now at filtered index 0
+        let filtered = multi.filtered_options();
+        assert_eq!(filtered.len(), 2);
+        assert_eq!(filtered[multi.cursor].1.key, "Banana");
+    }
+
+    #[test]
+    fn test_multiselect_filter_cursor_clamps() {
+        // Test that cursor clamps when the current item is filtered out
+        let mut multi: MultiSelect<String> = MultiSelect::new()
+            .filterable(true)
+            .options(vec![
+                SelectOption::new("Apple", "apple".to_string()),
+                SelectOption::new("Banana", "banana".to_string()),
+                SelectOption::new("Cherry", "cherry".to_string()),
+            ]);
+
+        multi.focus();
+
+        // Move cursor to "Cherry" (index 2)
+        let down_msg = Message::new(KeyMsg {
+            key_type: KeyType::Down,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        multi.update(&down_msg);
+        multi.update(&down_msg);
+        assert_eq!(multi.cursor, 2);
+
+        // Apply filter "a" - should match Apple, Banana (not Cherry)
+        multi.update_filter("a".to_string());
+
+        // Cursor should be clamped to valid range (max index 1)
+        let filtered = multi.filtered_options();
+        assert_eq!(filtered.len(), 2);
+        assert!(multi.cursor < filtered.len());
+    }
+
+    #[test]
+    fn test_multiselect_filter_then_toggle() {
+        // Test that toggling selection works correctly with filtered results
+        let mut multi: MultiSelect<String> = MultiSelect::new()
+            .filterable(true)
+            .options(vec![
+                SelectOption::new("Apple", "apple".to_string()),
+                SelectOption::new("Banana", "banana".to_string()),
+                SelectOption::new("Cherry", "cherry".to_string()),
+                SelectOption::new("Blueberry", "blueberry".to_string()),
+            ]);
+
+        multi.focus();
+
+        // Apply filter "b" - should match Banana, Blueberry
+        multi.update_filter("b".to_string());
+
+        // Move to second item (Blueberry)
+        let down_msg = Message::new(KeyMsg {
+            key_type: KeyType::Down,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        multi.update(&down_msg);
+
+        // Toggle selection
+        let toggle_msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: vec![' '],
+            alt: false,
+            paste: false,
+        });
+        multi.update(&toggle_msg);
+
+        // Verify Blueberry (original index 3) is selected
+        let selected = multi.get_selected_values();
+        assert_eq!(selected.len(), 1);
+        assert!(selected.contains(&&"blueberry".to_string()));
+
+        // Clear filter and verify selection persists
+        multi.update_filter(String::new());
+        let selected = multi.get_selected_values();
+        assert_eq!(selected.len(), 1);
+        assert!(selected.contains(&&"blueberry".to_string()));
+    }
+
+    #[test]
+    fn test_multiselect_filter_navigation_bounds() {
+        // Test that navigation respects filtered list bounds
+        let mut multi: MultiSelect<String> = MultiSelect::new()
+            .filterable(true)
+            .options(vec![
+                SelectOption::new("Apple", "apple".to_string()),
+                SelectOption::new("Banana", "banana".to_string()),
+                SelectOption::new("Cherry", "cherry".to_string()),
+                SelectOption::new("Date", "date".to_string()),
+            ]);
+
+        multi.focus();
+
+        // Apply filter "a" - should match Apple, Banana, Date (3 items)
+        multi.update_filter("a".to_string());
+        let filtered = multi.filtered_options();
+        assert_eq!(filtered.len(), 3);
+
+        // Navigate down past the filtered list size
+        let down_msg = Message::new(KeyMsg {
+            key_type: KeyType::Down,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        multi.update(&down_msg);
+        multi.update(&down_msg);
+        multi.update(&down_msg); // Try to go past the end
+        multi.update(&down_msg);
+
+        // Cursor should be capped at last filtered index
+        assert_eq!(multi.cursor, 2); // Max index is 2 (3 items: 0, 1, 2)
     }
 }
