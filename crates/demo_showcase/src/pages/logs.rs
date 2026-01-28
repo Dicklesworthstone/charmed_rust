@@ -3,12 +3,23 @@
 //! This page displays a scrollable log stream with color-coded levels,
 //! follow mode for live tailing, and smooth navigation.
 //!
+//! # Filtering & Search
+//!
+//! The page provides:
+//! - **Level filter**: Toggle visibility of ERROR/WARN/INFO/DEBUG/TRACE
+//! - **Service filter**: Filter by target/service name
+//! - **Query bar**: Free-text substring search across log messages
+//!
+//! Filtering maintains a `filtered_indices` vector for efficient rendering.
+//!
 //! Uses `RwLock` for thread-safe interior mutability, enabling SSH mode.
 
 use std::sync::RwLock;
 
+use bubbles::textinput::TextInput;
 use bubbles::viewport::Viewport;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message};
+use lipgloss::Style;
 
 use super::PageModel;
 use crate::data::generator::GeneratedData;
@@ -22,12 +33,108 @@ const DEFAULT_SEED: u64 = 42;
 /// Maximum number of log entries to retain.
 const MAX_LOG_ENTRIES: usize = 1000;
 
+// =============================================================================
+// Filtering
+// =============================================================================
+
+/// Level filter state - which log levels to show.
+#[derive(Debug, Clone, Copy)]
+pub struct LevelFilter {
+    /// Show ERROR level logs.
+    pub error: bool,
+    /// Show WARN level logs.
+    pub warn: bool,
+    /// Show INFO level logs.
+    pub info: bool,
+    /// Show DEBUG level logs.
+    pub debug: bool,
+    /// Show TRACE level logs.
+    pub trace: bool,
+}
+
+impl Default for LevelFilter {
+    fn default() -> Self {
+        Self::all()
+    }
+}
+
+impl LevelFilter {
+    /// Create a filter that shows all levels.
+    #[must_use]
+    pub const fn all() -> Self {
+        Self {
+            error: true,
+            warn: true,
+            info: true,
+            debug: true,
+            trace: true,
+        }
+    }
+
+    /// Toggle a specific level filter.
+    pub fn toggle(&mut self, level: LogLevel) {
+        match level {
+            LogLevel::Error => self.error = !self.error,
+            LogLevel::Warn => self.warn = !self.warn,
+            LogLevel::Info => self.info = !self.info,
+            LogLevel::Debug => self.debug = !self.debug,
+            LogLevel::Trace => self.trace = !self.trace,
+        }
+    }
+
+    /// Check if a log level passes the filter.
+    #[must_use]
+    pub const fn matches(&self, level: LogLevel) -> bool {
+        match level {
+            LogLevel::Error => self.error,
+            LogLevel::Warn => self.warn,
+            LogLevel::Info => self.info,
+            LogLevel::Debug => self.debug,
+            LogLevel::Trace => self.trace,
+        }
+    }
+
+    /// Count how many levels are enabled.
+    #[must_use]
+    pub const fn enabled_count(&self) -> usize {
+        let mut count = 0;
+        if self.error {
+            count += 1;
+        }
+        if self.warn {
+            count += 1;
+        }
+        if self.info {
+            count += 1;
+        }
+        if self.debug {
+            count += 1;
+        }
+        if self.trace {
+            count += 1;
+        }
+        count
+    }
+}
+
+/// Focus state for the logs page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LogsFocus {
+    /// Viewport is focused (default).
+    #[default]
+    Viewport,
+    /// Query input is focused.
+    QueryInput,
+}
+
 /// Logs page showing real-time log viewer with follow mode.
 pub struct LogsPage {
     /// The viewport for scrollable content (`RwLock` for thread-safe interior mutability).
     viewport: RwLock<Viewport>,
     /// The log stream containing entries.
     logs: LogStream,
+    /// Filtered entry indices (indices into logs.entries()).
+    filtered_indices: Vec<usize>,
     /// Whether follow mode is enabled (tail -f behavior).
     following: bool,
     /// Currently selected line index (for copy/export).
@@ -41,6 +148,14 @@ pub struct LogsPage {
     needs_reformat: RwLock<bool>,
     /// Last known dimensions (for detecting resize).
     last_dims: RwLock<(usize, usize)>,
+    /// Query input for filtering.
+    query_input: TextInput,
+    /// Current query text.
+    query: String,
+    /// Level filter state.
+    level_filter: LevelFilter,
+    /// Current focus state.
+    focus: LogsFocus,
 }
 
 impl LogsPage {
@@ -56,21 +171,84 @@ impl LogsPage {
         let data = GeneratedData::generate(seed);
         let logs = Self::generate_initial_logs(&data, seed);
 
+        // Initialize filtered indices to all entries
+        let filtered_indices: Vec<usize> = (0..logs.len()).collect();
+
         // Start with follow mode enabled
         let mut viewport = Viewport::new(80, 24);
         viewport.mouse_wheel_enabled = true;
         viewport.mouse_wheel_delta = 3;
 
+        // Create query input
+        let mut query_input = TextInput::new();
+        query_input.set_placeholder("Filter logs... (/ to focus)");
+        query_input.width = 40;
+
         Self {
             viewport: RwLock::new(viewport),
             logs,
+            filtered_indices,
             following: true,
             selected_line: None,
             seed,
             formatted_content: RwLock::new(String::new()),
             needs_reformat: RwLock::new(true),
             last_dims: RwLock::new((0, 0)),
+            query_input,
+            query: String::new(),
+            level_filter: LevelFilter::all(),
+            focus: LogsFocus::Viewport,
         }
+    }
+
+    // =========================================================================
+    // Filtering
+    // =========================================================================
+
+    /// Apply current filters, updating filtered_indices.
+    fn apply_filters(&mut self) {
+        let query_lower = self.query.to_lowercase();
+        let entries = self.logs.entries();
+
+        self.filtered_indices = entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| {
+                // Level filter
+                if !self.level_filter.matches(entry.level) {
+                    return false;
+                }
+
+                // Query filter (match message or target)
+                if !query_lower.is_empty() {
+                    let msg_match = entry.message.to_lowercase().contains(&query_lower);
+                    let target_match = entry.target.to_lowercase().contains(&query_lower);
+                    if !msg_match && !target_match {
+                        return false;
+                    }
+                }
+
+                true
+            })
+            .map(|(i, _)| i)
+            .collect();
+
+        // Mark for reformatting
+        *self.needs_reformat.write().unwrap() = true;
+    }
+
+    /// Toggle a level filter and reapply.
+    fn toggle_level_filter(&mut self, level: LogLevel) {
+        self.level_filter.toggle(level);
+        self.apply_filters();
+    }
+
+    /// Clear all filters.
+    fn clear_filters(&mut self) {
+        self.query.clear();
+        self.query_input.set_value("");
+        self.level_filter = LevelFilter::all();
+        self.apply_filters();
     }
 
     /// Generate initial log entries from the generated data.
@@ -183,12 +361,13 @@ impl LogsPage {
         logs
     }
 
-    /// Refresh logs with a new seed.
+    /// Refresh logs with a new seed, preserving filters.
     pub fn refresh(&mut self) {
         self.seed = self.seed.wrapping_add(1);
         let data = GeneratedData::generate(self.seed);
         self.logs = Self::generate_initial_logs(&data, self.seed);
-        *self.needs_reformat.write().unwrap() = true;
+        // Reapply filters to new data
+        self.apply_filters();
         if self.following {
             self.viewport.write().unwrap().goto_bottom();
         }
@@ -219,7 +398,7 @@ impl LogsPage {
         }
     }
 
-    /// Format all log entries for display.
+    /// Format filtered log entries for display.
     fn format_logs(&self, theme: &Theme, target_width: usize) -> String {
         // Calculate optimal target width based on available space
         // timestamp (8) + level (5) + spacing (4) = 17
@@ -231,12 +410,46 @@ impl LogsPage {
             target: target_col_width,
         });
 
-        self.logs
-            .entries()
+        let entries = self.logs.entries();
+        self.filtered_indices
             .iter()
+            .filter_map(|&i| entries.get(i))
             .map(|entry| formatter.format(entry))
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    /// Render the filter bar with level chips and query input.
+    fn render_filter_bar(&self, theme: &Theme, _width: usize) -> String {
+        // Level filter chips
+        let chip = |label: &str, active: bool, style: lipgloss::Style| -> String {
+            let prefix = if active { "[●]" } else { "[ ]" };
+            let text = format!("{prefix} {label}");
+            if active {
+                style.render(&text)
+            } else {
+                theme.muted_style().render(&text)
+            }
+        };
+
+        let error_chip = chip("E", self.level_filter.error, theme.error_style());
+        let warn_chip = chip("W", self.level_filter.warn, theme.warning_style());
+        let info_chip = chip("I", self.level_filter.info, theme.info_style());
+        let debug_chip = chip("D", self.level_filter.debug, theme.muted_style());
+        let trace_chip = chip("T", self.level_filter.trace, theme.muted_style());
+
+        // Query input
+        let label = if self.focus == LogsFocus::QueryInput {
+            theme.info_style().render("Filter: ")
+        } else {
+            theme.muted_style().render("/ filter ")
+        };
+
+        let input_view = self.query_input.view();
+
+        format!(
+            "{error_chip} {warn_chip} {info_chip} {debug_chip} {trace_chip}  {label}{input_view}"
+        )
     }
 
     /// Render the status bar showing follow mode and position.
@@ -247,33 +460,31 @@ impl LogsPage {
             theme.warning_style().render(" PAUSED ")
         };
 
-        let counts = self.logs.count_by_level();
-        let stats = format!(
-            "E:{} W:{} I:{} D:{}",
-            counts.error, counts.warn, counts.info, counts.debug
-        );
-        let stats_styled = theme.muted_style().render(&stats);
+        // Show filtered count vs total
+        let total = self.logs.len();
+        let filtered = self.filtered_indices.len();
+        let count_display = if filtered == total {
+            theme.muted_style().render(&format!("{total} lines"))
+        } else {
+            theme
+                .info_style()
+                .render(&format!("{filtered}/{total} shown"))
+        };
 
         let viewport = self.viewport.read().unwrap();
-        let position = format!(
-            "{}/{}",
-            viewport.y_offset() + viewport.visible_line_count(),
-            self.logs.len()
-        );
+        let position = format!("{}:{}", viewport.y_offset() + 1, filtered);
         let position_styled = theme.muted_style().render(&position);
 
         // Calculate spacing
         let indicator_len = if self.following { 11 } else { 8 };
-        let stats_len = stats.len();
-        let position_len = position.len();
-        let content_len = indicator_len + stats_len + position_len + 4;
+        let content_len = indicator_len + 30; // Approximate
         let padding = width.saturating_sub(content_len);
 
         format!(
             "{}{:padding$}{}  {}",
             follow_indicator,
             "",
-            stats_styled,
+            count_display,
             position_styled,
             padding = padding
         )
@@ -290,7 +501,52 @@ impl PageModel for LogsPage {
     fn update(&mut self, msg: &Message) -> Option<Cmd> {
         // Handle key messages
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
-            // Handle special keys
+            // Handle query input focus
+            if self.focus == LogsFocus::QueryInput {
+                match key.key_type {
+                    KeyType::Esc => {
+                        // Exit query input, return to viewport
+                        self.focus = LogsFocus::Viewport;
+                        self.query_input.blur();
+                        return None;
+                    }
+                    KeyType::Enter => {
+                        // Apply filter and return to viewport
+                        self.focus = LogsFocus::Viewport;
+                        self.query_input.blur();
+                        return None;
+                    }
+                    KeyType::Backspace => {
+                        // Delete last character
+                        self.query.pop();
+                        self.query_input.set_value(&self.query);
+                        self.apply_filters();
+                        return None;
+                    }
+                    KeyType::Runes => {
+                        // Add typed characters
+                        for c in &key.runes {
+                            if c.is_alphanumeric()
+                                || *c == '-'
+                                || *c == '_'
+                                || *c == ' '
+                                || *c == ':'
+                                || *c == '.'
+                            {
+                                self.query.push(*c);
+                            }
+                        }
+                        self.query_input.set_value(&self.query);
+                        self.apply_filters();
+                        return None;
+                    }
+                    _ => {
+                        return None;
+                    }
+                }
+            }
+
+            // Viewport focus mode
             match key.key_type {
                 KeyType::Home => {
                     self.viewport.write().unwrap().goto_top();
@@ -305,6 +561,12 @@ impl PageModel for LogsPage {
                 KeyType::Runes => {
                     // Handle character keys
                     match key.runes.as_slice() {
+                        ['/'] => {
+                            // Enter query input mode
+                            self.focus = LogsFocus::QueryInput;
+                            self.query_input.focus();
+                            return None;
+                        }
                         // Toggle follow mode with 'f' or 'F'
                         ['f' | 'F'] => {
                             self.toggle_follow();
@@ -327,6 +589,32 @@ impl PageModel for LogsPage {
                             self.refresh();
                             return None;
                         }
+                        // Level filter toggles (1-5)
+                        ['1'] => {
+                            self.toggle_level_filter(LogLevel::Error);
+                            return None;
+                        }
+                        ['2'] => {
+                            self.toggle_level_filter(LogLevel::Warn);
+                            return None;
+                        }
+                        ['3'] => {
+                            self.toggle_level_filter(LogLevel::Info);
+                            return None;
+                        }
+                        ['4'] => {
+                            self.toggle_level_filter(LogLevel::Debug);
+                            return None;
+                        }
+                        ['5'] => {
+                            self.toggle_level_filter(LogLevel::Trace);
+                            return None;
+                        }
+                        // Clear filters
+                        ['c'] => {
+                            self.clear_filters();
+                            return None;
+                        }
                         _ => {}
                     }
                 }
@@ -344,8 +632,10 @@ impl PageModel for LogsPage {
     }
 
     fn view(&self, width: usize, height: usize, theme: &Theme) -> String {
-        // Reserve space for status bar
-        let content_height = height.saturating_sub(1);
+        // Reserve space for filter bar and status bar
+        let filter_bar_height = 1;
+        let status_bar_height = 1;
+        let content_height = height.saturating_sub(filter_bar_height + status_bar_height + 1);
 
         // Check if dimensions changed or content needs reformatting
         let last_dims = *self.last_dims.read().unwrap();
@@ -369,14 +659,17 @@ impl PageModel for LogsPage {
             }
         }
 
+        // Render filter bar
+        let filter_bar = self.render_filter_bar(theme, width);
+
         // Render viewport content
         let content = self.viewport.read().unwrap().view();
 
         // Render status bar
         let status = self.render_status_bar(theme, width);
 
-        // Combine with newline
-        format!("{content}\n{status}")
+        // Combine with newlines
+        format!("{filter_bar}\n{content}\n{status}")
     }
 
     fn page(&self) -> Page {
@@ -384,15 +677,21 @@ impl PageModel for LogsPage {
     }
 
     fn hints(&self) -> &'static str {
-        "j/k scroll  f follow  g/G top/bottom  r refresh"
+        "/ filter  1-5 levels  c clear  f follow  j/k scroll  r refresh"
     }
 
     fn on_enter(&mut self) -> Option<Cmd> {
         // Mark content for reformatting when page becomes active
         *self.needs_reformat.write().unwrap() = true;
+        self.focus = LogsFocus::Viewport;
         if self.following {
             self.viewport.write().unwrap().goto_bottom();
         }
+        None
+    }
+
+    fn on_leave(&mut self) -> Option<Cmd> {
+        self.query_input.blur();
         None
     }
 }
@@ -474,5 +773,116 @@ mod tests {
     fn logs_page_page_type() {
         let page = LogsPage::new();
         assert_eq!(page.page(), Page::Logs);
+    }
+
+    // =========================================================================
+    // Filtering Tests
+    // =========================================================================
+
+    #[test]
+    fn initial_filter_shows_all() {
+        let page = LogsPage::new();
+        assert_eq!(page.filtered_indices.len(), page.logs.len());
+    }
+
+    #[test]
+    fn level_filter_reduces_count() {
+        let mut page = LogsPage::new();
+        let total = page.logs.len();
+
+        // Disable INFO filter (most common level)
+        page.level_filter.info = false;
+        page.apply_filters();
+
+        // Should have fewer entries
+        assert!(page.filtered_indices.len() < total);
+    }
+
+    #[test]
+    fn query_filter_matches_message() {
+        let mut page = LogsPage::new();
+
+        // Filter to logs containing "request"
+        page.query = "request".to_string();
+        page.apply_filters();
+
+        // All filtered logs should contain "request" (case-insensitive)
+        let entries = page.logs.entries();
+        for &idx in &page.filtered_indices {
+            let entry = &entries[idx];
+            let matches = entry.message.to_lowercase().contains("request")
+                || entry.target.to_lowercase().contains("request");
+            assert!(matches, "Entry should match 'request': {:?}", entry);
+        }
+    }
+
+    #[test]
+    fn query_filter_matches_target() {
+        let mut page = LogsPage::new();
+
+        // Filter by target/service
+        page.query = "api".to_string();
+        page.apply_filters();
+
+        // Should find some matches
+        assert!(!page.filtered_indices.is_empty());
+    }
+
+    #[test]
+    fn clear_filters_restores_all() {
+        let mut page = LogsPage::new();
+        let original_count = page.filtered_indices.len();
+
+        // Apply some filters
+        page.query = "nonexistent".to_string();
+        page.level_filter.error = false;
+        page.level_filter.warn = false;
+        page.apply_filters();
+
+        // Clear and restore
+        page.clear_filters();
+        assert_eq!(page.filtered_indices.len(), original_count);
+    }
+
+    #[test]
+    fn level_filter_toggle() {
+        let mut filter = LevelFilter::all();
+        assert!(filter.error);
+
+        filter.toggle(LogLevel::Error);
+        assert!(!filter.error);
+
+        filter.toggle(LogLevel::Error);
+        assert!(filter.error);
+    }
+
+    #[test]
+    fn level_filter_matches_correctly() {
+        let filter = LevelFilter {
+            error: true,
+            warn: false,
+            info: true,
+            debug: false,
+            trace: true,
+        };
+
+        assert!(filter.matches(LogLevel::Error));
+        assert!(!filter.matches(LogLevel::Warn));
+        assert!(filter.matches(LogLevel::Info));
+        assert!(!filter.matches(LogLevel::Debug));
+        assert!(filter.matches(LogLevel::Trace));
+    }
+
+    #[test]
+    fn level_filter_enabled_count() {
+        let filter = LevelFilter {
+            error: true,
+            warn: true,
+            info: false,
+            debug: false,
+            trace: false,
+        };
+
+        assert_eq!(filter.enabled_count(), 2);
     }
 }

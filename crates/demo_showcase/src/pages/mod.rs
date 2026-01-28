@@ -4,12 +4,14 @@
 //! interface for the router to delegate update and view calls.
 
 mod dashboard;
+mod files;
 mod jobs;
 mod logs;
 mod placeholder;
 mod wizard;
 
 pub use dashboard::DashboardPage;
+pub use files::FilesPage;
 pub use jobs::JobsPage;
 pub use logs::LogsPage;
 pub use placeholder::PlaceholderPage;
@@ -62,7 +64,7 @@ pub struct Pages {
     pub services: PlaceholderPage,
     pub jobs: JobsPage,
     pub logs: LogsPage,
-    pub docs: PlaceholderPage,
+    pub docs: FilesPage,
     pub wizard: WizardPage,
     pub settings: PlaceholderPage,
 }
@@ -74,7 +76,7 @@ impl Default for Pages {
             services: PlaceholderPage::new(Page::Services),
             jobs: JobsPage::new(),
             logs: LogsPage::new(),
-            docs: PlaceholderPage::new(Page::Docs),
+            docs: FilesPage::new(),
             wizard: WizardPage::new(),
             settings: PlaceholderPage::new(Page::Settings),
         }
