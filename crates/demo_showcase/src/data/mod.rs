@@ -19,7 +19,10 @@ pub mod simulation;
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
+use lipgloss::Style;
 use serde::{Deserialize, Serialize};
+
+use crate::theme::Theme;
 
 /// Unique identifier for entities.
 pub type Id = u64;
@@ -952,6 +955,218 @@ impl DocPage {
     }
 }
 
+// ============================================================================
+// Log Formatting (bd-32pp)
+// ============================================================================
+
+/// Configuration for log entry column widths.
+#[derive(Debug, Clone, Copy)]
+pub struct LogColumnWidths {
+    /// Width of the timestamp column (e.g., "15:04:05").
+    pub timestamp: usize,
+    /// Width of the level column (e.g., "ERROR").
+    pub level: usize,
+    /// Width of the target/component column.
+    pub target: usize,
+}
+
+impl Default for LogColumnWidths {
+    fn default() -> Self {
+        Self {
+            timestamp: 8, // "15:04:05"
+            level: 5,     // "ERROR" (longest)
+            target: 20,
+        }
+    }
+}
+
+/// Formats log entries with styled, aligned output.
+///
+/// The `LogFormatter` provides consistent visual presentation of log entries
+/// with color-coded levels and column alignment for easy scanning.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use demo_showcase::data::{LogFormatter, LogEntry, LogLevel};
+/// use demo_showcase::theme::Theme;
+///
+/// let theme = Theme::dark();
+/// let formatter = LogFormatter::new(&theme);
+///
+/// let entry = LogEntry::new(1, LogLevel::Error, "api::auth", "Login failed");
+/// let styled = formatter.format(&entry);
+/// ```
+#[derive(Debug, Clone)]
+pub struct LogFormatter {
+    /// Whether to apply color styling.
+    use_color: bool,
+    /// Column width configuration.
+    widths: LogColumnWidths,
+    /// Style for TRACE level.
+    trace_style: Style,
+    /// Style for DEBUG level.
+    debug_style: Style,
+    /// Style for INFO level.
+    info_style: Style,
+    /// Style for WARN level.
+    warn_style: Style,
+    /// Style for ERROR level.
+    error_style: Style,
+    /// Style for timestamp.
+    timestamp_style: Style,
+    /// Style for target/component.
+    target_style: Style,
+    /// Style for message text.
+    message_style: Style,
+}
+
+impl LogFormatter {
+    /// Create a new log formatter with the given theme.
+    #[must_use]
+    pub fn new(theme: &Theme) -> Self {
+        Self {
+            use_color: true,
+            widths: LogColumnWidths::default(),
+            // TRACE/DEBUG are muted - less important
+            trace_style: theme.muted_style(),
+            debug_style: theme.muted_style(),
+            // INFO is informational but not alarming
+            info_style: theme.info_style(),
+            // WARN/ERROR pop - need attention
+            warn_style: theme.warning_style().bold(),
+            error_style: theme.error_style().bold(),
+            // Metadata styling
+            timestamp_style: theme.muted_style(),
+            target_style: theme.muted_style(),
+            message_style: Style::new().foreground(theme.text),
+        }
+    }
+
+    /// Disable color output (for no-color mode).
+    #[must_use]
+    pub const fn without_color(mut self) -> Self {
+        self.use_color = false;
+        self
+    }
+
+    /// Set custom column widths.
+    #[must_use]
+    pub const fn with_widths(mut self, widths: LogColumnWidths) -> Self {
+        self.widths = widths;
+        self
+    }
+
+    /// Set the target column width.
+    #[must_use]
+    pub const fn with_target_width(mut self, width: usize) -> Self {
+        self.widths.target = width;
+        self
+    }
+
+    /// Format a log entry as a styled string.
+    ///
+    /// Output format: `HH:MM:SS LEVEL  target           message`
+    #[must_use]
+    pub fn format(&self, entry: &LogEntry) -> String {
+        let timestamp = self.format_timestamp(entry);
+        let level = self.format_level(entry.level);
+        let target = self.format_target(&entry.target);
+        let message = self.format_message(&entry.message);
+
+        format!("{timestamp} {level} {target} {message}")
+    }
+
+    /// Format a log entry with optional field output.
+    ///
+    /// If the entry has structured fields, they are appended after the message.
+    #[must_use]
+    pub fn format_with_fields(&self, entry: &LogEntry) -> String {
+        let base = self.format(entry);
+        if entry.fields.is_empty() {
+            return base;
+        }
+
+        let fields: Vec<String> = entry
+            .fields
+            .iter()
+            .map(|(k, v)| format!("{k}={v}"))
+            .collect();
+        format!("{base} {{{}}}", fields.join(", "))
+    }
+
+    /// Format just the timestamp portion.
+    fn format_timestamp(&self, entry: &LogEntry) -> String {
+        let ts = entry.timestamp.format("%H:%M:%S").to_string();
+        let padded = format!("{:>width$}", ts, width = self.widths.timestamp);
+
+        if self.use_color {
+            self.timestamp_style.render(&padded)
+        } else {
+            padded
+        }
+    }
+
+    /// Format just the level portion.
+    fn format_level(&self, level: LogLevel) -> String {
+        let name = level.name();
+        let padded = format!("{:width$}", name, width = self.widths.level);
+
+        if self.use_color {
+            let style = match level {
+                LogLevel::Trace => &self.trace_style,
+                LogLevel::Debug => &self.debug_style,
+                LogLevel::Info => &self.info_style,
+                LogLevel::Warn => &self.warn_style,
+                LogLevel::Error => &self.error_style,
+            };
+            style.render(&padded)
+        } else {
+            padded
+        }
+    }
+
+    /// Format just the target portion.
+    fn format_target(&self, target: &str) -> String {
+        // Truncate if too long
+        let truncated = if target.len() > self.widths.target {
+            format!("{}…", &target[..self.widths.target.saturating_sub(1)])
+        } else {
+            target.to_string()
+        };
+        let padded = format!("{:width$}", truncated, width = self.widths.target);
+
+        if self.use_color {
+            self.target_style.render(&padded)
+        } else {
+            padded
+        }
+    }
+
+    /// Format just the message portion.
+    fn format_message(&self, message: &str) -> String {
+        if self.use_color {
+            self.message_style.render(message)
+        } else {
+            message.to_string()
+        }
+    }
+
+    /// Get the style for a given log level.
+    ///
+    /// Useful for external code that wants to apply level-based styling.
+    #[must_use]
+    pub const fn level_style(&self, level: LogLevel) -> &Style {
+        match level {
+            LogLevel::Trace => &self.trace_style,
+            LogLevel::Debug => &self.debug_style,
+            LogLevel::Info => &self.info_style,
+            LogLevel::Warn => &self.warn_style,
+            LogLevel::Error => &self.error_style,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1207,5 +1422,138 @@ mod tests {
         assert_eq!(entry.deployment_id, Some(99));
         assert_eq!(entry.trace_id, Some("abc123".to_string()));
         assert_eq!(entry.fields.get("key"), Some(&"value".to_string()));
+    }
+
+    // ========================================================================
+    // LogFormatter tests (bd-32pp)
+    // ========================================================================
+
+    #[test]
+    fn log_formatter_format_basic() {
+        use crate::theme::Theme;
+
+        let theme = Theme::dark();
+        let formatter = LogFormatter::new(&theme).without_color();
+
+        let entry = LogEntry::new(1, LogLevel::Info, "api::handlers", "Request received");
+        let output = formatter.format(&entry);
+
+        // Should contain all parts (without color codes)
+        assert!(output.contains("INFO"));
+        assert!(output.contains("api::handlers"));
+        assert!(output.contains("Request received"));
+    }
+
+    #[test]
+    fn log_formatter_format_all_levels() {
+        use crate::theme::Theme;
+
+        let theme = Theme::dark();
+        let formatter = LogFormatter::new(&theme).without_color();
+
+        for level in [
+            LogLevel::Trace,
+            LogLevel::Debug,
+            LogLevel::Info,
+            LogLevel::Warn,
+            LogLevel::Error,
+        ] {
+            let entry = LogEntry::new(1, level, "test", "msg");
+            let output = formatter.format(&entry);
+            assert!(
+                output.contains(level.name()),
+                "Missing level name for {level:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn log_formatter_truncates_long_target() {
+        use crate::theme::Theme;
+
+        let theme = Theme::dark();
+        let formatter = LogFormatter::new(&theme)
+            .without_color()
+            .with_target_width(10);
+
+        let entry = LogEntry::new(1, LogLevel::Info, "very::long::target::name", "msg");
+        let output = formatter.format(&entry);
+
+        // Should be truncated with ellipsis
+        assert!(output.contains("very::lon…"));
+    }
+
+    #[test]
+    fn log_formatter_with_fields() {
+        use crate::theme::Theme;
+
+        let theme = Theme::dark();
+        let formatter = LogFormatter::new(&theme).without_color();
+
+        let entry = LogEntry::new(1, LogLevel::Info, "api", "Request")
+            .with_field("user_id", "123")
+            .with_field("method", "GET");
+        let output = formatter.format_with_fields(&entry);
+
+        // Should contain the fields
+        assert!(output.contains("user_id=123"));
+        assert!(output.contains("method=GET"));
+        assert!(output.contains('{') && output.contains('}'));
+    }
+
+    #[test]
+    fn log_formatter_without_fields_no_braces() {
+        use crate::theme::Theme;
+
+        let theme = Theme::dark();
+        let formatter = LogFormatter::new(&theme).without_color();
+
+        let entry = LogEntry::new(1, LogLevel::Info, "api", "Request");
+        let output = formatter.format_with_fields(&entry);
+
+        // Should not contain braces when no fields
+        assert!(!output.contains('{'));
+        assert!(!output.contains('}'));
+    }
+
+    #[test]
+    fn log_formatter_level_style() {
+        use crate::theme::Theme;
+
+        let theme = Theme::dark();
+        let formatter = LogFormatter::new(&theme);
+
+        // Just verify we get valid styles for each level
+        let _ = formatter.level_style(LogLevel::Trace);
+        let _ = formatter.level_style(LogLevel::Debug);
+        let _ = formatter.level_style(LogLevel::Info);
+        let _ = formatter.level_style(LogLevel::Warn);
+        let _ = formatter.level_style(LogLevel::Error);
+    }
+
+    #[test]
+    fn log_formatter_custom_widths() {
+        use crate::theme::Theme;
+
+        let widths = LogColumnWidths {
+            timestamp: 10,
+            level: 6,
+            target: 15,
+        };
+        let theme = Theme::dark();
+        let formatter = LogFormatter::new(&theme)
+            .without_color()
+            .with_widths(widths);
+
+        let entry = LogEntry::new(1, LogLevel::Info, "test", "msg");
+        let _ = formatter.format(&entry); // Just verify it doesn't panic
+    }
+
+    #[test]
+    fn log_column_widths_default() {
+        let widths = LogColumnWidths::default();
+        assert_eq!(widths.timestamp, 8);
+        assert_eq!(widths.level, 5);
+        assert_eq!(widths.target, 20);
     }
 }

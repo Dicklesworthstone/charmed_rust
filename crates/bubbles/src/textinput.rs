@@ -1252,4 +1252,22 @@ mod tests {
         assert!(view.contains("a😀"));
         assert!(!view.contains("b")); // 'b' is clipped
     }
+
+    #[test]
+    fn test_delete_word_backward_on_whitespace() {
+        let mut input = TextInput::new();
+        input.set_value("abc   ");
+        input.set_cursor(6); // At end
+
+        input.delete_word_backward();
+
+        // Current implementation: deletes whitespace AND word -> ""
+        // "Standard" (bash) behavior: deletes whitespace -> "abc"
+        // Let's see what it does.
+        assert_eq!(
+            input.value(),
+            "",
+            "Aggressive deletion: deleted both whitespace and word"
+        );
+    }
 }

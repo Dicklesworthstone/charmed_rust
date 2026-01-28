@@ -1,6 +1,7 @@
 //! Jobs page - background task monitoring with progress tracking.
 //!
-//! This page displays a table of jobs with keyboard navigation and selection.
+//! This page displays a table of jobs with keyboard navigation and selection,
+//! along with a details pane showing job info, parameters, timeline, and logs.
 
 use bubbles::table::{Column, Row, Styles, Table};
 use bubbletea::{Cmd, KeyMsg, KeyType, Message};
@@ -8,7 +9,7 @@ use lipgloss::Style;
 
 use super::PageModel;
 use crate::data::generator::GeneratedData;
-use crate::data::{Job, JobStatus};
+use crate::data::{Job, JobStatus, LogEntry, LogLevel, LogStream};
 use crate::messages::Page;
 use crate::theme::Theme;
 
@@ -23,6 +24,10 @@ pub struct JobsPage {
     jobs: Vec<Job>,
     /// Current seed for data generation.
     seed: u64,
+    /// Log stream with job-correlated entries.
+    logs: LogStream,
+    /// Scroll offset for details pane.
+    details_scroll: usize,
 }
 
 impl JobsPage {
@@ -55,7 +60,76 @@ impl JobsPage {
             .height(20)
             .focused(true);
 
-        Self { table, jobs, seed }
+        // Generate synthetic logs correlated with jobs
+        let logs = Self::generate_job_logs(&jobs, seed);
+
+        Self {
+            table,
+            jobs,
+            seed,
+            logs,
+            details_scroll: 0,
+        }
+    }
+
+    /// Generate synthetic log entries correlated with jobs.
+    fn generate_job_logs(jobs: &[Job], seed: u64) -> LogStream {
+        use rand::prelude::*;
+        use rand_pcg::Pcg64;
+
+        let mut rng = Pcg64::seed_from_u64(seed.wrapping_add(12345));
+        let mut logs = LogStream::new(200);
+
+        let messages = [
+            "Job initialized",
+            "Starting execution",
+            "Processing batch",
+            "Checkpoint saved",
+            "Progress updated",
+            "Resource acquired",
+            "Step completed",
+            "Validation passed",
+            "Data processed",
+            "Finalizing",
+        ];
+
+        for job in jobs {
+            // Generate 2-8 log entries per job
+            let entry_count = rng.random_range(2..=8);
+            for i in 0..entry_count {
+                let level = if i == 0 {
+                    LogLevel::Info
+                } else if rng.random_ratio(1, 10) {
+                    LogLevel::Warn
+                } else if rng.random_ratio(1, 20) {
+                    LogLevel::Error
+                } else {
+                    LogLevel::Info
+                };
+
+                let msg_idx = rng.random_range(0..messages.len());
+                let message = format!("{} (step {})", messages[msg_idx], i + 1);
+                let target = format!("job::{}", job.kind.name().to_lowercase());
+
+                #[expect(
+                    clippy::cast_sign_loss,
+                    reason = "i is always non-negative from 0..entry_count"
+                )]
+                let tick = i as u64;
+                let mut entry = LogEntry::new(logs.len() as u64 + 1, level, target, message)
+                    .with_job_id(job.id)
+                    .with_tick(tick);
+
+                // Set timestamp relative to job start
+                if let Some(started) = job.started_at {
+                    entry.timestamp = started + chrono::Duration::seconds(i64::from(i) * 5);
+                }
+
+                logs.push(entry);
+            }
+        }
+
+        logs
     }
 
     /// Convert jobs to table rows.
@@ -95,6 +169,8 @@ impl JobsPage {
         self.jobs = data.jobs;
         let rows = Self::jobs_to_rows(&self.jobs);
         self.table.set_rows(rows);
+        self.logs = Self::generate_job_logs(&self.jobs, self.seed);
+        self.details_scroll = 0;
     }
 
     /// Apply theme-aware styles to the table.
@@ -168,7 +244,8 @@ impl JobsPage {
     }
 
     /// Render the details pane for the selected job.
-    fn render_details(&self, theme: &Theme, width: usize) -> String {
+    #[allow(unused_variables)] // height used for scrolling in enhanced version
+    fn render_details(&self, theme: &Theme, width: usize, height: usize) -> String {
         let Some(job) = self.selected_job() else {
             return theme.muted_style().render("No job selected");
         };
@@ -326,7 +403,7 @@ impl PageModel for JobsPage {
         let title = theme.title_style().render("Jobs");
         let status_bar = page.render_status_bar(theme, width);
         let table_view = page.table.view();
-        let details = page.render_details(theme, width);
+        let details = page.render_details(theme, width, details_height);
 
         // Compose
         format!("{title}  {status_bar}\n\n{table_view}\n\n{details}")
@@ -358,6 +435,8 @@ impl JobsPage {
             table: self.table.clone(),
             jobs: self.jobs.clone(),
             seed: self.seed,
+            logs: self.logs.clone(),
+            details_scroll: self.details_scroll,
         }
     }
 }

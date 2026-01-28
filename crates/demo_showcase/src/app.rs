@@ -237,7 +237,7 @@ impl App {
                 return None;
             }
             KeyType::Runes => match key.runes.as_slice() {
-                ['?'] | ['q'] => {
+                ['?' | 'q'] => {
                     self.show_help = false;
                     return None;
                 }
@@ -265,7 +265,7 @@ impl App {
     }
 
     /// Calculate the number of visible lines in the help overlay.
-    fn help_visible_lines(&self) -> usize {
+    const fn help_visible_lines(&self) -> usize {
         // Help modal uses most of the screen with some padding
         // Header (1) + title bar (1) + footer hint (1) + border padding (4)
         self.height.saturating_sub(8)
@@ -371,6 +371,10 @@ impl App {
     }
 
     /// Render the help overlay.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Complex render function with detailed formatting"
+    )]
     fn render_help(&self) -> String {
         // Calculate dimensions - wider box for better readability
         let box_width: usize = 52.min(self.width.saturating_sub(4));
@@ -461,7 +465,7 @@ impl App {
             } else {
                 (*line).clone()
             };
-            let padded = format!("{:width$}", truncated, width = content_width);
+            let padded = format!("{truncated:content_width$}");
 
             // Apply section title styling if this is a section header
             let styled_content = if line.starts_with("[ ") && line.ends_with(" ]") {
@@ -490,11 +494,7 @@ impl App {
 
         // Scroll indicator
         let scroll_info = if total_lines > visible_lines {
-            let percent = if max_scroll == 0 {
-                100
-            } else {
-                ((skip * 100) / max_scroll).min(100)
-            };
+            let percent = (skip * 100).checked_div(max_scroll).unwrap_or(100).min(100);
             format!("[{percent:>3}%]")
         } else {
             String::new()
@@ -504,7 +504,7 @@ impl App {
         let hints_text = key_hint(&self.theme, "j/k", "scroll");
         let close_text = key_hint(&self.theme, "q/?/Esc", "close");
         let footer_hints = format!("{hints_text}  {close_text}  {scroll_info}");
-        let footer_padded = format!("{:^width$}", footer_hints, width = box_width);
+        let footer_padded = format!("{footer_hints:^box_width$}");
         lines.push(format!(
             "{}{}",
             " ".repeat(start_x),
