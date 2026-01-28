@@ -5,11 +5,11 @@
 
 use std::sync::Arc;
 
+use lipgloss::color::TerminalColor;
 use lipgloss::{
     AdaptiveColor, AnsiColor, Color, ColorProfile, CompleteColor, NoColor, Renderer, RgbColor,
     Style,
 };
-use lipgloss::color::TerminalColor;
 
 // ===========================================================================
 // Helpers
@@ -121,7 +121,10 @@ fn italic_produces_sgr_3() {
 #[test]
 fn underline_produces_sgr_4() {
     let s = Style::new().underline().render("hello");
-    assert!(contains_sgr(&s, "4"), "Underline should produce SGR 4: {s:?}");
+    assert!(
+        contains_sgr(&s, "4"),
+        "Underline should produce SGR 4: {s:?}"
+    );
     assert!(s.contains("\x1b[0m"), "Should contain reset");
 }
 
@@ -142,7 +145,10 @@ fn reverse_produces_sgr_7() {
 #[test]
 fn strikethrough_produces_sgr_9() {
     let s = Style::new().strikethrough().render("hello");
-    assert!(contains_sgr(&s, "9"), "Strikethrough should produce SGR 9: {s:?}");
+    assert!(
+        contains_sgr(&s, "9"),
+        "Strikethrough should produce SGR 9: {s:?}"
+    );
     assert!(s.contains("\x1b[0m"), "Should contain reset");
 }
 
@@ -305,10 +311,7 @@ fn hex_color_downgrades_through_profiles() {
         .renderer(renderer(ColorProfile::TrueColor, true))
         .foreground(hex)
         .render("g");
-    assert!(
-        tc.contains("\x1b[38;2;0;255;0m"),
-        "TrueColor: {tc:?}"
-    );
+    assert!(tc.contains("\x1b[38;2;0;255;0m"), "TrueColor: {tc:?}");
 
     // Ansi256: 256-color sequence
     let a256 = Style::new()
@@ -387,7 +390,10 @@ fn bold_with_foreground_produces_both() {
         .foreground("#ff0000")
         .render("boldred");
     assert!(contains_sgr(&s, "1"), "Should have bold: {s:?}");
-    assert!(s.contains("\x1b[38;2;255;0;0m"), "Should have fg color: {s:?}");
+    assert!(
+        s.contains("\x1b[38;2;255;0;0m"),
+        "Should have fg color: {s:?}"
+    );
     assert!(s.contains("\x1b[0m"), "Should have reset: {s:?}");
     assert_eq!(strip_ansi(&s), "boldred");
 }
@@ -399,7 +405,10 @@ fn fg_and_bg_together() {
         .foreground("#ffffff")
         .background("#000000")
         .render("contrast");
-    assert!(s.contains("\x1b[38;2;255;255;255m"), "Should have fg: {s:?}");
+    assert!(
+        s.contains("\x1b[38;2;255;255;255m"),
+        "Should have fg: {s:?}"
+    );
     assert!(s.contains("\x1b[48;2;0;0;0m"), "Should have bg: {s:?}");
     assert!(s.contains("\x1b[0m"), "Should have reset: {s:?}");
 }
@@ -429,9 +438,7 @@ fn all_attributes_plus_colors() {
 
 #[test]
 fn multiline_each_line_independently_styled() {
-    let s = Style::new()
-        .bold()
-        .render("line1\nline2\nline3");
+    let s = Style::new().bold().render("line1\nline2\nline3");
     let lines: Vec<&str> = s.lines().collect();
     assert_eq!(lines.len(), 3);
     for (i, line) in lines.iter().enumerate() {
@@ -505,7 +512,10 @@ fn no_orphaned_style_at_end() {
 #[test]
 fn unstyled_text_has_no_escapes() {
     let s = Style::new().render("plain");
-    assert!(!contains_ansi(&s), "Unstyled text should have no ANSI: {s:?}");
+    assert!(
+        !contains_ansi(&s),
+        "Unstyled text should have no ANSI: {s:?}"
+    );
     assert_eq!(s, "plain");
 }
 
@@ -723,9 +733,18 @@ fn renderer_dark_background_flag_affects_adaptive() {
     let dark_fg = ac.to_ansi_fg(dark_r.color_profile(), dark_r.has_dark_background());
     let light_fg = ac.to_ansi_fg(light_r.color_profile(), light_r.has_dark_background());
 
-    assert_ne!(dark_fg, light_fg, "Different bg should produce different colors");
-    assert!(dark_fg.contains("238;238;238"), "Dark bg → light text: {dark_fg:?}");
-    assert!(light_fg.contains("17;17;17"), "Light bg → dark text: {light_fg:?}");
+    assert_ne!(
+        dark_fg, light_fg,
+        "Different bg should produce different colors"
+    );
+    assert!(
+        dark_fg.contains("238;238;238"),
+        "Dark bg → light text: {dark_fg:?}"
+    );
+    assert!(
+        light_fg.contains("17;17;17"),
+        "Light bg → dark text: {light_fg:?}"
+    );
 }
 
 // ===========================================================================
@@ -761,7 +780,10 @@ fn all_escape_sequences_are_properly_terminated() {
             }
         }
     }
-    assert!(!in_seq, "Unterminated escape sequence at end of string: {s:?}");
+    assert!(
+        !in_seq,
+        "Unterminated escape sequence at end of string: {s:?}"
+    );
 }
 
 #[test]
@@ -779,7 +801,10 @@ fn multiline_with_colors_all_sequences_terminated() {
     // Each line gets style_start (multiple \x1b) + 1 reset
     assert_eq!(reset_count, 4, "4 lines → 4 resets");
     // Each escape should be part of a complete sequence
-    assert!(esc_count > reset_count, "More escapes than resets (attrs+colors+resets)");
+    assert!(
+        esc_count > reset_count,
+        "More escapes than resets (attrs+colors+resets)"
+    );
 }
 
 // ===========================================================================
@@ -862,9 +887,7 @@ fn visible_width_ignores_sgr_codes() {
 
 #[test]
 fn visible_width_handles_multiline_styled() {
-    let styled = Style::new()
-        .italic()
-        .render("abc\ndef");
+    let styled = Style::new().italic().render("abc\ndef");
     // visible_width counts the widest line
     assert_eq!(lipgloss::width(&styled), 3);
 }
@@ -967,12 +990,8 @@ fn cloned_style_independent_rendering() {
 #[test]
 fn nested_render_output_is_valid() {
     // Render inner text first, then wrap in outer style
-    let inner = Style::new()
-        .italic()
-        .render("inner");
-    let outer = Style::new()
-        .bold()
-        .render(&inner);
+    let inner = Style::new().italic().render("inner");
+    let outer = Style::new().bold().render(&inner);
     // outer should wrap the already-styled inner text
     assert!(outer.contains("\x1b[1m"), "Outer bold");
     assert!(outer.contains("\x1b[3m"), "Inner italic preserved");
@@ -988,7 +1007,10 @@ fn nested_render_output_is_valid() {
 fn rgb_to_ansi256_roundtrip_grayscale() {
     // Pure gray values should map to grayscale range (232-255) or near it
     let n = lipgloss::color::rgb_to_ansi256(128, 128, 128);
-    assert!(n >= 232 || n == 16, "Gray should be in grayscale range or cube: {n}");
+    assert!(
+        n >= 232 || n == 16,
+        "Gray should be in grayscale range or cube: {n}"
+    );
 }
 
 #[test]

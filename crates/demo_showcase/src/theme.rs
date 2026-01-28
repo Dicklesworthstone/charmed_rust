@@ -1047,4 +1047,418 @@ mod tests {
         // bg code should be 10 higher than fg
         assert_eq!(ansi16::RESET, "\x1b[0m");
     }
+
+    // =========================================================================
+    // bd-2oku: Theme switching invariants
+    // =========================================================================
+
+    // --- Preset switching updates semantic tokens ---
+
+    #[test]
+    fn switching_themes_changes_all_semantic_tokens() {
+        let dark = Theme::dark();
+        let light = Theme::light();
+        let dracula = Theme::dracula();
+
+        // Primary colors must differ across all three themes
+        assert_ne!(dark.primary, light.primary, "dark vs light primary");
+        assert_ne!(dark.primary, dracula.primary, "dark vs dracula primary");
+        assert_ne!(light.primary, dracula.primary, "light vs dracula primary");
+
+        // Background must differ (dark vs light is the most obvious)
+        assert_ne!(dark.bg, light.bg, "dark vs light bg");
+        assert_ne!(dark.bg, dracula.bg, "dark vs dracula bg");
+
+        // Text must differ
+        assert_ne!(dark.text, light.text, "dark vs light text");
+    }
+
+    #[test]
+    fn all_tokens_populated_for_every_preset() {
+        for preset in ThemePreset::all() {
+            let theme = Theme::from_preset(preset);
+            let name = preset.name();
+
+            assert!(!theme.primary.is_empty(), "{name}: primary empty");
+            assert!(!theme.secondary.is_empty(), "{name}: secondary empty");
+            assert!(!theme.success.is_empty(), "{name}: success empty");
+            assert!(!theme.warning.is_empty(), "{name}: warning empty");
+            assert!(!theme.error.is_empty(), "{name}: error empty");
+            assert!(!theme.info.is_empty(), "{name}: info empty");
+            assert!(!theme.text.is_empty(), "{name}: text empty");
+            assert!(!theme.text_muted.is_empty(), "{name}: text_muted empty");
+            assert!(!theme.text_inverse.is_empty(), "{name}: text_inverse empty");
+            assert!(!theme.bg.is_empty(), "{name}: bg empty");
+            assert!(!theme.bg_subtle.is_empty(), "{name}: bg_subtle empty");
+            assert!(!theme.bg_highlight.is_empty(), "{name}: bg_highlight empty");
+            assert!(!theme.border.is_empty(), "{name}: border empty");
+            assert!(!theme.border_focus.is_empty(), "{name}: border_focus empty");
+        }
+    }
+
+    #[test]
+    fn all_tokens_are_hex_colors() {
+        for preset in ThemePreset::all() {
+            let theme = Theme::from_preset(preset);
+            let name = preset.name();
+            let tokens = [
+                ("primary", theme.primary),
+                ("secondary", theme.secondary),
+                ("success", theme.success),
+                ("warning", theme.warning),
+                ("error", theme.error),
+                ("info", theme.info),
+                ("text", theme.text),
+                ("text_muted", theme.text_muted),
+                ("text_inverse", theme.text_inverse),
+                ("bg", theme.bg),
+                ("bg_subtle", theme.bg_subtle),
+                ("bg_highlight", theme.bg_highlight),
+                ("border", theme.border),
+                ("border_focus", theme.border_focus),
+            ];
+
+            for (token_name, value) in tokens {
+                assert!(
+                    value.starts_with('#'),
+                    "{name}.{token_name} = {value:?} — not a hex color"
+                );
+                assert!(
+                    value.len() == 7 || value.len() == 4,
+                    "{name}.{token_name} = {value:?} — unexpected hex color length"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn preset_field_matches_constructor() {
+        assert_eq!(Theme::dark().preset, ThemePreset::Dark);
+        assert_eq!(Theme::light().preset, ThemePreset::Light);
+        assert_eq!(Theme::dracula().preset, ThemePreset::Dracula);
+    }
+
+    // --- Style helpers produce different output per theme ---
+
+    #[test]
+    fn style_helpers_differ_across_themes() {
+        let dark = Theme::dark();
+        let light = Theme::light();
+
+        // Render the same text with different themes — output should differ.
+        let dark_title = dark.title_style().render("Title").to_string();
+        let light_title = light.title_style().render("Title").to_string();
+        assert_ne!(
+            dark_title, light_title,
+            "title_style should differ between dark and light"
+        );
+
+        let dark_success = dark.success_style().render("OK").to_string();
+        let light_success = light.success_style().render("OK").to_string();
+        assert_ne!(
+            dark_success, light_success,
+            "success_style should differ between dark and light"
+        );
+
+        let dark_badge = dark.badge_primary_style().render("tag").to_string();
+        let light_badge = light.badge_primary_style().render("tag").to_string();
+        assert_ne!(
+            dark_badge, light_badge,
+            "badge_primary_style should differ between dark and light"
+        );
+    }
+
+    #[test]
+    fn card_style_uses_theme_bg() {
+        let dark = Theme::dark();
+        let light = Theme::light();
+
+        let dark_card = dark.card_style().render("content").to_string();
+        let light_card = light.card_style().render("content").to_string();
+
+        // Cards use bg_subtle which differs between themes
+        assert_ne!(
+            dark_card, light_card,
+            "card_style should differ with different bg_subtle"
+        );
+    }
+
+    #[test]
+    fn panel_style_uses_theme_border() {
+        let dark = Theme::dark();
+        let light = Theme::light();
+
+        let dark_panel = dark.panel_style().render("content").to_string();
+        let light_panel = light.panel_style().render("content").to_string();
+
+        assert_ne!(
+            dark_panel, light_panel,
+            "panel_style should differ between themes"
+        );
+    }
+
+    #[test]
+    fn table_style_uses_theme_border() {
+        let dark = Theme::dark();
+        let light = Theme::light();
+
+        let dark_table = dark.table_style().render("data").to_string();
+        let light_table = light.table_style().render("data").to_string();
+
+        assert_ne!(
+            dark_table, light_table,
+            "table_style should differ between themes"
+        );
+    }
+
+    // --- No-color / ASCII mode ---
+
+    #[test]
+    fn ascii_status_output_has_no_ansi() {
+        let theme = Theme::dark();
+        for status in [Status::Ok, Status::Warning, Status::Error, Status::Unknown] {
+            let output = theme.render_status(status, ColorProfile::Ascii);
+            assert!(
+                !output.contains('\x1b'),
+                "ASCII mode status {:?} contains ANSI: {:?}",
+                status,
+                output
+            );
+        }
+    }
+
+    #[test]
+    fn ascii_progress_bar_has_no_ansi() {
+        let theme = Theme::dark();
+        for pct in [0, 25, 50, 75, 100, 200] {
+            let output = theme.render_progress(pct, 20, ColorProfile::Ascii);
+            assert!(
+                !output.contains('\x1b'),
+                "ASCII progress at {pct}% contains ANSI: {:?}",
+                output
+            );
+        }
+    }
+
+    #[test]
+    fn ascii_progress_bar_uses_correct_chars() {
+        let theme = Theme::dark();
+        let bar = theme.render_progress(50, 22, ColorProfile::Ascii);
+        assert!(
+            bar.contains('#'),
+            "ASCII progress should use # for fill: {bar:?}"
+        );
+        assert!(
+            bar.contains('.'),
+            "ASCII progress should use . for empty: {bar:?}"
+        );
+    }
+
+    #[test]
+    fn ascii_mode_still_uses_spacing() {
+        let theme = Theme::dark();
+
+        // box_style_for_profile in ASCII mode still applies borders
+        let ascii_box = theme.box_style_for_profile(ColorProfile::Ascii);
+        let rendered = ascii_box.render("test").to_string();
+
+        // Should contain ASCII border characters
+        assert!(
+            rendered.contains('+') || rendered.contains('-') || rendered.contains('|'),
+            "ASCII box should use ASCII border chars: {:?}",
+            rendered
+        );
+    }
+
+    #[test]
+    fn ascii_focused_box_uses_double_border() {
+        let theme = Theme::dark();
+        let focused = theme.box_focused_style_for_profile(ColorProfile::Ascii);
+        let rendered = focused.render("focus").to_string();
+
+        // Double border uses '='
+        assert!(
+            rendered.contains('='),
+            "ASCII focused box should use double borders: {:?}",
+            rendered
+        );
+    }
+
+    #[test]
+    fn ascii_modal_uses_double_border() {
+        let theme = Theme::dark();
+        let modal = theme.modal_style_for_profile(ColorProfile::Ascii);
+        let rendered = modal.render("dialog").to_string();
+
+        assert!(
+            rendered.contains('='),
+            "ASCII modal should use double borders: {:?}",
+            rendered
+        );
+    }
+
+    // --- Theme atomicity (no mixed styles) ---
+
+    #[test]
+    fn theme_from_preset_is_atomic() {
+        // Creating a theme from a preset should return a complete, consistent theme.
+        // Verify that all tokens belong to the same preset.
+        for preset in ThemePreset::all() {
+            let theme = Theme::from_preset(preset);
+            assert_eq!(
+                theme.preset, preset,
+                "theme.preset should match the constructor preset"
+            );
+
+            // Create a reference theme and verify all tokens match
+            let reference = match preset {
+                ThemePreset::Dark => Theme::dark(),
+                ThemePreset::Light => Theme::light(),
+                ThemePreset::Dracula => Theme::dracula(),
+            };
+
+            assert_eq!(theme.primary, reference.primary, "primary mismatch for {preset:?}");
+            assert_eq!(theme.bg, reference.bg, "bg mismatch for {preset:?}");
+            assert_eq!(theme.text, reference.text, "text mismatch for {preset:?}");
+            assert_eq!(theme.success, reference.success, "success mismatch for {preset:?}");
+            assert_eq!(theme.error, reference.error, "error mismatch for {preset:?}");
+        }
+    }
+
+    #[test]
+    fn default_theme_is_dark() {
+        let default = Theme::default();
+        let dark = Theme::dark();
+        assert_eq!(default.preset, ThemePreset::Dark);
+        assert_eq!(default.primary, dark.primary);
+        assert_eq!(default.bg, dark.bg);
+    }
+
+    #[test]
+    fn default_preset_is_dark() {
+        assert_eq!(ThemePreset::default(), ThemePreset::Dark);
+    }
+
+    // --- Serialization roundtrip for ThemePreset ---
+
+    #[test]
+    fn theme_preset_json_roundtrip() {
+        for preset in ThemePreset::all() {
+            let json = serde_json::to_string(&preset).unwrap();
+            let parsed: ThemePreset = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, preset, "roundtrip failed for {preset:?}");
+        }
+    }
+
+    // --- All style helpers don't panic ---
+
+    #[test]
+    fn all_style_helpers_produce_output_for_every_theme() {
+        for preset in ThemePreset::all() {
+            let theme = Theme::from_preset(preset);
+            let name = preset.name();
+            let text = "test";
+
+            // Typography
+            let _ = theme.title_style().render(text);
+            let _ = theme.heading_style().render(text);
+            let _ = theme.subheading_style().render(text);
+            let _ = theme.muted_style().render(text);
+            let _ = theme.link_style().render(text);
+            let _ = theme.shortcut_style().render(text);
+
+            // Semantic
+            let _ = theme.success_style().render(text);
+            let _ = theme.warning_style().render(text);
+            let _ = theme.error_style().render(text);
+            let _ = theme.info_style().render(text);
+
+            // Containers
+            let _ = theme.box_style().render(text);
+            let _ = theme.box_focused_style().render(text);
+            let _ = theme.card_style().render(text);
+            let _ = theme.panel_style().render(text);
+            let _ = theme.modal_style().render(text);
+            let _ = theme.table_style().render(text);
+
+            // Interactive
+            let _ = theme.badge_style().render(text);
+            let _ = theme.badge_primary_style().render(text);
+            let _ = theme.button_style().render(text);
+            let _ = theme.button_primary_style().render(text);
+            let _ = theme.hover_style().render(text);
+            let _ = theme.selected_style().render(text);
+
+            // Chrome
+            let _ = theme.header_style().render(text);
+            let _ = theme.footer_style().render(text);
+            let _ = theme.sidebar_style().render(text);
+            let _ = theme.sidebar_selected_style().render(text);
+            let _ = theme.sidebar_inactive_style().render(text);
+
+            // Status
+            let _ = theme.status_style(true).render(text);
+            let _ = theme.status_style(false).render(text);
+            let _ = theme.progress_style(0).render(text);
+            let _ = theme.progress_style(100).render(text);
+
+            // Profile-aware
+            for profile in [
+                ColorProfile::Ascii,
+                ColorProfile::Ansi16,
+                ColorProfile::Ansi256,
+                ColorProfile::TrueColor,
+            ] {
+                let _ = theme.box_style_for_profile(profile).render(text);
+                let _ = theme.box_focused_style_for_profile(profile).render(text);
+                let _ = theme.modal_style_for_profile(profile).render(text);
+                let _ = theme.render_status(Status::Ok, profile);
+                let _ = theme.render_progress(50, 20, profile);
+            }
+
+            // If we get here without panic, the theme is safe
+            assert!(true, "{name} style helpers should not panic");
+        }
+    }
+
+    // --- Distinct semantic colors within each theme ---
+
+    #[test]
+    fn semantic_colors_are_distinct_within_theme() {
+        for preset in ThemePreset::all() {
+            let theme = Theme::from_preset(preset);
+            let name = preset.name();
+
+            // Status colors should be distinct from each other
+            let status_colors = [theme.success, theme.warning, theme.error, theme.info];
+            for i in 0..status_colors.len() {
+                for j in (i + 1)..status_colors.len() {
+                    assert_ne!(
+                        status_colors[i], status_colors[j],
+                        "{name}: status colors at index {i} and {j} are identical"
+                    );
+                }
+            }
+
+            // Text and background should differ (readability)
+            assert_ne!(
+                theme.text, theme.bg,
+                "{name}: text and bg must differ for readability"
+            );
+        }
+    }
+
+    // --- border_focus uses theme primary ---
+
+    #[test]
+    fn border_focus_uses_primary_color() {
+        for preset in ThemePreset::all() {
+            let theme = Theme::from_preset(preset);
+            assert_eq!(
+                theme.border_focus, theme.primary,
+                "{:?}: border_focus should match primary",
+                preset
+            );
+        }
+    }
 }
