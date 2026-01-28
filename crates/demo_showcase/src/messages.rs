@@ -3,7 +3,11 @@
 //! This module defines all message types used in the application, providing
 //! a clean taxonomy that minimizes ad-hoc `Any` downcasts.
 
+use std::time::Instant;
+
 use bubbletea::Message;
+
+use crate::components::StatusLevel;
 
 /// Application-level messages for routing and global state changes.
 #[derive(Debug, Clone)]
@@ -154,4 +158,97 @@ pub enum ScrollDirection {
     PageDown,
     Top,
     Bottom,
+}
+
+// ============================================================================
+// Notifications
+// ============================================================================
+
+/// A notification/toast to display to the user.
+///
+/// Notifications are transient messages that communicate state changes,
+/// confirmations, or errors. They appear at the bottom of the content area
+/// and can auto-dismiss or require manual dismissal.
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // Fields/methods will be used as pages are implemented
+pub struct Notification {
+    /// Unique identifier for this notification.
+    pub id: u64,
+    /// The message to display.
+    pub message: String,
+    /// Severity/type of notification.
+    pub level: StatusLevel,
+    /// When this notification was created.
+    pub created_at: Instant,
+    /// Optional action hint (e.g., "Press Enter to dismiss").
+    pub action_hint: Option<String>,
+}
+
+#[allow(dead_code)] // Helpers will be used as pages are implemented
+impl Notification {
+    /// Create a new notification with the given parameters.
+    #[must_use]
+    pub fn new(id: u64, message: impl Into<String>, level: StatusLevel) -> Self {
+        Self {
+            id,
+            message: message.into(),
+            level,
+            created_at: Instant::now(),
+            action_hint: None,
+        }
+    }
+
+    /// Create a success notification.
+    #[must_use]
+    pub fn success(id: u64, message: impl Into<String>) -> Self {
+        Self::new(id, message, StatusLevel::Success)
+    }
+
+    /// Create a warning notification.
+    #[must_use]
+    pub fn warning(id: u64, message: impl Into<String>) -> Self {
+        Self::new(id, message, StatusLevel::Warning)
+    }
+
+    /// Create an error notification.
+    #[must_use]
+    pub fn error(id: u64, message: impl Into<String>) -> Self {
+        Self::new(id, message, StatusLevel::Error)
+    }
+
+    /// Create an info notification.
+    #[must_use]
+    pub fn info(id: u64, message: impl Into<String>) -> Self {
+        Self::new(id, message, StatusLevel::Info)
+    }
+
+    /// Add an action hint to this notification.
+    #[must_use]
+    pub fn with_action_hint(mut self, hint: impl Into<String>) -> Self {
+        self.action_hint = Some(hint.into());
+        self
+    }
+}
+
+/// Notification-related messages.
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // Variants will be used as pages are implemented
+pub enum NotificationMsg {
+    /// Show a new notification.
+    Show(Notification),
+    /// Dismiss a notification by ID.
+    Dismiss(u64),
+    /// Dismiss the oldest notification.
+    DismissOldest,
+    /// Clear all notifications.
+    ClearAll,
+}
+
+#[allow(dead_code)] // Will be used as pages are implemented
+impl NotificationMsg {
+    /// Create a bubbletea Message from this `NotificationMsg`.
+    #[must_use]
+    pub fn into_message(self) -> Message {
+        Message::new(self)
+    }
 }

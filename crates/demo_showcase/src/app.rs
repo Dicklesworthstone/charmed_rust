@@ -10,7 +10,8 @@ use bubbletea::{
 };
 use lipgloss::{Position, Style};
 
-use crate::messages::{AppMsg, Page};
+use crate::components::{StatusLevel, banner};
+use crate::messages::{AppMsg, Notification, NotificationMsg, Page};
 use crate::pages::Pages;
 use crate::theme::{Theme, ThemePreset, spacing};
 
@@ -36,6 +37,9 @@ impl Default for AppConfig {
     }
 }
 
+/// Maximum number of notifications to display at once.
+const MAX_NOTIFICATIONS: usize = 3;
+
 /// Main application state.
 pub struct App {
     /// Application configuration.
@@ -55,6 +59,10 @@ pub struct App {
     show_help: bool,
     /// Whether sidebar is visible.
     sidebar_visible: bool,
+    /// Active notifications (newest at end).
+    notifications: Vec<Notification>,
+    /// Counter for generating unique notification IDs.
+    next_notification_id: u64,
 }
 
 impl App {
@@ -78,7 +86,54 @@ impl App {
             ready: false,
             show_help: false,
             sidebar_visible: true,
+            notifications: Vec::new(),
+            next_notification_id: 1,
         }
+    }
+
+    /// Show a notification to the user.
+    ///
+    /// This is the primary API for pages to emit notifications.
+    /// Notifications are displayed in the footer area and auto-trimmed
+    /// if there are too many.
+    #[allow(dead_code)] // Will be used by pages
+    pub fn notify(&mut self, message: impl Into<String>, level: StatusLevel) {
+        let id = self.next_notification_id;
+        self.next_notification_id += 1;
+        let notification = Notification::new(id, message, level);
+        self.notifications.push(notification);
+
+        // Keep only the most recent notifications
+        while self.notifications.len() > MAX_NOTIFICATIONS {
+            self.notifications.remove(0);
+        }
+    }
+
+    /// Get the next notification ID (useful for pages that want to track notifications).
+    #[must_use]
+    #[allow(dead_code)]
+    #[allow(clippy::missing_const_for_fn)] // Mutates self.next_notification_id
+    pub fn next_id(&mut self) -> u64 {
+        let id = self.next_notification_id;
+        self.next_notification_id += 1;
+        id
+    }
+
+    /// Dismiss a notification by ID.
+    fn dismiss_notification(&mut self, id: u64) {
+        self.notifications.retain(|n| n.id != id);
+    }
+
+    /// Dismiss the oldest notification.
+    fn dismiss_oldest_notification(&mut self) {
+        if !self.notifications.is_empty() {
+            self.notifications.remove(0);
+        }
+    }
+
+    /// Clear all notifications.
+    fn clear_notifications(&mut self) {
+        self.notifications.clear();
     }
 
     /// Navigate to a new page.
@@ -205,6 +260,26 @@ impl App {
         let width_u16 = self.width as u16;
 
         self.theme.footer_style().width(width_u16).render(&hints)
+    }
+
+    /// Render notifications as a stack above the footer.
+    fn render_notifications(&self) -> String {
+        if self.notifications.is_empty() {
+            return String::new();
+        }
+
+        self.notifications
+            .iter()
+            .map(|notif| {
+                banner(
+                    &self.theme,
+                    notif.level,
+                    &notif.message,
+                    notif.action_hint.as_deref(),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     /// Render the help overlay.
@@ -340,6 +415,28 @@ impl Model for App {
             };
         }
 
+        // Handle notification messages
+        if let Some(notif_msg) = msg.downcast_ref::<NotificationMsg>() {
+            match notif_msg {
+                NotificationMsg::Show(notification) => {
+                    self.notifications.push(notification.clone());
+                    while self.notifications.len() > MAX_NOTIFICATIONS {
+                        self.notifications.remove(0);
+                    }
+                }
+                NotificationMsg::Dismiss(id) => {
+                    self.dismiss_notification(*id);
+                }
+                NotificationMsg::DismissOldest => {
+                    self.dismiss_oldest_notification();
+                }
+                NotificationMsg::ClearAll => {
+                    self.clear_notifications();
+                }
+            }
+            return None;
+        }
+
         // Handle keyboard input
         if let Some(key) = msg.downcast_ref::<KeyMsg>()
             && let Some(cmd) = self.handle_global_key(key)
@@ -367,11 +464,15 @@ impl Model for App {
 
         let header = self.render_header();
         let footer = self.render_footer();
+        let notifications = self.render_notifications();
 
         // Calculate content area using spacing constants
         let header_height = usize::from(spacing::HEADER_HEIGHT);
         let footer_height = usize::from(spacing::FOOTER_HEIGHT);
-        let content_height = self.height.saturating_sub(header_height + footer_height);
+        let notification_height = self.notifications.len();
+        let content_height = self
+            .height
+            .saturating_sub(header_height + footer_height + notification_height);
 
         let (sidebar, content_width) = if self.sidebar_visible {
             let sidebar = self.render_sidebar(content_height);
@@ -394,7 +495,15 @@ impl Model for App {
             page_content
         };
 
-        lipgloss::join_vertical(Position::Left, &[&header, &main_area, &footer])
+        // Build final layout: header, content, notifications (if any), footer
+        if notifications.is_empty() {
+            lipgloss::join_vertical(Position::Left, &[&header, &main_area, &footer])
+        } else {
+            lipgloss::join_vertical(
+                Position::Left,
+                &[&header, &main_area, &notifications, &footer],
+            )
+        }
     }
 }
 
@@ -474,5 +583,61 @@ mod tests {
             h,
             30 - usize::from(spacing::HEADER_HEIGHT) - usize::from(spacing::FOOTER_HEIGHT)
         );
+    }
+
+    #[test]
+    fn notify_adds_notification() {
+        let mut app = App::new();
+        assert!(app.notifications.is_empty());
+        app.notify("Test message", StatusLevel::Info);
+        assert_eq!(app.notifications.len(), 1);
+        assert_eq!(app.notifications[0].message, "Test message");
+    }
+
+    #[test]
+    fn notify_trims_to_max() {
+        let mut app = App::new();
+        for i in 0..10 {
+            app.notify(format!("Message {i}"), StatusLevel::Info);
+        }
+        assert_eq!(app.notifications.len(), MAX_NOTIFICATIONS);
+        // Should have the most recent notifications
+        assert!(app.notifications.last().unwrap().message.contains('9'));
+    }
+
+    #[test]
+    fn dismiss_notification_removes_by_id() {
+        let mut app = App::new();
+        app.notify("First", StatusLevel::Info);
+        app.notify("Second", StatusLevel::Warning);
+        let first_id = app.notifications[0].id;
+        app.dismiss_notification(first_id);
+        assert_eq!(app.notifications.len(), 1);
+        assert_eq!(app.notifications[0].message, "Second");
+    }
+
+    #[test]
+    fn clear_notifications_removes_all() {
+        let mut app = App::new();
+        app.notify("One", StatusLevel::Info);
+        app.notify("Two", StatusLevel::Success);
+        app.clear_notifications();
+        assert!(app.notifications.is_empty());
+    }
+
+    #[test]
+    fn notification_constructors() {
+        let notif = Notification::success(1, "Success!");
+        assert_eq!(notif.level, StatusLevel::Success);
+
+        let notif = Notification::warning(2, "Warning!");
+        assert_eq!(notif.level, StatusLevel::Warning);
+
+        let notif = Notification::error(3, "Error!");
+        assert_eq!(notif.level, StatusLevel::Error);
+
+        let notif = Notification::info(4, "Info!").with_action_hint("Press Enter");
+        assert_eq!(notif.level, StatusLevel::Info);
+        assert_eq!(notif.action_hint, Some("Press Enter".to_string()));
     }
 }
