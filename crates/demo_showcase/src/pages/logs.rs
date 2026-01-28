@@ -729,24 +729,25 @@ impl PageModel for LogsPage {
                             self.refresh();
                             return None;
                         }
-                        // Level filter toggles (1-5)
-                        ['1'] => {
+                        // Level filter toggles (Shift+1-5: !, @, #, $, %)
+                        // Uses Shift+number to avoid conflict with page navigation (1-8)
+                        ['!'] => {
                             self.toggle_level_filter(LogLevel::Error);
                             return None;
                         }
-                        ['2'] => {
+                        ['@'] => {
                             self.toggle_level_filter(LogLevel::Warn);
                             return None;
                         }
-                        ['3'] => {
+                        ['#'] => {
                             self.toggle_level_filter(LogLevel::Info);
                             return None;
                         }
-                        ['4'] => {
+                        ['$'] => {
                             self.toggle_level_filter(LogLevel::Debug);
                             return None;
                         }
-                        ['5'] => {
+                        ['%'] => {
                             self.toggle_level_filter(LogLevel::Trace);
                             return None;
                         }

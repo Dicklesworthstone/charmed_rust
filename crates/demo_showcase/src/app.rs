@@ -700,11 +700,7 @@ impl App {
                     return None;
                 }
                 [c] => {
-                    // On Logs page, keys 1-5 are used for level filter toggles
-                    // Let them pass through to the page instead of navigating
-                    if self.current_page == Page::Logs && matches!(c, '1'..='5') {
-                        // Fall through to page update
-                    } else if let Some(page) = Page::from_shortcut(*c) {
+                    if let Some(page) = Page::from_shortcut(*c) {
                         return self.navigate(page);
                     }
                 }

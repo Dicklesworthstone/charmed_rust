@@ -3675,35 +3675,36 @@ mod e2e_logs_tests {
         runner.assert_page(Page::Logs);
         runner.assert_view_not_empty();
 
-        // Toggle each level filter - keys 1-5 should toggle filters, not navigate
-        runner.step("Toggle ERROR filter with '1'");
-        runner.press_key('1');
+        // Toggle each level filter using Shift+number (!, @, #, $, %)
+        // This avoids conflict with page navigation shortcuts (1-8)
+        runner.step("Toggle ERROR filter with '!' (Shift+1)");
+        runner.press_key('!');
         runner.drain();
-        runner.assert_page(Page::Logs); // Must stay on Logs, not navigate to Dashboard
+        runner.assert_page(Page::Logs);
         runner.assert_view_not_empty();
 
-        runner.step("Toggle WARN filter with '2'");
-        runner.press_key('2');
+        runner.step("Toggle WARN filter with '@' (Shift+2)");
+        runner.press_key('@');
         runner.drain();
-        runner.assert_page(Page::Logs); // Must stay on Logs, not navigate to Services
+        runner.assert_page(Page::Logs);
         runner.assert_view_not_empty();
 
-        runner.step("Toggle INFO filter with '3'");
-        runner.press_key('3');
+        runner.step("Toggle INFO filter with '#' (Shift+3)");
+        runner.press_key('#');
         runner.drain();
-        runner.assert_page(Page::Logs); // Must stay on Logs, not navigate to Jobs
+        runner.assert_page(Page::Logs);
         runner.assert_view_not_empty();
 
-        runner.step("Toggle DEBUG filter with '4'");
-        runner.press_key('4');
+        runner.step("Toggle DEBUG filter with '$' (Shift+4)");
+        runner.press_key('$');
         runner.drain();
-        runner.assert_page(Page::Logs); // Must stay on Logs
+        runner.assert_page(Page::Logs);
         runner.assert_view_not_empty();
 
-        runner.step("Toggle TRACE filter with '5'");
-        runner.press_key('5');
+        runner.step("Toggle TRACE filter with '%' (Shift+5)");
+        runner.press_key('%');
         runner.drain();
-        runner.assert_page(Page::Logs); // Must stay on Logs, not navigate to Docs
+        runner.assert_page(Page::Logs);
         runner.assert_view_not_empty();
 
         runner.finish().expect("level filter toggles should work");
@@ -3720,15 +3721,15 @@ mod e2e_logs_tests {
         runner.assert_page(Page::Logs);
 
         runner.step("Toggle INFO filter off");
-        runner.press_key('3'); // Toggle INFO off
+        runner.press_key('#'); // Toggle INFO off (Shift+3)
         runner.drain();
-        runner.assert_page(Page::Logs); // Must stay on Logs, not navigate
+        runner.assert_page(Page::Logs);
         runner.assert_view_not_empty();
 
         runner.step("Toggle INFO filter back on");
-        runner.press_key('3'); // Toggle INFO back on
+        runner.press_key('#'); // Toggle INFO back on (Shift+3)
         runner.drain();
-        runner.assert_page(Page::Logs); // Must stay on Logs
+        runner.assert_page(Page::Logs);
         runner.assert_view_not_empty();
 
         runner.finish().expect("filtering should affect display");
@@ -4074,12 +4075,12 @@ mod e2e_logs_tests {
 
         runner.step("Rapid filter toggles");
         for _ in 0..3 {
-            runner.press_key('1');
-            runner.press_key('2');
-            runner.press_key('3');
+            runner.press_key('!'); // ERROR (Shift+1)
+            runner.press_key('@'); // WARN (Shift+2)
+            runner.press_key('#'); // INFO (Shift+3)
         }
         runner.drain();
-        runner.assert_page(Page::Logs); // Must stay on Logs, not navigate away
+        runner.assert_page(Page::Logs);
 
         runner.step("Rapid search entry/exit");
         runner.press_key('/');
@@ -4152,12 +4153,12 @@ mod e2e_logs_tests {
         // Test Level Filtering
         // =====================================================================
         runner.step("Test level filtering");
-        // Toggle off INFO to show fewer logs
-        runner.press_key('3');
+        // Toggle off INFO to show fewer logs (Shift+3 = '#')
+        runner.press_key('#');
         runner.drain();
         runner.assert_view_not_empty();
         // Toggle it back on
-        runner.press_key('3');
+        runner.press_key('#');
         runner.drain();
 
         // =====================================================================
