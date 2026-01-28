@@ -881,4 +881,423 @@ mod tests {
         // Cannot acknowledge again
         assert!(acknowledge_alert(&mut alert, &mut id_gen).is_none());
     }
+
+    // ========================================================================
+    // Additional comprehensive tests for bd-1p61
+    // ========================================================================
+
+    #[test]
+    fn create_job_initial_state() {
+        let mut id_gen = IdGenerator::new(1);
+        let (job, result) = create_job(&mut id_gen, "Build Frontend", JobKind::Build);
+
+        // Verify job initial state
+        assert_eq!(job.id, 1);
+        assert_eq!(job.name, "Build Frontend");
+        assert_eq!(job.kind, JobKind::Build);
+        assert_eq!(job.status, JobStatus::Queued);
+        assert_eq!(job.progress, 0);
+        assert!(job.started_at.is_none());
+        assert!(job.ended_at.is_none());
+        assert!(job.error.is_none());
+
+        // Verify result
+        assert!(result.changed);
+        assert!(result.effects.is_empty());
+        assert!(result.alerts.is_empty());
+
+        // Verify notification
+        assert_eq!(result.notifications.len(), 1);
+        let notif = &result.notifications[0];
+        assert_eq!(notif.severity, NotificationSeverity::Info);
+        assert!(notif.title.contains("Build Frontend"));
+        assert!(notif.title.contains("created"));
+
+        // Verify log entry
+        assert_eq!(result.log_entries.len(), 1);
+        let log = &result.log_entries[0];
+        assert_eq!(log.level, LogLevel::Info);
+        assert!(log.message.contains("Build Frontend"));
+    }
+
+    #[test]
+    fn start_job_sets_timestamps() {
+        let mut id_gen = IdGenerator::new(1);
+        let (mut job, _) = create_job(&mut id_gen, "Test", JobKind::Task);
+
+        let before = Utc::now();
+        let result = start_job(&mut job, &mut id_gen).unwrap();
+        let after = Utc::now();
+
+        assert_eq!(job.status, JobStatus::Running);
+        assert_eq!(job.progress, 0);
+
+        // Verify started_at is set to now
+        let started = job.started_at.unwrap();
+        assert!(started >= before);
+        assert!(started <= after);
+
+        // Verify notification
+        assert_eq!(result.notifications.len(), 1);
+        assert_eq!(result.notifications[0].severity, NotificationSeverity::Info);
+
+        // Verify log
+        assert_eq!(result.log_entries.len(), 1);
+        assert_eq!(result.log_entries[0].level, LogLevel::Info);
+    }
+
+    #[test]
+    fn cancel_running_job_warns() {
+        let mut id_gen = IdGenerator::new(1);
+        let (mut job, _) = create_job(&mut id_gen, "Test", JobKind::Task);
+
+        // Start the job first
+        start_job(&mut job, &mut id_gen);
+        assert_eq!(job.status, JobStatus::Running);
+
+        // Cancel running job
+        let result = cancel_job(&mut job, &mut id_gen).unwrap();
+
+        assert_eq!(job.status, JobStatus::Cancelled);
+        assert!(job.ended_at.is_some());
+
+        // Running job cancellation should warn
+        assert_eq!(result.notifications.len(), 1);
+        assert_eq!(
+            result.notifications[0].severity,
+            NotificationSeverity::Warning
+        );
+
+        // Log should be warning level
+        assert_eq!(result.log_entries.len(), 1);
+        assert_eq!(result.log_entries[0].level, LogLevel::Warn);
+    }
+
+    #[test]
+    fn cancel_queued_job_info() {
+        let mut id_gen = IdGenerator::new(1);
+        let (mut job, _) = create_job(&mut id_gen, "Test", JobKind::Task);
+
+        // Cancel from queued (not started)
+        let result = cancel_job(&mut job, &mut id_gen).unwrap();
+
+        // Queued job cancellation should just be info
+        assert_eq!(result.notifications.len(), 1);
+        assert_eq!(result.notifications[0].severity, NotificationSeverity::Info);
+    }
+
+    #[test]
+    fn retry_resets_job_state() {
+        let mut id_gen = IdGenerator::new(1);
+        let (mut job, _) = create_job(&mut id_gen, "Test", JobKind::Build);
+
+        // Complete the job lifecycle: start -> fail
+        start_job(&mut job, &mut id_gen);
+        fail_job(&mut job, "Build error", &mut id_gen);
+
+        assert_eq!(job.status, JobStatus::Failed);
+        assert!(job.error.is_some());
+        assert!(job.started_at.is_some());
+        assert!(job.ended_at.is_some());
+
+        // Retry the job
+        let result = retry_job(&mut job, &mut id_gen).unwrap();
+
+        // Verify state is completely reset
+        assert_eq!(job.status, JobStatus::Queued);
+        assert_eq!(job.progress, 0);
+        assert!(job.started_at.is_none());
+        assert!(job.ended_at.is_none());
+        assert!(job.error.is_none());
+
+        // Verify notification
+        assert_eq!(result.notifications.len(), 1);
+        assert!(result.notifications[0].title.contains("retry"));
+    }
+
+    #[test]
+    fn complete_job_sets_progress_100() {
+        let mut id_gen = IdGenerator::new(1);
+        let (mut job, _) = create_job(&mut id_gen, "Test", JobKind::Task);
+
+        start_job(&mut job, &mut id_gen);
+
+        // Simulate some progress
+        job.progress = 75;
+
+        // Complete
+        let result = complete_job(&mut job, &mut id_gen).unwrap();
+
+        assert_eq!(job.status, JobStatus::Completed);
+        assert_eq!(job.progress, 100);
+        assert!(job.ended_at.is_some());
+
+        // Success notification
+        assert_eq!(result.notifications.len(), 1);
+        assert_eq!(
+            result.notifications[0].severity,
+            NotificationSeverity::Success
+        );
+    }
+
+    #[test]
+    fn fail_job_state_and_alert() {
+        let mut id_gen = IdGenerator::new(1);
+        let (mut job, _) = create_job(&mut id_gen, "Build", JobKind::Build);
+
+        start_job(&mut job, &mut id_gen);
+
+        let error_msg = "Compilation failed: missing dependency";
+        let result = fail_job(&mut job, error_msg, &mut id_gen).unwrap();
+
+        // Verify job state
+        assert_eq!(job.status, JobStatus::Failed);
+        assert_eq!(job.error.as_deref(), Some(error_msg));
+        assert!(job.ended_at.is_some());
+
+        // Verify error notification
+        assert_eq!(result.notifications.len(), 1);
+        assert_eq!(
+            result.notifications[0].severity,
+            NotificationSeverity::Error
+        );
+        assert!(result.notifications[0].message.is_some());
+        assert!(
+            result.notifications[0]
+                .message
+                .as_ref()
+                .unwrap()
+                .contains(error_msg)
+        );
+
+        // Verify alert
+        assert_eq!(result.alerts.len(), 1);
+        assert_eq!(result.alerts[0].severity, AlertSeverity::Error);
+        assert!(result.alerts[0].message.contains(error_msg));
+        assert!(result.alerts[0].dedupe_key.contains(&job.id.to_string()));
+
+        // Verify error log
+        assert_eq!(result.log_entries.len(), 1);
+        assert_eq!(result.log_entries[0].level, LogLevel::Error);
+    }
+
+    #[test]
+    fn deployment_full_lifecycle() {
+        let mut id_gen = IdGenerator::new(1);
+        let service_id = 100;
+        let env_id = 200;
+        let sha = "abc123def";
+        let author = "developer";
+
+        // Create deployment
+        let (mut deploy, create_result) =
+            create_deployment(&mut id_gen, service_id, env_id, sha, author);
+
+        assert_eq!(deploy.id, 1);
+        assert_eq!(deploy.service_id, service_id);
+        assert_eq!(deploy.environment_id, env_id);
+        assert_eq!(deploy.sha, sha);
+        assert_eq!(deploy.author, author);
+        assert_eq!(deploy.status, DeploymentStatus::Pending);
+        assert!(deploy.started_at.is_none());
+        assert!(deploy.ended_at.is_none());
+        assert!(create_result.changed);
+
+        // Start deployment
+        let start_result = start_deployment(&mut deploy, &mut id_gen).unwrap();
+        assert_eq!(deploy.status, DeploymentStatus::InProgress);
+        assert!(deploy.started_at.is_some());
+        assert!(start_result.changed);
+
+        // Succeed deployment
+        let success_result = succeed_deployment(&mut deploy, &mut id_gen).unwrap();
+        assert_eq!(deploy.status, DeploymentStatus::Succeeded);
+        assert!(deploy.ended_at.is_some());
+        assert!(success_result.changed);
+        assert_eq!(
+            success_result.notifications[0].severity,
+            NotificationSeverity::Success
+        );
+    }
+
+    #[test]
+    fn fail_deployment_creates_alert() {
+        let mut id_gen = IdGenerator::new(1);
+        let (mut deploy, _) = create_deployment(&mut id_gen, 1, 2, "deadbeef", "user");
+
+        start_deployment(&mut deploy, &mut id_gen);
+        let result = fail_deployment(&mut deploy, &mut id_gen).unwrap();
+
+        assert_eq!(deploy.status, DeploymentStatus::Failed);
+        assert!(deploy.ended_at.is_some());
+
+        // Verify alert created
+        assert_eq!(result.alerts.len(), 1);
+        assert_eq!(result.alerts[0].severity, AlertSeverity::Error);
+
+        // Verify error notification
+        assert_eq!(result.notifications.len(), 1);
+        assert_eq!(
+            result.notifications[0].severity,
+            NotificationSeverity::Error
+        );
+
+        // Verify error log
+        assert_eq!(result.log_entries.len(), 1);
+        assert_eq!(result.log_entries[0].level, LogLevel::Error);
+    }
+
+    #[test]
+    fn rollback_in_progress_warns() {
+        let mut id_gen = IdGenerator::new(1);
+        let (mut deploy, _) = create_deployment(&mut id_gen, 1, 2, "abc", "user");
+
+        start_deployment(&mut deploy, &mut id_gen);
+        let result = rollback_deployment(&mut deploy, &mut id_gen).unwrap();
+
+        assert_eq!(deploy.status, DeploymentStatus::RolledBack);
+        // Rolling back in-progress deployment is a warning
+        assert_eq!(
+            result.notifications[0].severity,
+            NotificationSeverity::Warning
+        );
+        assert_eq!(result.log_entries[0].level, LogLevel::Warn);
+    }
+
+    #[test]
+    fn rollback_succeeded_is_info() {
+        let mut id_gen = IdGenerator::new(1);
+        let (mut deploy, _) = create_deployment(&mut id_gen, 1, 2, "abc", "user");
+
+        start_deployment(&mut deploy, &mut id_gen);
+        succeed_deployment(&mut deploy, &mut id_gen);
+        let result = rollback_deployment(&mut deploy, &mut id_gen).unwrap();
+
+        assert_eq!(deploy.status, DeploymentStatus::RolledBack);
+        // Rolling back a succeeded deployment is just info
+        assert_eq!(result.notifications[0].severity, NotificationSeverity::Info);
+    }
+
+    #[test]
+    fn cannot_start_already_started_deployment() {
+        let mut id_gen = IdGenerator::new(1);
+        let (mut deploy, _) = create_deployment(&mut id_gen, 1, 2, "abc", "user");
+
+        start_deployment(&mut deploy, &mut id_gen);
+        assert!(start_deployment(&mut deploy, &mut id_gen).is_none());
+    }
+
+    #[test]
+    fn cannot_rollback_pending_deployment() {
+        let mut id_gen = IdGenerator::new(1);
+        let (mut deploy, _) = create_deployment(&mut id_gen, 1, 2, "abc", "user");
+
+        // Pending deployment cannot be rolled back
+        assert!(rollback_deployment(&mut deploy, &mut id_gen).is_none());
+    }
+
+    #[test]
+    fn id_generator_starts_at_given_value() {
+        let mut id_gen = IdGenerator::new(1000);
+        assert_eq!(id_gen.next(), 1000);
+        assert_eq!(id_gen.next(), 1001);
+        assert_eq!(id_gen.next(), 1002);
+    }
+
+    #[test]
+    fn action_result_into_cmd_empty() {
+        // Create a result with no effects
+        let empty_result = ActionResult::empty();
+        assert!(empty_result.into_cmd().is_none());
+
+        // A result with effects but empty vec still produces None
+        let changed = ActionResult::changed();
+        assert!(changed.into_cmd().is_none());
+    }
+
+    #[test]
+    fn multiple_job_operations_chain() {
+        let mut id_gen = IdGenerator::new(1);
+
+        // Create multiple jobs
+        let (mut job1, _) = create_job(&mut id_gen, "Job1", JobKind::Build);
+        let (mut job2, _) = create_job(&mut id_gen, "Job2", JobKind::Cron);
+        let (job3, _) = create_job(&mut id_gen, "Job3", JobKind::Task);
+
+        // Each job gets unique ID
+        assert_eq!(job1.id, 1);
+        assert_eq!(job2.id, 3); // ID 2 is used for log entry
+        assert_eq!(job3.id, 5); // ID 4 is used for log entry
+
+        // Start job1, cancel job2, leave job3 queued
+        start_job(&mut job1, &mut id_gen);
+        cancel_job(&mut job2, &mut id_gen);
+
+        assert_eq!(job1.status, JobStatus::Running);
+        assert_eq!(job2.status, JobStatus::Cancelled);
+        assert_eq!(job3.status, JobStatus::Queued);
+
+        // Complete job1
+        complete_job(&mut job1, &mut id_gen);
+        assert_eq!(job1.status, JobStatus::Completed);
+
+        // Retry job2
+        retry_job(&mut job2, &mut id_gen);
+        assert_eq!(job2.status, JobStatus::Queued);
+    }
+
+    #[test]
+    fn create_alert_notification_matches_severity() {
+        let mut id_gen = IdGenerator::new(1);
+
+        let (_, info_result) = create_alert(&mut id_gen, AlertSeverity::Info, "Info", "k1");
+        assert_eq!(
+            info_result.notifications[0].severity,
+            NotificationSeverity::Info
+        );
+
+        let (_, warn_result) = create_alert(&mut id_gen, AlertSeverity::Warning, "Warn", "k2");
+        assert_eq!(
+            warn_result.notifications[0].severity,
+            NotificationSeverity::Warning
+        );
+
+        let (_, err_result) = create_alert(&mut id_gen, AlertSeverity::Error, "Error", "k3");
+        assert_eq!(
+            err_result.notifications[0].severity,
+            NotificationSeverity::Error
+        );
+
+        let (_, crit_result) = create_alert(&mut id_gen, AlertSeverity::Critical, "Critical", "k4");
+        assert_eq!(
+            crit_result.notifications[0].severity,
+            NotificationSeverity::Error
+        );
+    }
+
+    #[test]
+    fn log_creates_entry_with_correct_fields() {
+        let mut id_gen = IdGenerator::new(1);
+
+        let (entry, result) = log(&mut id_gen, LogLevel::Error, "my::module", "Error occurred");
+
+        assert_eq!(entry.id, 1);
+        assert_eq!(entry.level, LogLevel::Error);
+        assert_eq!(entry.target, "my::module");
+        assert_eq!(entry.message, "Error occurred");
+        assert!(entry.fields.is_empty());
+        assert!(result.changed);
+    }
+
+    #[test]
+    fn notification_with_message_builder() {
+        let notif = Notification::error("Operation failed")
+            .with_message("Details about the failure")
+            .with_duration(10000);
+
+        assert_eq!(notif.severity, NotificationSeverity::Error);
+        assert_eq!(notif.title, "Operation failed");
+        assert_eq!(notif.message.as_deref(), Some("Details about the failure"));
+        assert_eq!(notif.duration_ms, Some(10000));
+    }
 }
