@@ -7,10 +7,12 @@
 //! - Serializable for persistence/debugging
 //!
 //! The [`generator`] module provides seedable, deterministic data generation.
+//! The [`simulation`] module provides a background simulation engine.
 
 #![allow(dead_code)] // Types are used by downstream tasks (generator, pages, actions)
 
 pub mod generator;
+pub mod simulation;
 
 use std::collections::BTreeMap;
 
