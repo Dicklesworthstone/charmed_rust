@@ -15,7 +15,7 @@
 
 use bubbles::table::{Column, Row, Styles, Table};
 use bubbles::textinput::TextInput;
-use bubbletea::{Cmd, KeyMsg, KeyType, Message};
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, println};
 use lipgloss::Style;
 
 use super::PageModel;
@@ -571,7 +571,7 @@ impl JobsPage {
         let cmds: Vec<Option<Cmd>> = result
             .notifications
             .into_iter()
-            .map(|notif| {
+            .flat_map(|notif| {
                 let level = match notif.severity {
                     NotificationSeverity::Info => crate::components::StatusLevel::Info,
                     NotificationSeverity::Success => crate::components::StatusLevel::Success,
@@ -579,15 +579,26 @@ impl JobsPage {
                     NotificationSeverity::Error => crate::components::StatusLevel::Error,
                 };
 
-                let message = if let Some(detail) = notif.message {
+                let message = if let Some(ref detail) = notif.message {
                     format!("{}: {}", notif.title, detail)
                 } else {
-                    notif.title
+                    notif.title.clone()
                 };
 
                 // Create a notification message
-                let notification = Notification::new(0, message, level);
-                Some(Cmd::new(move || NotificationMsg::Show(notification).into_message()))
+                let notification = Notification::new(0, message.clone(), level);
+                let notification_cmd = Some(Cmd::new(move || NotificationMsg::Show(notification).into_message()));
+
+                // bd-7iul: Emit println for job lifecycle events (visible in no-alt-screen mode)
+                // Only emit for Info/Success (job started, completed) to avoid noise
+                let println_cmd = match notif.severity {
+                    NotificationSeverity::Info | NotificationSeverity::Success => {
+                        Some(println(format!("[job] {}", notif.title)))
+                    }
+                    _ => None,
+                };
+
+                [notification_cmd, println_cmd]
             })
             .collect();
 

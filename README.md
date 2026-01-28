@@ -772,6 +772,50 @@ async fn main() {
 
 ---
 
+## Demo Showcase
+
+The flagship demo shows off all functionality in charmed_rust:
+
+```bash
+cargo run -p demo_showcase
+```
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--theme <name>` | Color theme: `dark`, `light`, `dracula`, `nord`, `catppuccin-*` |
+| `--seed <n>` | Seed for reproducible randomness |
+| `--no-alt-screen` | Stay in main terminal buffer |
+| `--no-mouse` | Disable mouse support |
+| `--help` | Show all available options |
+
+### Examples
+
+```bash
+# Run with Nord theme
+cargo run -p demo_showcase -- --theme nord
+
+# Run with Dracula theme
+cargo run -p demo_showcase -- --theme dracula
+
+# Reproducible demo state
+cargo run -p demo_showcase -- --seed 42
+```
+
+### What It Demonstrates
+
+- **Multi-page navigation** - Dashboard, Services, Jobs, Logs, Docs, Files, Wizard, Settings
+- **Theme switching** - Switch themes at runtime with keyboard shortcuts
+- **All bubbles components** - Lists, tables, spinners, progress bars, text inputs, viewports
+- **Markdown rendering** - glamour with syntax highlighting
+- **Form interactions** - Interactive forms via huh
+- **Spring animations** - Smooth physics-based animations via harmonica
+- **File browser** - Navigate the filesystem
+- **Full keyboard & mouse support**
+
+---
+
 ## glow CLI Reference
 
 `glow` is a terminal Markdown reader built on `glamour`:
