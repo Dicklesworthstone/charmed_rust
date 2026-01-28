@@ -1764,4 +1764,125 @@ mod tests {
         let program = Program::new(model).with_fps(0);
         assert_eq!(program.options.fps, 1); // Clamped to minimum of 1 to avoid division by zero
     }
+
+    // === Bracketed Paste Parsing Tests ===
+
+    #[test]
+    fn test_parse_bracketed_paste_basic() {
+        // Bracketed paste sequence: ESC[200~ ... ESC[201~
+        let input = b"\x1b[200~hello world\x1b[201~";
+        let result = parse_bracketed_paste(input, false);
+
+        assert!(result.is_some());
+        if let Some(ParseOutcome::Parsed(len, Some(msg))) = result {
+            assert_eq!(len, input.len());
+            let key = msg.downcast_ref::<KeyMsg>().unwrap();
+            assert!(key.paste, "Key should have paste flag set");
+            assert_eq!(key.runes, vec!['h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd']);
+        } else {
+            panic!("Expected Parsed outcome");
+        }
+    }
+
+    #[test]
+    fn test_parse_bracketed_paste_empty() {
+        let input = b"\x1b[200~\x1b[201~";
+        let result = parse_bracketed_paste(input, false);
+
+        assert!(result.is_some());
+        if let Some(ParseOutcome::Parsed(len, Some(msg))) = result {
+            assert_eq!(len, input.len());
+            let key = msg.downcast_ref::<KeyMsg>().unwrap();
+            assert!(key.paste);
+            assert!(key.runes.is_empty());
+        } else {
+            panic!("Expected Parsed outcome");
+        }
+    }
+
+    #[test]
+    fn test_parse_bracketed_paste_multiline() {
+        let input = b"\x1b[200~line1\nline2\nline3\x1b[201~";
+        let result = parse_bracketed_paste(input, false);
+
+        assert!(result.is_some());
+        if let Some(ParseOutcome::Parsed(len, Some(msg))) = result {
+            assert_eq!(len, input.len());
+            let key = msg.downcast_ref::<KeyMsg>().unwrap();
+            assert!(key.paste);
+            let text: String = key.runes.iter().collect();
+            assert_eq!(text, "line1\nline2\nline3");
+        } else {
+            panic!("Expected Parsed outcome");
+        }
+    }
+
+    #[test]
+    fn test_parse_bracketed_paste_unicode() {
+        let input = "\x1b[200~hello 世界 🌍\x1b[201~".as_bytes();
+        let result = parse_bracketed_paste(input, false);
+
+        assert!(result.is_some());
+        if let Some(ParseOutcome::Parsed(_, Some(msg))) = result {
+            let key = msg.downcast_ref::<KeyMsg>().unwrap();
+            assert!(key.paste);
+            let text: String = key.runes.iter().collect();
+            assert_eq!(text, "hello 世界 🌍");
+        } else {
+            panic!("Expected Parsed outcome");
+        }
+    }
+
+    #[test]
+    fn test_parse_bracketed_paste_incomplete() {
+        // Missing end sequence, with more data expected
+        let input = b"\x1b[200~hello";
+        let result = parse_bracketed_paste(input, true);
+
+        assert!(matches!(result, Some(ParseOutcome::NeedMore)));
+    }
+
+    #[test]
+    fn test_parse_bracketed_paste_incomplete_no_more_data() {
+        // Missing end sequence, no more data expected - should parse what we have
+        let input = b"\x1b[200~hello";
+        let result = parse_bracketed_paste(input, false);
+
+        assert!(result.is_some());
+        if let Some(ParseOutcome::Parsed(len, Some(msg))) = result {
+            assert_eq!(len, input.len());
+            let key = msg.downcast_ref::<KeyMsg>().unwrap();
+            assert!(key.paste);
+            let text: String = key.runes.iter().collect();
+            assert_eq!(text, "hello");
+        } else {
+            panic!("Expected Parsed outcome");
+        }
+    }
+
+    #[test]
+    fn test_parse_bracketed_paste_not_bracketed() {
+        // Regular input, not bracketed paste
+        let input = b"hello";
+        let result = parse_bracketed_paste(input, false);
+        assert!(result.is_none(), "Non-paste input should return None");
+    }
+
+    #[test]
+    fn test_parse_bracketed_paste_large() {
+        // Large paste (simulating a big paste operation)
+        let content = "a".repeat(10000);
+        let input = format!("\x1b[200~{}\x1b[201~", content);
+        let result = parse_bracketed_paste(input.as_bytes(), false);
+
+        assert!(result.is_some());
+        if let Some(ParseOutcome::Parsed(len, Some(msg))) = result {
+            assert_eq!(len, input.len());
+            let key = msg.downcast_ref::<KeyMsg>().unwrap();
+            assert!(key.paste);
+            assert_eq!(key.runes.len(), 10000);
+        } else {
+            panic!("Expected Parsed outcome");
+        }
+    }
 }

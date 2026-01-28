@@ -1270,4 +1270,219 @@ mod tests {
             "Aggressive deletion: deleted both whitespace and word"
         );
     }
+
+    // === Bracketed Paste Tests ===
+    // These tests verify paste behavior when receiving KeyMsg with paste=true,
+    // which is how terminals deliver bracketed paste sequences.
+
+    #[test]
+    fn test_bracketed_paste_basic() {
+        let mut input = TextInput::new();
+        input.focus();
+
+        // Simulate bracketed paste: KeyMsg with paste=true and runes
+        let key_msg = Message::new(KeyMsg {
+            key_type: bubbletea::KeyType::Runes,
+            runes: vec!['h', 'e', 'l', 'l', 'o'],
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut input, key_msg);
+
+        assert_eq!(input.value(), "hello");
+    }
+
+    #[test]
+    fn test_bracketed_paste_multiline_converts_newlines() {
+        let mut input = TextInput::new();
+        input.focus();
+
+        // Paste with newlines - should be converted to spaces for single-line input
+        let key_msg = Message::new(KeyMsg {
+            key_type: bubbletea::KeyType::Runes,
+            runes: "line1\nline2\nline3".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut input, key_msg);
+
+        assert_eq!(
+            input.value(),
+            "line1 line2 line3",
+            "Newlines should be converted to spaces in single-line input"
+        );
+    }
+
+    #[test]
+    fn test_bracketed_paste_crlf_converts_to_space() {
+        let mut input = TextInput::new();
+        input.focus();
+
+        // Windows-style CRLF should also be converted
+        let key_msg = Message::new(KeyMsg {
+            key_type: bubbletea::KeyType::Runes,
+            runes: "line1\r\nline2".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut input, key_msg);
+
+        assert_eq!(
+            input.value(),
+            "line1 line2",
+            "CRLF should be converted to single space"
+        );
+    }
+
+    #[test]
+    fn test_bracketed_paste_respects_char_limit() {
+        let mut input = TextInput::new();
+        input.focus();
+        input.char_limit = 10;
+
+        // Try to paste more than the limit
+        let key_msg = Message::new(KeyMsg {
+            key_type: bubbletea::KeyType::Runes,
+            runes: "this is a very long paste that exceeds the limit".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut input, key_msg);
+
+        assert_eq!(input.value().len(), 10, "Paste should be truncated at char_limit");
+        assert_eq!(input.value(), "this is a ");
+    }
+
+    #[test]
+    fn test_bracketed_paste_respects_remaining_capacity() {
+        let mut input = TextInput::new();
+        input.focus();
+        input.char_limit = 15;
+        input.set_value("hello ");
+
+        // Paste should only insert up to the remaining capacity
+        let key_msg = Message::new(KeyMsg {
+            key_type: bubbletea::KeyType::Runes,
+            runes: "world and more text".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut input, key_msg);
+
+        assert_eq!(input.value().len(), 15);
+        assert_eq!(input.value(), "hello world and");
+    }
+
+    #[test]
+    fn test_bracketed_paste_at_full_capacity_ignored() {
+        let mut input = TextInput::new();
+        input.focus();
+        input.char_limit = 5;
+        input.set_value("hello");
+
+        // Input is at capacity, paste should be ignored
+        let key_msg = Message::new(KeyMsg {
+            key_type: bubbletea::KeyType::Runes,
+            runes: "world".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut input, key_msg);
+
+        assert_eq!(input.value(), "hello", "Paste at full capacity should be ignored");
+    }
+
+    #[test]
+    fn test_bracketed_paste_unfocused_ignored() {
+        let mut input = TextInput::new();
+        // Not focused!
+        assert_eq!(input.value(), "");
+
+        let key_msg = Message::new(KeyMsg {
+            key_type: bubbletea::KeyType::Runes,
+            runes: "ignored".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut input, key_msg);
+
+        assert_eq!(input.value(), "", "Unfocused input should ignore paste");
+    }
+
+    #[test]
+    fn test_bracketed_paste_inserts_at_cursor() {
+        let mut input = TextInput::new();
+        input.focus();
+        input.set_value("helloworld");
+        input.set_cursor(5); // Position after "hello"
+
+        let key_msg = Message::new(KeyMsg {
+            key_type: bubbletea::KeyType::Runes,
+            runes: " ".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut input, key_msg);
+
+        assert_eq!(input.value(), "hello world");
+        assert_eq!(input.position(), 6, "Cursor should be after pasted content");
+    }
+
+    #[test]
+    fn test_bracketed_paste_strips_control_chars() {
+        let mut input = TextInput::new();
+        input.focus();
+
+        // Paste with control characters that should be stripped
+        let key_msg = Message::new(KeyMsg {
+            key_type: bubbletea::KeyType::Runes,
+            runes: "hello\x01\x02world".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut input, key_msg);
+
+        assert_eq!(
+            input.value(),
+            "helloworld",
+            "Control characters should be stripped"
+        );
+    }
+
+    #[test]
+    fn test_bracketed_paste_preserves_unicode() {
+        let mut input = TextInput::new();
+        input.focus();
+
+        let key_msg = Message::new(KeyMsg {
+            key_type: bubbletea::KeyType::Runes,
+            runes: "hello 世界 🌍".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut input, key_msg);
+
+        assert_eq!(input.value(), "hello 世界 🌍");
+    }
+
+    #[test]
+    fn test_bracketed_paste_tabs_to_spaces() {
+        let mut input = TextInput::new();
+        input.focus();
+
+        // Tabs should be converted to spaces
+        let key_msg = Message::new(KeyMsg {
+            key_type: bubbletea::KeyType::Runes,
+            runes: "col1\tcol2".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut input, key_msg);
+
+        assert_eq!(
+            input.value(),
+            "col1 col2",
+            "Tabs should be converted to single space"
+        );
+    }
 }

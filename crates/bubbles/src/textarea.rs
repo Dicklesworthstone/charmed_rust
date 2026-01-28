@@ -1585,4 +1585,186 @@ mod tests {
         let cmd = Model::init(&ta);
         assert!(cmd.is_none(), "Unfocused textarea init should return None");
     }
+
+    // === Bracketed Paste Tests ===
+    // These tests verify paste behavior when receiving KeyMsg with paste=true,
+    // which is how terminals deliver bracketed paste sequences.
+
+    #[test]
+    fn test_bracketed_paste_basic() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+
+        let key_msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: vec!['h', 'e', 'l', 'l', 'o'],
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut ta, key_msg);
+
+        assert_eq!(ta.value(), "hello");
+    }
+
+    #[test]
+    fn test_bracketed_paste_multiline_preserves_newlines() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+
+        // Multi-line paste should preserve newlines in TextArea
+        let key_msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: "line1\nline2\nline3".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut ta, key_msg);
+
+        assert_eq!(
+            ta.value(),
+            "line1\nline2\nline3",
+            "TextArea should preserve newlines in paste"
+        );
+        assert_eq!(ta.line_count(), 3, "Should have 3 lines after paste");
+    }
+
+    #[test]
+    fn test_bracketed_paste_crlf_normalized() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+
+        // Windows-style CRLF should be normalized to LF
+        let key_msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: "line1\r\nline2".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut ta, key_msg);
+
+        assert_eq!(ta.value(), "line1\nline2", "CRLF should be normalized to LF");
+        assert_eq!(ta.line_count(), 2);
+    }
+
+    #[test]
+    fn test_bracketed_paste_respects_char_limit() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+        ta.char_limit = 10;
+
+        let key_msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: "this is a very long paste".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut ta, key_msg);
+
+        assert_eq!(ta.length(), 10, "Paste should respect char_limit");
+    }
+
+    #[test]
+    fn test_bracketed_paste_unfocused_ignored() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        // Not focused!
+
+        let key_msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: "ignored".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut ta, key_msg);
+
+        assert_eq!(ta.value(), "", "Unfocused textarea should ignore paste");
+    }
+
+    #[test]
+    fn test_bracketed_paste_inserts_at_cursor() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+        ta.set_value("helloworld");
+        ta.move_to_begin();
+        ta.col = 5; // After "hello"
+
+        let key_msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: " ".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut ta, key_msg);
+
+        assert_eq!(ta.value(), "hello world");
+    }
+
+    #[test]
+    fn test_bracketed_paste_unicode() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+
+        let key_msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: "hello 世界 🌍".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut ta, key_msg);
+
+        assert_eq!(ta.value(), "hello 世界 🌍");
+    }
+
+    #[test]
+    fn test_bracketed_paste_large_content() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+
+        // Simulate a large paste (1000 characters)
+        let large_text: String = "a".repeat(1000);
+        let key_msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: large_text.chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut ta, key_msg);
+
+        assert_eq!(ta.value().len(), 1000, "Large paste should work without issues");
+    }
+
+    #[test]
+    fn test_bracketed_paste_multiline_cursor_position() {
+        use bubbletea::{KeyMsg, KeyType, Message};
+
+        let mut ta = TextArea::new();
+        ta.focus();
+
+        let key_msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: "line1\nline2\nline3".chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        let _ = Model::update(&mut ta, key_msg);
+
+        // Cursor should be at end of last pasted line
+        assert_eq!(ta.row, 2, "Cursor should be on line 3 (index 2)");
+        assert_eq!(ta.col, 5, "Cursor should be at end of 'line3'");
+    }
 }
