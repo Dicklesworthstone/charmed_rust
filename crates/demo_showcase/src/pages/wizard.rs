@@ -9,7 +9,7 @@ use bubbletea::{Cmd, KeyMsg, KeyType, Message};
 use lipgloss::Style;
 
 use super::PageModel;
-use crate::messages::Page;
+use crate::messages::{Page, WizardDeploymentConfig, WizardMsg};
 use crate::theme::Theme;
 
 /// Service type options for deployment.
@@ -351,10 +351,7 @@ impl WizardPage {
         }
 
         match key.key_type {
-            KeyType::Enter => {
-                self.handle_enter();
-                None
-            }
+            KeyType::Enter => self.handle_enter(),
             KeyType::Esc => {
                 if self.state.step > 0 {
                     self.prev_step();
@@ -399,25 +396,32 @@ impl WizardPage {
     }
 
     /// Handle Enter key.
-    fn handle_enter(&mut self) {
+    ///
+    /// Returns a Cmd when deployment starts to emit messages.
+    fn handle_enter(&mut self) -> Option<Cmd> {
         match self.state.step {
             4 => {
                 // On review step, Enter confirms
                 self.state.confirmed = true;
                 self.next_step();
+                None
             }
             5 => {
                 // On deploy step, start deployment if not started
                 if self.state.deployment_status == DeploymentStatus::NotStarted {
-                    self.state.deployment_status = DeploymentStatus::InProgress(0);
+                    self.start_deployment()
                 } else if self.state.deployment_status == DeploymentStatus::Complete {
                     // Reset wizard on completion
                     self.reset();
+                    None
+                } else {
+                    None
                 }
             }
             _ => {
                 // Move to next step
                 self.next_step();
+                None
             }
         }
     }
@@ -1127,15 +1131,67 @@ impl WizardPage {
             .map(|e| theme.error_style().render(&format!("! {e}")).to_string())
     }
 
+    /// Create a deployment config from the current wizard state.
+    fn deployment_config(&self) -> WizardDeploymentConfig {
+        let env_var_names: Vec<String> = self
+            .state
+            .env_vars
+            .iter()
+            .filter_map(|&idx| ENV_VARS.get(idx))
+            .map(|v| v.name.to_string())
+            .collect();
+
+        WizardDeploymentConfig {
+            service_name: self.state.name.clone(),
+            service_type: self.state.service_type.name().to_string(),
+            environment: self.state.environment.name().to_string(),
+            env_vars: env_var_names,
+        }
+    }
+
+    /// Start the deployment and emit the DeploymentStarted message.
+    ///
+    /// Returns a Cmd that emits `WizardMsg::DeploymentStarted`.
+    pub fn start_deployment(&mut self) -> Option<Cmd> {
+        if self.state.deployment_status != DeploymentStatus::NotStarted {
+            return None;
+        }
+
+        self.state.deployment_status = DeploymentStatus::InProgress(0);
+        let config = self.deployment_config();
+
+        Some(Cmd::new(move || WizardMsg::DeploymentStarted(config).into_message()))
+    }
+
     /// Tick the deployment progress (called from app tick).
-    pub fn tick_deployment(&mut self) {
+    ///
+    /// Returns a Cmd if deployment state changed (progress or completion).
+    pub fn tick_deployment(&mut self) -> Option<Cmd> {
         if let DeploymentStatus::InProgress(step) = self.state.deployment_status {
             if step < 4 {
                 self.state.deployment_status = DeploymentStatus::InProgress(step + 1);
+                Some(Cmd::new(move || {
+                    WizardMsg::DeploymentProgress(step as u8 + 1).into_message()
+                }))
             } else {
                 self.state.deployment_status = DeploymentStatus::Complete;
+                let config = self.deployment_config();
+                Some(Cmd::new(move || {
+                    WizardMsg::DeploymentCompleted(config).into_message()
+                }))
             }
+        } else {
+            None
         }
+    }
+
+    /// Check if deployment is in progress.
+    #[must_use]
+    pub const fn is_deploying(&self) -> bool {
+        matches!(
+            self.state.deployment_status,
+            DeploymentStatus::InProgress(_)
+        )
     }
 }
 

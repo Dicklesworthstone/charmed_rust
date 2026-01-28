@@ -336,3 +336,44 @@ impl ShellOutMsg {
         Message::new(self)
     }
 }
+
+// ============================================================================
+// Wizard Messages (bd-2qq7)
+// ============================================================================
+
+/// Deployment configuration from the wizard.
+#[derive(Debug, Clone)]
+pub struct WizardDeploymentConfig {
+    /// Service name.
+    pub service_name: String,
+    /// Service type (Web Service, Background Worker, Scheduled Job).
+    pub service_type: String,
+    /// Target environment (development, staging, production).
+    pub environment: String,
+    /// Selected environment variables.
+    pub env_vars: Vec<String>,
+}
+
+/// Messages for wizard deployment integration.
+///
+/// These messages allow the wizard to trigger jobs/deployments that
+/// are visible across other pages (Dashboard, Jobs, Logs).
+#[derive(Debug, Clone)]
+pub enum WizardMsg {
+    /// Deployment has started with the given configuration.
+    DeploymentStarted(WizardDeploymentConfig),
+    /// Deployment progress update (step number 0-4).
+    DeploymentProgress(u8),
+    /// Deployment completed successfully.
+    DeploymentCompleted(WizardDeploymentConfig),
+    /// Deployment failed with error message.
+    DeploymentFailed(String),
+}
+
+impl WizardMsg {
+    /// Create a bubbletea Message from this `WizardMsg`.
+    #[must_use]
+    pub fn into_message(self) -> Message {
+        Message::new(self)
+    }
+}

@@ -14,7 +14,7 @@ use crate::components::{Sidebar, SidebarFocus, StatusLevel, banner, key_hint};
 use crate::config::Config;
 use crate::keymap::{HELP_SECTIONS, help_total_lines};
 use crate::messages::{
-    AppMsg, ExportFormat, ExportMsg, Notification, NotificationMsg, Page, ShellOutMsg,
+    AppMsg, ExportFormat, ExportMsg, Notification, NotificationMsg, Page, ShellOutMsg, WizardMsg,
 };
 use crate::pages::Pages;
 use crate::shell_action::{generate_diagnostics, open_diagnostics_in_pager};
@@ -1175,6 +1175,55 @@ impl Model for App {
                 }
                 ShellOutMsg::TerminalReleased | ShellOutMsg::TerminalRestored => {
                     // These are informational; no action needed
+                }
+            }
+            return None;
+        }
+
+        // Handle wizard messages (bd-2qq7)
+        if let Some(wizard_msg) = msg.downcast_ref::<WizardMsg>() {
+            match wizard_msg {
+                WizardMsg::DeploymentStarted(config) => {
+                    let id = self.next_notification_id;
+                    self.next_notification_id += 1;
+                    self.notifications.push(Notification::info(
+                        id,
+                        format!(
+                            "Deploying '{}' ({}) to {}...",
+                            config.service_name, config.service_type, config.environment
+                        ),
+                    ));
+                    while self.notifications.len() > MAX_NOTIFICATIONS {
+                        self.notifications.remove(0);
+                    }
+                }
+                WizardMsg::DeploymentProgress(_step) => {
+                    // Progress updates don't need notifications (UI shows progress)
+                }
+                WizardMsg::DeploymentCompleted(config) => {
+                    let id = self.next_notification_id;
+                    self.next_notification_id += 1;
+                    self.notifications.push(Notification::success(
+                        id,
+                        format!(
+                            "Deployed '{}' to {} successfully!",
+                            config.service_name, config.environment
+                        ),
+                    ));
+                    while self.notifications.len() > MAX_NOTIFICATIONS {
+                        self.notifications.remove(0);
+                    }
+                }
+                WizardMsg::DeploymentFailed(error) => {
+                    let id = self.next_notification_id;
+                    self.next_notification_id += 1;
+                    self.notifications.push(Notification::error(
+                        id,
+                        format!("Deployment failed: {error}"),
+                    ));
+                    while self.notifications.len() > MAX_NOTIFICATIONS {
+                        self.notifications.remove(0);
+                    }
                 }
             }
             return None;
