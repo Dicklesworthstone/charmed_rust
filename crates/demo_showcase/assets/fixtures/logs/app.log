@@ -1,0 +1,13 @@
+2026-01-28T04:30:00.123Z INFO  api::server  Server starting on 0.0.0.0:8080
+2026-01-28T04:30:00.456Z INFO  db::pool     Connection pool initialized (10 connections)
+2026-01-28T04:30:00.789Z INFO  redis::conn  Redis connection established
+2026-01-28T04:30:01.234Z INFO  metrics      Metrics server listening on :9090
+2026-01-28T04:30:05.567Z INFO  api::health  Health check passed
+2026-01-28T04:30:10.890Z DEBUG api::routes  GET /api/v1/services - 200 OK (12ms)
+2026-01-28T04:30:11.123Z DEBUG api::routes  GET /api/v1/jobs - 200 OK (8ms)
+2026-01-28T04:30:15.456Z WARN  cache::pool  Connection pool running low (2/10 available)
+2026-01-28T04:30:20.789Z INFO  worker::jobs Job database-backup-001 completed successfully
+2026-01-28T04:30:25.012Z ERROR auth::token  Token validation failed: expired token
+2026-01-28T04:30:30.345Z INFO  api::health  Health check passed
+2026-01-28T04:30:35.678Z DEBUG api::routes  POST /api/v1/deploy - 202 Accepted (45ms)
+2026-01-28T04:30:40.901Z INFO  deploy::run  Deployment deploy-abc123 started

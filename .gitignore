@@ -26,6 +26,8 @@ Thumbs.db
 
 # Debug
 *.log
+# But keep fixture log files for demo_showcase
+!crates/demo_showcase/assets/fixtures/logs/*.log
 
 # bv (beads viewer) local config and caches
 .bv/
