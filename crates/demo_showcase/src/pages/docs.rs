@@ -1048,4 +1048,154 @@ mod tests {
         let search_mode_hints = page.hints();
         assert!(search_mode_hints.contains("Esc"), "Search hints should mention Esc");
     }
+
+    // =========================================================================
+    // Edge Case Tests (for bd-3eru)
+    // =========================================================================
+
+    #[test]
+    fn empty_search_query_shows_no_matches() {
+        let mut page = DocsPage::new();
+
+        page.search_query = String::new();
+        page.update_search_matches();
+        assert!(page.search_matches.is_empty(), "Empty query should have no matches");
+    }
+
+    #[test]
+    fn unicode_search_does_not_panic() {
+        let mut page = DocsPage::new();
+
+        // Unicode characters in query should not panic
+        page.search_query = "日本語テスト".to_string();
+        page.update_search_matches();
+        // Should complete without panicking
+        assert!(page.search_matches.len() <= 10_000); // Sanity bound
+    }
+
+    #[test]
+    fn emoji_search_does_not_panic() {
+        let mut page = DocsPage::new();
+
+        // Emoji in query should not panic
+        page.search_query = "🚀 deployment 🎉".to_string();
+        page.update_search_matches();
+        // Should complete without panicking
+    }
+
+    #[test]
+    fn very_long_search_does_not_panic() {
+        let mut page = DocsPage::new();
+
+        // Very long query should not panic or cause memory issues
+        page.search_query = "a".repeat(10_000);
+        page.update_search_matches();
+        // Should complete without panicking (likely no matches)
+        assert!(page.search_matches.is_empty() || page.search_matches.len() < 10_000);
+    }
+
+    #[test]
+    fn whitespace_only_search() {
+        let mut page = DocsPage::new();
+
+        // Whitespace-only query
+        page.search_query = "   ".to_string();
+        page.update_search_matches();
+        // Should not crash; whitespace may or may not match
+    }
+
+    #[test]
+    fn newline_in_search_does_not_panic() {
+        let mut page = DocsPage::new();
+
+        // Paste-like input with newlines (though our input filter blocks some chars)
+        page.search_query = "hello\nworld".to_string();
+        page.update_search_matches();
+        // Should complete without panicking
+    }
+
+    #[test]
+    fn search_is_case_insensitive() {
+        let mut page = DocsPage::new();
+
+        // Same query in different cases should find same number of matches
+        page.search_query = "THE".to_string();
+        page.update_search_matches();
+        let upper_count = page.search_matches.len();
+
+        page.search_query = "the".to_string();
+        page.update_search_matches();
+        let lower_count = page.search_matches.len();
+
+        page.search_query = "The".to_string();
+        page.update_search_matches();
+        let mixed_count = page.search_matches.len();
+
+        assert_eq!(upper_count, lower_count, "Case should not affect match count");
+        assert_eq!(lower_count, mixed_count, "Case should not affect match count");
+    }
+
+    #[test]
+    fn search_is_idempotent() {
+        let mut page = DocsPage::new();
+
+        page.search_query = "the".to_string();
+        page.update_search_matches();
+        let first_count = page.search_matches.len();
+        let first_current = page.current_match;
+
+        // Apply again - should get same result
+        page.update_search_matches();
+        let second_count = page.search_matches.len();
+        let second_current = page.current_match;
+
+        assert_eq!(first_count, second_count, "Search should be idempotent");
+        assert_eq!(first_current, second_current, "Current match should reset to 0");
+    }
+
+    #[test]
+    fn search_match_navigation_at_boundaries() {
+        let mut page = DocsPage::new();
+
+        page.search_query = "the".to_string();
+        page.update_search_matches();
+
+        if page.search_matches.len() > 1 {
+            // Start at first match
+            assert_eq!(page.current_match, 0);
+
+            // Go to last match
+            page.current_match = page.search_matches.len() - 1;
+
+            // Next should wrap to first
+            page.next_match();
+            assert_eq!(page.current_match, 0, "Should wrap from last to first");
+
+            // Prev should wrap to last
+            page.prev_match();
+            assert_eq!(page.current_match, page.search_matches.len() - 1, "Should wrap from first to last");
+        }
+    }
+
+    #[test]
+    fn special_characters_in_search() {
+        let mut page = DocsPage::new();
+
+        // Characters that might break regex or matching
+        page.search_query = "[test]".to_string();
+        page.update_search_matches();
+        // Should not panic
+
+        page.search_query = "(foo)".to_string();
+        page.update_search_matches();
+        // Should not panic
+
+        page.search_query = "*.rs".to_string();
+        page.update_search_matches();
+        // Should not panic
+
+        page.search_query = "foo/bar".to_string();
+        page.update_search_matches();
+        // Should not panic
+    }
 }

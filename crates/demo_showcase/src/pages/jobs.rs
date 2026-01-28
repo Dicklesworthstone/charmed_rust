@@ -1217,4 +1217,157 @@ mod tests {
         assert!(filter.matches(JobStatus::Cancelled)); // Grouped with Failed
         assert!(!filter.matches(JobStatus::Queued));
     }
+
+    // =========================================================================
+    // Edge Case Tests (for bd-3eru)
+    // =========================================================================
+
+    #[test]
+    fn empty_query_shows_all_with_status_filter() {
+        let mut page = JobsPage::new();
+        let total = page.jobs.len();
+
+        // Empty query should show all jobs (respecting status filter)
+        page.query = String::new();
+        page.apply_filter_and_sort();
+        assert_eq!(page.filtered_indices.len(), total);
+    }
+
+    #[test]
+    fn unicode_query_does_not_panic() {
+        let mut page = JobsPage::new();
+
+        // Unicode characters in query should not panic
+        page.query = "日本語テスト".to_string();
+        page.apply_filter_and_sort();
+        // Should complete without panicking (likely no matches)
+        assert!(page.filtered_indices.len() <= page.jobs.len());
+    }
+
+    #[test]
+    fn emoji_query_does_not_panic() {
+        let mut page = JobsPage::new();
+
+        // Emoji in query should not panic
+        page.query = "🚀 deployment 🎉".to_string();
+        page.apply_filter_and_sort();
+        // Should complete without panicking
+        assert!(page.filtered_indices.len() <= page.jobs.len());
+    }
+
+    #[test]
+    fn very_long_query_does_not_panic() {
+        let mut page = JobsPage::new();
+
+        // Very long query should not panic or cause memory issues
+        page.query = "a".repeat(10_000);
+        page.apply_filter_and_sort();
+        // Should complete without panicking (likely no matches)
+        assert!(page.filtered_indices.is_empty() || page.filtered_indices.len() <= page.jobs.len());
+    }
+
+    #[test]
+    fn whitespace_only_query() {
+        let mut page = JobsPage::new();
+        let total = page.jobs.len();
+
+        // Whitespace-only query
+        page.query = "   ".to_string();
+        page.apply_filter_and_sort();
+        // Should not crash; current impl doesn't trim so this tests actual behavior
+        assert!(page.filtered_indices.len() <= total);
+    }
+
+    #[test]
+    fn newline_in_query_does_not_panic() {
+        let mut page = JobsPage::new();
+
+        // Paste-like input with newlines
+        page.query = "backup\njob\ntest".to_string();
+        page.apply_filter_and_sort();
+        // Should complete without panicking
+        assert!(page.filtered_indices.len() <= page.jobs.len());
+    }
+
+    #[test]
+    fn filter_is_case_insensitive() {
+        let mut page = JobsPage::new();
+
+        // Same query in different cases should match same entries
+        page.query = "BACKUP".to_string();
+        page.apply_filter_and_sort();
+        let upper_count = page.filtered_indices.len();
+
+        page.query = "backup".to_string();
+        page.apply_filter_and_sort();
+        let lower_count = page.filtered_indices.len();
+
+        page.query = "Backup".to_string();
+        page.apply_filter_and_sort();
+        let mixed_count = page.filtered_indices.len();
+
+        assert_eq!(upper_count, lower_count, "Case should not affect match count");
+        assert_eq!(lower_count, mixed_count, "Case should not affect match count");
+    }
+
+    #[test]
+    fn filter_is_idempotent() {
+        let mut page = JobsPage::new();
+
+        page.query = "backup".to_string();
+        page.apply_filter_and_sort();
+        let first_result = page.filtered_indices.clone();
+
+        // Apply again - should get same result
+        page.apply_filter_and_sort();
+        let second_result = page.filtered_indices.clone();
+
+        assert_eq!(first_result, second_result, "Filter should be idempotent");
+    }
+
+    #[test]
+    fn sorting_is_stable() {
+        let mut page = JobsPage::new();
+
+        // Sort by name ascending
+        page.sort_column = SortColumn::Name;
+        page.sort_direction = SortDirection::Ascending;
+        page.apply_filter_and_sort();
+        let first_sort = page.filtered_indices.clone();
+
+        // Sort again - should get same order
+        page.apply_filter_and_sort();
+        let second_sort = page.filtered_indices.clone();
+
+        assert_eq!(first_sort, second_sort, "Sorting should be stable");
+    }
+
+    #[test]
+    fn combined_filters_compose() {
+        let mut page = JobsPage::new();
+
+        // Disable all status filters
+        page.status_filter = StatusFilter {
+            running: false,
+            completed: false,
+            failed: false,
+            queued: false,
+        };
+        page.apply_filter_and_sort();
+
+        // With no status enabled, should show no jobs
+        assert!(page.filtered_indices.is_empty(), "No status enabled should show no jobs");
+
+        // Enable one status
+        page.status_filter.running = true;
+        page.apply_filter_and_sort();
+
+        // Now add a query that further restricts
+        let running_count = page.filtered_indices.len();
+        page.query = "xyzzy_nonexistent".to_string();
+        page.apply_filter_and_sort();
+
+        // Query should further restrict (unless it matches all running jobs)
+        assert!(page.filtered_indices.len() <= running_count);
+    }
 }

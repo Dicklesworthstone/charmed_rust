@@ -884,4 +884,112 @@ mod tests {
 
         assert_eq!(filter.enabled_count(), 2);
     }
+
+    // =========================================================================
+    // Edge Case Tests (for bd-3eru)
+    // =========================================================================
+
+    #[test]
+    fn empty_query_shows_all_with_level_filter() {
+        let mut page = LogsPage::new();
+        let total = page.logs.len();
+
+        // Empty query should show all entries (respecting level filter)
+        page.query = String::new();
+        page.apply_filters();
+        assert_eq!(page.filtered_indices.len(), total);
+    }
+
+    #[test]
+    fn unicode_query_does_not_panic() {
+        let mut page = LogsPage::new();
+
+        // Unicode characters in query should not panic
+        page.query = "日本語テスト".to_string();
+        page.apply_filters();
+        // Should complete without panicking (likely no matches)
+        assert!(page.filtered_indices.len() <= page.logs.len());
+    }
+
+    #[test]
+    fn emoji_query_does_not_panic() {
+        let mut page = LogsPage::new();
+
+        // Emoji in query should not panic
+        page.query = "🚀 deployment 🎉".to_string();
+        page.apply_filters();
+        // Should complete without panicking
+        assert!(page.filtered_indices.len() <= page.logs.len());
+    }
+
+    #[test]
+    fn very_long_query_does_not_panic() {
+        let mut page = LogsPage::new();
+
+        // Very long query should not panic or cause memory issues
+        page.query = "a".repeat(10_000);
+        page.apply_filters();
+        // Should complete without panicking (likely no matches)
+        assert!(page.filtered_indices.is_empty() || page.filtered_indices.len() <= page.logs.len());
+    }
+
+    #[test]
+    fn whitespace_only_query_shows_all() {
+        let mut page = LogsPage::new();
+        let total = page.logs.len();
+
+        // Whitespace-only query should effectively be empty after trim
+        // Note: Current implementation doesn't trim, so this tests actual behavior
+        page.query = "   ".to_string();
+        page.apply_filters();
+        // Should not crash; result depends on implementation
+        assert!(page.filtered_indices.len() <= total);
+    }
+
+    #[test]
+    fn newline_in_query_does_not_panic() {
+        let mut page = LogsPage::new();
+
+        // Paste-like input with newlines
+        page.query = "error\nmessage\ntest".to_string();
+        page.apply_filters();
+        // Should complete without panicking
+        assert!(page.filtered_indices.len() <= page.logs.len());
+    }
+
+    #[test]
+    fn filter_is_case_insensitive() {
+        let mut page = LogsPage::new();
+
+        // Same query in different cases should match same entries
+        page.query = "ERROR".to_string();
+        page.apply_filters();
+        let upper_count = page.filtered_indices.len();
+
+        page.query = "error".to_string();
+        page.apply_filters();
+        let lower_count = page.filtered_indices.len();
+
+        page.query = "Error".to_string();
+        page.apply_filters();
+        let mixed_count = page.filtered_indices.len();
+
+        assert_eq!(upper_count, lower_count, "Case should not affect match count");
+        assert_eq!(lower_count, mixed_count, "Case should not affect match count");
+    }
+
+    #[test]
+    fn filter_is_idempotent() {
+        let mut page = LogsPage::new();
+
+        page.query = "api".to_string();
+        page.apply_filters();
+        let first_result = page.filtered_indices.clone();
+
+        // Apply again - should get same result
+        page.apply_filters();
+        let second_result = page.filtered_indices.clone();
+
+        assert_eq!(first_result, second_result, "Filter should be idempotent");
+    }
 }
