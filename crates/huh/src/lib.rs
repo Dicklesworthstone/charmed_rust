@@ -3804,18 +3804,26 @@ impl Field for FilePicker {
                         }
                     }
                 } else if binding_matches(&self.keymap.down, key_msg) {
-                    if self.selected_index < self.files.len().saturating_sub(1) {
+                    if !self.files.is_empty()
+                        && self.selected_index < self.files.len().saturating_sub(1)
+                    {
                         self.selected_index += 1;
-                        if self.selected_index >= self.offset + self.height {
-                            self.offset = self.selected_index.saturating_sub(self.height - 1);
+                        if self.height > 0 && self.selected_index >= self.offset + self.height {
+                            self.offset = self
+                                .selected_index
+                                .saturating_sub(self.height.saturating_sub(1));
                         }
                     }
                 } else if binding_matches(&self.keymap.goto_top, key_msg) {
                     self.selected_index = 0;
                     self.offset = 0;
-                } else if binding_matches(&self.keymap.goto_bottom, key_msg) {
+                } else if binding_matches(&self.keymap.goto_bottom, key_msg)
+                    && !self.files.is_empty()
+                {
                     self.selected_index = self.files.len().saturating_sub(1);
-                    self.offset = self.selected_index.saturating_sub(self.height - 1);
+                    self.offset = self
+                        .selected_index
+                        .saturating_sub(self.height.saturating_sub(1));
                 }
             }
         }
@@ -6055,5 +6063,201 @@ mod tests {
 
         // Cursor should be capped at last filtered index
         assert_eq!(multi.cursor, 2); // Max index is 2 (3 items: 0, 1, 2)
+    }
+
+    // -------------------------------------------------------------------------
+    // FilePicker edge case tests (bd-1isw)
+    // -------------------------------------------------------------------------
+
+    /// Helper to create a FilePicker pre-loaded with synthetic FileEntry items
+    /// (avoids filesystem I/O in unit tests).
+    fn filepicker_with_entries(entries: Vec<(&str, bool)>) -> FilePicker {
+        let mut picker = FilePicker::new();
+        picker.picking = true;
+        picker.focused = true;
+        picker.files = entries
+            .into_iter()
+            .map(|(name, is_dir)| FileEntry {
+                name: name.to_string(),
+                path: format!("/tmp/{name}"),
+                is_dir,
+                size: 0,
+                mode: String::new(),
+            })
+            .collect();
+        picker
+    }
+
+    fn make_key_msg(key_type: KeyType) -> Message {
+        Message::new(KeyMsg {
+            key_type,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        })
+    }
+
+    #[test]
+    fn filepicker_single_file_is_selected_by_default() {
+        let picker = filepicker_with_entries(vec![("only_file.txt", false)]);
+        // selected_index defaults to 0, which points at the only file
+        assert_eq!(picker.selected_index, 0);
+        assert_eq!(picker.files.len(), 1);
+        assert_eq!(picker.files[0].name, "only_file.txt");
+    }
+
+    #[test]
+    fn filepicker_single_file_view_shows_entry() {
+        let picker = filepicker_with_entries(vec![("only_file.txt", false)]);
+        let view = picker.view();
+        assert!(view.contains("only_file.txt"));
+    }
+
+    #[test]
+    fn filepicker_single_file_select_via_enter() {
+        let mut picker = filepicker_with_entries(vec![("report.pdf", false)]);
+        // Simulate pressing Enter (open binding)
+        let enter_msg = make_key_msg(KeyType::Enter);
+        let result = picker.update(&enter_msg);
+        // Should select the file and advance
+        assert_eq!(picker.selected_path, Some("/tmp/report.pdf".to_string()));
+        assert!(!picker.picking);
+        assert!(result.is_some()); // NextFieldMsg command returned
+    }
+
+    #[test]
+    fn filepicker_single_file_down_does_not_move() {
+        let mut picker = filepicker_with_entries(vec![("only.txt", false)]);
+        let down_msg = make_key_msg(KeyType::Down);
+        picker.update(&down_msg);
+        // Should remain at index 0 - nowhere to go
+        assert_eq!(picker.selected_index, 0);
+    }
+
+    #[test]
+    fn filepicker_single_file_up_does_not_move() {
+        let mut picker = filepicker_with_entries(vec![("only.txt", false)]);
+        let up_msg = make_key_msg(KeyType::Up);
+        picker.update(&up_msg);
+        assert_eq!(picker.selected_index, 0);
+    }
+
+    #[test]
+    fn filepicker_empty_files_no_panic() {
+        let mut picker = filepicker_with_entries(vec![]);
+        // Verify no panic on navigation with empty list
+        let down_msg = make_key_msg(KeyType::Down);
+        picker.update(&down_msg);
+        assert_eq!(picker.selected_index, 0);
+
+        let up_msg = make_key_msg(KeyType::Up);
+        picker.update(&up_msg);
+        assert_eq!(picker.selected_index, 0);
+    }
+
+    #[test]
+    fn filepicker_empty_files_view_no_panic() {
+        let picker = filepicker_with_entries(vec![]);
+        // Should render without panic even with no files
+        let view = picker.view();
+        assert!(!view.is_empty());
+    }
+
+    #[test]
+    fn filepicker_empty_goto_top_bottom_no_panic() {
+        let mut picker = filepicker_with_entries(vec![]);
+        // goto_top
+        let home_msg = Message::new(KeyMsg {
+            key_type: KeyType::Home,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        picker.update(&home_msg);
+        assert_eq!(picker.selected_index, 0);
+
+        // goto_bottom
+        let end_msg = Message::new(KeyMsg {
+            key_type: KeyType::End,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        picker.update(&end_msg);
+        assert_eq!(picker.selected_index, 0);
+    }
+
+    #[test]
+    fn filepicker_height_zero_no_panic() {
+        let mut picker =
+            filepicker_with_entries(vec![("a.txt", false), ("b.txt", false), ("c.txt", false)]);
+        picker.height = 0;
+        // Navigate down — must not panic on offset calculation
+        let down_msg = make_key_msg(KeyType::Down);
+        picker.update(&down_msg);
+        picker.update(&down_msg);
+        assert_eq!(picker.selected_index, 2);
+    }
+
+    #[test]
+    fn filepicker_height_one_scrolls_correctly() {
+        let mut picker =
+            filepicker_with_entries(vec![("a.txt", false), ("b.txt", false), ("c.txt", false)]);
+        picker.height = 1;
+        assert_eq!(picker.selected_index, 0);
+        assert_eq!(picker.offset, 0);
+
+        let down_msg = make_key_msg(KeyType::Down);
+        picker.update(&down_msg);
+        assert_eq!(picker.selected_index, 1);
+        // With height=1, offset should scroll to keep selected visible
+        assert_eq!(picker.offset, 1);
+
+        picker.update(&down_msg);
+        assert_eq!(picker.selected_index, 2);
+        assert_eq!(picker.offset, 2);
+    }
+
+    #[test]
+    fn filepicker_navigation_respects_bounds() {
+        let mut picker = filepicker_with_entries(vec![("a.txt", false), ("b.txt", false)]);
+        let down_msg = make_key_msg(KeyType::Down);
+        let up_msg = make_key_msg(KeyType::Up);
+
+        // Navigate down past end
+        picker.update(&down_msg);
+        assert_eq!(picker.selected_index, 1);
+        picker.update(&down_msg); // Should stay at 1
+        assert_eq!(picker.selected_index, 1);
+
+        // Navigate up past start
+        picker.update(&up_msg);
+        assert_eq!(picker.selected_index, 0);
+        picker.update(&up_msg); // Should stay at 0
+        assert_eq!(picker.selected_index, 0);
+    }
+
+    #[test]
+    fn filepicker_dir_not_selectable_by_default() {
+        let picker = filepicker_with_entries(vec![("subdir", true)]);
+        let entry = &picker.files[0];
+        // By default, dir_allowed is false
+        assert!(!picker.is_selectable(entry));
+    }
+
+    #[test]
+    fn filepicker_file_selectable_by_default() {
+        let picker = filepicker_with_entries(vec![("file.rs", false)]);
+        let entry = &picker.files[0];
+        assert!(picker.is_selectable(entry));
+    }
+
+    #[test]
+    fn filepicker_format_size_edge_cases() {
+        assert_eq!(FilePicker::format_size(0), "0B");
+        assert_eq!(FilePicker::format_size(1023), "1023B");
+        assert_eq!(FilePicker::format_size(1024), "1.0K");
+        assert_eq!(FilePicker::format_size(1024 * 1024), "1.0M");
+        assert_eq!(FilePicker::format_size(1024 * 1024 * 1024), "1.0G");
     }
 }

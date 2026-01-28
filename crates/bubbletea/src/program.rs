@@ -17,6 +17,8 @@ use tokio_util::sync::CancellationToken;
 #[cfg(feature = "async")]
 use tokio_util::task::TaskTracker;
 
+use tracing::debug;
+
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind},
@@ -607,7 +609,10 @@ impl<M: Model> Program<M> {
             let tx_clone = tx.clone();
             thread::spawn(move || {
                 while let Ok(msg) = ext_rx.recv() {
-                    let _ = tx_clone.send(msg);
+                    if tx_clone.send(msg).is_err() {
+                        debug!(target: "bubbletea::event", "external message dropped — receiver disconnected");
+                        break;
+                    }
                 }
             });
         }
@@ -625,7 +630,10 @@ impl<M: Model> Program<M> {
                             // We always assume there could be more data unless we hit EOF (Ok(0))
                             let can_have_more_data = true;
                             for msg in parser.push_bytes(&buf[..n], can_have_more_data) {
-                                let _ = tx_clone.send(msg);
+                                if tx_clone.send(msg).is_err() {
+                                    debug!(target: "bubbletea::input", "input message dropped — receiver disconnected");
+                                    return;
+                                }
                             }
                         }
                         Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
@@ -636,7 +644,10 @@ impl<M: Model> Program<M> {
                 }
 
                 for msg in parser.flush() {
-                    let _ = tx_clone.send(msg);
+                    if tx_clone.send(msg).is_err() {
+                        debug!(target: "bubbletea::input", "flush message dropped — receiver disconnected");
+                        break;
+                    }
                 }
             });
         }
@@ -645,7 +656,9 @@ impl<M: Model> Program<M> {
         if !self.options.custom_io
             && let Ok((width, height)) = terminal::size()
         {
-            let _ = tx.send(Message::new(WindowSizeMsg { width, height }));
+            if tx.send(Message::new(WindowSizeMsg { width, height })).is_err() {
+                debug!(target: "bubbletea::event", "initial window size dropped — receiver disconnected");
+            }
         }
 
         // Call init and handle initial command
@@ -677,23 +690,33 @@ impl<M: Model> Program<M> {
 
                         // Handle Ctrl+C specially
                         if key_msg.key_type == crate::KeyType::CtrlC {
-                            let _ = tx.send(Message::new(InterruptMsg));
-                        } else {
-                            let _ = tx.send(Message::new(key_msg));
+                            if tx.send(Message::new(InterruptMsg)).is_err() {
+                                debug!(target: "bubbletea::event", "interrupt message dropped — receiver disconnected");
+                            }
+                        } else if tx.send(Message::new(key_msg)).is_err() {
+                            debug!(target: "bubbletea::event", "key message dropped — receiver disconnected");
                         }
                     }
                     Event::Mouse(mouse_event) => {
                         let mouse_msg = from_crossterm_mouse(mouse_event);
-                        let _ = tx.send(Message::new(mouse_msg));
+                        if tx.send(Message::new(mouse_msg)).is_err() {
+                            debug!(target: "bubbletea::event", "mouse message dropped — receiver disconnected");
+                        }
                     }
                     Event::Resize(width, height) => {
-                        let _ = tx.send(Message::new(WindowSizeMsg { width, height }));
+                        if tx.send(Message::new(WindowSizeMsg { width, height })).is_err() {
+                            debug!(target: "bubbletea::event", "resize message dropped — receiver disconnected");
+                        }
                     }
                     Event::FocusGained => {
-                        let _ = tx.send(Message::new(FocusMsg));
+                        if tx.send(Message::new(FocusMsg)).is_err() {
+                            debug!(target: "bubbletea::event", "focus message dropped — receiver disconnected");
+                        }
                     }
                     Event::FocusLost => {
-                        let _ = tx.send(Message::new(BlurMsg));
+                        if tx.send(Message::new(BlurMsg)).is_err() {
+                            debug!(target: "bubbletea::event", "blur message dropped — receiver disconnected");
+                        }
                     }
                     Event::Paste(text) => {
                         // Send as a key message with paste flag
@@ -703,7 +726,9 @@ impl<M: Model> Program<M> {
                             alt: false,
                             paste: true,
                         };
-                        let _ = tx.send(Message::new(key_msg));
+                        if tx.send(Message::new(key_msg)).is_err() {
+                            debug!(target: "bubbletea::event", "paste message dropped — receiver disconnected");
+                        }
                     }
                 }
             }
@@ -737,7 +762,9 @@ impl<M: Model> Program<M> {
                     if !self.options.custom_io
                         && let Ok((width, height)) = terminal::size()
                     {
-                        let _ = tx.send(Message::new(WindowSizeMsg { width, height }));
+                        if tx.send(Message::new(WindowSizeMsg { width, height })).is_err() {
+                            debug!(target: "bubbletea::event", "window size response dropped — receiver disconnected");
+                        }
                     }
                     continue;
                 }
@@ -835,7 +862,9 @@ impl<M: Model> Program<M> {
                             let tx_clone = tx.clone();
                             thread::spawn(move || {
                                 if let Some(msg) = cmd.execute() {
-                                    let _ = tx_clone.send(msg);
+                                    if tx_clone.send(msg).is_err() {
+                                        debug!(target: "bubbletea::command", "batch command result dropped — receiver disconnected");
+                                    }
                                 }
                             });
                         }
@@ -844,12 +873,15 @@ impl<M: Model> Program<M> {
                     if let Some(seq) = msg.downcast::<SequenceMsg>() {
                         for cmd in seq.0 {
                             if let Some(msg) = cmd.execute() {
-                                let _ = tx.send(msg);
+                                if tx.send(msg).is_err() {
+                                    debug!(target: "bubbletea::command", "sequence command result dropped — receiver disconnected");
+                                    break;
+                                }
                             }
                         }
                     }
-                } else {
-                    let _ = tx.send(msg);
+                } else if tx.send(msg).is_err() {
+                    debug!(target: "bubbletea::command", "command result dropped — receiver disconnected");
                 }
             }
         });
@@ -992,7 +1024,10 @@ impl<M: Model> Program<M> {
                     }
                     match ext_rx.recv_timeout(timeout) {
                         Ok(msg) => {
-                            let _ = tx_clone.blocking_send(msg);
+                            if tx_clone.blocking_send(msg).is_err() {
+                                debug!(target: "bubbletea::event", "async external message dropped — receiver disconnected");
+                                break;
+                            }
                         }
                         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                             // Continue loop to check cancellation
@@ -1074,7 +1109,9 @@ impl<M: Model> Program<M> {
         // Get initial window size
         if !self.options.custom_io {
             let (width, height) = terminal::size()?;
-            let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
+            if tx.send(Message::new(WindowSizeMsg { width, height })).await.is_err() {
+                debug!(target: "bubbletea::event", "async initial window size dropped — receiver disconnected");
+            }
         }
 
         // Call init and handle initial command
@@ -1111,23 +1148,33 @@ impl<M: Model> Program<M> {
 
                             // Handle Ctrl+C specially
                             if key_msg.key_type == crate::KeyType::CtrlC {
-                                let _ = tx.send(Message::new(InterruptMsg)).await;
-                            } else {
-                                let _ = tx.send(Message::new(key_msg)).await;
+                                if tx.send(Message::new(InterruptMsg)).await.is_err() {
+                                    debug!(target: "bubbletea::event", "async interrupt message dropped — receiver disconnected");
+                                }
+                            } else if tx.send(Message::new(key_msg)).await.is_err() {
+                                debug!(target: "bubbletea::event", "async key message dropped — receiver disconnected");
                             }
                         }
                         Event::Mouse(mouse_event) => {
                             let mouse_msg = from_crossterm_mouse(mouse_event);
-                            let _ = tx.send(Message::new(mouse_msg)).await;
+                            if tx.send(Message::new(mouse_msg)).await.is_err() {
+                                debug!(target: "bubbletea::event", "async mouse message dropped — receiver disconnected");
+                            }
                         }
                         Event::Resize(width, height) => {
-                            let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
+                            if tx.send(Message::new(WindowSizeMsg { width, height })).await.is_err() {
+                                debug!(target: "bubbletea::event", "async resize message dropped — receiver disconnected");
+                            }
                         }
                         Event::FocusGained => {
-                            let _ = tx.send(Message::new(FocusMsg)).await;
+                            if tx.send(Message::new(FocusMsg)).await.is_err() {
+                                debug!(target: "bubbletea::event", "async focus message dropped — receiver disconnected");
+                            }
                         }
                         Event::FocusLost => {
-                            let _ = tx.send(Message::new(BlurMsg)).await;
+                            if tx.send(Message::new(BlurMsg)).await.is_err() {
+                                debug!(target: "bubbletea::event", "async blur message dropped — receiver disconnected");
+                            }
                         }
                         Event::Paste(text) => {
                             // Send as a key message with paste flag
@@ -1137,7 +1184,9 @@ impl<M: Model> Program<M> {
                                 alt: false,
                                 paste: true,
                             };
-                            let _ = tx.send(Message::new(key_msg)).await;
+                            if tx.send(Message::new(key_msg)).await.is_err() {
+                                debug!(target: "bubbletea::event", "async paste message dropped — receiver disconnected");
+                            }
                         }
                     }
                 }
@@ -1171,7 +1220,9 @@ impl<M: Model> Program<M> {
                     if msg.is::<RequestWindowSizeMsg>() {
                         if !self.options.custom_io {
                             let (width, height) = terminal::size()?;
-                            let _ = tx.send(Message::new(WindowSizeMsg { width, height })).await;
+                            if tx.send(Message::new(WindowSizeMsg { width, height })).await.is_err() {
+                                debug!(target: "bubbletea::event", "async window size response dropped — receiver disconnected");
+                            }
                         }
                         continue;
                     }
@@ -1297,7 +1348,9 @@ impl<M: Model> Program<M> {
                                     tokio::spawn(async move {
                                         let cmd_kind: CommandKind = cmd.into();
                                         if let Some(msg) = cmd_kind.execute().await {
-                                            let _ = tx_clone.send(msg).await;
+                                            if tx_clone.send(msg).await.is_err() {
+                                                debug!(target: "bubbletea::command", "async batch command result dropped — receiver disconnected");
+                                            }
                                         }
                                     });
                                 }
@@ -1307,12 +1360,15 @@ impl<M: Model> Program<M> {
                                 for cmd in seq.0 {
                                     let cmd_kind: CommandKind = cmd.into();
                                     if let Some(msg) = cmd_kind.execute().await {
-                                        let _ = tx.send(msg).await;
+                                        if tx.send(msg).await.is_err() {
+                                            debug!(target: "bubbletea::command", "async sequence command result dropped — receiver disconnected");
+                                            break;
+                                        }
                                     }
                                 }
                             }
-                        } else {
-                            let _ = tx.send(msg).await;
+                        } else if tx.send(msg).await.is_err() {
+                            debug!(target: "bubbletea::command", "async command result dropped — receiver disconnected");
                         }
                     }
                 }
@@ -1337,7 +1393,9 @@ impl<M: Model> Program<M> {
                             tokio::spawn(async move {
                                 let cmd_kind: CommandKind = cmd.into();
                                 if let Some(msg) = cmd_kind.execute().await {
-                                    let _ = tx_clone.send(msg).await;
+                                    if tx_clone.send(msg).await.is_err() {
+                                        debug!(target: "bubbletea::command", "legacy async batch command result dropped — receiver disconnected");
+                                    }
                                 }
                             });
                         }
@@ -1347,12 +1405,15 @@ impl<M: Model> Program<M> {
                         for cmd in seq.0 {
                             let cmd_kind: CommandKind = cmd.into();
                             if let Some(msg) = cmd_kind.execute().await {
-                                let _ = tx.send(msg).await;
+                                if tx.send(msg).await.is_err() {
+                                    debug!(target: "bubbletea::command", "legacy async sequence command result dropped — receiver disconnected");
+                                    break;
+                                }
                             }
                         }
                     }
-                } else {
-                    let _ = tx.send(msg).await;
+                } else if tx.send(msg).await.is_err() {
+                    debug!(target: "bubbletea::command", "legacy async command result dropped — receiver disconnected");
                 }
             }
         });

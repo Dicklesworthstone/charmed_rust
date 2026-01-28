@@ -13,6 +13,7 @@ categories = ["command-line-interface", "asynchronous"]
 crossterm = "0.29"
 parking_lot = "0.12"
 thiserror.workspace = true
+tracing.workspace = true
 
 # Async runtime (optional)
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"], optional = true }

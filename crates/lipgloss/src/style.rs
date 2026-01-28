@@ -1024,9 +1024,12 @@ impl Style {
 
         // Word wrap if width is set
         if !is_inline && self.props.contains(Props::WIDTH) && self.width > 0 {
-            let wrap_at =
-                self.width as usize - self.padding.left as usize - self.padding.right as usize;
-            str = wrap_text(&str, wrap_at);
+            let wrap_at = (self.width as usize)
+                .saturating_sub(self.padding.left as usize)
+                .saturating_sub(self.padding.right as usize);
+            if wrap_at > 0 {
+                str = wrap_text(&str, wrap_at);
+            }
         }
 
         // Build ANSI escape sequences
