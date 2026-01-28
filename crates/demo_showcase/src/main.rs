@@ -24,6 +24,7 @@
 //! ```
 
 mod app;
+mod data;
 mod messages;
 mod pages;
 mod theme;
