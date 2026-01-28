@@ -256,6 +256,24 @@ pub fn now_utc(t: SystemTime) -> SystemTime {
 /// Type alias for caller formatter.
 pub type CallerFormatter = fn(&str, u32, &str) -> String;
 
+/// Type alias for error handler callback.
+///
+/// The error handler is called when an I/O error occurs during log writing.
+/// This allows applications to respond to logging failures (e.g., disk full,
+/// pipe closed, permission denied) instead of silently losing log messages.
+///
+/// # Example
+///
+/// ```rust
+/// use charmed_log::Logger;
+///
+/// let logger = Logger::new().with_error_handler(|err| {
+///     // Alert monitoring system, attempt fallback, etc.
+///     eprintln!("charmed_log: write failed: {}", err);
+/// });
+/// ```
+pub type ErrorHandler = Arc<dyn Fn(io::Error) + Send + Sync>;
+
 /// Short caller formatter - returns last 2 path segments and line.
 #[must_use]
 pub fn short_caller_formatter(file: &str, line: u32, _fn_name: &str) -> String {
@@ -401,6 +419,10 @@ struct LoggerInner {
     report_caller: bool,
     fields: Vec<(String, String)>,
     styles: Styles,
+    /// Optional error handler for I/O failures during logging.
+    error_handler: Option<ErrorHandler>,
+    /// Whether we've already warned about I/O failures (to prevent infinite loops).
+    has_warned_io_failure: bool,
 }
 
 /// A structured logger instance.
@@ -424,7 +446,7 @@ impl Clone for Logger {
 
 impl fmt::Debug for Logger {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
         f.debug_struct("Logger")
             .field("level", &inner.level)
             .field("prefix", &inner.prefix)
@@ -459,63 +481,65 @@ impl Logger {
                 report_caller: opts.report_caller,
                 fields: opts.fields,
                 styles: Styles::new(),
+                error_handler: None,
+                has_warned_io_failure: false,
             })),
         }
     }
 
     /// Sets the minimum log level.
     pub fn set_level(&self, level: Level) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         inner.level = level;
     }
 
     /// Returns the current log level.
     #[must_use]
     pub fn level(&self) -> Level {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
         inner.level
     }
 
     /// Sets the log prefix.
     pub fn set_prefix(&self, prefix: impl Into<String>) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         inner.prefix = prefix.into();
     }
 
     /// Returns the current prefix.
     #[must_use]
     pub fn prefix(&self) -> String {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
         inner.prefix.clone()
     }
 
     /// Sets whether to report timestamps.
     pub fn set_report_timestamp(&self, report: bool) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         inner.report_timestamp = report;
     }
 
     /// Sets whether to report caller location.
     pub fn set_report_caller(&self, report: bool) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         inner.report_caller = report;
     }
 
     /// Sets the time format.
     pub fn set_time_format(&self, format: impl Into<String>) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         inner.time_format = format.into();
     }
 
     /// Sets the formatter.
     pub fn set_formatter(&self, formatter: Formatter) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         inner.formatter = formatter;
     }
 
     /// Sets the styles.
     pub fn set_styles(&self, styles: Styles) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         inner.styles = styles;
     }
 
@@ -525,7 +549,7 @@ impl Logger {
     /// use [`with`](Logger::with) instead.
     #[must_use]
     pub fn with_fields(&self, fields: &[(&str, &str)]) -> Self {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
         let mut new_fields = inner.fields.clone();
         new_fields.extend(fields.iter().map(|(k, v)| (k.to_string(), v.to_string())));
 
@@ -543,6 +567,8 @@ impl Logger {
                 report_caller: inner.report_caller,
                 fields: new_fields,
                 styles: inner.styles.clone(),
+                error_handler: inner.error_handler.clone(),
+                has_warned_io_failure: false, // Reset warning state for new logger
             })),
         }
     }
@@ -574,9 +600,47 @@ impl Logger {
         new_logger
     }
 
+    /// Sets an error handler for I/O failures during logging.
+    ///
+    /// When writing log output fails (e.g., disk full, pipe closed, permission
+    /// denied), the handler is called with the I/O error. This allows applications
+    /// to respond appropriately instead of silently losing log messages.
+    ///
+    /// # Default Behavior
+    ///
+    /// If no error handler is configured:
+    /// - First failure: A warning is printed to stderr (if available)
+    /// - Subsequent failures: Silent (to avoid infinite loops)
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use charmed_log::Logger;
+    /// use std::sync::atomic::{AtomicUsize, Ordering};
+    /// use std::sync::Arc;
+    ///
+    /// let error_count = Arc::new(AtomicUsize::new(0));
+    /// let counter = error_count.clone();
+    ///
+    /// let logger = Logger::new().with_error_handler(move |err| {
+    ///     counter.fetch_add(1, Ordering::Relaxed);
+    ///     eprintln!("Log write failed: {}", err);
+    /// });
+    /// ```
+    #[must_use]
+    pub fn with_error_handler<F>(self, handler: F) -> Self
+    where
+        F: Fn(io::Error) + Send + Sync + 'static,
+    {
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        inner.error_handler = Some(Arc::new(handler));
+        drop(inner);
+        self
+    }
+
     /// Logs a message at the specified level.
     pub fn log(&self, level: Level, msg: &str, keyvals: &[(&str, &str)]) {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
 
         // Check level
         if level < inner.level {
@@ -593,9 +657,24 @@ impl Logger {
 
         drop(inner);
 
-        // Write output
-        let mut inner = self.inner.write().unwrap();
-        let _ = inner.writer.write_all(output.as_bytes());
+        // Write output with error handling
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        if let Err(e) = inner.writer.write_all(output.as_bytes()) {
+            // Call user-provided error handler if available
+            if let Some(ref handler) = inner.error_handler {
+                // Clone the handler to avoid holding the lock while calling it
+                let handler = Arc::clone(handler);
+                drop(inner);
+                handler(e);
+            } else if !inner.has_warned_io_failure {
+                // Default behavior: warn once to stderr, then go silent
+                inner.has_warned_io_failure = true;
+                drop(inner);
+                // Attempt to write warning to stderr (may also fail, but we try)
+                let _ =
+                    io::stderr().write_all(format!("charmed_log: write failed: {e}\n").as_bytes());
+            }
+        }
     }
 
     fn format_text(
@@ -959,8 +1038,9 @@ fn escape_logfmt(s: &str) -> String {
 /// Prelude module for convenient imports.
 pub mod prelude {
     pub use crate::{
-        CallerInfo, DEFAULT_TIME_FORMAT, Formatter, Level, Logger, Options, ParseLevelError,
-        ParseResult, Styles, keys, long_caller_formatter, now_utc, short_caller_formatter,
+        CallerInfo, DEFAULT_TIME_FORMAT, ErrorHandler, Formatter, Level, Logger, Options,
+        ParseLevelError, ParseResult, Styles, keys, long_caller_formatter, now_utc,
+        short_caller_formatter,
     };
 }
 
@@ -1133,5 +1213,134 @@ mod tests {
         let logger = Logger::with_options(opts);
         assert_eq!(logger.level(), Level::Debug);
         assert_eq!(logger.prefix(), "test");
+    }
+
+    /// A writer that always fails for testing error handling.
+    struct FailingWriter;
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+            Err(io::Error::new(io::ErrorKind::Other, "simulated failure"))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Err(io::Error::new(io::ErrorKind::Other, "simulated failure"))
+        }
+    }
+
+    #[test]
+    fn test_error_handler_called_on_io_failure() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let error_count = Arc::new(AtomicUsize::new(0));
+        let counter = error_count.clone();
+
+        // Create logger with custom error handler
+        let logger = Logger::new().with_error_handler(move |_err| {
+            counter.fetch_add(1, Ordering::Relaxed);
+        });
+
+        // Replace writer with failing writer
+        {
+            let mut inner = logger.inner.write().unwrap();
+            inner.writer = Box::new(FailingWriter);
+        }
+
+        // Log a message - should trigger error handler
+        logger.info("test message", &[]);
+
+        // Verify error handler was called
+        assert_eq!(error_count.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn test_error_handler_receives_correct_error() {
+        use std::sync::Mutex;
+
+        let captured_error = Arc::new(Mutex::new(None::<String>));
+        let error_capture = captured_error.clone();
+
+        let logger = Logger::new().with_error_handler(move |err| {
+            *error_capture.lock().unwrap() = Some(err.to_string());
+        });
+
+        // Replace writer with failing writer
+        {
+            let mut inner = logger.inner.write().unwrap();
+            inner.writer = Box::new(FailingWriter);
+        }
+
+        logger.info("test", &[]);
+
+        let error_msg = captured_error.lock().unwrap();
+        assert!(error_msg.is_some());
+        assert!(error_msg.as_ref().unwrap().contains("simulated failure"));
+    }
+
+    #[test]
+    fn test_default_behavior_warns_once() {
+        // Without an error handler, the default behavior is to warn once
+        // We can't easily test stderr output, but we can verify it doesn't panic
+        let logger = Logger::new();
+
+        // Replace writer with failing writer
+        {
+            let mut inner = logger.inner.write().unwrap();
+            inner.writer = Box::new(FailingWriter);
+        }
+
+        // Log multiple messages - should not panic
+        logger.info("first message", &[]);
+        logger.info("second message", &[]);
+        logger.info("third message", &[]);
+
+        // Verify has_warned_io_failure is set
+        let inner = logger.inner.read().unwrap();
+        assert!(inner.has_warned_io_failure);
+    }
+
+    #[test]
+    fn test_error_handler_inherited_by_with_fields() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let error_count = Arc::new(AtomicUsize::new(0));
+        let counter = error_count.clone();
+
+        let logger = Logger::new().with_error_handler(move |_err| {
+            counter.fetch_add(1, Ordering::Relaxed);
+        });
+
+        // Create a child logger with additional fields
+        let child_logger = logger.with_fields(&[("component", "test")]);
+
+        // Replace writer with failing writer on child
+        {
+            let mut inner = child_logger.inner.write().unwrap();
+            inner.writer = Box::new(FailingWriter);
+        }
+
+        // Log a message on child - should use inherited error handler
+        child_logger.info("test message", &[]);
+
+        assert_eq!(error_count.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn test_with_error_handler_returns_same_logger() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let called = Arc::new(AtomicBool::new(false));
+        let flag = called.clone();
+
+        let logger = Logger::new().with_error_handler(move |_| {
+            flag.store(true, Ordering::Relaxed);
+        });
+
+        // Verify the logger is usable after setting error handler
+        assert_eq!(logger.level(), Level::Info);
+
+        // The error handler should be set
+        let inner = logger.inner.read().unwrap();
+        assert!(inner.error_handler.is_some());
     }
 }
