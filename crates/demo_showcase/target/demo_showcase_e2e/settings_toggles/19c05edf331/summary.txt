@@ -1,0 +1,50 @@
+=== E2E Test Summary ===
+Scenario: settings_toggles
+Run ID: 19c05edf331
+Status: FAILED
+
+Configuration:
+- Seed: 42
+- Theme: Dark
+- Animations: false
+- Color Mode: Auto
+
+Failed Assertions:
+  Step 2: current page is Settings
+    Expected: Settings
+    Actual:   Wizard
+  Step 2: view contains "Toggles"
+    Expected: contains "Toggles"
+    Actual:   not found in: [48;2;26;26;26m[0m[38;2;255;255;255m[48;2;26;26;26m[1m[38;2;125;86;244m Charmed Control Center [0m  [38;2;0;255;0mConnected[0m                                                                 ...
+  Step 3: view contains "Mouse Input"
+    Expected: contains "Mouse Input"
+    Actual:   not found in: [48;2;26;26;26m[0m[38;2;255;255;255m[48;2;26;26;26m[1m[38;2;125;86;244m Charmed Control Center [0m  [38;2;0;255;0mConnected[0m                                                                 ...
+  Step 3: view contains "Animations"
+    Expected: contains "Animations"
+    Actual:   not found in: [48;2;26;26;26m[0m[38;2;255;255;255m[48;2;26;26;26m[1m[38;2;125;86;244m Charmed Control Center [0m  [38;2;0;255;0mConnected[0m                                                                 ...
+  Step 3: view contains "ASCII Mode"
+    Expected: contains "ASCII Mode"
+    Actual:   not found in: [48;2;26;26;26m[0m[38;2;255;255;255m[48;2;26;26;26m[1m[38;2;125;86;244m Charmed Control Center [0m  [38;2;0;255;0mConnected[0m                                                                 ...
+  Step 3: view contains "Syntax Highlighting"
+    Expected: contains "Syntax Highlighting"
+    Actual:   not found in: [48;2;26;26;26m[0m[38;2;255;255;255m[48;2;26;26;26m[1m[38;2;125;86;244m Charmed Control Center [0m  [38;2;0;255;0mConnected[0m                                                                 ...
+  Step 4: mouse toggle changed state
+    Expected: changed from true
+    Actual:   now true
+  Step 5: animations toggle changed state
+    Expected: changed from false
+    Actual:   now false
+  Step 6: ASCII mode toggle changed state
+    Expected: changed from false
+    Actual:   now false
+
+Step Timeline:
+  [2026-01-28T18:46:46.322Z] Step 1: Initialize app
+  [2026-01-28T18:46:46.324Z] Step 2: Navigate to Settings page
+  [2026-01-28T18:46:46.325Z] Step 3: Verify toggle labels
+  [2026-01-28T18:46:46.325Z] Step 4: Toggle mouse input with 'm' key
+  [2026-01-28T18:46:46.325Z] Step 5: Toggle animations with 'a' key
+  [2026-01-28T18:46:46.326Z] Step 6: Navigate to ASCII Mode and toggle with Enter
+  [2026-01-28T18:46:46.326Z] Step 7: Return to Dashboard and verify toggles persist
+
+Artifacts: target/demo_showcase_e2e/settings_toggles/19c05edf331

@@ -55,3 +55,58 @@ impl PageModel for PlaceholderPage {
         self.page
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bubbletea::Message;
+
+    #[test]
+    fn placeholder_returns_correct_page() {
+        let page = PlaceholderPage::new(Page::Services);
+        assert_eq!(page.page(), Page::Services);
+    }
+
+    #[test]
+    fn placeholder_view_renders_content() {
+        let page = PlaceholderPage::new(Page::Services);
+        let theme = Theme::default();
+        let view = page.view(80, 24, &theme);
+
+        // View should not be empty
+        assert!(!view.is_empty());
+        // View should contain page name
+        assert!(view.contains("Services") || view.contains("Service"));
+    }
+
+    #[test]
+    fn placeholder_update_returns_none() {
+        let mut page = PlaceholderPage::new(Page::Dashboard);
+        // Use a unit type as the message payload
+        let msg = Message::new(());
+        let cmd = page.update(&msg);
+        assert!(cmd.is_none());
+    }
+
+    #[test]
+    fn placeholder_default_hints() {
+        let page = PlaceholderPage::new(Page::Services);
+        let hints = page.hints();
+        // Default hints from PageModel trait
+        assert!(!hints.is_empty());
+    }
+
+    #[test]
+    fn placeholder_on_enter_returns_none() {
+        let mut page = PlaceholderPage::new(Page::Services);
+        let cmd = page.on_enter();
+        assert!(cmd.is_none());
+    }
+
+    #[test]
+    fn placeholder_on_leave_returns_none() {
+        let mut page = PlaceholderPage::new(Page::Services);
+        let cmd = page.on_leave();
+        assert!(cmd.is_none());
+    }
+}

@@ -172,3 +172,80 @@ impl Pages {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pages_default_creates_all() {
+        let pages = Pages::default();
+        // All pages should be accessible
+        assert_eq!(pages.get(Page::Dashboard).page(), Page::Dashboard);
+        assert_eq!(pages.get(Page::Services).page(), Page::Services);
+        assert_eq!(pages.get(Page::Jobs).page(), Page::Jobs);
+        assert_eq!(pages.get(Page::Logs).page(), Page::Logs);
+        assert_eq!(pages.get(Page::Docs).page(), Page::Docs);
+        assert_eq!(pages.get(Page::Files).page(), Page::Files);
+        assert_eq!(pages.get(Page::Wizard).page(), Page::Wizard);
+        assert_eq!(pages.get(Page::Settings).page(), Page::Settings);
+    }
+
+    #[test]
+    fn pages_get_returns_correct_page() {
+        let pages = Pages::default();
+
+        for page_type in Page::all() {
+            let page = pages.get(page_type);
+            assert_eq!(page.page(), page_type);
+        }
+    }
+
+    #[test]
+    fn pages_get_mut_allows_modification() {
+        let mut pages = Pages::default();
+        let theme = Theme::default();
+
+        // Should be able to get mutable references and render
+        for page_type in Page::all() {
+            let page = pages.get_mut(page_type);
+            // Verify view() doesn't panic
+            let view = page.view(80, 24, &theme);
+            assert!(!view.is_empty());
+        }
+    }
+
+    #[test]
+    fn all_pages_have_hints() {
+        let pages = Pages::default();
+
+        for page_type in Page::all() {
+            let hints = pages.get(page_type).hints();
+            // All pages should have some hints
+            assert!(!hints.is_empty(), "Page {:?} should have hints", page_type);
+        }
+    }
+
+    #[test]
+    fn all_pages_render_without_panic() {
+        let pages = Pages::default();
+        let theme = Theme::default();
+
+        // Test various dimensions to catch layout edge cases
+        let dimensions = [(80, 24), (120, 40), (40, 10), (200, 60)];
+
+        for (width, height) in dimensions {
+            for page_type in Page::all() {
+                // This should not panic
+                let view = pages.get(page_type).view(width, height, &theme);
+                assert!(
+                    !view.is_empty(),
+                    "Page {:?} rendered empty at {}x{}",
+                    page_type,
+                    width,
+                    height
+                );
+            }
+        }
+    }
+}

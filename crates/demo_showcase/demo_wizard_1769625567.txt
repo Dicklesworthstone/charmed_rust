@@ -1,0 +1,40 @@
+ Charmed Control Center   Connected                                                                          [Dracula]  
+  [] DashboardDeploy Service  Step 2/6                                                                                  
+  >_ Services                                                                                                           
+  >> Jobs     * Type  >  @ Config  >  o Options  >  o Variables  >  o Review  >  o Deploy                               
+   # Logs     ------------------------------------------------------------                                              
+   ? Docs                                                                                                               
+>  * Wizard   Basic Configuration                                                                                       
+   @ Settings                                                                                                           
+              > Name: tst-srvic_                                                                                        
+                Description: (optional)                                                                                 
+                Environment: staging                                                                                    
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+ ●  Exported to demo_wizard_1769625567.txt                                                                              
+ ●  Exported to demo_wizard_1769625567.txt                                                                              
+  j/k fields  Enter continue  b back  |  1-7 pages  [ sidebar  ? help  q quit                                           

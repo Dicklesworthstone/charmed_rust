@@ -1,0 +1,40 @@
+ Charmed Control Center   Connected                                                                            [Light]  
+  [] Dashboardfixtures/                                             │ README.md [MD]                                    
+  >_ Services > 📄 README.md                                        │ ────────────────────────────────────────          
+  >> Jobs       📁 config/                                          │                                                   
+   # Logs       📁 logs/                                            │                                                   
+   ? Docs       📁 nested/                                          │    Demo Fixtures                                  
+> <> Files                                                          │   This directory contains sample files for the    
+   * Wizard                                                         │   file browser demo.                              
+   @ Settings                                                       │                                                   
+                                                                    │                                                   
+                                                                    │   ## Contents                                     
+                                                                    │                                                   
+                                                                    │   •  config/  - Configuration files (TOML, YAML)  
+                                                                    │   •  logs/  - Sample log files                    
+                                                                    │   •  nested/  - Nested directory structure demo   
+                                                                    │                                                   
+                                                                    │   ## Usage                                        
+                                                                    │   These files demonstrate the FilePicker          
+                                                                    │   component's ability to:                         
+                                                                    │                                                   
+                                                                    │                                                   
+                                                                    │   1. Navigate directory trees                     
+                                                                    │   2. Preview file contents                        
+                                                                    │   3. Handle different file types                  
+                                                                    │   4. Show hidden files (toggle with  h )          
+                                                                    │                                                   
+                                                                    │   ## File Types                                   
+                                                                    │                                                   
+                                                                    │    Extension │ Handler                            
+                                                                    │   ───────────┼────────────────────────────        
+                                                                    │     .md      │ Markdown preview (glamour)         
+                                                                    │     .toml    │ Syntax highlighted                 
+                                                                    │     .yaml    │ Syntax highlighted                 
+                                                                    │     .log     │ Plain text with scroll             
+                                                                    │                                                   
+                                                                    │                                                   
+                                                                    │                                                   
+                                                                    │  [S·]                                             
+              1/4 [h] Show hidden                                   │                                                   
+  j/k nav  l/Enter open  h back  H hidden  Tab preview  |  1-7 pages  [ sidebar  ? help  q quit                         

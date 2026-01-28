@@ -1,0 +1,32 @@
+=== E2E Test Summary ===
+Scenario: wizard_job_logs
+Run ID: 19c05e73fbf
+Status: FAILED
+
+Configuration:
+- Seed: 42
+- Theme: Dark
+- Animations: false
+- Color Mode: Auto
+
+Failed Assertions:
+  Step 10: wizard shows deployment status
+    Expected: deployment UI visible
+    Actual:   deployment UI not found
+
+Step Timeline:
+  [2026-01-28T18:39:27.168Z] Step 1: Initialize app
+  [2026-01-28T18:39:27.169Z] Step 2: Navigate to Wizard page
+  [2026-01-28T18:39:27.169Z] Step 3: Select Web Service and continue
+  [2026-01-28T18:39:27.170Z] Step 4: Fill service name
+  [2026-01-28T18:39:27.176Z] Step 5: Fill description
+  [2026-01-28T18:39:27.186Z] Step 6: Move to environment and continue
+  [2026-01-28T18:39:27.186Z] Step 7: Configure type-specific options
+  [2026-01-28T18:39:27.187Z] Step 8: Configure environment variables
+  [2026-01-28T18:39:27.187Z] Step 9: Review and confirm deployment
+  [2026-01-28T18:39:27.188Z] Step 10: Start deployment
+  [2026-01-28T18:39:27.188Z] Step 11: Navigate to Jobs page
+  [2026-01-28T18:39:27.189Z] Step 12: Navigate to Logs page
+  [2026-01-28T18:39:27.191Z] Step 13: Final cross-page verification
+
+Artifacts: target/demo_showcase_e2e/wizard_job_logs/19c05e73fbf

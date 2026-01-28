@@ -48,18 +48,40 @@ use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-/// Event levels for logging
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+/// Event levels for logging (bd-28kk)
+///
+/// Levels from most verbose to least:
+/// - TRACE: Every keystroke, event, internal state change
+/// - DEBUG: State changes, render cycles, model updates
+/// - INFO: Test steps, assertions, milestone events
+/// - WARN: Unexpected but handled conditions
+/// - ERROR: Assertion failures, unrecoverable issues
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "lowercase")]
 pub enum EventLevel {
-    /// Informational events
-    Info,
-    /// Debug-level details
+    /// Most verbose: every keystroke, event, internal detail
+    Trace,
+    /// Debug-level details: state changes, render cycles
     Debug,
+    /// Informational events: test steps, assertions
+    Info,
     /// Warnings (non-fatal issues)
     Warn,
     /// Errors (assertion failures)
     Error,
+}
+
+impl EventLevel {
+    /// Returns the single-character abbreviation for this level
+    pub const fn abbrev(self) -> char {
+        match self {
+            Self::Trace => 'T',
+            Self::Debug => 'D',
+            Self::Info => 'I',
+            Self::Warn => 'W',
+            Self::Error => 'E',
+        }
+    }
 }
 
 /// Input types that can be recorded
@@ -167,7 +189,7 @@ pub struct AssertionResult {
     pub actual: String,
 }
 
-/// Records events and artifacts for a single E2E test scenario
+/// Records events and artifacts for a single E2E test scenario (bd-28kk)
 pub struct ScenarioRecorder {
     /// Scenario name
     scenario: String,
@@ -185,10 +207,16 @@ pub struct ScenarioRecorder {
     has_failures: bool,
     /// Start time for duration tracking
     start_time: Instant,
+    /// Start time for current step (for per-operation timing)
+    step_start_time: Instant,
     /// Config snapshot
     config: Option<ConfigSnapshot>,
     /// Keep artifacts on success (env: DEMO_SHOWCASE_KEEP_ARTIFACTS)
     keep_on_success: bool,
+    /// Minimum log level to record (env: DEMO_SHOWCASE_LOG_LEVEL)
+    min_level: EventLevel,
+    /// Last captured frame content (for diffing)
+    last_frame: Option<String>,
 }
 
 impl ScenarioRecorder {
@@ -211,6 +239,20 @@ impl ScenarioRecorder {
             .map(|v| v == "1" || v.to_lowercase() == "true")
             .unwrap_or(false);
 
+        // Check environment for log level (bd-28kk)
+        let min_level = std::env::var("DEMO_SHOWCASE_LOG_LEVEL")
+            .ok()
+            .and_then(|v| match v.to_lowercase().as_str() {
+                "trace" => Some(EventLevel::Trace),
+                "debug" => Some(EventLevel::Debug),
+                "info" => Some(EventLevel::Info),
+                "warn" => Some(EventLevel::Warn),
+                "error" => Some(EventLevel::Error),
+                _ => None,
+            })
+            .unwrap_or(EventLevel::Debug); // Default to DEBUG
+
+        let now = Instant::now();
         let mut recorder = Self {
             scenario: scenario.clone(),
             run_id: run_id.clone(),
@@ -219,9 +261,12 @@ impl ScenarioRecorder {
             events: Vec::new(),
             artifact_dir,
             has_failures: false,
-            start_time: Instant::now(),
+            start_time: now,
+            step_start_time: now,
             config: None,
             keep_on_success,
+            min_level,
+            last_frame: None,
         };
 
         // Record scenario start
@@ -254,13 +299,60 @@ impl ScenarioRecorder {
     ///
     /// * `description` - Human-readable description of what this step does
     pub fn step(&mut self, description: impl Into<String>) {
+        // Record previous step duration if not first step
+        if self.step > 0 {
+            let step_duration = self.step_start_time.elapsed();
+            self.record_event(
+                EventLevel::Debug,
+                "step_end",
+                format!(
+                    "Step {} completed in {:.3}ms",
+                    self.step,
+                    step_duration.as_secs_f64() * 1000.0
+                ),
+            );
+        }
+
         self.step += 1;
         self.step_description = description.into();
+        self.step_start_time = Instant::now();
         self.record_event(
             EventLevel::Info,
             "step_start",
             format!("Step {}: {}", self.step, self.step_description),
         );
+    }
+
+    /// Records a TRACE-level event (bd-28kk)
+    ///
+    /// Use for detailed debugging: every keystroke, internal event, state change.
+    pub fn trace(&mut self, message: impl Into<String>) {
+        self.record_event(EventLevel::Trace, "trace", message.into());
+    }
+
+    /// Records timing for an operation (bd-28kk)
+    ///
+    /// # Arguments
+    ///
+    /// * `operation` - Name of the operation being timed
+    /// * `duration_ms` - Duration in milliseconds
+    pub fn timing(&mut self, operation: &str, duration_ms: f64) {
+        self.record_event(
+            EventLevel::Debug,
+            "timing",
+            format!("{operation}: {duration_ms:.3}ms"),
+        );
+    }
+
+    /// Times a closure and records the result (bd-28kk)
+    ///
+    /// Returns the closure's result while recording timing.
+    pub fn timed<T, F: FnOnce() -> T>(&mut self, operation: &str, f: F) -> T {
+        let start = Instant::now();
+        let result = f();
+        let duration = start.elapsed();
+        self.timing(operation, duration.as_secs_f64() * 1000.0);
+        result
     }
 
     /// Records an input event
@@ -322,13 +414,25 @@ impl ScenarioRecorder {
     }
 
     /// Captures the current screen state
+    /// Captures the current screen state (bd-28kk enhanced)
+    ///
+    /// Stores the frame for later diffing and artifact output.
     pub fn capture_frame(&mut self, content: &str) {
         let frame_name = format!("step_{:03}.txt", self.step);
+
+        // Compute diff stats if we have a previous frame
+        let diff_summary = self.last_frame.as_ref().map(|last| {
+            let (added, removed, changed) = compute_line_diff(last, content);
+            format!(" (+{added}/-{removed}/~{changed} lines)")
+        });
 
         let mut event = self.create_event(
             EventLevel::Debug,
             "frame_capture",
-            format!("Captured frame: {frame_name}"),
+            format!(
+                "Captured frame: {frame_name}{}",
+                diff_summary.as_deref().unwrap_or("")
+            ),
         );
         event.frame_path = Some(format!("frames/{frame_name}"));
         self.events.push(event);
@@ -336,6 +440,49 @@ impl ScenarioRecorder {
         // Store frame content in memory for later writing
         // (we don't write until finish() to avoid cluttering on success)
         self.events.last_mut().unwrap().actual = Some(content.to_string());
+
+        // Track for diffing
+        self.last_frame = Some(content.to_string());
+    }
+
+    /// Captures frame with ANSI sequences preserved (bd-28kk)
+    ///
+    /// Use this when debugging rendering issues that require ANSI inspection.
+    pub fn capture_frame_with_ansi(&mut self, content: &str) {
+        let frame_name = format!("step_{:03}_ansi.txt", self.step);
+
+        let mut event = self.create_event(
+            EventLevel::Trace,
+            "frame_capture_ansi",
+            format!("Captured ANSI frame: {frame_name} ({} bytes)", content.len()),
+        );
+        event.frame_path = Some(format!("frames/{frame_name}"));
+        self.events.push(event);
+
+        // Store raw ANSI content
+        self.events.last_mut().unwrap().actual = Some(content.to_string());
+    }
+
+    /// Returns a diff between the last two captured frames (bd-28kk)
+    ///
+    /// Returns None if fewer than 2 frames have been captured.
+    pub fn frame_diff(&self) -> Option<FrameDiff> {
+        // Find the last two frame captures
+        let frames: Vec<_> = self
+            .events
+            .iter()
+            .filter(|e| e.event == "frame_capture")
+            .filter_map(|e| e.actual.as_ref())
+            .collect();
+
+        if frames.len() < 2 {
+            return None;
+        }
+
+        let prev = frames[frames.len() - 2];
+        let curr = frames[frames.len() - 1];
+
+        Some(compute_frame_diff(prev, curr))
     }
 
     /// Records an assertion
@@ -574,7 +721,12 @@ impl ScenarioRecorder {
     }
 
     /// Records an event
+    /// Records an event (respects min_level filter, bd-28kk)
     fn record_event(&mut self, level: EventLevel, event: &str, message: String) {
+        // Skip events below minimum level
+        if level < self.min_level {
+            return;
+        }
         let event = self.create_event(level, event, message);
         self.events.push(event);
     }
@@ -638,6 +790,131 @@ fn generate_run_id() -> String {
         .unwrap_or_default();
     let ts = duration.as_millis();
     format!("{ts:x}")
+}
+
+// =============================================================================
+// Screen Diff Support (bd-28kk)
+// =============================================================================
+
+/// Result of comparing two screen frames
+#[derive(Debug, Clone)]
+pub struct FrameDiff {
+    /// Lines added (present in new, not in old)
+    pub added_lines: Vec<(usize, String)>,
+    /// Lines removed (present in old, not in new)
+    pub removed_lines: Vec<(usize, String)>,
+    /// Lines changed (same position, different content)
+    pub changed_lines: Vec<(usize, String, String)>,
+    /// Summary statistics
+    pub stats: DiffStats,
+}
+
+/// Summary statistics for a frame diff
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DiffStats {
+    /// Number of lines added
+    pub added: usize,
+    /// Number of lines removed
+    pub removed: usize,
+    /// Number of lines changed
+    pub changed: usize,
+    /// Number of lines unchanged
+    pub unchanged: usize,
+}
+
+impl FrameDiff {
+    /// Returns true if there are any differences
+    pub fn has_changes(&self) -> bool {
+        self.stats.added > 0 || self.stats.removed > 0 || self.stats.changed > 0
+    }
+
+    /// Generates a unified-style diff output
+    pub fn to_unified(&self) -> String {
+        let mut output = String::new();
+        output.push_str(&format!(
+            "--- previous\n+++ current\n@@ -{},{} +{},{} @@\n",
+            self.stats.removed + self.stats.changed + self.stats.unchanged,
+            self.stats.removed,
+            self.stats.added + self.stats.changed + self.stats.unchanged,
+            self.stats.added,
+        ));
+
+        for (line_num, content) in &self.removed_lines {
+            output.push_str(&format!("-{line_num}: {content}\n"));
+        }
+        for (line_num, content) in &self.added_lines {
+            output.push_str(&format!("+{line_num}: {content}\n"));
+        }
+        for (line_num, old, new) in &self.changed_lines {
+            output.push_str(&format!("~{line_num}: {old}\n"));
+            output.push_str(&format!("~{line_num}: {new}\n"));
+        }
+
+        output
+    }
+}
+
+/// Computes line-level diff statistics between two strings
+fn compute_line_diff(old: &str, new: &str) -> (usize, usize, usize) {
+    let old_lines: Vec<_> = old.lines().collect();
+    let new_lines: Vec<_> = new.lines().collect();
+
+    let max_len = old_lines.len().max(new_lines.len());
+    let mut added = 0;
+    let mut removed = 0;
+    let mut changed = 0;
+
+    for i in 0..max_len {
+        match (old_lines.get(i), new_lines.get(i)) {
+            (Some(o), Some(n)) if o != n => changed += 1,
+            (None, Some(_)) => added += 1,
+            (Some(_), None) => removed += 1,
+            _ => {}
+        }
+    }
+
+    (added, removed, changed)
+}
+
+/// Computes a detailed frame diff between two strings
+fn compute_frame_diff(old: &str, new: &str) -> FrameDiff {
+    let old_lines: Vec<_> = old.lines().collect();
+    let new_lines: Vec<_> = new.lines().collect();
+
+    let mut added_lines = Vec::new();
+    let mut removed_lines = Vec::new();
+    let mut changed_lines = Vec::new();
+    let mut unchanged = 0;
+
+    let max_len = old_lines.len().max(new_lines.len());
+
+    for i in 0..max_len {
+        match (old_lines.get(i), new_lines.get(i)) {
+            (Some(o), Some(n)) if o == n => unchanged += 1,
+            (Some(o), Some(n)) => {
+                changed_lines.push((i + 1, (*o).to_string(), (*n).to_string()));
+            }
+            (None, Some(n)) => {
+                added_lines.push((i + 1, (*n).to_string()));
+            }
+            (Some(o), None) => {
+                removed_lines.push((i + 1, (*o).to_string()));
+            }
+            (None, None) => {}
+        }
+    }
+
+    FrameDiff {
+        stats: DiffStats {
+            added: added_lines.len(),
+            removed: removed_lines.len(),
+            changed: changed_lines.len(),
+            unchanged,
+        },
+        added_lines,
+        removed_lines,
+        changed_lines,
+    }
 }
 
 #[cfg(test)]
@@ -752,6 +1029,102 @@ mod tests {
         let mut recorder = ScenarioRecorder::new("frame_test");
         recorder.step("Capture frame");
         recorder.capture_frame("Screen content here\nLine 2");
+        let result = recorder.finish();
+        assert!(result.is_ok());
+    }
+
+    // =========================================================================
+    // bd-28kk: Enhanced Logging Tests
+    // =========================================================================
+
+    #[test]
+    fn test_trace_level_logging() {
+        let mut recorder = ScenarioRecorder::new("trace_test");
+        recorder.step("Test trace");
+        recorder.trace("Detailed trace message");
+        recorder.trace("Another trace");
+        let result = recorder.finish();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_timing_measurement() {
+        let mut recorder = ScenarioRecorder::new("timing_test");
+        recorder.step("Test timing");
+        recorder.timing("render", 12.5);
+        recorder.timing("update", 3.2);
+
+        // Test timed closure
+        let result = recorder.timed("computation", || {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            42
+        });
+        assert_eq!(result, 42);
+
+        let result = recorder.finish();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_event_level_ordering() {
+        // EventLevel should be ordered from most verbose to least
+        assert!(EventLevel::Trace < EventLevel::Debug);
+        assert!(EventLevel::Debug < EventLevel::Info);
+        assert!(EventLevel::Info < EventLevel::Warn);
+        assert!(EventLevel::Warn < EventLevel::Error);
+    }
+
+    #[test]
+    fn test_event_level_abbrev() {
+        assert_eq!(EventLevel::Trace.abbrev(), 'T');
+        assert_eq!(EventLevel::Debug.abbrev(), 'D');
+        assert_eq!(EventLevel::Info.abbrev(), 'I');
+        assert_eq!(EventLevel::Warn.abbrev(), 'W');
+        assert_eq!(EventLevel::Error.abbrev(), 'E');
+    }
+
+    #[test]
+    fn test_frame_diff() {
+        let old = "Line 1\nLine 2\nLine 3";
+        let new = "Line 1\nModified 2\nLine 3\nLine 4";
+
+        let diff = compute_frame_diff(old, new);
+        assert_eq!(diff.stats.unchanged, 2); // Line 1, Line 3
+        assert_eq!(diff.stats.changed, 1);   // Line 2 -> Modified 2
+        assert_eq!(diff.stats.added, 1);     // Line 4
+        assert_eq!(diff.stats.removed, 0);
+        assert!(diff.has_changes());
+    }
+
+    #[test]
+    fn test_frame_diff_no_changes() {
+        let content = "Same\nContent";
+        let diff = compute_frame_diff(content, content);
+        assert!(!diff.has_changes());
+        assert_eq!(diff.stats.unchanged, 2);
+    }
+
+    #[test]
+    fn test_frame_diff_unified_output() {
+        let old = "A\nB";
+        let new = "A\nC";
+
+        let diff = compute_frame_diff(old, new);
+        let unified = diff.to_unified();
+        assert!(unified.contains("---"));
+        assert!(unified.contains("+++"));
+    }
+
+    #[test]
+    fn test_step_timing() {
+        let mut recorder = ScenarioRecorder::new("step_timing_test");
+
+        recorder.step("First step");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+
+        recorder.step("Second step");
+        // The first step's completion time should have been recorded
+
         let result = recorder.finish();
         assert!(result.is_ok());
     }

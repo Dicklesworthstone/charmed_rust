@@ -1,0 +1,4 @@
+{"ts":"2026-01-28T20:27:28.439Z","level":"info","scenario":"failing_test","run_id":"19c064a2537","step":0,"event":"scenario_start","message":"Starting scenario: failing_test"}
+{"ts":"2026-01-28T20:27:28.439Z","level":"info","scenario":"failing_test","run_id":"19c064a2537","step":1,"event":"step_start","message":"Step 1: Failing step"}
+{"ts":"2026-01-28T20:27:28.439Z","level":"error","scenario":"failing_test","run_id":"19c064a2537","step":1,"event":"assertion","message":"[FAIL] should fail","assertion":"should fail","expected":"1","actual":"2"}
+{"ts":"2026-01-28T20:27:28.439Z","level":"error","scenario":"failing_test","run_id":"19c064a2537","step":1,"event":"scenario_end","message":"Scenario FAILED: failing_test in 0.00s"}

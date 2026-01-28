@@ -1,0 +1,40 @@
+ Charmed Control Center   Connected                                                                            [Light]  
+  [] DashboardDeploy Service  Step 2/6                                                                                  
+  >_ Services                                                                                                           
+  >> Jobs     * Type  >  @ Config  >  o Options  >  o Variables  >  o Review  >  o Deploy                               
+   # Logs     ------------------------------------------------------------                                              
+   ? Docs                                                                                                               
+  <> Files    Basic Configuration                                                                                       
+>  * Wizard                                                                                                             
+   @ Settings > Name: t_                                                                                                
+                Description: (optional)                                                                                 
+                Environment: staging                                                                                    
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+  j/k fields  Enter continue  b back  |  1-7 pages  [ sidebar  ? help  q quit                                           

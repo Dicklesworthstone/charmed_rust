@@ -725,7 +725,7 @@ impl PageModel for FilesPage {
     }
 
     fn page(&self) -> Page {
-        Page::Docs // TODO: Add Page::Files variant
+        Page::Files
     }
 
     fn hints(&self) -> &'static str {
