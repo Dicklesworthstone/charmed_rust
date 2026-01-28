@@ -306,3 +306,33 @@ impl ExportMsg {
         Message::new(self)
     }
 }
+
+// ============================================================================
+// Shell-Out Action (bd-194c)
+// ============================================================================
+
+/// Messages for shell-out (terminal release/restore) actions.
+///
+/// This enables temporarily giving the user their terminal back to run
+/// external commands, then restoring the TUI. A signature capability that
+/// makes TUIs feel like real products.
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // Variants are part of the public API for programmatic use
+pub enum ShellOutMsg {
+    /// Request to open diagnostics in an external pager.
+    OpenDiagnostics,
+    /// The pager command completed (success or with error message).
+    PagerCompleted(Option<String>),
+    /// Terminal has been released for external use.
+    TerminalReleased,
+    /// Terminal has been restored after external use.
+    TerminalRestored,
+}
+
+impl ShellOutMsg {
+    /// Create a bubbletea Message from this `ShellOutMsg`.
+    #[must_use]
+    pub fn into_message(self) -> Message {
+        Message::new(self)
+    }
+}

@@ -13,8 +13,11 @@ use lipgloss::{Position, Style};
 use crate::components::{Sidebar, SidebarFocus, StatusLevel, banner, key_hint};
 use crate::config::Config;
 use crate::keymap::{HELP_SECTIONS, help_total_lines};
-use crate::messages::{AppMsg, ExportFormat, ExportMsg, Notification, NotificationMsg, Page};
+use crate::messages::{
+    AppMsg, ExportFormat, ExportMsg, Notification, NotificationMsg, Page, ShellOutMsg,
+};
 use crate::pages::Pages;
+use crate::shell_action::{generate_diagnostics, open_diagnostics_in_pager};
 use crate::theme::{Theme, ThemePreset, spacing};
 
 /// Convert ANSI-styled terminal output to HTML with inline styles.
@@ -311,6 +314,8 @@ pub struct App {
     syntax_enabled: bool,
     /// Whether ASCII mode is forced (no colors, ASCII borders).
     force_ascii: bool,
+    /// Whether running in headless mode (for shell-out safety).
+    is_headless: bool,
 }
 
 impl App {
@@ -329,6 +334,12 @@ impl App {
     /// Create a new application with configuration and explicit seed.
     #[must_use]
     fn with_config_and_seed(config: AppConfig, seed: u64) -> Self {
+        Self::with_config_seed_and_headless(config, seed, false)
+    }
+
+    /// Create a new application with full initialization parameters.
+    #[must_use]
+    fn with_config_seed_and_headless(config: AppConfig, seed: u64, is_headless: bool) -> Self {
         let theme = Theme::from_preset(config.theme);
         Self {
             config,
@@ -347,6 +358,7 @@ impl App {
             seed,
             syntax_enabled: true,
             force_ascii: false,
+            is_headless,
         }
     }
 
@@ -380,7 +392,8 @@ impl App {
             mouse: config.mouse,
         };
         let seed = config.effective_seed();
-        Self::with_config_and_seed(app_config, seed)
+        let is_headless = config.is_headless();
+        Self::with_config_seed_and_headless(app_config, seed, is_headless)
     }
 
     /// Generate a seed from current time.
@@ -655,6 +668,19 @@ impl App {
                     return Some(Cmd::new(|| {
                         ExportMsg::Export(ExportFormat::Html).into_message()
                     }));
+                }
+                ['D'] => {
+                    // Open diagnostics in external pager (bd-194c)
+                    let diagnostics = generate_diagnostics();
+                    if let Some(cmd) = open_diagnostics_in_pager(diagnostics, self.is_headless) {
+                        return Some(cmd);
+                    }
+                    // In headless mode, show notification instead
+                    let id = self.next_notification_id;
+                    self.next_notification_id += 1;
+                    self.notifications
+                        .push(Notification::info(id, "Diagnostics unavailable in headless mode"));
+                    return None;
                 }
                 [c] => {
                     if let Some(page) = Page::from_shortcut(*c) {
@@ -1121,6 +1147,34 @@ impl Model for App {
                     while self.notifications.len() > MAX_NOTIFICATIONS {
                         self.notifications.remove(0);
                     }
+                }
+            }
+            return None;
+        }
+
+        // Handle shell-out messages (bd-194c)
+        if let Some(shell_msg) = msg.downcast_ref::<ShellOutMsg>() {
+            match shell_msg {
+                ShellOutMsg::OpenDiagnostics => {
+                    // This is handled via keyboard shortcut 'd', but can also be
+                    // triggered programmatically
+                    let diagnostics = generate_diagnostics();
+                    return open_diagnostics_in_pager(diagnostics, self.is_headless);
+                }
+                ShellOutMsg::PagerCompleted(error) => {
+                    // Pager finished, show notification if there was an error
+                    if let Some(err) = error {
+                        let id = self.next_notification_id;
+                        self.next_notification_id += 1;
+                        self.notifications
+                            .push(Notification::warning(id, format!("Pager: {err}")));
+                        while self.notifications.len() > MAX_NOTIFICATIONS {
+                            self.notifications.remove(0);
+                        }
+                    }
+                }
+                ShellOutMsg::TerminalReleased | ShellOutMsg::TerminalRestored => {
+                    // These are informational; no action needed
                 }
             }
             return None;

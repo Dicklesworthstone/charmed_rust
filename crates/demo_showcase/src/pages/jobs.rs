@@ -19,9 +19,12 @@ use bubbletea::{Cmd, KeyMsg, KeyType, Message};
 use lipgloss::Style;
 
 use super::PageModel;
+use crate::data::actions::{
+    ActionResult, IdGenerator, NotificationSeverity, cancel_job, create_job, retry_job, start_job,
+};
 use crate::data::generator::GeneratedData;
 use crate::data::{Job, JobKind, JobStatus, LogEntry, LogLevel, LogStream};
-use crate::messages::Page;
+use crate::messages::{Notification, NotificationMsg, Page};
 use crate::theme::Theme;
 
 /// Default seed for deterministic data generation.
@@ -194,6 +197,8 @@ pub struct JobsPage {
     sort_direction: SortDirection,
     /// Current focus state.
     focus: JobsFocus,
+    /// ID generator for creating new jobs and log entries.
+    id_gen: IdGenerator,
 }
 
 impl JobsPage {
@@ -237,6 +242,10 @@ impl JobsPage {
         query_input.set_placeholder("Filter jobs... (/ to focus)");
         query_input.width = 40;
 
+        // Initialize ID generator starting after the highest existing ID
+        let max_id = jobs.iter().map(|j| j.id).max().unwrap_or(0);
+        let id_gen = IdGenerator::new(max_id + 100);
+
         Self {
             table,
             jobs,
@@ -250,6 +259,7 @@ impl JobsPage {
             sort_column: SortColumn::StartTime,
             sort_direction: SortDirection::Descending, // Most recent first
             focus: JobsFocus::Table,
+            id_gen,
         }
     }
 
@@ -461,8 +471,127 @@ impl JobsPage {
         self.jobs = data.jobs;
         self.logs = Self::generate_job_logs(&self.jobs, self.seed);
         self.details_scroll = 0;
+        // Reinitialize ID generator
+        let max_id = self.jobs.iter().map(|j| j.id).max().unwrap_or(0);
+        self.id_gen.set_next(max_id + 100);
         // Reapply current filters
         self.apply_filter_and_sort();
+    }
+
+    // =========================================================================
+    // Job Actions (bd-1x3q)
+    // =========================================================================
+
+    /// Get the index of the currently selected job in the jobs vector.
+    fn selected_job_index(&self) -> Option<usize> {
+        self.filtered_indices.get(self.table.cursor()).copied()
+    }
+
+    /// Create a new job with a random kind and add it to the list.
+    ///
+    /// Returns a command to display a notification.
+    fn action_create_job(&mut self) -> Option<Cmd> {
+        use rand::prelude::*;
+        use rand_pcg::Pcg64;
+
+        // Generate a random job kind and name
+        let mut rng = Pcg64::seed_from_u64(self.id_gen.peek().wrapping_mul(31337));
+        let kinds = [
+            JobKind::Build,
+            JobKind::Test,
+            JobKind::Migration,
+            JobKind::Backup,
+            JobKind::Cron,
+            JobKind::Task,
+        ];
+        let kind = kinds[rng.random_range(0..kinds.len())];
+
+        let names = [
+            "Deploy frontend",
+            "Run test suite",
+            "Migrate database",
+            "Backup snapshots",
+            "Sync data",
+            "Process queue",
+            "Generate report",
+            "Validate configs",
+        ];
+        let name = names[rng.random_range(0..names.len())];
+
+        let (job, result) = create_job(&mut self.id_gen, name, kind);
+        self.jobs.push(job);
+        self.apply_filter_and_sort();
+
+        // Scroll to show the new job (it might be at the bottom or top depending on sort)
+        self.table.goto_bottom();
+
+        Self::action_result_to_cmd(result)
+    }
+
+    /// Start the currently selected job if it's queued.
+    fn action_start_job(&mut self) -> Option<Cmd> {
+        let idx = self.selected_job_index()?;
+        let job = self.jobs.get_mut(idx)?;
+
+        let result = start_job(job, &mut self.id_gen)?;
+        self.update_table_rows();
+
+        Self::action_result_to_cmd(result)
+    }
+
+    /// Cancel the currently selected job if it's running or queued.
+    fn action_cancel_job(&mut self) -> Option<Cmd> {
+        let idx = self.selected_job_index()?;
+        let job = self.jobs.get_mut(idx)?;
+
+        let result = cancel_job(job, &mut self.id_gen)?;
+        self.update_table_rows();
+
+        Self::action_result_to_cmd(result)
+    }
+
+    /// Retry the currently selected job if it's failed or cancelled.
+    fn action_retry_job(&mut self) -> Option<Cmd> {
+        let idx = self.selected_job_index()?;
+        let job = self.jobs.get_mut(idx)?;
+
+        let result = retry_job(job, &mut self.id_gen)?;
+        self.update_table_rows();
+
+        Self::action_result_to_cmd(result)
+    }
+
+    /// Convert an `ActionResult` to a command that shows notifications.
+    fn action_result_to_cmd(result: ActionResult) -> Option<Cmd> {
+        if result.notifications.is_empty() {
+            return None;
+        }
+
+        // Convert action notifications to app notifications via messages
+        let cmds: Vec<Option<Cmd>> = result
+            .notifications
+            .into_iter()
+            .map(|notif| {
+                let level = match notif.severity {
+                    NotificationSeverity::Info => crate::components::StatusLevel::Info,
+                    NotificationSeverity::Success => crate::components::StatusLevel::Success,
+                    NotificationSeverity::Warning => crate::components::StatusLevel::Warning,
+                    NotificationSeverity::Error => crate::components::StatusLevel::Error,
+                };
+
+                let message = if let Some(detail) = notif.message {
+                    format!("{}: {}", notif.title, detail)
+                } else {
+                    notif.title
+                };
+
+                // Create a notification message
+                let notification = Notification::new(0, message, level);
+                Some(Cmd::new(move || NotificationMsg::Show(notification).into_message()))
+            })
+            .collect();
+
+        bubbletea::batch(cmds)
     }
 
     /// Apply theme-aware styles to the table.
@@ -883,6 +1012,18 @@ impl PageModel for JobsPage {
                         self.query_input.focus();
                         return None;
                     }
+                    ['n'] | ['N'] => {
+                        // Create a new job
+                        return self.action_create_job();
+                    }
+                    ['x'] => {
+                        // Cancel the selected job
+                        return self.action_cancel_job();
+                    }
+                    ['R'] => {
+                        // Retry the selected job
+                        return self.action_retry_job();
+                    }
                     ['r'] => {
                         self.refresh();
                         return None;
@@ -964,6 +1105,10 @@ impl PageModel for JobsPage {
                     self.table.move_down(self.table.get_height());
                     return None;
                 }
+                KeyType::Enter => {
+                    // Start the selected job if it's queued
+                    return self.action_start_job();
+                }
                 _ => {}
             }
         }
@@ -1003,7 +1148,7 @@ impl PageModel for JobsPage {
     }
 
     fn hints(&self) -> &'static str {
-        "/ filter  1-4 status  s sort  S reverse  c clear  j/k nav  r refresh"
+        "n new  ⏎ start  x cancel  R retry  / filter  s sort  j/k nav  r refresh"
     }
 
     fn on_enter(&mut self) -> Option<Cmd> {
@@ -1035,6 +1180,7 @@ impl JobsPage {
             sort_column: self.sort_column,
             sort_direction: self.sort_direction,
             focus: self.focus,
+            id_gen: self.id_gen.clone(),
         }
     }
 }
@@ -1369,5 +1515,194 @@ mod tests {
 
         // Query should further restrict (unless it matches all running jobs)
         assert!(page.filtered_indices.len() <= running_count);
+    }
+
+    // =========================================================================
+    // Job Actions Tests (bd-1x3q)
+    // =========================================================================
+
+    #[test]
+    fn action_create_job_adds_new_job() {
+        let mut page = JobsPage::new();
+        let initial_count = page.jobs.len();
+
+        let cmd = page.action_create_job();
+
+        // A new job should be added
+        assert_eq!(page.jobs.len(), initial_count + 1);
+        // The new job should be queued
+        assert_eq!(page.jobs.last().unwrap().status, JobStatus::Queued);
+        // Should return a command (for showing notification)
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn action_start_job_starts_queued_job() {
+        let mut page = JobsPage::new();
+
+        // Find a queued job
+        let queued_idx = page.jobs.iter().position(|j| j.status == JobStatus::Queued);
+
+        if let Some(idx) = queued_idx {
+            // Navigate to the queued job
+            while page.selected_job_index() != Some(idx) && page.table.cursor() < page.filtered_indices.len() {
+                page.table.move_down(1);
+            }
+
+            if page.selected_job_index() == Some(idx) {
+                let cmd = page.action_start_job();
+
+                // Job should now be running
+                assert_eq!(page.jobs[idx].status, JobStatus::Running);
+                // started_at should be set
+                assert!(page.jobs[idx].started_at.is_some());
+                // Should return a notification command
+                assert!(cmd.is_some());
+            }
+        }
+    }
+
+    #[test]
+    fn action_start_job_returns_none_if_not_queued() {
+        let mut page = JobsPage::new();
+
+        // Find a running job
+        let running_idx = page.jobs.iter().position(|j| j.status == JobStatus::Running);
+
+        if let Some(idx) = running_idx {
+            // Navigate to the running job
+            while page.selected_job_index() != Some(idx) && page.table.cursor() < page.filtered_indices.len() {
+                page.table.move_down(1);
+            }
+
+            if page.selected_job_index() == Some(idx) {
+                let cmd = page.action_start_job();
+                // Should return None because job is already running
+                assert!(cmd.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn action_cancel_job_cancels_running_job() {
+        let mut page = JobsPage::new();
+
+        // Find a running job
+        let running_idx = page.jobs.iter().position(|j| j.status == JobStatus::Running);
+
+        if let Some(idx) = running_idx {
+            // Navigate to the running job
+            while page.selected_job_index() != Some(idx) && page.table.cursor() < page.filtered_indices.len() {
+                page.table.move_down(1);
+            }
+
+            if page.selected_job_index() == Some(idx) {
+                let cmd = page.action_cancel_job();
+
+                // Job should now be cancelled
+                assert_eq!(page.jobs[idx].status, JobStatus::Cancelled);
+                // ended_at should be set
+                assert!(page.jobs[idx].ended_at.is_some());
+                // Should return a notification command
+                assert!(cmd.is_some());
+            }
+        }
+    }
+
+    #[test]
+    fn action_cancel_job_returns_none_if_already_terminal() {
+        let mut page = JobsPage::new();
+
+        // Find a completed job
+        let completed_idx = page.jobs.iter().position(|j| j.status == JobStatus::Completed);
+
+        if let Some(idx) = completed_idx {
+            // Navigate to the completed job
+            while page.selected_job_index() != Some(idx) && page.table.cursor() < page.filtered_indices.len() {
+                page.table.move_down(1);
+            }
+
+            if page.selected_job_index() == Some(idx) {
+                let cmd = page.action_cancel_job();
+                // Should return None because job is already in terminal state
+                assert!(cmd.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn action_retry_job_retries_failed_job() {
+        let mut page = JobsPage::new();
+
+        // Find a failed job
+        let failed_idx = page.jobs.iter().position(|j| j.status == JobStatus::Failed);
+
+        if let Some(idx) = failed_idx {
+            // Navigate to the failed job
+            while page.selected_job_index() != Some(idx) && page.table.cursor() < page.filtered_indices.len() {
+                page.table.move_down(1);
+            }
+
+            if page.selected_job_index() == Some(idx) {
+                let cmd = page.action_retry_job();
+
+                // Job should now be queued for retry
+                assert_eq!(page.jobs[idx].status, JobStatus::Queued);
+                // progress should be reset
+                assert_eq!(page.jobs[idx].progress, 0);
+                // started_at and ended_at should be cleared
+                assert!(page.jobs[idx].started_at.is_none());
+                assert!(page.jobs[idx].ended_at.is_none());
+                // error should be cleared
+                assert!(page.jobs[idx].error.is_none());
+                // Should return a notification command
+                assert!(cmd.is_some());
+            }
+        }
+    }
+
+    #[test]
+    fn action_retry_job_returns_none_if_not_retriable() {
+        let mut page = JobsPage::new();
+
+        // Find a running job
+        let running_idx = page.jobs.iter().position(|j| j.status == JobStatus::Running);
+
+        if let Some(idx) = running_idx {
+            // Navigate to the running job
+            while page.selected_job_index() != Some(idx) && page.table.cursor() < page.filtered_indices.len() {
+                page.table.move_down(1);
+            }
+
+            if page.selected_job_index() == Some(idx) {
+                let cmd = page.action_retry_job();
+                // Should return None because job is not in a retriable state
+                assert!(cmd.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn action_create_and_start_workflow() {
+        let mut page = JobsPage::new();
+        let initial_count = page.jobs.len();
+
+        // Create a new job
+        page.action_create_job();
+        assert_eq!(page.jobs.len(), initial_count + 1);
+
+        // The new job should be at the end and queued
+        let new_job_idx = page.jobs.len() - 1;
+        assert_eq!(page.jobs[new_job_idx].status, JobStatus::Queued);
+
+        // Test the action API directly
+        let job = &mut page.jobs[new_job_idx];
+        let original_id = job.id;
+
+        // Start the job
+        let result = start_job(job, &mut page.id_gen);
+        assert!(result.is_some());
+        assert_eq!(job.status, JobStatus::Running);
+        assert_eq!(job.id, original_id);
     }
 }

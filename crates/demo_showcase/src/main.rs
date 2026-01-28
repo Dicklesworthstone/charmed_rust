@@ -40,6 +40,7 @@ mod data;
 mod keymap;
 mod messages;
 mod pages;
+mod shell_action;
 #[cfg(feature = "ssh")]
 mod ssh;
 pub mod test_support;
