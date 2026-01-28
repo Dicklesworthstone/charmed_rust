@@ -14,6 +14,7 @@ use crate::theme::{Theme, ThemePreset};
 
 /// Application configuration.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Fields will be used as features are implemented
 pub struct AppConfig {
     /// Initial theme preset.
     pub theme: ThemePreset,
@@ -298,10 +299,10 @@ impl Model for App {
         }
 
         // Handle keyboard input
-        if let Some(key) = msg.downcast_ref::<KeyMsg>() {
-            if let Some(cmd) = self.handle_global_key(key) {
-                return Some(cmd);
-            }
+        if let Some(key) = msg.downcast_ref::<KeyMsg>()
+            && let Some(cmd) = self.handle_global_key(key)
+        {
+            return Some(cmd);
         }
 
         // Delegate to current page if not in help mode
