@@ -1539,4 +1539,215 @@ mod tests {
         assert!(app.config.mouse);
         assert_eq!(app.seed(), 999);
     }
+
+    // =========================================================================
+    // Routing and Navigation tests (bd-247o)
+    // =========================================================================
+
+    #[test]
+    fn navigate_changes_current_page() {
+        let mut app = App::new();
+        assert_eq!(app.current_page(), Page::Dashboard);
+
+        app.navigate(Page::Jobs);
+        assert_eq!(app.current_page(), Page::Jobs);
+
+        app.navigate(Page::Settings);
+        assert_eq!(app.current_page(), Page::Settings);
+    }
+
+    #[test]
+    fn navigate_to_same_page_is_noop() {
+        let mut app = App::new();
+        assert_eq!(app.current_page(), Page::Dashboard);
+
+        // Navigate to same page should not change anything
+        let cmd = app.navigate(Page::Dashboard);
+        assert!(cmd.is_none());
+        assert_eq!(app.current_page(), Page::Dashboard);
+    }
+
+    #[test]
+    fn navigate_via_appmsg() {
+        use bubbletea::{Message, Model};
+
+        let mut app = App::new();
+        assert_eq!(app.current_page(), Page::Dashboard);
+
+        // Send Navigate message
+        let msg = Message::new(AppMsg::Navigate(Page::Logs));
+        app.update(msg);
+        assert_eq!(app.current_page(), Page::Logs);
+    }
+
+    // =========================================================================
+    // Global Toggle tests (bd-247o)
+    // =========================================================================
+
+    #[test]
+    fn toggle_sidebar_visibility() {
+        use bubbletea::{Message, Model};
+
+        let mut app = App::new();
+        let initial = app.sidebar_visible;
+
+        // Toggle via message
+        let msg = Message::new(AppMsg::ToggleSidebar);
+        app.update(msg);
+        assert_eq!(app.sidebar_visible, !initial);
+
+        // Toggle again
+        let msg = Message::new(AppMsg::ToggleSidebar);
+        app.update(msg);
+        assert_eq!(app.sidebar_visible, initial);
+    }
+
+    #[test]
+    fn show_help_overlay() {
+        use bubbletea::{Message, Model};
+
+        let mut app = App::new();
+        assert!(!app.show_help);
+
+        // Show help
+        let msg = Message::new(AppMsg::ShowHelp);
+        app.update(msg);
+        assert!(app.show_help);
+
+        // Hide help
+        let msg = Message::new(AppMsg::HideHelp);
+        app.update(msg);
+        assert!(!app.show_help);
+    }
+
+    #[test]
+    fn toggle_mouse_via_appmsg() {
+        use bubbletea::{Message, Model};
+
+        let mut app = App::new();
+        let initial = app.config.mouse;
+
+        let msg = Message::new(AppMsg::ToggleMouse);
+        app.update(msg);
+        assert_eq!(app.config.mouse, !initial);
+    }
+
+    // =========================================================================
+    // Keybinding tests (bd-247o)
+    // =========================================================================
+
+    #[test]
+    fn key_q_triggers_quit() {
+        use bubbletea::{KeyMsg, Message, Model};
+
+        let mut app = App::new();
+        // Set ready state so keybindings work
+        app.ready = true;
+
+        let msg = Message::new(KeyMsg::from_char('q'));
+        let cmd = app.update(msg);
+
+        // Should return a quit command
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn key_question_shows_help() {
+        use bubbletea::{KeyMsg, Message, Model};
+
+        let mut app = App::new();
+        app.ready = true;
+        assert!(!app.show_help);
+
+        let msg = Message::new(KeyMsg::from_char('?'));
+        app.update(msg);
+        assert!(app.show_help);
+    }
+
+    #[test]
+    fn key_escape_hides_help() {
+        use bubbletea::{KeyMsg, KeyType, Message, Model};
+
+        let mut app = App::new();
+        app.ready = true;
+        app.show_help = true;
+
+        let msg = Message::new(KeyMsg::from_type(KeyType::Esc));
+        app.update(msg);
+        assert!(!app.show_help);
+    }
+
+    #[test]
+    fn key_bracket_toggles_sidebar() {
+        use bubbletea::{KeyMsg, Message, Model};
+
+        let mut app = App::new();
+        app.ready = true;
+        let initial = app.sidebar_visible;
+
+        let msg = Message::new(KeyMsg::from_char('['));
+        app.update(msg);
+        assert_eq!(app.sidebar_visible, !initial);
+    }
+
+    #[test]
+    fn key_t_cycles_theme() {
+        use bubbletea::{KeyMsg, Message, Model};
+
+        let mut app = App::new();
+        app.ready = true;
+        assert_eq!(app.theme_preset(), ThemePreset::Dark);
+
+        let msg = Message::new(KeyMsg::from_char('t'));
+        app.update(msg);
+        assert_eq!(app.theme_preset(), ThemePreset::Light);
+    }
+
+    #[test]
+    fn number_keys_navigate_pages() {
+        use bubbletea::{KeyMsg, Message, Model};
+
+        let mut app = App::new();
+        app.ready = true;
+        assert_eq!(app.current_page(), Page::Dashboard);
+
+        // Key '3' should navigate to Jobs (page 3)
+        let msg = Message::new(KeyMsg::from_char('3'));
+        app.update(msg);
+        assert_eq!(app.current_page(), Page::Jobs);
+
+        // Key '5' should navigate to Docs (page 5)
+        let msg = Message::new(KeyMsg::from_char('5'));
+        app.update(msg);
+        assert_eq!(app.current_page(), Page::Docs);
+    }
+
+    #[test]
+    fn view_shows_loading_when_not_ready() {
+        use bubbletea::Model;
+
+        let app = App::new();
+        assert!(!app.ready);
+
+        // View should show loading message
+        let view = app.view();
+        assert!(view.contains("Loading"));
+    }
+
+    #[test]
+    fn keybindings_work_even_before_ready() {
+        use bubbletea::{KeyMsg, Message, Model};
+
+        let mut app = App::new();
+        // App starts not ready, but keybindings should still work
+        // (they prepare state for when we become ready)
+        assert!(!app.ready);
+        assert!(!app.show_help);
+
+        // Key '?' should still toggle help state
+        let msg = Message::new(KeyMsg::from_char('?'));
+        app.update(msg);
+        // Help state is set (will be visible once ready)
+        assert!(app.show_help);
+    }
 }
