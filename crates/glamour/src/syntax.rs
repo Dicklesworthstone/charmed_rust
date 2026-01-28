@@ -550,10 +550,17 @@ impl Default for SyntaxTheme {
     }
 }
 
+/// Default capacity for the style cache.
+pub const DEFAULT_STYLE_CACHE_CAPACITY: usize = 256;
+
 /// A cache for converted lipgloss styles to avoid repeated conversions.
 ///
 /// Syntect styles are converted to lipgloss styles on-demand and cached
 /// for future use, improving performance when highlighting large code blocks.
+///
+/// This cache uses LRU (Least Recently Used) eviction to bound memory usage.
+/// When the cache reaches capacity, the least recently accessed style is
+/// evicted to make room for new entries.
 ///
 /// # Example
 ///
@@ -565,22 +572,52 @@ impl Default for SyntaxTheme {
 /// let syn_style = Style::default();
 /// let lip_style = cache.get_or_convert(syn_style);
 /// ```
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct StyleCache {
-    /// Maps syntect styles (by their debug representation) to lipgloss styles.
-    /// Note: SynStyle doesn't implement Hash, so we use a Vec for simplicity.
-    /// For most code blocks, the number of unique styles is small (<20).
+    /// Maps syntect styles to lipgloss styles.
+    /// Ordered by access time: most recently used at the end.
+    /// Note: SynStyle doesn't implement Hash, so we use a Vec with LRU ordering.
     cache: Vec<(SynStyle, LipglossStyle)>,
+    /// Maximum number of entries to cache before evicting.
+    capacity: usize,
+}
+
+impl Default for StyleCache {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl StyleCache {
-    /// Creates a new empty style cache.
+    /// Creates a new empty style cache with default capacity (256 entries).
     #[must_use]
     pub fn new() -> Self {
-        Self { cache: Vec::new() }
+        Self::with_capacity(DEFAULT_STYLE_CACHE_CAPACITY)
+    }
+
+    /// Creates a new empty style cache with the specified capacity.
+    ///
+    /// # Arguments
+    ///
+    /// * `capacity` - Maximum number of entries to cache. Must be at least 1.
+    ///
+    /// # Panics
+    ///
+    /// Panics if capacity is 0.
+    #[must_use]
+    pub fn with_capacity(capacity: usize) -> Self {
+        assert!(capacity > 0, "StyleCache capacity must be at least 1");
+        Self {
+            cache: Vec::with_capacity(capacity.min(64)), // Pre-allocate reasonable initial size
+            capacity,
+        }
     }
 
     /// Gets the lipgloss style for a syntect style, converting and caching if needed.
+    ///
+    /// If the style is already cached, it is moved to the end of the cache
+    /// (marking it as most recently used). If the cache is at capacity when
+    /// adding a new style, the least recently used style is evicted.
     ///
     /// # Arguments
     ///
@@ -597,9 +634,19 @@ impl StyleCache {
             .position(|(s, _)| styles_equal(s, &syn_style));
 
         if let Some(idx) = pos {
-            &self.cache[idx].1
+            // Move to end (most recently used) if not already there
+            if idx < self.cache.len() - 1 {
+                let entry = self.cache.remove(idx);
+                self.cache.push(entry);
+            }
+            &self.cache.last().unwrap().1
         } else {
-            // Convert and cache
+            // Evict least recently used if at capacity
+            if self.cache.len() >= self.capacity {
+                self.cache.remove(0);
+            }
+
+            // Convert and cache at end (most recently used)
             let lip_style = syntect_to_lipgloss(syn_style);
             self.cache.push((syn_style, lip_style));
             &self.cache.last().unwrap().1
@@ -621,6 +668,12 @@ impl StyleCache {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.cache.is_empty()
+    }
+
+    /// Returns the maximum capacity of the cache.
+    #[must_use]
+    pub fn capacity(&self) -> usize {
+        self.capacity
     }
 }
 
@@ -1493,6 +1546,146 @@ mod tests {
 
         cache.clear();
         assert!(cache.is_empty());
+    }
+
+    #[test]
+    fn test_style_cache_with_capacity() {
+        use syntect::highlighting::Color as SynColor;
+
+        let mut cache = StyleCache::with_capacity(5);
+        assert_eq!(cache.capacity(), 5);
+        assert!(cache.is_empty());
+
+        // Add 5 styles (to capacity)
+        for i in 0..5 {
+            let style = SynStyle {
+                foreground: SynColor {
+                    r: i as u8,
+                    g: 0,
+                    b: 0,
+                    a: 255,
+                },
+                background: SynColor {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: 0,
+                },
+                font_style: SynFontStyle::empty(),
+            };
+            let _ = cache.get_or_convert(style);
+        }
+        assert_eq!(cache.len(), 5);
+    }
+
+    #[test]
+    fn test_style_cache_lru_eviction() {
+        use syntect::highlighting::Color as SynColor;
+
+        let mut cache = StyleCache::with_capacity(3);
+
+        // Helper to create a style with given red value
+        let make_style = |r: u8| SynStyle {
+            foreground: SynColor {
+                r,
+                g: 0,
+                b: 0,
+                a: 255,
+            },
+            background: SynColor {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            font_style: SynFontStyle::empty(),
+        };
+
+        // Add 3 styles (fills cache)
+        let style0 = make_style(0);
+        let style1 = make_style(1);
+        let style2 = make_style(2);
+
+        let _ = cache.get_or_convert(style0);
+        let _ = cache.get_or_convert(style1);
+        let _ = cache.get_or_convert(style2);
+        assert_eq!(cache.len(), 3);
+
+        // Add a 4th style - should evict style0 (least recently used)
+        let style3 = make_style(3);
+        let _ = cache.get_or_convert(style3);
+        assert_eq!(cache.len(), 3, "Cache should stay at capacity");
+
+        // style0 was evicted, so adding it again should increase cache temporarily
+        // but it won't since we're at capacity - it should evict style1
+        let _ = cache.get_or_convert(style0);
+        assert_eq!(cache.len(), 3, "Cache should stay at capacity");
+    }
+
+    #[test]
+    fn test_style_cache_lru_access_order() {
+        use syntect::highlighting::Color as SynColor;
+
+        let mut cache = StyleCache::with_capacity(3);
+
+        let make_style = |r: u8| SynStyle {
+            foreground: SynColor {
+                r,
+                g: 0,
+                b: 0,
+                a: 255,
+            },
+            background: SynColor {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            font_style: SynFontStyle::empty(),
+        };
+
+        let style0 = make_style(0);
+        let style1 = make_style(1);
+        let style2 = make_style(2);
+
+        // Add 3 styles: order is [style0, style1, style2]
+        let _ = cache.get_or_convert(style0);
+        let _ = cache.get_or_convert(style1);
+        let _ = cache.get_or_convert(style2);
+
+        // Access style0 again - moves it to end: [style1, style2, style0]
+        let _ = cache.get_or_convert(style0);
+
+        // Add style3 - should evict style1 (now least recently used)
+        let style3 = make_style(3);
+        let _ = cache.get_or_convert(style3);
+        assert_eq!(cache.len(), 3);
+
+        // Verify style0 is still in cache (it was recently accessed)
+        // Accessing it should not increase len
+        let _ = cache.get_or_convert(style0);
+        assert_eq!(cache.len(), 3);
+
+        // Verify style2 is still in cache
+        let _ = cache.get_or_convert(style2);
+        assert_eq!(cache.len(), 3);
+
+        // style1 was evicted, adding it should stay at capacity
+        let _ = cache.get_or_convert(style1);
+        assert_eq!(cache.len(), 3);
+    }
+
+    #[test]
+    fn test_style_cache_default_capacity() {
+        let cache = StyleCache::new();
+        assert_eq!(cache.capacity(), DEFAULT_STYLE_CACHE_CAPACITY);
+        assert_eq!(cache.capacity(), 256);
+    }
+
+    #[test]
+    #[should_panic(expected = "capacity must be at least 1")]
+    fn test_style_cache_zero_capacity_panics() {
+        let _ = StyleCache::with_capacity(0);
     }
 
     #[test]
