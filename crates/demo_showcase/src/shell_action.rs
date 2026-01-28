@@ -324,4 +324,307 @@ mod tests {
             let _ = result;
         }
     }
+
+    // =========================================================================
+    // bd-2f52: Shell-out action safety tests
+    // =========================================================================
+
+    // --- Headless safety tests ---
+
+    #[test]
+    fn headless_open_in_pager_returns_none_immediately() {
+        // Headless mode must return None without delay (no process spawn).
+        let start = std::time::Instant::now();
+        let result = open_in_pager("some long content".to_string(), true);
+        let elapsed = start.elapsed();
+
+        assert!(result.is_none(), "headless must return None");
+        assert!(
+            elapsed.as_millis() < 50,
+            "headless must return quickly (took {}ms)",
+            elapsed.as_millis()
+        );
+    }
+
+    #[test]
+    fn headless_open_diagnostics_in_pager_returns_none() {
+        let diag = generate_diagnostics();
+        let result = open_diagnostics_in_pager(diag, true);
+        assert!(
+            result.is_none(),
+            "open_diagnostics_in_pager must be no-op when headless"
+        );
+    }
+
+    #[test]
+    fn headless_repeated_calls_all_noop() {
+        // Multiple headless invocations must all return None (no accumulation).
+        for i in 0..100 {
+            let result = open_in_pager(format!("content {i}"), true);
+            assert!(result.is_none(), "iteration {i} should be None");
+        }
+    }
+
+    #[test]
+    fn headless_empty_content_returns_none() {
+        assert!(open_in_pager(String::new(), true).is_none());
+    }
+
+    #[test]
+    fn headless_large_content_returns_none_without_processing() {
+        // Even with megabytes of content, headless must short-circuit.
+        let large = "x".repeat(1_000_000);
+        let start = std::time::Instant::now();
+        let result = open_in_pager(large, true);
+        let elapsed = start.elapsed();
+
+        assert!(result.is_none());
+        assert!(
+            elapsed.as_millis() < 50,
+            "headless large content took {}ms",
+            elapsed.as_millis()
+        );
+    }
+
+    // --- Cmd structure tests (non-headless) ---
+
+    #[test]
+    fn non_headless_returns_cmd() {
+        let result = open_in_pager("content".to_string(), false);
+        assert!(result.is_some(), "non-headless must return Some(Cmd)");
+    }
+
+    #[test]
+    fn non_headless_cmd_is_sequence_with_three_steps() {
+        // The Cmd returned by open_in_pager wraps a sequence of:
+        //   1. release_terminal  (terminal control message)
+        //   2. blocking(run_pager) -> ShellOutMsg::PagerCompleted
+        //   3. restore_terminal  (terminal control message)
+        //
+        // Executing the outer Cmd produces a SequenceMsg containing 3 sub-commands.
+        let cmd = open_in_pager("test".to_string(), false).unwrap();
+        let msg = cmd.execute();
+        assert!(msg.is_some(), "sequence cmd should produce a message");
+
+        let msg = msg.unwrap();
+        let seq = msg
+            .downcast::<bubbletea::message::SequenceMsg>()
+            .expect("message should be SequenceMsg");
+
+        assert_eq!(
+            seq.0.len(),
+            3,
+            "sequence must have exactly 3 commands (release, pager, restore)"
+        );
+    }
+
+    #[test]
+    fn sequence_first_step_is_terminal_control() {
+        let cmd = open_in_pager("test".to_string(), false).unwrap();
+        let seq = cmd
+            .execute()
+            .unwrap()
+            .downcast::<bubbletea::message::SequenceMsg>()
+            .unwrap();
+
+        // Step 1: release_terminal produces a terminal control message (not ShellOutMsg).
+        let release_cmd = seq.0.into_iter().next().unwrap();
+        let release_msg = release_cmd.execute();
+        assert!(release_msg.is_some(), "release cmd should produce a message");
+        assert!(
+            !release_msg.unwrap().is::<ShellOutMsg>(),
+            "first step must be a terminal control message, not ShellOutMsg"
+        );
+    }
+
+    #[test]
+    fn sequence_last_step_is_terminal_control() {
+        let cmd = open_in_pager("test".to_string(), false).unwrap();
+        let seq = cmd
+            .execute()
+            .unwrap()
+            .downcast::<bubbletea::message::SequenceMsg>()
+            .unwrap();
+
+        // Step 3 (last): restore_terminal produces a terminal control message.
+        let restore_cmd = seq.0.into_iter().last().unwrap();
+        let restore_msg = restore_cmd.execute();
+        assert!(
+            restore_msg.is_some(),
+            "restore cmd should produce a message"
+        );
+        assert!(
+            !restore_msg.unwrap().is::<ShellOutMsg>(),
+            "last step must be a terminal control message, not ShellOutMsg"
+        );
+    }
+
+    #[test]
+    fn sequence_ordering_release_pager_restore() {
+        // Verify the full ordering: release → pager → restore.
+        // Steps 1 and 3 are terminal control (non-blocking, instant).
+        // Step 2 is the pager (blocking, spawns a process — don't execute in CI).
+        let cmd = open_in_pager("test".to_string(), false).unwrap();
+        let seq = cmd
+            .execute()
+            .unwrap()
+            .downcast::<bubbletea::message::SequenceMsg>()
+            .unwrap();
+
+        let mut cmds = seq.0.into_iter();
+
+        // Step 1: release — executes instantly, produces a non-ShellOutMsg message
+        let step1_msg = cmds.next().unwrap().execute().unwrap();
+        assert!(
+            !step1_msg.is::<ShellOutMsg>(),
+            "step 1 must be terminal release"
+        );
+
+        // Step 2: pager command — skip execution (would block)
+        let _step2_cmd = cmds.next().unwrap();
+
+        // Step 3: restore — executes instantly, produces a non-ShellOutMsg message
+        let step3_msg = cmds.next().unwrap().execute().unwrap();
+        assert!(
+            !step3_msg.is::<ShellOutMsg>(),
+            "step 3 must be terminal restore"
+        );
+
+        assert!(cmds.next().is_none(), "no extra commands after restore");
+    }
+
+    #[test]
+    fn sequence_terminal_control_steps_are_instant() {
+        // Steps 1 and 3 (release/restore) should execute in microseconds.
+        let cmd = open_in_pager("test".to_string(), false).unwrap();
+        let seq = cmd
+            .execute()
+            .unwrap()
+            .downcast::<bubbletea::message::SequenceMsg>()
+            .unwrap();
+
+        let mut cmds = seq.0.into_iter();
+        let release_cmd = cmds.next().unwrap();
+        let _pager_cmd = cmds.next().unwrap();
+        let restore_cmd = cmds.next().unwrap();
+
+        let start = std::time::Instant::now();
+        let _ = release_cmd.execute();
+        let _ = restore_cmd.execute();
+        let elapsed = start.elapsed();
+
+        assert!(
+            elapsed.as_millis() < 10,
+            "terminal control commands took {}ms — should be instant",
+            elapsed.as_millis()
+        );
+    }
+
+    #[test]
+    fn build_pager_sequence_produces_valid_cmd() {
+        // build_pager_sequence is the internal helper; verify it produces a Cmd.
+        let cmd = build_pager_sequence("hello world".to_string());
+        let msg = cmd.execute();
+        assert!(msg.is_some(), "build_pager_sequence must produce a message");
+        assert!(
+            msg.unwrap().is::<bubbletea::message::SequenceMsg>(),
+            "must produce SequenceMsg"
+        );
+    }
+
+    // --- ShellOutMsg structure tests ---
+
+    #[test]
+    fn shell_out_msg_pager_completed_success() {
+        let msg = ShellOutMsg::PagerCompleted(None).into_message();
+        let shell_msg = msg.downcast::<ShellOutMsg>().unwrap();
+        match shell_msg {
+            ShellOutMsg::PagerCompleted(err) => assert!(err.is_none()),
+            other => panic!("expected PagerCompleted(None), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn shell_out_msg_pager_completed_error() {
+        let msg = ShellOutMsg::PagerCompleted(Some("spawn failed".into())).into_message();
+        let shell_msg = msg.downcast::<ShellOutMsg>().unwrap();
+        match shell_msg {
+            ShellOutMsg::PagerCompleted(Some(e)) => assert_eq!(e, "spawn failed"),
+            other => panic!("expected PagerCompleted(Some(..)), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn shell_out_msg_all_variants_roundtrip() {
+        // Verify every ShellOutMsg variant can be converted to Message and back.
+        let variants: Vec<ShellOutMsg> = vec![
+            ShellOutMsg::OpenDiagnostics,
+            ShellOutMsg::PagerCompleted(None),
+            ShellOutMsg::PagerCompleted(Some("error".into())),
+            ShellOutMsg::TerminalReleased,
+            ShellOutMsg::TerminalRestored,
+        ];
+
+        for variant in variants {
+            let label = format!("{:?}", variant);
+            let msg = variant.into_message();
+            assert!(
+                msg.downcast::<ShellOutMsg>().is_some(),
+                "{label} failed roundtrip"
+            );
+        }
+    }
+
+    // --- Diagnostics generation ---
+
+    #[test]
+    fn diagnostics_contains_version_info() {
+        let diag = generate_diagnostics();
+        assert!(diag.contains("Package Version:"));
+        assert!(diag.contains(env!("CARGO_PKG_VERSION")));
+    }
+
+    #[test]
+    fn diagnostics_contains_platform_info() {
+        let diag = generate_diagnostics();
+        assert!(diag.contains(&format!("OS: {}", std::env::consts::OS)));
+        assert!(diag.contains(&format!("Arch: {}", std::env::consts::ARCH)));
+    }
+
+    #[test]
+    fn diagnostics_has_consistent_structure() {
+        // Diagnostics should have opening/closing banner lines.
+        let diag = generate_diagnostics();
+        let lines: Vec<&str> = diag.lines().collect();
+        assert!(
+            lines.len() >= 10,
+            "diagnostics should have at least 10 lines, got {}",
+            lines.len()
+        );
+        // First and last lines are banner separators
+        assert!(
+            lines.first().unwrap().contains('═'),
+            "should start with banner"
+        );
+        assert!(
+            lines.last().unwrap().contains('═'),
+            "should end with banner"
+        );
+    }
+
+    // --- command_exists edge cases ---
+
+    #[test]
+    fn command_exists_nonexistent_returns_false() {
+        assert!(
+            !command_exists("__nonexistent_command_that_does_not_exist_12345__"),
+            "nonexistent command should return false"
+        );
+    }
+
+    #[test]
+    fn command_exists_empty_string() {
+        // Empty command name should not panic.
+        let _ = command_exists("");
+    }
 }

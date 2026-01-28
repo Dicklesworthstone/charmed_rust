@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc e8ca2a658d04c067bbaff5f7ffa2cbc697f75e13b9e65418f3d92a088d3c09ca # shrinks to angular_freq = 0.5, damping_ratio = 0.1, target = 126.80099781334927
+cc f4cf01bc27a0aa89a7263096476c47fbd2f421c8395dd1716ec0e810fe66c4ac # shrinks to angular_freq = 1.0, damping_ratio = 8.564097053483911, target = 421.55969539662294
+cc 840f9f1c5897a3952c12578634c14034217124f5c822e4e7f14bb11579b346ac # shrinks to angular_freq = 17.38292040717129, damping_ratio = 9.534402438061298, target = 496.3919436787268
+cc 3bdc32ae0a18e279a9413784ed520369387e1cae7c88d17dddeddb88735f418d # shrinks to angular_freq = 4.140209453271159, damping_ratio = 0.2, target = -498.04563895111255

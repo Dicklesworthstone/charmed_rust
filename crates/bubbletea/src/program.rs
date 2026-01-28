@@ -19,6 +19,24 @@ use tokio_util::task::TaskTracker;
 
 use tracing::debug;
 
+/// Spawn a closure for batch command execution.
+///
+/// When the `thread-pool` feature is enabled, uses rayon's work-stealing
+/// thread pool (bounded to `num_cpus` threads by default). Configure the
+/// pool size with [`rayon::ThreadPoolBuilder`] or the `RAYON_NUM_THREADS`
+/// environment variable.
+///
+/// Without the feature, falls back to spawning a new OS thread per command.
+#[cfg(feature = "thread-pool")]
+fn spawn_batch(f: impl FnOnce() + Send + 'static) {
+    rayon::spawn(f);
+}
+
+#[cfg(not(feature = "thread-pool"))]
+fn spawn_batch(f: impl FnOnce() + Send + 'static) {
+    let _ = thread::spawn(f);
+}
+
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind},
@@ -655,10 +673,9 @@ impl<M: Model> Program<M> {
         // Get initial window size (only if not custom IO, otherwise trust init msg)
         if !self.options.custom_io
             && let Ok((width, height)) = terminal::size()
+            && tx.send(Message::new(WindowSizeMsg { width, height })).is_err()
         {
-            if tx.send(Message::new(WindowSizeMsg { width, height })).is_err() {
-                debug!(target: "bubbletea::event", "initial window size dropped — receiver disconnected");
-            }
+            debug!(target: "bubbletea::event", "initial window size dropped — receiver disconnected");
         }
 
         // Call init and handle initial command
@@ -761,10 +778,9 @@ impl<M: Model> Program<M> {
                 if msg.is::<RequestWindowSizeMsg>() {
                     if !self.options.custom_io
                         && let Ok((width, height)) = terminal::size()
+                        && tx.send(Message::new(WindowSizeMsg { width, height })).is_err()
                     {
-                        if tx.send(Message::new(WindowSizeMsg { width, height })).is_err() {
-                            debug!(target: "bubbletea::event", "window size response dropped — receiver disconnected");
-                        }
+                        debug!(target: "bubbletea::event", "window size response dropped — receiver disconnected");
                     }
                     continue;
                 }
@@ -860,11 +876,11 @@ impl<M: Model> Program<M> {
                     if let Some(batch) = msg.downcast::<BatchMsg>() {
                         for cmd in batch.0 {
                             let tx_clone = tx.clone();
-                            thread::spawn(move || {
-                                if let Some(msg) = cmd.execute() {
-                                    if tx_clone.send(msg).is_err() {
-                                        debug!(target: "bubbletea::command", "batch command result dropped — receiver disconnected");
-                                    }
+                            spawn_batch(move || {
+                                if let Some(msg) = cmd.execute()
+                                    && tx_clone.send(msg).is_err()
+                                {
+                                    debug!(target: "bubbletea::command", "batch command result dropped — receiver disconnected");
                                 }
                             });
                         }
@@ -872,11 +888,11 @@ impl<M: Model> Program<M> {
                 } else if msg.is::<SequenceMsg>() {
                     if let Some(seq) = msg.downcast::<SequenceMsg>() {
                         for cmd in seq.0 {
-                            if let Some(msg) = cmd.execute() {
-                                if tx.send(msg).is_err() {
-                                    debug!(target: "bubbletea::command", "sequence command result dropped — receiver disconnected");
-                                    break;
-                                }
+                            if let Some(msg) = cmd.execute()
+                                && tx.send(msg).is_err()
+                            {
+                                debug!(target: "bubbletea::command", "sequence command result dropped — receiver disconnected");
+                                break;
                             }
                         }
                     }
@@ -1333,6 +1349,10 @@ impl<M: Model> Program<M> {
         tracker: &TaskTracker,
         cancel_token: CancellationToken,
     ) {
+        // Clone tracker and cancel token so batch sub-commands can also be
+        // tracked and cancelled during graceful shutdown.
+        let batch_tracker = tracker.clone();
+        let batch_cancel = cancel_token.clone();
         tracker.spawn(async move {
             tokio::select! {
                 // Execute the command
@@ -1343,13 +1363,23 @@ impl<M: Model> Program<M> {
                             if let Some(batch) = msg.downcast::<BatchMsg>() {
                                 for cmd in batch.0 {
                                     let tx_clone = tx.clone();
-                                    // Note: batch commands don't get tracked individually
-                                    // for simplicity, but they still respect the main cancel
-                                    tokio::spawn(async move {
-                                        let cmd_kind: CommandKind = cmd.into();
-                                        if let Some(msg) = cmd_kind.execute().await {
-                                            if tx_clone.send(msg).await.is_err() {
-                                                debug!(target: "bubbletea::command", "async batch command result dropped — receiver disconnected");
+                                    let cancel = batch_cancel.clone();
+                                    // Batch commands are now tracked via TaskTracker
+                                    // and respect the cancellation token for clean shutdown.
+                                    batch_tracker.spawn(async move {
+                                        tokio::select! {
+                                            result = async {
+                                                let cmd_kind: CommandKind = cmd.into();
+                                                cmd_kind.execute().await
+                                            } => {
+                                                if let Some(msg) = result {
+                                                    if tx_clone.send(msg).await.is_err() {
+                                                        debug!(target: "bubbletea::command", "async batch command result dropped — receiver disconnected");
+                                                    }
+                                                }
+                                            }
+                                            _ = cancel.cancelled() => {
+                                                debug!(target: "bubbletea::command", "async batch command cancelled during shutdown");
                                             }
                                         }
                                     });
@@ -1948,5 +1978,165 @@ mod tests {
         } else {
             panic!("Expected Parsed outcome");
         }
+    }
+
+    // === Thread Pool / spawn_batch Tests (bd-3ut7) ===
+
+    #[test]
+    fn spawn_batch_executes_closure() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let executed = Arc::new(AtomicBool::new(false));
+        let clone = executed.clone();
+
+        spawn_batch(move || {
+            clone.store(true, Ordering::SeqCst);
+        });
+
+        // Allow time for the task to run
+        thread::sleep(Duration::from_millis(200));
+        assert!(executed.load(Ordering::SeqCst), "spawn_batch should execute the closure");
+    }
+
+    #[test]
+    fn spawn_batch_handles_many_concurrent_tasks() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let counter = Arc::new(AtomicUsize::new(0));
+        let task_count = 200;
+
+        for _ in 0..task_count {
+            let c = counter.clone();
+            spawn_batch(move || {
+                c.fetch_add(1, Ordering::SeqCst);
+            });
+        }
+
+        // Wait for all tasks with generous timeout
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while counter.load(Ordering::SeqCst) < task_count
+            && std::time::Instant::now() < deadline
+        {
+            thread::sleep(Duration::from_millis(50));
+        }
+
+        assert_eq!(
+            counter.load(Ordering::SeqCst),
+            task_count,
+            "All {task_count} tasks should complete"
+        );
+    }
+
+    #[test]
+    fn handle_command_batch_executes_all_subcommands() {
+        let model = TestModel { count: 0 };
+        let program = Program::new(model);
+        let (tx, rx) = mpsc::channel();
+
+        // Build a batch of 50 sub-commands, each returning a unique i32
+        let cmds: Vec<Option<Cmd>> = (0..50)
+            .map(|i| Some(Cmd::new(move || Message::new(i))))
+            .collect();
+        let batch_cmd = crate::batch(cmds).unwrap();
+
+        program.handle_command(batch_cmd, tx);
+
+        // Collect all 50 results
+        let mut results = Vec::new();
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while results.len() < 50 && std::time::Instant::now() < deadline {
+            if let Ok(msg) = rx.recv_timeout(Duration::from_millis(100)) {
+                results.push(msg.downcast::<i32>().unwrap());
+            }
+        }
+
+        assert_eq!(results.len(), 50, "All 50 batch sub-commands should produce results");
+        results.sort();
+        let expected: Vec<i32> = (0..50).collect();
+        assert_eq!(results, expected, "Each sub-command value should be received exactly once");
+    }
+
+    #[cfg(feature = "thread-pool")]
+    #[test]
+    fn handle_command_batch_bounded_parallelism() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let model = TestModel { count: 0 };
+        let program = Program::new(model);
+        let (tx, rx) = mpsc::channel();
+
+        let active = Arc::new(AtomicUsize::new(0));
+        let max_active = Arc::new(AtomicUsize::new(0));
+
+        let task_count: usize = 100;
+        let cmds: Vec<Option<Cmd>> = (0..task_count)
+            .map(|_| {
+                let a = active.clone();
+                let m = max_active.clone();
+                Some(Cmd::new(move || {
+                    let current = a.fetch_add(1, Ordering::SeqCst) + 1;
+                    m.fetch_max(current, Ordering::SeqCst);
+                    thread::sleep(Duration::from_millis(5));
+                    a.fetch_sub(1, Ordering::SeqCst);
+                    Message::new(1i32)
+                }))
+            })
+            .collect();
+        let batch_cmd = crate::batch(cmds).unwrap();
+
+        program.handle_command(batch_cmd, tx);
+
+        // Wait for all results
+        let mut count = 0usize;
+        let deadline = std::time::Instant::now() + Duration::from_secs(15);
+        while count < task_count && std::time::Instant::now() < deadline {
+            if let Ok(_msg) = rx.recv_timeout(Duration::from_millis(100)) {
+                count += 1;
+            }
+        }
+
+        assert_eq!(count, task_count, "All batch commands should complete");
+
+        let observed_max = max_active.load(Ordering::SeqCst);
+        let num_cpus = thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
+
+        // With rayon, max concurrent tasks should be bounded by the pool size.
+        // Allow num_cpus + 2 to account for the outer thread::spawn and scheduling jitter.
+        assert!(
+            observed_max <= num_cpus + 2,
+            "Expected bounded parallelism near {num_cpus}, but observed {observed_max}. \
+             Without thread-pool feature, this would be near {task_count}."
+        );
+    }
+
+    #[test]
+    fn handle_command_large_batch_no_panic() {
+        let model = TestModel { count: 0 };
+        let program = Program::new(model);
+        let (tx, rx) = mpsc::channel();
+
+        // Create a large batch of 500 lightweight commands
+        let cmds: Vec<Option<Cmd>> = (0..500)
+            .map(|i| Some(Cmd::new(move || Message::new(i))))
+            .collect();
+        let batch_cmd = crate::batch(cmds).unwrap();
+
+        program.handle_command(batch_cmd, tx);
+
+        // Collect results with timeout - don't need all, just verify no panic
+        let mut count = 0usize;
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while count < 500 && std::time::Instant::now() < deadline {
+            if let Ok(_msg) = rx.recv_timeout(Duration::from_millis(50)) {
+                count += 1;
+            }
+        }
+
+        assert_eq!(count, 500, "Large batch should complete without panic");
     }
 }

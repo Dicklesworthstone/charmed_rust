@@ -1,6 +1,7 @@
 #![doc = include_str!("../docs/tables/README.md")]
 
 use pulldown_cmark::{Alignment, Event, Tag, TagEnd};
+use tracing::debug;
 use unicode_width::UnicodeWidthChar;
 
 /// Represents a parsed table ready for rendering.
@@ -513,8 +514,30 @@ pub fn calculate_column_widths(table: &ParsedTable, config: &ColumnWidthConfig) 
         let available_content = config.max_table_width.saturating_sub(fixed_overhead);
         let min_required = column_count * config.min_width;
 
+        if config.max_table_width < fixed_overhead {
+            debug!(
+                target: "glamour::table",
+                max_table_width = config.max_table_width,
+                fixed_overhead,
+                column_count,
+                "table structural overhead ({fixed_overhead}) exceeds max_table_width ({max}); \
+                 all columns will have zero content width",
+                max = config.max_table_width,
+            );
+        } else if available_content < min_required {
+            debug!(
+                target: "glamour::table",
+                available_content,
+                min_required,
+                column_count,
+                min_width = config.min_width,
+                "table content area ({available_content}) is less than minimum required \
+                 ({min_required}); columns will be narrower than min_width",
+            );
+        }
+
         if available_content >= min_required {
-            // Proportionally shrink columns
+            // Proportionally shrink columns while respecting min_width
             let current_content: usize = widths.iter().sum();
             if current_content > 0 {
                 let scale = available_content as f64 / current_content as f64;
@@ -534,8 +557,14 @@ pub fn calculate_column_widths(table: &ParsedTable, config: &ColumnWidthConfig) 
                 }
             }
         } else {
-            // Can't fit even with minimum widths - use minimums
-            widths.fill(config.min_width);
+            // Not enough space for all columns at min_width.
+            // Distribute available_content evenly so the total stays
+            // within max_table_width as closely as possible.
+            let per_column = available_content / column_count.max(1);
+            let extra = available_content % column_count.max(1);
+            for (i, w) in widths.iter_mut().enumerate() {
+                *w = per_column + usize::from(i < extra);
+            }
         }
 
         // Recalculate total width
@@ -603,10 +632,40 @@ pub fn pad_content(content: &str, width: usize, alignment: Alignment) -> String 
     }
 }
 
+/// Fit content to a target width: truncate if too wide, pad if too narrow.
+///
+/// Unlike [`pad_content`], which returns content unchanged when wider than the
+/// target, this function uses [`truncate_content`] to ensure the result never
+/// exceeds `width` display units. This is used by the table rendering functions
+/// to maintain column alignment even when content is wider than the available
+/// column width.
+///
+/// # Example
+///
+/// ```rust
+/// use glamour::table::fit_content;
+/// use pulldown_cmark::Alignment;
+///
+/// // Content fits — padded normally
+/// assert_eq!(fit_content("Hi", 6, Alignment::Left), "Hi    ");
+///
+/// // Content too wide — truncated with ellipsis
+/// assert_eq!(fit_content("Hello, World!", 5, Alignment::Left), "Hell…");
+/// ```
+#[must_use]
+pub fn fit_content(content: &str, width: usize, alignment: Alignment) -> String {
+    let content_width = measure_width(content);
+    if content_width > width {
+        truncate_content(content, width)
+    } else {
+        pad_content(content, width, alignment)
+    }
+}
+
 /// Render a cell with proper alignment and optional cell margins.
 ///
-/// This function pads the cell content to the specified column width
-/// and adds cell margins (spaces) on each side.
+/// This function fits the cell content to the specified column width
+/// (truncating with an ellipsis if needed) and adds cell margins on each side.
 ///
 /// # Arguments
 ///
@@ -626,9 +685,9 @@ pub fn pad_content(content: &str, width: usize, alignment: Alignment) -> String 
 /// ```
 #[must_use]
 pub fn render_cell(cell: &TableCell, col_width: usize, cell_margin: usize) -> String {
-    let padded = pad_content(&cell.content, col_width, cell.alignment);
+    let fitted = fit_content(&cell.content, col_width, cell.alignment);
     let margin = " ".repeat(cell_margin);
-    format!("{}{}{}", margin, padded, margin)
+    format!("{}{}{}", margin, fitted, margin)
 }
 
 /// Render a cell content string with alignment and optional margins.
@@ -652,9 +711,9 @@ pub fn render_cell_content(
     alignment: Alignment,
     cell_margin: usize,
 ) -> String {
-    let padded = pad_content(content, col_width, alignment);
+    let fitted = fit_content(content, col_width, alignment);
     let margin = " ".repeat(cell_margin);
-    format!("{}{}{}", margin, padded, margin)
+    format!("{}{}{}", margin, fitted, margin)
 }
 
 /// Align multiple cells in a row to their respective column widths.
@@ -1047,9 +1106,9 @@ pub fn render_data_row(
 
     for (i, cell) in cells.iter().enumerate() {
         let width = widths.get(i).copied().unwrap_or(0);
-        let padded = pad_content(&cell.content, width, cell.alignment);
+        let fitted = fit_content(&cell.content, width, cell.alignment);
         result.push_str(&padding);
-        result.push_str(&padded);
+        result.push_str(&fitted);
         result.push_str(&padding);
         result.push_str(border.vertical);
     }
@@ -1106,8 +1165,8 @@ pub fn render_minimal_row(
 
     for (i, cell) in cells.iter().enumerate() {
         let width = widths.get(i).copied().unwrap_or(0);
-        let padded = pad_content(&cell.content, width, cell.alignment);
-        parts.push(format!("{}{}{}", padding, padded, padding));
+        let fitted = fit_content(&cell.content, width, cell.alignment);
+        parts.push(format!("{}{}{}", padding, fitted, padding));
     }
 
     // Handle missing cells (if row has fewer cells than widths)
@@ -1463,8 +1522,8 @@ pub fn render_header_row(
             cell.content.clone()
         };
 
-        let padded = pad_content(&content, width, cell.alignment);
-        let cell_content = format!("{}{}{}", padding, padded, padding);
+        let fitted = fit_content(&content, width, cell.alignment);
+        let cell_content = format!("{}{}{}", padding, fitted, padding);
 
         // Apply styling if provided and has styling
         let styled_content = if let Some(s) = style {
@@ -2558,5 +2617,435 @@ Some text between tables.
         assert_eq!(style.transform, TextTransform::None);
         assert!(style.foreground.is_none());
         assert!(style.background.is_none());
+    }
+
+    // ========================================================================
+    // Edge cases: extreme table width (bd-15ip)
+    // ========================================================================
+
+    fn make_table(cols: usize, rows: usize) -> ParsedTable {
+        let header: Vec<TableCell> = (0..cols)
+            .map(|i| TableCell::new(format!("Col{i}"), Alignment::Left))
+            .collect();
+        let body: Vec<Vec<TableCell>> = (0..rows)
+            .map(|r| {
+                (0..cols)
+                    .map(|c| TableCell::new(format!("r{r}c{c}"), Alignment::Left))
+                    .collect()
+            })
+            .collect();
+        ParsedTable {
+            alignments: vec![Alignment::Left; cols],
+            header,
+            rows: body,
+        }
+    }
+
+    #[test]
+    fn width_zero_means_no_limit() {
+        let table = make_table(3, 2);
+        let config = ColumnWidthConfig::default().max_table_width(0);
+        let widths = calculate_column_widths(&table, &config);
+        // max_table_width=0 means no limit; columns get their natural widths
+        assert!(widths.total_width > 0);
+        for &w in &widths.widths {
+            assert!(w >= config.min_width);
+        }
+    }
+
+    #[test]
+    fn width_smaller_than_overhead_no_panic() {
+        // 3 columns, padding=1, border=1
+        // overhead = 3*1*2 + (3+1)*1 = 6 + 4 = 10
+        let table = make_table(3, 1);
+        let config = ColumnWidthConfig::default()
+            .max_table_width(5) // less than 10 overhead
+            .cell_padding(1)
+            .border_width(1);
+        let widths = calculate_column_widths(&table, &config);
+        // Should not panic; columns may be 0 but that's acceptable degradation
+        assert_eq!(widths.widths.len(), 3);
+    }
+
+    #[test]
+    fn width_exactly_overhead_gives_zero_columns() {
+        let table = make_table(3, 1);
+        // overhead = 3*1*2 + 4*1 = 10
+        let config = ColumnWidthConfig::default()
+            .max_table_width(10)
+            .cell_padding(1)
+            .border_width(1);
+        let widths = calculate_column_widths(&table, &config);
+        assert_eq!(widths.widths.len(), 3);
+        // available_content = 10 - 10 = 0; each column gets 0
+        for &w in &widths.widths {
+            assert_eq!(w, 0);
+        }
+    }
+
+    #[test]
+    fn width_one_above_overhead_distributes_one_char() {
+        let table = make_table(3, 1);
+        // overhead = 10, max = 11 → available_content = 1
+        let config = ColumnWidthConfig::default()
+            .max_table_width(11)
+            .cell_padding(1)
+            .border_width(1);
+        let widths = calculate_column_widths(&table, &config);
+        let total_content: usize = widths.widths.iter().sum();
+        assert_eq!(total_content, 1);
+    }
+
+    #[test]
+    fn width_tight_distributes_evenly() {
+        let table = make_table(4, 1);
+        // overhead = 4*2 + 5 = 13, min_required = 4*3 = 12
+        // max = 20 → available = 7, which is < 12
+        // Should distribute 7 across 4 cols: 2,2,2,1 (or 1,1,1,1+3 extra)
+        let config = ColumnWidthConfig::default()
+            .max_table_width(20)
+            .cell_padding(1)
+            .border_width(1);
+        let widths = calculate_column_widths(&table, &config);
+        let total_content: usize = widths.widths.iter().sum();
+        assert_eq!(total_content, 7);
+        // Each column should be at least 1 (7 / 4 = 1 remainder 3)
+        for &w in &widths.widths {
+            assert!(w >= 1);
+        }
+    }
+
+    #[test]
+    fn width_max_one_no_panic() {
+        let table = make_table(2, 1);
+        let config = ColumnWidthConfig::default().max_table_width(1);
+        let widths = calculate_column_widths(&table, &config);
+        assert_eq!(widths.widths.len(), 2);
+    }
+
+    #[test]
+    fn single_column_narrow_width() {
+        let table = make_table(1, 1);
+        // overhead = 1*2 + 2 = 4, max = 6 → available = 2
+        let config = ColumnWidthConfig::default()
+            .max_table_width(6)
+            .cell_padding(1)
+            .border_width(1);
+        let widths = calculate_column_widths(&table, &config);
+        assert_eq!(widths.widths.len(), 1);
+        assert_eq!(widths.widths[0], 2);
+        assert_eq!(widths.total_width, 6);
+    }
+
+    #[test]
+    fn many_columns_narrow_width() {
+        let table = make_table(10, 1);
+        // overhead = 10*2 + 11 = 31, max = 15 → available = 0
+        let config = ColumnWidthConfig::default()
+            .max_table_width(15)
+            .cell_padding(1)
+            .border_width(1);
+        let widths = calculate_column_widths(&table, &config);
+        assert_eq!(widths.widths.len(), 10);
+        let total_content: usize = widths.widths.iter().sum();
+        assert_eq!(total_content, 0);
+    }
+
+    #[test]
+    fn render_table_with_narrow_width_no_panic() {
+        let table = make_table(3, 2);
+        let config = ColumnWidthConfig::default()
+            .max_table_width(5)
+            .cell_padding(1)
+            .border_width(1);
+        let _col_widths = calculate_column_widths(&table, &config);
+        // Render the full table — should not panic
+        let render_config = TableRenderConfig::default();
+        let rendered = render_table(&table, &render_config);
+        assert!(!rendered.is_empty());
+    }
+
+    #[test]
+    fn render_data_row_zero_width_columns() {
+        let cells = vec![
+            TableCell::new("Hello", Alignment::Left),
+            TableCell::new("World", Alignment::Left),
+        ];
+        let widths = vec![0, 0];
+        // Should not panic; cells will just show full content (pad_content returns as-is)
+        let row = render_data_row(&cells, &widths, &ROUNDED_BORDER, 1);
+        assert!(!row.is_empty());
+    }
+
+    #[test]
+    fn truncate_content_width_zero() {
+        assert_eq!(truncate_content("Hello", 0), "");
+    }
+
+    #[test]
+    fn truncate_content_width_one() {
+        // Width 1 means ellipsis only (since ellipsis is 1 unit)
+        let result = truncate_content("Hello", 1);
+        assert_eq!(result, "…");
+    }
+
+    #[test]
+    fn pad_content_width_zero() {
+        // Width 0: content_width >= width, returns content as-is
+        let result = pad_content("Hi", 0, Alignment::Left);
+        assert_eq!(result, "Hi");
+    }
+
+    #[test]
+    fn horizontal_border_zero_width_columns() {
+        let widths = vec![0, 0, 0];
+        let result = render_horizontal_border(&widths, &ROUNDED_BORDER, BorderPosition::Top, 1);
+        // Should not panic; renders border structure with just padding
+        assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn config_min_width_zero() {
+        let table = make_table(3, 1);
+        let config = ColumnWidthConfig::default()
+            .min_width(0)
+            .max_table_width(50);
+        let widths = calculate_column_widths(&table, &config);
+        assert_eq!(widths.widths.len(), 3);
+        // All should work without panic
+        assert!(widths.total_width > 0);
+    }
+
+    #[test]
+    fn config_all_zeros() {
+        let table = make_table(2, 1);
+        let config = ColumnWidthConfig::default()
+            .min_width(0)
+            .max_table_width(0) // no limit
+            .cell_padding(0)
+            .border_width(0);
+        let widths = calculate_column_widths(&table, &config);
+        assert_eq!(widths.widths.len(), 2);
+        // No padding, no borders, just content
+        let total_content: usize = widths.widths.iter().sum();
+        assert_eq!(widths.total_width, total_content);
+    }
+
+    #[test]
+    fn tight_width_total_stays_within_max() {
+        // Verify the fix: when available_content < min_required, total should
+        // stay within max_table_width (minus any unavoidable structural overshoot)
+        let table = make_table(3, 1);
+        let max = 20;
+        let config = ColumnWidthConfig::default()
+            .max_table_width(max)
+            .cell_padding(1)
+            .border_width(1);
+        let widths = calculate_column_widths(&table, &config);
+        // total_width should be at most max_table_width
+        assert!(
+            widths.total_width <= max,
+            "total_width {} exceeds max {}",
+            widths.total_width,
+            max
+        );
+    }
+
+    #[test]
+    fn extreme_overhead_total_stays_within_max() {
+        // max_table_width < overhead; total_width should still be based on
+        // actual column widths (which will be 0), so it equals just overhead.
+        let table = make_table(3, 1);
+        let config = ColumnWidthConfig::default()
+            .max_table_width(5)
+            .cell_padding(1)
+            .border_width(1);
+        let widths = calculate_column_widths(&table, &config);
+        // overhead = 10, columns = 0 each, so total = 10.
+        // This still exceeds 5, but there's nothing we can do about structural
+        // overhead. The key point is columns don't inflate the total further.
+        let total_content: usize = widths.widths.iter().sum();
+        assert_eq!(total_content, 0);
+        // total_width = overhead + 0 content
+        let expected_overhead = 3 * 2 + 4; // 10
+        assert_eq!(widths.total_width, expected_overhead);
+    }
+
+    // === Edge Case Tests for bd-15ip ===
+
+    #[test]
+    fn fit_content_truncates_wide_content() {
+        let result = fit_content("Hello, World!", 5, Alignment::Left);
+        assert_eq!(result, "Hell…");
+        assert!(measure_width(&result) <= 5);
+    }
+
+    #[test]
+    fn fit_content_pads_narrow_content() {
+        let result = fit_content("Hi", 6, Alignment::Left);
+        assert_eq!(result, "Hi    ");
+        assert_eq!(measure_width(&result), 6);
+    }
+
+    #[test]
+    fn fit_content_exact_width() {
+        let result = fit_content("Hello", 5, Alignment::Left);
+        assert_eq!(result, "Hello");
+    }
+
+    #[test]
+    fn fit_content_zero_width() {
+        let result = fit_content("Hello", 0, Alignment::Left);
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn fit_content_one_width_truncates_to_ellipsis() {
+        let result = fit_content("Hello", 1, Alignment::Left);
+        assert_eq!(result, "…");
+    }
+
+    #[test]
+    fn fit_content_unicode_cjk() {
+        // CJK chars are 2 units wide; "日本語" = 6 units
+        let result = fit_content("日本語", 4, Alignment::Left);
+        assert_eq!(result, "日…");
+        assert!(measure_width(&result) <= 4);
+    }
+
+    #[test]
+    fn render_cell_truncates_overflow() {
+        // Column width 3, content "Hello" (5 wide)
+        let cell = TableCell::new("Hello", Alignment::Left);
+        let rendered = render_cell(&cell, 3, 1);
+        // Should be: margin + "He…" + margin = " He… "
+        assert_eq!(rendered, " He… ");
+    }
+
+    #[test]
+    fn render_data_row_truncates_in_narrow_columns() {
+        let cells = vec![
+            TableCell::new("LongContent", Alignment::Left),
+            TableCell::new("Also Long", Alignment::Left),
+        ];
+        let widths = vec![4, 4];
+        let row = render_data_row(&cells, &widths, &ROUNDED_BORDER, 1);
+        // Content should be truncated to fit 4-width columns
+        assert!(row.contains("Lon…"));
+        assert!(row.contains("Als…"));
+    }
+
+    #[test]
+    fn render_table_extreme_narrow_no_panic() {
+        let table = make_table(5, 3);
+        // max_table_width=1 is smaller than any possible overhead
+        let config = ColumnWidthConfig::default()
+            .max_table_width(1)
+            .cell_padding(1)
+            .border_width(1);
+        let widths = calculate_column_widths(&table, &config);
+        // All columns should be 0 (overhead alone > 1)
+        assert!(widths.widths.iter().all(|&w| w == 0));
+
+        // Full render should not panic
+        let render_config = TableRenderConfig::default();
+        let rendered = render_table(&table, &render_config);
+        assert!(!rendered.is_empty());
+    }
+
+    #[test]
+    fn render_table_max_width_zero_no_limit() {
+        let table = make_table(2, 1);
+        let config = ColumnWidthConfig::default().max_table_width(0); // 0 = no limit
+        let widths = calculate_column_widths(&table, &config);
+        // Should use natural content widths
+        assert!(widths.widths.iter().all(|&w| w >= 3));
+    }
+
+    #[test]
+    fn render_single_column_narrow_truncates() {
+        let header = vec![TableCell::new("Name", Alignment::Left)];
+        let row = vec![TableCell::new(
+            "VeryLongNameThatShouldBeTruncated",
+            Alignment::Left,
+        )];
+
+        // Use constrained widths: column width 6
+        let widths = vec![6];
+        let header_rendered = render_data_row(&header, &widths, &ROUNDED_BORDER, 1);
+        let row_rendered = render_data_row(&row, &widths, &ROUNDED_BORDER, 1);
+
+        // "Name" (4 wide) fits in 6 — should be padded
+        assert!(header_rendered.contains("Name"));
+        // "VeryLongNameThatShouldBeTruncated" should be truncated to 6 chars
+        assert!(!row_rendered.contains("VeryLongNameThatShouldBeTruncated"));
+        assert!(row_rendered.contains("…"));
+    }
+
+    #[test]
+    fn many_columns_extreme_narrow_no_panic() {
+        let table = make_table(20, 2);
+        let config = ColumnWidthConfig::default()
+            .max_table_width(10)
+            .cell_padding(0)
+            .border_width(0);
+        let widths = calculate_column_widths(&table, &config);
+        assert_eq!(widths.widths.len(), 20);
+        // Available = 10, per_column = 10/20 = 0, extra = 10
+        // First 10 columns get 1, rest get 0
+        let nonzero: usize = widths.widths.iter().filter(|&&w| w > 0).count();
+        assert_eq!(nonzero, 10);
+        let zero: usize = widths.widths.iter().filter(|&&w| w == 0).count();
+        assert_eq!(zero, 10);
+    }
+
+    #[test]
+    fn render_minimal_row_truncates_overflow() {
+        let cells = vec![
+            TableCell::new("Hello", Alignment::Left),
+            TableCell::new("World", Alignment::Left),
+        ];
+        let widths = vec![3, 3];
+        let row = render_minimal_row(&cells, &widths, &MINIMAL_BORDER, 1);
+        assert!(row.contains("He…"));
+        assert!(row.contains("Wo…"));
+    }
+
+    #[test]
+    fn render_header_row_truncates_overflow() {
+        let cells = vec![TableCell::new("LongHeader", Alignment::Left)];
+        let widths = vec![4];
+        let row = render_header_row(&cells, &widths, &ROUNDED_BORDER, 1, None);
+        // "LongHeader" (10 wide) in 4-wide column should truncate to "Lon…"
+        assert!(row.contains("Lon…"));
+    }
+
+    #[test]
+    fn max_table_width_equals_overhead_exactly() {
+        let table = make_table(2, 1);
+        // overhead = 2*2*1 + 3*1 = 7 for 2 columns, padding=1, border=1
+        let config = ColumnWidthConfig::default()
+            .max_table_width(7)
+            .cell_padding(1)
+            .border_width(1);
+        let widths = calculate_column_widths(&table, &config);
+        // available_content = 7 - 7 = 0, all columns 0
+        assert!(widths.widths.iter().all(|&w| w == 0));
+        assert_eq!(widths.total_width, 7);
+    }
+
+    #[test]
+    fn max_table_width_one_more_than_overhead() {
+        let table = make_table(2, 1);
+        // overhead = 7 for 2 columns, padding=1, border=1
+        let config = ColumnWidthConfig::default()
+            .max_table_width(8)
+            .cell_padding(1)
+            .border_width(1);
+        let widths = calculate_column_widths(&table, &config);
+        // available_content = 1, per_column = 0, extra = 1
+        // First column gets 1, second gets 0
+        assert_eq!(widths.widths[0], 1);
+        assert_eq!(widths.widths[1], 0);
     }
 }

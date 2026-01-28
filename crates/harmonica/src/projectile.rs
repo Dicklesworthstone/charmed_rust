@@ -593,12 +593,7 @@ mod tests {
 
     #[test]
     fn test_projectile_setters() {
-        let mut p = Projectile::new(
-            fps(60),
-            Point::origin(),
-            Vector::zero(),
-            Vector::zero(),
-        );
+        let mut p = Projectile::new(fps(60), Point::origin(), Vector::zero(), Vector::zero());
 
         p.set_position(Point::new(10.0, 20.0, 30.0));
         assert_eq!(p.position(), Point::new(10.0, 20.0, 30.0));
@@ -761,12 +756,7 @@ mod tests {
     #[test]
     fn test_gravity_acceleration() {
         let dt = fps(60);
-        let mut p = Projectile::new(
-            dt,
-            Point::new(0.0, 100.0, 0.0),
-            Vector::zero(),
-            GRAVITY,
-        );
+        let mut p = Projectile::new(dt, Point::new(0.0, 100.0, 0.0), Vector::zero(), GRAVITY);
 
         // After 1 second, velocity should be -9.81 m/s
         for _ in 0..60 {
@@ -782,6 +772,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn test_terminal_gravity_direction() {
         // Terminal gravity points in positive y (down in terminal coords)
         assert!(TERMINAL_GRAVITY.y > 0.0);
@@ -790,6 +781,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn test_standard_gravity_direction() {
         // Standard gravity points in negative y (down in traditional coords)
         assert!(GRAVITY.y < 0.0);

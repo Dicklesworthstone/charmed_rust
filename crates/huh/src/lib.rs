@@ -1640,7 +1640,6 @@ pub struct Select<T: Clone + PartialEq + Send + Sync + 'static> {
     theme: Option<Theme>,
     keymap: SelectKeyMap,
     _position: FieldPosition,
-    #[allow(dead_code)]
     filtering: bool,
     filter_value: String,
     offset: usize,
@@ -1726,6 +1725,73 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Select<T> {
         self
     }
 
+    /// Enables or disables type-to-filter support.
+    ///
+    /// When filtering is enabled, typing characters will filter the visible
+    /// options. Navigation keys (j/k/g/G) still work for movement.
+    /// Press Escape to clear the filter, Backspace to delete the last character.
+    pub fn filterable(mut self, enabled: bool) -> Self {
+        self.filtering = enabled;
+        self
+    }
+
+    /// Updates the filter value and adjusts the selection to stay on the same
+    /// item when possible, or clamps to valid bounds if the current item is
+    /// filtered out.
+    fn update_filter(&mut self, new_value: String) {
+        // Remember what item `selected` is currently pointing to (original index)
+        let current_item_idx = self.selected;
+
+        // Update the filter
+        self.filter_value = new_value;
+
+        // Collect filtered indices into owned vec to avoid borrow conflicts
+        let filtered_indices: Vec<usize> = self.filtered_indices();
+
+        // Try to keep selection on the same original item
+        if filtered_indices.contains(&current_item_idx) {
+            // Item still visible — keep selection
+            self.adjust_offset_from_indices(&filtered_indices);
+            return;
+        }
+
+        // Item no longer visible — select the first filtered item (or keep 0)
+        if let Some(&first_idx) = filtered_indices.first() {
+            self.selected = first_idx;
+        }
+        self.adjust_offset_from_indices(&filtered_indices);
+    }
+
+    /// Returns just the original indices of filtered options (owned data,
+    /// no borrows on self).
+    fn filtered_indices(&self) -> Vec<usize> {
+        if self.filter_value.is_empty() {
+            (0..self.options.len()).collect()
+        } else {
+            let filter_lower = self.filter_value.to_lowercase();
+            self.options
+                .iter()
+                .enumerate()
+                .filter(|(_, o)| o.key.to_lowercase().contains(&filter_lower))
+                .map(|(i, _)| i)
+                .collect()
+        }
+    }
+
+    /// Adjusts the scroll offset to keep the current selection visible
+    /// within the filtered view.
+    fn adjust_offset_from_indices(&mut self, filtered_indices: &[usize]) {
+        let pos = filtered_indices
+            .iter()
+            .position(|&idx| idx == self.selected)
+            .unwrap_or(0);
+        if pos < self.offset {
+            self.offset = pos;
+        } else if pos >= self.offset + self.height {
+            self.offset = pos.saturating_sub(self.height - 1);
+        }
+    }
+
     fn get_theme(&self) -> Theme {
         self.theme.clone().unwrap_or_else(theme_charm)
     }
@@ -1800,6 +1866,44 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for Select<T>
         if let Some(key_msg) = msg.downcast_ref::<KeyMsg>() {
             self.error = None;
 
+            // Handle filter input when filtering is enabled
+            if self.filtering {
+                // Clear filter on Escape
+                if key_msg.key_type == KeyType::Esc {
+                    self.update_filter(String::new());
+                    return None;
+                }
+
+                // Remove character on Backspace
+                if key_msg.key_type == KeyType::Backspace {
+                    if !self.filter_value.is_empty() {
+                        let mut new_filter = self.filter_value.clone();
+                        new_filter.pop();
+                        self.update_filter(new_filter);
+                    }
+                    return None;
+                }
+
+                // Add characters to filter (skip navigation keys)
+                if key_msg.key_type == KeyType::Runes {
+                    let mut new_filter = self.filter_value.clone();
+                    for c in &key_msg.runes {
+                        // Skip navigation/action keys so they still work
+                        match c {
+                            'j' | 'k' | 'g' | 'G' | '/' => continue,
+                            _ => {}
+                        }
+                        if c.is_alphanumeric() || c.is_whitespace() || c.is_ascii_punctuation() {
+                            new_filter.push(*c);
+                        }
+                    }
+                    if new_filter != self.filter_value {
+                        self.update_filter(new_filter);
+                        return None;
+                    }
+                }
+            }
+
             // Check for prev
             if binding_matches(&self.keymap.prev, key_msg) {
                 return Some(Cmd::new(|| Message::new(PrevFieldMsg)));
@@ -1816,27 +1920,38 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for Select<T>
                 return Some(Cmd::new(|| Message::new(NextFieldMsg)));
             }
 
-            // Navigation
+            // Navigation operates on the filtered list.
+            // Collect indices into owned vec to avoid borrow conflicts.
+            let filtered_indices = self.filtered_indices();
+            let current_pos = filtered_indices
+                .iter()
+                .position(|&idx| idx == self.selected);
+
             if binding_matches(&self.keymap.up, key_msg) {
-                if self.selected > 0 {
-                    self.selected -= 1;
-                    if self.selected < self.offset {
-                        self.offset = self.selected;
+                if let Some(pos) = current_pos {
+                    if pos > 0 {
+                        self.selected = filtered_indices[pos - 1];
+                        self.adjust_offset_from_indices(&filtered_indices);
                     }
                 }
             } else if binding_matches(&self.keymap.down, key_msg) {
-                if self.selected < self.options.len().saturating_sub(1) {
-                    self.selected += 1;
-                    if self.selected >= self.offset + self.height {
-                        self.offset = self.selected.saturating_sub(self.height - 1);
+                if let Some(pos) = current_pos {
+                    if pos < filtered_indices.len().saturating_sub(1) {
+                        self.selected = filtered_indices[pos + 1];
+                        self.adjust_offset_from_indices(&filtered_indices);
                     }
                 }
             } else if binding_matches(&self.keymap.goto_top, key_msg) {
-                self.selected = 0;
-                self.offset = 0;
+                if let Some(&idx) = filtered_indices.first() {
+                    self.selected = idx;
+                    self.offset = 0;
+                }
             } else if binding_matches(&self.keymap.goto_bottom, key_msg) {
-                self.selected = self.options.len().saturating_sub(1);
-                self.offset = self.selected.saturating_sub(self.height - 1);
+                if let Some(&idx) = filtered_indices.last() {
+                    self.selected = idx;
+                    let last_pos = filtered_indices.len().saturating_sub(1);
+                    self.offset = last_pos.saturating_sub(self.height - 1);
+                }
             }
         }
 
@@ -1856,6 +1971,13 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for Select<T>
         // Description
         if !self.description.is_empty() {
             output.push_str(&styles.description.render(&self.description));
+            output.push('\n');
+        }
+
+        // Filter input (if filtering is enabled and filter is active)
+        if self.filtering && !self.filter_value.is_empty() {
+            let filter_display = format!("Filter: {}_", self.filter_value);
+            output.push_str(&styles.description.render(&filter_display));
             output.push('\n');
         }
 
@@ -1886,7 +2008,7 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for Select<T>
         } else {
             // Vertical list mode
             let has_visible = !visible.is_empty();
-            for (idx, opt) in visible {
+            for (idx, opt) in &visible {
                 if *idx == self.selected {
                     output.push_str(&styles.select_selector.render(""));
                     output.push_str(&styles.selected_option.render(&opt.key));
@@ -1980,7 +2102,6 @@ pub struct MultiSelect<T: Clone + PartialEq + Send + Sync + 'static> {
     theme: Option<Theme>,
     keymap: MultiSelectKeyMap,
     _position: FieldPosition,
-    #[allow(dead_code)]
     filtering: bool,
     filter_value: String,
     offset: usize,
@@ -6259,5 +6380,158 @@ mod tests {
         assert_eq!(FilePicker::format_size(1024), "1.0K");
         assert_eq!(FilePicker::format_size(1024 * 1024), "1.0M");
         assert_eq!(FilePicker::format_size(1024 * 1024 * 1024), "1.0G");
+    }
+
+    // ---- Select filter tests ----
+
+    fn make_select_options() -> Vec<SelectOption<String>> {
+        vec![
+            SelectOption::new("Apple", "apple".to_string()),
+            SelectOption::new("Apricot", "apricot".to_string()),
+            SelectOption::new("Banana", "banana".to_string()),
+            SelectOption::new("Cherry", "cherry".to_string()),
+            SelectOption::new("Date", "date".to_string()),
+        ]
+    }
+
+    fn make_filterable_select() -> Select<String> {
+        Select::new()
+            .options(make_select_options())
+            .filterable(true)
+            .height_options(3)
+    }
+
+    #[test]
+    fn select_filterable_builder() {
+        let sel = Select::<String>::new().filterable(true);
+        assert!(sel.filtering);
+        let sel = Select::<String>::new().filterable(false);
+        assert!(!sel.filtering);
+    }
+
+    #[test]
+    fn select_filtered_indices_no_filter() {
+        let sel = make_filterable_select();
+        assert_eq!(sel.filtered_indices(), vec![0, 1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn select_filtered_indices_with_filter() {
+        let mut sel = make_filterable_select();
+        sel.filter_value = "ap".to_string();
+        // "Apple" and "Apricot" match "ap"
+        assert_eq!(sel.filtered_indices(), vec![0, 1]);
+    }
+
+    #[test]
+    fn select_filtered_indices_case_insensitive() {
+        let mut sel = make_filterable_select();
+        sel.filter_value = "AP".to_string();
+        assert_eq!(sel.filtered_indices(), vec![0, 1]);
+    }
+
+    #[test]
+    fn select_filtered_indices_no_match() {
+        let mut sel = make_filterable_select();
+        sel.filter_value = "zzz".to_string();
+        assert!(sel.filtered_indices().is_empty());
+    }
+
+    #[test]
+    fn select_update_filter_keeps_selection() {
+        let mut sel = make_filterable_select();
+        sel.selected = 2; // Banana
+        sel.update_filter("an".to_string());
+        // "Banana" contains "an" — should still be selected
+        assert_eq!(sel.selected, 2);
+        assert_eq!(sel.filter_value, "an");
+    }
+
+    #[test]
+    fn select_update_filter_clamps_when_item_hidden() {
+        let mut sel = make_filterable_select();
+        sel.selected = 2; // Banana
+        sel.update_filter("ch".to_string());
+        // Only "Cherry" matches "ch" — Banana hidden
+        // selected should move to Cherry (index 3)
+        assert_eq!(sel.selected, 3);
+    }
+
+    #[test]
+    fn select_update_filter_clear_restores() {
+        let mut sel = make_filterable_select();
+        sel.update_filter("ap".to_string());
+        assert_eq!(sel.filtered_indices(), vec![0, 1]);
+        sel.update_filter(String::new());
+        assert_eq!(sel.filtered_indices(), vec![0, 1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn select_filter_display_in_view() {
+        let mut sel = make_filterable_select();
+        sel.focused = true;
+        sel.filter_value = "ap".to_string();
+        let view = sel.view();
+        assert!(view.contains("Filter: ap_"));
+    }
+
+    #[test]
+    fn select_filter_not_displayed_when_empty() {
+        let mut sel = make_filterable_select();
+        sel.focused = true;
+        let view = sel.view();
+        assert!(!view.contains("Filter:"));
+    }
+
+    #[test]
+    fn select_filter_not_displayed_when_disabled() {
+        let mut sel = Select::new()
+            .options(make_select_options())
+            .height_options(3);
+        sel.focused = true;
+        sel.filter_value = "ap".to_string();
+        let view = sel.view();
+        assert!(!view.contains("Filter:"));
+    }
+
+    #[test]
+    fn select_navigation_respects_filter() {
+        let mut sel = make_filterable_select();
+        sel.focused = true;
+        sel.update_filter("a".to_string());
+        // Matches: Apple(0), Apricot(1), Banana(2), Date(4)
+        let indices = sel.filtered_indices();
+        assert_eq!(indices, vec![0, 1, 2, 4]);
+
+        // selected should be 0 (Apple)
+        sel.selected = 0;
+
+        // Create a "down" key message
+        let down_msg = Message::new(KeyMsg {
+            key_type: KeyType::Down,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        sel.update(&down_msg);
+        // Should move to next in filtered list: Apricot (1)
+        assert_eq!(sel.selected, 1);
+
+        sel.update(&down_msg);
+        // Should move to Banana (2)
+        assert_eq!(sel.selected, 2);
+
+        sel.update(&down_msg);
+        // Should move to Date (4), skipping Cherry (3) which doesn't match
+        assert_eq!(sel.selected, 4);
+    }
+
+    #[test]
+    fn select_get_selected_value_with_filter() {
+        let mut sel = make_filterable_select();
+        sel.update_filter("ch".to_string());
+        // Only Cherry matches, selected should be 3
+        assert_eq!(sel.selected, 3);
+        assert_eq!(sel.get_selected_value(), Some(&"cherry".to_string()));
     }
 }

@@ -20,6 +20,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"
 tokio-util = { version = "0.7", features = ["rt"], optional = true }
 futures = { version = "0.3", optional = true }
 
+# Thread pool for batch commands (optional)
+rayon = { workspace = true, optional = true }
+
 # Optional: derive macros for Model trait
 bubbletea-macros = { path = "../bubbletea-macros", optional = true }
 
@@ -27,6 +30,7 @@ bubbletea-macros = { path = "../bubbletea-macros", optional = true }
 default = ["macros"]
 macros = ["dep:bubbletea-macros"]
 async = ["dep:tokio", "dep:tokio-util", "dep:futures"]
+thread-pool = ["dep:rayon"]
 
 [dev-dependencies]
 criterion.workspace = true

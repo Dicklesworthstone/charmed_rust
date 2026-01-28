@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 62ae42fc880721952d9ebe5b9095310941f8ef42360caf7df92512e61048974c # shrinks to angular_freq = 0.5, damping = 0.1, initial_pos = 0.0, target = 941.3509003289552

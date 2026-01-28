@@ -338,6 +338,7 @@ dependencies = [
  "lipgloss",
  "parking_lot",
  "proptest",
+ "rayon",
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",
@@ -1383,10 +1384,12 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "lipgloss",
+ "proptest",
  "pulldown-cmark",
  "serde",
  "stats_alloc",
  "syntect",
+ "tracing",
  "unicode-width 0.1.14",
 ]
 

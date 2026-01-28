@@ -483,11 +483,81 @@ impl SyntaxThemeConfig {
         self
     }
 
-    /// Validates that the configured theme exists.
+    /// Adds a validated custom language alias.
+    ///
+    /// Unlike [`language_alias`](Self::language_alias), this method validates that:
+    /// - The target language is recognized by the syntax highlighter
+    /// - Adding this alias would not create a cycle in the alias chain
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the target language is unrecognized or if
+    /// the alias would create a cycle.
+    pub fn try_language_alias(
+        mut self,
+        alias: impl Into<String>,
+        language: impl Into<String>,
+    ) -> Result<Self, String> {
+        let alias = alias.into();
+        let language = language.into();
+
+        // Self-alias is always a cycle.
+        if alias == language {
+            return Err(format!(
+                "Alias '{}' -> '{}' would create a cycle (self-referential).",
+                alias, language
+            ));
+        }
+
+        // Check target language is recognized (either directly or through
+        // the built-in alias table in LanguageDetector).
+        let detector = crate::syntax::LanguageDetector::new();
+        if !detector.is_supported(&language) {
+            return Err(format!(
+                "Unknown target language '{}'. The language must be recognized by the syntax highlighter.",
+                language
+            ));
+        }
+
+        // Check for alias cycles: walk the alias chain from `language` and
+        // ensure we never revisit `alias`.
+        if self.would_create_cycle(&alias, &language) {
+            return Err(format!(
+                "Alias '{}' -> '{}' would create a cycle in the alias chain.",
+                alias, language
+            ));
+        }
+
+        self.language_aliases.insert(alias, language);
+        Ok(self)
+    }
+
+    /// Returns true if adding `alias -> target` would create a cycle.
+    fn would_create_cycle(&self, alias: &str, target: &str) -> bool {
+        let mut visited = HashSet::new();
+        visited.insert(alias);
+
+        let mut current = target;
+        while let Some(next) = self.language_aliases.get(current) {
+            if !visited.insert(next.as_str()) {
+                return true;
+            }
+            current = next;
+        }
+        false
+    }
+
+    /// Validates that the configured theme and language aliases are valid.
+    ///
+    /// Checks:
+    /// - Theme exists in the available theme set
+    /// - All alias target languages are recognized
+    /// - No cycles exist in the alias chain
     ///
     /// # Returns
     ///
-    /// `Ok(())` if the theme exists, or an error message if not.
+    /// `Ok(())` if the configuration is valid, or an error message describing
+    /// the first problem found.
     pub fn validate(&self) -> Result<(), String> {
         use crate::syntax::SyntaxTheme;
 
@@ -498,6 +568,34 @@ impl SyntaxThemeConfig {
                 self.theme_name, available
             ));
         }
+
+        // Validate alias targets
+        let detector = crate::syntax::LanguageDetector::new();
+        for (alias, target) in &self.language_aliases {
+            if !detector.is_supported(target) {
+                return Err(format!(
+                    "Language alias '{}' points to unrecognized language '{}'.",
+                    alias, target
+                ));
+            }
+        }
+
+        // Check for cycles in the alias chain
+        for alias in self.language_aliases.keys() {
+            let mut visited = HashSet::new();
+            visited.insert(alias.as_str());
+            let mut current = alias.as_str();
+            while let Some(next) = self.language_aliases.get(current) {
+                if !visited.insert(next.as_str()) {
+                    return Err(format!(
+                        "Alias chain starting at '{}' contains a cycle.",
+                        alias
+                    ));
+                }
+                current = next;
+            }
+        }
+
         Ok(())
     }
 
@@ -627,6 +725,30 @@ impl StyleConfig {
             .language_aliases
             .insert(alias.into(), language.into());
         self
+    }
+
+    /// Adds a validated custom language alias.
+    ///
+    /// Unlike [`language_alias`](Self::language_alias), this validates that the
+    /// target language is recognized and that no alias cycle is created.
+    ///
+    /// This method is only available when the `syntax-highlighting` feature is enabled.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if the target language is unrecognized or if
+    /// the alias would create a cycle.
+    #[cfg(feature = "syntax-highlighting")]
+    pub fn try_language_alias(
+        self,
+        alias: impl Into<String>,
+        language: impl Into<String>,
+    ) -> Result<Self, String> {
+        let syntax_config = self.syntax_config.try_language_alias(alias, language)?;
+        Ok(Self {
+            syntax_config,
+            ..self
+        })
     }
 
     /// Disables syntax highlighting for a specific language.
@@ -2671,6 +2793,148 @@ mod tests {
                 config.language_aliases.get("myrs"),
                 Some(&"rust".to_string())
             );
+        }
+
+        // ====================================================================
+        // Language alias validation (bd-1ywx)
+        // ====================================================================
+
+        #[test]
+        fn try_alias_valid_language_succeeds() {
+            let config = SyntaxThemeConfig::new()
+                .try_language_alias("rs", "rust")
+                .unwrap();
+            assert_eq!(config.resolve_language("rs"), "rust");
+        }
+
+        #[test]
+        fn try_alias_invalid_language_fails() {
+            let result = SyntaxThemeConfig::new().try_language_alias("foo", "nonexistent-lang-xyz");
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(err.contains("Unknown target language"));
+            assert!(err.contains("nonexistent-lang-xyz"));
+        }
+
+        #[test]
+        fn try_alias_direct_cycle_detected() {
+            // py3 -> python, then python -> py3 would create a cycle.
+            // Both "python" and "py3" are recognized by the built-in detector.
+            let config = SyntaxThemeConfig::new()
+                .try_language_alias("py3", "python")
+                .unwrap();
+            let result = config.try_language_alias("python", "py3");
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(err.contains("cycle"));
+        }
+
+        #[test]
+        fn try_alias_indirect_cycle_detected() {
+            // py3 -> python, python -> rs, then rs -> py3 creates a cycle.
+            // All targets are recognized by the built-in detector.
+            let config = SyntaxThemeConfig::new()
+                .try_language_alias("py3", "python")
+                .unwrap()
+                .try_language_alias("python", "rs")
+                .unwrap();
+            let result = config.try_language_alias("rs", "py3");
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(err.contains("cycle"));
+        }
+
+        #[test]
+        fn try_alias_no_false_cycle_for_chain() {
+            // a -> rust, b -> rust is fine (no cycle, just shared target)
+            let config = SyntaxThemeConfig::new()
+                .try_language_alias("a", "rust")
+                .unwrap()
+                .try_language_alias("b", "rust")
+                .unwrap();
+            assert_eq!(config.resolve_language("a"), "rust");
+            assert_eq!(config.resolve_language("b"), "rust");
+        }
+
+        #[test]
+        fn try_alias_overwrite_existing_alias() {
+            // Overwriting an alias is fine as long as the new target is valid
+            let config = SyntaxThemeConfig::new()
+                .try_language_alias("rs", "rust")
+                .unwrap()
+                .try_language_alias("rs", "python")
+                .unwrap();
+            assert_eq!(config.resolve_language("rs"), "python");
+        }
+
+        #[test]
+        fn try_alias_via_style_config_valid() {
+            let config = StyleConfig::default()
+                .try_language_alias("rs", "rust")
+                .unwrap();
+            assert_eq!(
+                config.syntax().language_aliases.get("rs"),
+                Some(&"rust".to_string())
+            );
+        }
+
+        #[test]
+        fn try_alias_via_style_config_invalid() {
+            let result = StyleConfig::default().try_language_alias("foo", "nonexistent-lang-xyz");
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn validate_catches_bad_alias_target() {
+            let mut config = SyntaxThemeConfig::new();
+            // Bypass validation by inserting directly
+            config
+                .language_aliases
+                .insert("foo".into(), "nonexistent-lang".into());
+            let result = config.validate();
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(err.contains("unrecognized language"));
+            assert!(err.contains("nonexistent-lang"));
+        }
+
+        #[test]
+        fn validate_catches_alias_cycle() {
+            let mut config = SyntaxThemeConfig::new();
+            // Bypass try_language_alias by inserting cycle directly.
+            // Use real language names so the target validation passes but
+            // the cycle check catches the loop.
+            config.language_aliases.insert("python".into(), "rs".into());
+            config.language_aliases.insert("rs".into(), "python".into());
+            let result = config.validate();
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(err.contains("cycle"));
+        }
+
+        #[test]
+        fn validate_accepts_good_config() {
+            let config = SyntaxThemeConfig::new()
+                .try_language_alias("rs", "rust")
+                .unwrap()
+                .try_language_alias("py3", "python")
+                .unwrap();
+            assert!(config.validate().is_ok());
+        }
+
+        #[test]
+        fn unchecked_alias_still_works() {
+            // The original language_alias() should still work without validation
+            let config = SyntaxThemeConfig::new().language_alias("foo", "nonexistent");
+            assert_eq!(config.resolve_language("foo"), "nonexistent");
+        }
+
+        #[test]
+        fn self_alias_is_cycle() {
+            let result = SyntaxThemeConfig::new().try_language_alias("rust", "rust");
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(err.contains("cycle"));
         }
     }
 }

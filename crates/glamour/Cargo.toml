@@ -10,6 +10,7 @@ description = "Stylesheet-based markdown rendering for terminal applications"
 [dependencies]
 lipgloss = { path = "../lipgloss" }
 pulldown-cmark = "0.13"
+tracing.workspace = true
 unicode-width = "0.1"
 
 # Optional: syntax highlighting
@@ -32,6 +33,8 @@ serde = ["dep:serde"]
 
 [dev-dependencies]
 criterion.workspace = true
+lipgloss = { path = "../lipgloss" }
+proptest.workspace = true
 stats_alloc = "0.1.10"
 
 [[bench]]
