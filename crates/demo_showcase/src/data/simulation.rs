@@ -364,7 +364,7 @@ impl Simulation {
         ];
         let message = messages[self.rng.random_range(0..messages.len())];
 
-        let entry = LogEntry::new(self.next_id(), level, target, message);
+        let entry = LogEntry::new(self.next_id(), level, target, message).with_tick(self.frame);
 
         self.log_entries.push(entry);
 
@@ -558,8 +558,7 @@ mod tests {
         // Should complete in well under 100ms (typically < 10ms)
         assert!(
             elapsed.as_millis() < 100,
-            "1000 frames took too long: {:?}",
-            elapsed
+            "1000 frames took too long: {elapsed:?}"
         );
     }
 
@@ -567,12 +566,7 @@ mod tests {
     fn jobs_progress_over_time() {
         let mut sim = Simulation::new(42, SimConfig::fast());
 
-        let initial_running: Vec<_> = sim
-            .jobs
-            .iter()
-            .filter(|j| j.status == JobStatus::Running)
-            .map(|j| j.progress)
-            .collect();
+        let has_running = sim.jobs.iter().any(|j| j.status == JobStatus::Running);
 
         // Advance many frames
         sim.tick_n(100);
@@ -581,9 +575,9 @@ mod tests {
         let final_stats = sim.job_stats();
         let initial_stats = Simulation::new(42, SimConfig::fast()).job_stats();
 
-        // Either progress increased or jobs completed
+        // Either we had running jobs, progress increased, or jobs completed
         assert!(
-            !initial_running.is_empty()
+            has_running
                 || final_stats.completed >= initial_stats.completed
                 || final_stats.running != initial_stats.running,
             "Jobs should change over time"
@@ -772,8 +766,7 @@ mod tests {
 
         assert!(
             elapsed.as_secs() < 1,
-            "10000 frames should complete in < 1s, took {:?}",
-            elapsed
+            "10000 frames should complete in < 1s, took {elapsed:?}"
         );
         assert_eq!(sim.frame(), 10000);
     }
@@ -925,9 +918,7 @@ mod tests {
         // Fast should have more changes (statistically likely)
         assert!(
             changes_fast > changes_calm,
-            "Fast config ({}) should produce more changes than calm ({})",
-            changes_fast,
-            changes_calm
+            "Fast config ({changes_fast}) should produce more changes than calm ({changes_calm})"
         );
     }
 
@@ -958,7 +949,7 @@ mod tests {
         }
 
         // All IDs should be unique
-        ids.sort();
+        ids.sort_unstable();
         let unique_count = ids.windows(2).filter(|w| w[0] != w[1]).count() + 1;
         assert_eq!(unique_count, 1000, "All generated IDs should be unique");
     }

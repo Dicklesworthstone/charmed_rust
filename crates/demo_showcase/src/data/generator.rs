@@ -522,11 +522,14 @@ impl Generator {
         LogEntry {
             id: self.next_id(),
             timestamp: self.random_time(6),
+            tick: 0, // Initial entries are tick 0 (pre-simulation)
             level,
             target: (*target).to_string(),
             message,
             fields,
             trace_id,
+            job_id: None,        // Correlation set by simulation if needed
+            deployment_id: None, // Correlation set by simulation if needed
         }
     }
 

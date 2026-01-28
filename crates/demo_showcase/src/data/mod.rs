@@ -583,22 +583,35 @@ impl LogLevel {
 }
 
 /// A structured log entry.
+///
+/// Log entries support structured fields for filtering and correlation:
+/// - `target`: The service/component that emitted the log
+/// - `job_id`: Optional correlation with a background job
+/// - `deployment_id`: Optional correlation with a deployment
+/// - `trace_id`: Optional distributed tracing span ID
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LogEntry {
     /// Unique identifier.
     pub id: Id,
     /// Timestamp of the log entry.
     pub timestamp: DateTime<Utc>,
+    /// Monotonic tick (simulation frame) when this entry was created.
+    /// Useful for ordering entries and correlating with simulation state.
+    pub tick: u64,
     /// Log level.
     pub level: LogLevel,
-    /// Target/module that emitted the log.
+    /// Target/module that emitted the log (e.g., `api::handlers`, `db::postgres`).
     pub target: String,
     /// Log message.
     pub message: String,
     /// Structured fields (key-value pairs).
     pub fields: BTreeMap<String, String>,
-    /// Optional span/trace ID.
+    /// Optional span/trace ID for distributed tracing.
     pub trace_id: Option<String>,
+    /// Optional job ID for correlation with background jobs.
+    pub job_id: Option<Id>,
+    /// Optional deployment ID for correlation with deployments.
+    pub deployment_id: Option<Id>,
 }
 
 impl LogEntry {
@@ -613,12 +626,22 @@ impl LogEntry {
         Self {
             id,
             timestamp: Utc::now(),
+            tick: 0,
             level,
             target: target.into(),
             message: message.into(),
             fields: BTreeMap::new(),
             trace_id: None,
+            job_id: None,
+            deployment_id: None,
         }
+    }
+
+    /// Create a new log entry with a specific tick (simulation frame).
+    #[must_use]
+    pub const fn with_tick(mut self, tick: u64) -> Self {
+        self.tick = tick;
+        self
     }
 
     /// Add a field to the log entry.
@@ -626,6 +649,265 @@ impl LogEntry {
     pub fn with_field(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.fields.insert(key.into(), value.into());
         self
+    }
+
+    /// Set the job ID for correlation.
+    #[must_use]
+    pub const fn with_job_id(mut self, job_id: Id) -> Self {
+        self.job_id = Some(job_id);
+        self
+    }
+
+    /// Set the deployment ID for correlation.
+    #[must_use]
+    pub const fn with_deployment_id(mut self, deployment_id: Id) -> Self {
+        self.deployment_id = Some(deployment_id);
+        self
+    }
+
+    /// Set the trace ID for distributed tracing.
+    #[must_use]
+    pub fn with_trace_id(mut self, trace_id: impl Into<String>) -> Self {
+        self.trace_id = Some(trace_id.into());
+        self
+    }
+}
+
+// ============================================================================
+// Log Stream
+// ============================================================================
+
+/// A bounded, append-only log stream with filtering capabilities.
+///
+/// The `LogStream` provides:
+/// - Efficient append-only storage with automatic trimming
+/// - Filtering by level, target, job, deployment, and text search
+/// - Iteration in chronological or reverse order
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use demo_showcase::data::{LogStream, LogEntry, LogLevel};
+///
+/// let mut stream = LogStream::new(100);
+/// stream.push(LogEntry::new(1, LogLevel::Info, "api", "Request received"));
+///
+/// // Filter by level
+/// let errors: Vec<_> = stream.filter_by_level(LogLevel::Error).collect();
+/// ```
+#[derive(Debug, Clone)]
+pub struct LogStream {
+    /// Internal storage (ring buffer behavior via truncation).
+    entries: Vec<LogEntry>,
+    /// Maximum number of entries to retain.
+    max_entries: usize,
+    /// Counter for generating entry IDs.
+    next_id: Id,
+}
+
+impl Default for LogStream {
+    fn default() -> Self {
+        Self::new(200)
+    }
+}
+
+impl LogStream {
+    /// Create a new log stream with the specified capacity.
+    #[must_use]
+    pub fn new(max_entries: usize) -> Self {
+        Self {
+            entries: Vec::with_capacity(max_entries.min(1000)),
+            max_entries,
+            next_id: 1,
+        }
+    }
+
+    /// Push a new log entry to the stream.
+    ///
+    /// If the stream exceeds `max_entries`, the oldest entries are removed.
+    pub fn push(&mut self, entry: LogEntry) {
+        self.entries.push(entry);
+        self.trim();
+    }
+
+    /// Push a new log entry, auto-assigning an ID.
+    ///
+    /// Returns the assigned ID for correlation purposes.
+    pub fn push_new(
+        &mut self,
+        level: LogLevel,
+        target: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Id {
+        let id = self.next_id;
+        self.next_id += 1;
+        let entry = LogEntry::new(id, level, target, message);
+        self.push(entry);
+        id
+    }
+
+    /// Push a log entry with tick and optional correlation IDs.
+    pub fn push_with_context(
+        &mut self,
+        tick: u64,
+        level: LogLevel,
+        target: impl Into<String>,
+        message: impl Into<String>,
+        job_id: Option<Id>,
+        deployment_id: Option<Id>,
+    ) -> Id {
+        let id = self.next_id;
+        self.next_id += 1;
+        let mut entry = LogEntry::new(id, level, target, message).with_tick(tick);
+        entry.job_id = job_id;
+        entry.deployment_id = deployment_id;
+        self.push(entry);
+        id
+    }
+
+    /// Remove oldest entries if over capacity.
+    fn trim(&mut self) {
+        while self.entries.len() > self.max_entries {
+            self.entries.remove(0);
+        }
+    }
+
+    /// Get the number of entries in the stream.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Check if the stream is empty.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Get the maximum capacity.
+    #[must_use]
+    pub const fn capacity(&self) -> usize {
+        self.max_entries
+    }
+
+    /// Set the maximum capacity.
+    ///
+    /// If the new capacity is smaller than the current size, oldest entries
+    /// are removed.
+    pub fn set_capacity(&mut self, max_entries: usize) {
+        self.max_entries = max_entries;
+        self.trim();
+    }
+
+    /// Clear all entries.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+    }
+
+    /// Get all entries (oldest first).
+    #[must_use]
+    pub fn entries(&self) -> &[LogEntry] {
+        &self.entries
+    }
+
+    /// Get all entries (newest first).
+    pub fn entries_reversed(&self) -> impl Iterator<Item = &LogEntry> {
+        self.entries.iter().rev()
+    }
+
+    /// Filter entries by minimum log level.
+    pub fn filter_by_level(&self, min_level: LogLevel) -> impl Iterator<Item = &LogEntry> {
+        self.entries.iter().filter(move |e| e.level >= min_level)
+    }
+
+    /// Filter entries by target (exact match).
+    pub fn filter_by_target<'a>(
+        &'a self,
+        target: &'a str,
+    ) -> impl Iterator<Item = &'a LogEntry> + 'a {
+        self.entries.iter().filter(move |e| e.target == target)
+    }
+
+    /// Filter entries by target prefix (e.g., `api::` matches `api::handlers`).
+    pub fn filter_by_target_prefix<'a>(
+        &'a self,
+        prefix: &'a str,
+    ) -> impl Iterator<Item = &'a LogEntry> + 'a {
+        self.entries
+            .iter()
+            .filter(move |e| e.target.starts_with(prefix))
+    }
+
+    /// Filter entries by job ID.
+    pub fn filter_by_job(&self, job_id: Id) -> impl Iterator<Item = &LogEntry> {
+        self.entries
+            .iter()
+            .filter(move |e| e.job_id == Some(job_id))
+    }
+
+    /// Filter entries by deployment ID.
+    pub fn filter_by_deployment(&self, deployment_id: Id) -> impl Iterator<Item = &LogEntry> {
+        self.entries
+            .iter()
+            .filter(move |e| e.deployment_id == Some(deployment_id))
+    }
+
+    /// Search entries by message content (case-insensitive substring match).
+    pub fn search<'a>(&'a self, query: &'a str) -> impl Iterator<Item = &'a LogEntry> + 'a {
+        let query_lower = query.to_lowercase();
+        self.entries
+            .iter()
+            .filter(move |e| e.message.to_lowercase().contains(&query_lower))
+    }
+
+    /// Get entries within a tick range (inclusive).
+    pub fn filter_by_tick_range(
+        &self,
+        start_tick: u64,
+        end_tick: u64,
+    ) -> impl Iterator<Item = &LogEntry> {
+        self.entries
+            .iter()
+            .filter(move |e| e.tick >= start_tick && e.tick <= end_tick)
+    }
+
+    /// Get the latest N entries (newest first).
+    pub fn latest(&self, n: usize) -> impl Iterator<Item = &LogEntry> {
+        self.entries.iter().rev().take(n)
+    }
+
+    /// Count entries by level.
+    #[must_use]
+    pub fn count_by_level(&self) -> LogLevelCounts {
+        let mut counts = LogLevelCounts::default();
+        for entry in &self.entries {
+            match entry.level {
+                LogLevel::Trace => counts.trace += 1,
+                LogLevel::Debug => counts.debug += 1,
+                LogLevel::Info => counts.info += 1,
+                LogLevel::Warn => counts.warn += 1,
+                LogLevel::Error => counts.error += 1,
+            }
+        }
+        counts
+    }
+}
+
+/// Counts of log entries by level.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LogLevelCounts {
+    pub trace: usize,
+    pub debug: usize,
+    pub info: usize,
+    pub warn: usize,
+    pub error: usize,
+}
+
+impl LogLevelCounts {
+    /// Total count across all levels.
+    #[must_use]
+    pub const fn total(&self) -> usize {
+        self.trace + self.debug + self.info + self.warn + self.error
     }
 }
 
@@ -711,5 +993,219 @@ mod tests {
         assert!(AlertSeverity::Info < AlertSeverity::Warning);
         assert!(AlertSeverity::Warning < AlertSeverity::Error);
         assert!(AlertSeverity::Error < AlertSeverity::Critical);
+    }
+
+    // ========================================================================
+    // LogStream tests (bd-33fe)
+    // ========================================================================
+
+    #[test]
+    fn log_stream_push_and_retrieve() {
+        let mut stream = LogStream::new(10);
+        assert!(stream.is_empty());
+
+        stream.push(LogEntry::new(1, LogLevel::Info, "api", "hello"));
+        assert_eq!(stream.len(), 1);
+        assert!(!stream.is_empty());
+
+        stream.push(LogEntry::new(2, LogLevel::Error, "db", "connection failed"));
+        assert_eq!(stream.len(), 2);
+    }
+
+    #[test]
+    fn log_stream_auto_trim() {
+        let mut stream = LogStream::new(3);
+
+        for i in 1..=5 {
+            stream.push(LogEntry::new(i, LogLevel::Info, "test", format!("msg {i}")));
+        }
+
+        // Should only keep last 3
+        assert_eq!(stream.len(), 3);
+
+        // Oldest entries should be removed
+        let entries = stream.entries();
+        assert_eq!(entries[0].id, 3);
+        assert_eq!(entries[1].id, 4);
+        assert_eq!(entries[2].id, 5);
+    }
+
+    #[test]
+    fn log_stream_filter_by_level() {
+        let mut stream = LogStream::new(100);
+        stream.push(LogEntry::new(1, LogLevel::Debug, "a", "debug"));
+        stream.push(LogEntry::new(2, LogLevel::Info, "b", "info"));
+        stream.push(LogEntry::new(3, LogLevel::Warn, "c", "warn"));
+        stream.push(LogEntry::new(4, LogLevel::Error, "d", "error"));
+
+        let errors: Vec<_> = stream.filter_by_level(LogLevel::Error).collect();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].id, 4);
+
+        let warn_and_above: Vec<_> = stream.filter_by_level(LogLevel::Warn).collect();
+        assert_eq!(warn_and_above.len(), 2);
+    }
+
+    #[test]
+    fn log_stream_filter_by_target() {
+        let mut stream = LogStream::new(100);
+        stream.push(LogEntry::new(1, LogLevel::Info, "api::handlers", "request"));
+        stream.push(LogEntry::new(2, LogLevel::Info, "api::auth", "login"));
+        stream.push(LogEntry::new(3, LogLevel::Info, "db::postgres", "query"));
+
+        // Exact match
+        let api_handlers: Vec<_> = stream.filter_by_target("api::handlers").collect();
+        assert_eq!(api_handlers.len(), 1);
+
+        // Prefix match
+        let api_all: Vec<_> = stream.filter_by_target_prefix("api::").collect();
+        assert_eq!(api_all.len(), 2);
+    }
+
+    #[test]
+    fn log_stream_filter_by_job() {
+        let mut stream = LogStream::new(100);
+        stream.push(LogEntry::new(1, LogLevel::Info, "job", "step 1").with_job_id(42));
+        stream.push(LogEntry::new(2, LogLevel::Info, "job", "step 2").with_job_id(42));
+        stream.push(LogEntry::new(3, LogLevel::Info, "job", "other").with_job_id(99));
+        stream.push(LogEntry::new(4, LogLevel::Info, "system", "no job")); // No job_id
+
+        let job_42: Vec<_> = stream.filter_by_job(42).collect();
+        assert_eq!(job_42.len(), 2);
+    }
+
+    #[test]
+    fn log_stream_filter_by_deployment() {
+        let mut stream = LogStream::new(100);
+        stream.push(LogEntry::new(1, LogLevel::Info, "deploy", "starting").with_deployment_id(100));
+        stream.push(LogEntry::new(2, LogLevel::Info, "deploy", "finished").with_deployment_id(100));
+        stream.push(LogEntry::new(3, LogLevel::Info, "system", "other"));
+
+        let deploy_100: Vec<_> = stream.filter_by_deployment(100).collect();
+        assert_eq!(deploy_100.len(), 2);
+    }
+
+    #[test]
+    fn log_stream_search() {
+        let mut stream = LogStream::new(100);
+        stream.push(LogEntry::new(1, LogLevel::Info, "a", "User logged in"));
+        stream.push(LogEntry::new(2, LogLevel::Info, "b", "Request processed"));
+        stream.push(LogEntry::new(3, LogLevel::Info, "c", "User logged out"));
+
+        let user_msgs: Vec<_> = stream.search("user").collect();
+        assert_eq!(user_msgs.len(), 2);
+
+        // Case insensitive
+        let user_msgs_upper: Vec<_> = stream.search("USER").collect();
+        assert_eq!(user_msgs_upper.len(), 2);
+    }
+
+    #[test]
+    fn log_stream_filter_by_tick_range() {
+        let mut stream = LogStream::new(100);
+        stream.push(LogEntry::new(1, LogLevel::Info, "a", "msg").with_tick(10));
+        stream.push(LogEntry::new(2, LogLevel::Info, "b", "msg").with_tick(20));
+        stream.push(LogEntry::new(3, LogLevel::Info, "c", "msg").with_tick(30));
+        stream.push(LogEntry::new(4, LogLevel::Info, "d", "msg").with_tick(40));
+
+        let range: Vec<_> = stream.filter_by_tick_range(15, 35).collect();
+        assert_eq!(range.len(), 2);
+        assert_eq!(range[0].tick, 20);
+        assert_eq!(range[1].tick, 30);
+    }
+
+    #[test]
+    fn log_stream_latest() {
+        let mut stream = LogStream::new(100);
+        for i in 1..=10 {
+            stream.push(LogEntry::new(i, LogLevel::Info, "test", format!("msg {i}")));
+        }
+
+        let latest: Vec<_> = stream.latest(3).collect();
+        assert_eq!(latest.len(), 3);
+        // Newest first
+        assert_eq!(latest[0].id, 10);
+        assert_eq!(latest[1].id, 9);
+        assert_eq!(latest[2].id, 8);
+    }
+
+    #[test]
+    fn log_stream_count_by_level() {
+        let mut stream = LogStream::new(100);
+        stream.push(LogEntry::new(1, LogLevel::Debug, "a", ""));
+        stream.push(LogEntry::new(2, LogLevel::Info, "b", ""));
+        stream.push(LogEntry::new(3, LogLevel::Info, "c", ""));
+        stream.push(LogEntry::new(4, LogLevel::Warn, "d", ""));
+        stream.push(LogEntry::new(5, LogLevel::Error, "e", ""));
+        stream.push(LogEntry::new(6, LogLevel::Error, "f", ""));
+
+        let counts = stream.count_by_level();
+        assert_eq!(counts.debug, 1);
+        assert_eq!(counts.info, 2);
+        assert_eq!(counts.warn, 1);
+        assert_eq!(counts.error, 2);
+        assert_eq!(counts.total(), 6);
+    }
+
+    #[test]
+    fn log_stream_push_new() {
+        let mut stream = LogStream::new(100);
+        let id1 = stream.push_new(LogLevel::Info, "test", "first");
+        let id2 = stream.push_new(LogLevel::Warn, "test", "second");
+
+        assert_eq!(id1, 1);
+        assert_eq!(id2, 2);
+        assert_eq!(stream.len(), 2);
+    }
+
+    #[test]
+    fn log_stream_push_with_context() {
+        let mut stream = LogStream::new(100);
+        let id = stream.push_with_context(42, LogLevel::Info, "job", "running", Some(100), None);
+
+        let entry = &stream.entries()[0];
+        assert_eq!(entry.id, id);
+        assert_eq!(entry.tick, 42);
+        assert_eq!(entry.job_id, Some(100));
+        assert_eq!(entry.deployment_id, None);
+    }
+
+    #[test]
+    fn log_stream_clear() {
+        let mut stream = LogStream::new(100);
+        stream.push(LogEntry::new(1, LogLevel::Info, "test", "msg"));
+        assert!(!stream.is_empty());
+
+        stream.clear();
+        assert!(stream.is_empty());
+    }
+
+    #[test]
+    fn log_stream_set_capacity() {
+        let mut stream = LogStream::new(10);
+        for i in 1..=10 {
+            stream.push(LogEntry::new(i, LogLevel::Info, "test", "msg"));
+        }
+        assert_eq!(stream.len(), 10);
+
+        stream.set_capacity(5);
+        assert_eq!(stream.len(), 5);
+        assert_eq!(stream.capacity(), 5);
+    }
+
+    #[test]
+    fn log_entry_correlation_chaining() {
+        let entry = LogEntry::new(1, LogLevel::Info, "test", "msg")
+            .with_tick(100)
+            .with_job_id(42)
+            .with_deployment_id(99)
+            .with_trace_id("abc123")
+            .with_field("key", "value");
+
+        assert_eq!(entry.tick, 100);
+        assert_eq!(entry.job_id, Some(42));
+        assert_eq!(entry.deployment_id, Some(99));
+        assert_eq!(entry.trace_id, Some("abc123".to_string()));
+        assert_eq!(entry.fields.get("key"), Some(&"value".to_string()));
     }
 }
