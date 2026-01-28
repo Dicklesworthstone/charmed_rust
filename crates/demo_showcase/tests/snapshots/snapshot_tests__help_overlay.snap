@@ -1,0 +1,37 @@
+---
+source: crates/demo_showcase/tests/snapshot_tests.rs
+expression: view
+---
+
+
+                        ╔════════════════════════════════════════════════════╗
+║                                                    ║
+║                                                    ║
+║    Keyboard Shortcuts                              ║
+║                                                    ║
+║                                                    ║
+╚════════════════════════════════════════════════════╝
+                           Current Page: Dashboard                          
+                             r refresh  j/k nav  Tab cycle  Enter select    
+                                                                            
+                           [ Global ]                                       
+                                        ?  Toggle this help                 
+                                  q / Esc  Quit application                 
+                                   Ctrl+C  Force quit                       
+                                      1-7  Jump to page                     
+                                        [  Toggle sidebar                   
+                                        t  Cycle theme                      
+                                    e / E  Export (txt / html)              
+                                        D  Open diagnostics                 
+                                      Tab  Focus next pane                  
+                                    S-Tab  Focus previous pane              
+                                                                            
+                           [ Navigation ]                                   
+                                    j / ↓  Move down                        
+                                    k / ↑  Move up                          
+                                    h / ←  Left / collapse                  
+                                    l / →  Right / expand                   
+                                 g / Home  Go to top                        
+                                  G / End  Go to bottom                     
+                                                                            
+                        j/k scroll  q/?/Esc close  [  0%]

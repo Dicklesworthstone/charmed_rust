@@ -1,0 +1,28 @@
+---
+source: crates/demo_showcase/tests/snapshot_tests.rs
+expression: view
+---
+ Charmed Control Center  Connected[Dark]                                       
+> [] Dashboard   >_ Services                                                                  
+  >> Jobs     ╭────────╮╭───────╮╭─────────╮╭────────╮                         
+   # Logs     │Services││Active│ │Completed││Deploys│                          
+   ? Docs     │10/12│   │Jobs │  │9 ↓1 │    │2 in │                            
+  <> Files    │↓1   │   │10 3 │  │failed│   │progress│                         
+   * Wizard   │issues│  │running│╰─────────╯╰────────╯                         
+   @ Settings ╰────────╯╰───────╯                                              
+                                                                               
+                ── Services ──                       Recent Deployments        
+                ● log-svc            0.16.24        ℹ pending  4a72870  noah   
+                ● telemetry-server   2.2.18         ● success  3be5f5e  sam    
+                ℹ user-engine        1.6.3          ● success  29da4a3  quinn  
+                ● payment-server     0.9.8                                     
+                ● queue-svc          0.16.9          Live Metrics              
+                ✕ search-engine      0.1.16         ● Requests/s     150 →     
+                                                    ● P95 Latency    45.0ms →  
+                 Recent Jobs ─                      ● Error Rate     0.20% →   
+                ● metrics-aggregate-8916 done       ● Job Throughput 12.0/min →
+                ● cache-warmup-8648    done                                    
+                ℹ certificate-renewal-5757 queued                              
+                ● cleanup-expired-3113 done                                    
+r refresh j/k nav Tab cycle Enter select                                       
+| 1-7 pages [ sidebar ? help q quit

@@ -1341,6 +1341,39 @@ impl E2ERunner {
         self.capture_frame();
     }
 
+    /// Simulates a mouse scroll wheel event at the given position.
+    ///
+    /// Use `MouseButton::WheelUp` or `MouseButton::WheelDown` for the direction.
+    pub fn scroll(&mut self, x: u16, y: u16, direction: MouseButton) {
+        let dir_name = match direction {
+            MouseButton::WheelUp => "up",
+            MouseButton::WheelDown => "down",
+            MouseButton::WheelLeft => "left",
+            MouseButton::WheelRight => "right",
+            _ => "unknown",
+        };
+        self.auto_step(&format!("Scroll {} at ({}, {})", dir_name, x, y));
+        self.recorder.input(TestInput::Mouse {
+            action: format!("scroll_{}", dir_name),
+            x,
+            y,
+            button: Some(format!("{:?}", direction)),
+        });
+
+        let msg = Message::new(MouseMsg {
+            x,
+            y,
+            shift: false,
+            alt: false,
+            ctrl: false,
+            action: MouseAction::Press,
+            button: direction,
+        });
+        self.sim.send(msg);
+        self.step_with_cmd();
+        self.capture_frame();
+    }
+
     /// Simulates a window resize.
     pub fn resize(&mut self, width: u16, height: u16) {
         self.auto_step(&format!("Resize to {}x{}", width, height));
