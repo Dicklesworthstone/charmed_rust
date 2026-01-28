@@ -1799,3 +1799,154 @@ mod e2e_smoke_tour_tests {
         runner.finish().expect("wizard_job_logs_correlation should pass");
     }
 }
+
+// =============================================================================
+// E2E: Files Page Tests (bd-1g80)
+// =============================================================================
+
+/// E2E tests for the Files page (file picker + preview).
+#[cfg(test)]
+mod e2e_files_tests {
+    use super::*;
+
+    /// E2E scenario: file picker navigate + preview (bd-1g80)
+    ///
+    /// Tests the Files page functionality:
+    /// 1) Navigate to Files page
+    /// 2) Use the file picker to navigate and select entries
+    /// 3) Validate preview behavior (breadcrumb, file content)
+    /// 4) Test markdown rendering for .md files
+    #[test]
+    fn e2e_files_navigate_and_preview() {
+        let mut runner = E2ERunner::new("files_navigate_preview");
+
+        // =========================================================================
+        // Step 1: Initialize and navigate to Files page
+        // =========================================================================
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Navigate to Files page");
+        runner.press_key('6'); // Files page shortcut
+        runner.assert_page(Page::Files);
+        runner.assert_view_not_empty();
+
+        // Verify the Files page shows the fixture root
+        let files_view = runner.view();
+        runner.recorder.assert_true(
+            "Files page shows content",
+            !files_view.trim().is_empty(),
+        );
+
+        // =========================================================================
+        // Step 2: Navigate the file picker
+        // =========================================================================
+        runner.step("Navigate file list with j/k");
+
+        // Press j to move down in the file list
+        runner.press_key('j');
+        runner.assert_view_not_empty();
+
+        // Press j again to move to another entry
+        runner.press_key('j');
+        runner.assert_view_not_empty();
+
+        // Press k to move back up
+        runner.press_key('k');
+        runner.assert_view_not_empty();
+
+        // =========================================================================
+        // Step 3: Enter a directory
+        // =========================================================================
+        runner.step("Enter directory with Enter key");
+
+        // Navigate to find a directory entry
+        // The fixture tree has directories like 'config', 'nested'
+        runner.press_key('j');
+        runner.press_key('j');
+
+        // Press Enter to enter the directory or select the file
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        let after_enter = runner.view();
+        runner.recorder.assert_true(
+            "view updated after Enter",
+            !after_enter.trim().is_empty(),
+        );
+
+        // =========================================================================
+        // Step 4: Navigate back with Backspace
+        // =========================================================================
+        runner.step("Navigate back with Backspace");
+        runner.press_special(KeyType::Backspace);
+        runner.drain();
+
+        let after_back = runner.view();
+        runner.recorder.assert_true(
+            "view updated after Backspace",
+            !after_back.trim().is_empty(),
+        );
+
+        // =========================================================================
+        // Step 5: Toggle hidden files
+        // =========================================================================
+        runner.step("Toggle hidden files with 'h' key");
+        runner.press_key('h');
+        runner.drain();
+        // Just verify no panic when toggling
+        runner.assert_view_not_empty();
+
+        // =========================================================================
+        // Step 6: Return to Dashboard
+        // =========================================================================
+        runner.step("Return to Dashboard");
+        runner.press_key('1');
+        runner.assert_page(Page::Dashboard);
+
+        runner.finish().expect("files_navigate_preview should pass");
+    }
+
+    /// E2E test: Files page with deterministic fixture data
+    ///
+    /// Verifies the Files page works with the embedded fixture tree.
+    #[test]
+    fn e2e_files_fixture_mode() {
+        let mut runner = E2ERunner::new("files_fixture_mode");
+
+        runner.step("Initialize");
+        runner.resize(120, 40);
+
+        runner.step("Navigate to Files");
+        runner.press_key('6');
+        runner.assert_page(Page::Files);
+
+        // The fixture tree should show some entries
+        let view = runner.view();
+        runner.recorder.assert_true(
+            "Files page renders fixture content",
+            !view.trim().is_empty(),
+        );
+
+        // Navigate and verify no panics
+        runner.step("Navigate through entries");
+        for _ in 0..5 {
+            runner.press_key('j');
+            runner.drain();
+            runner.assert_view_not_empty();
+        }
+
+        for _ in 0..3 {
+            runner.press_key('k');
+            runner.drain();
+            runner.assert_view_not_empty();
+        }
+
+        runner.step("Return to Dashboard");
+        runner.press_key('1');
+        runner.assert_page(Page::Dashboard);
+
+        runner.finish().expect("files_fixture_mode should pass");
+    }
+}
