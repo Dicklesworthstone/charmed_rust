@@ -57,7 +57,10 @@ fn ansi_to_html(input: &str) -> String {
                     match code {
                         "0" => {
                             // Reset
-                            if !current_styles.is_empty() || current_fg.is_some() || current_bg.is_some() {
+                            if !current_styles.is_empty()
+                                || current_fg.is_some()
+                                || current_bg.is_some()
+                            {
                                 html.push_str("</span>");
                             }
                             current_styles.clear();
@@ -451,7 +454,10 @@ impl App {
     /// Useful for quick theme switching via keyboard shortcut.
     pub fn cycle_theme(&mut self) {
         let presets = ThemePreset::all();
-        let current_idx = presets.iter().position(|&p| p == self.theme.preset).unwrap_or(0);
+        let current_idx = presets
+            .iter()
+            .position(|&p| p == self.theme.preset)
+            .unwrap_or(0);
         let next_idx = (current_idx + 1) % presets.len();
         self.set_theme(presets[next_idx]);
     }
@@ -527,11 +533,15 @@ impl App {
                 }
                 ['e'] => {
                     // Export current view as plain text
-                    return Some(Cmd::new(|| ExportMsg::Export(ExportFormat::PlainText).into_message()));
+                    return Some(Cmd::new(|| {
+                        ExportMsg::Export(ExportFormat::PlainText).into_message()
+                    }));
                 }
                 ['E'] => {
                     // Export current view as HTML
-                    return Some(Cmd::new(|| ExportMsg::Export(ExportFormat::Html).into_message()));
+                    return Some(Cmd::new(|| {
+                        ExportMsg::Export(ExportFormat::Html).into_message()
+                    }));
                 }
                 [c] => {
                     if let Some(page) = Page::from_shortcut(*c) {
@@ -972,10 +982,8 @@ impl Model for App {
                 ExportMsg::ExportCompleted(filename) => {
                     let id = self.next_notification_id;
                     self.next_notification_id += 1;
-                    self.notifications.push(Notification::success(
-                        id,
-                        format!("Exported to {filename}"),
-                    ));
+                    self.notifications
+                        .push(Notification::success(id, format!("Exported to {filename}")));
                     while self.notifications.len() > MAX_NOTIFICATIONS {
                         self.notifications.remove(0);
                     }
@@ -983,10 +991,8 @@ impl Model for App {
                 ExportMsg::ExportFailed(error) => {
                     let id = self.next_notification_id;
                     self.next_notification_id += 1;
-                    self.notifications.push(Notification::error(
-                        id,
-                        format!("Export failed: {error}"),
-                    ));
+                    self.notifications
+                        .push(Notification::error(id, format!("Export failed: {error}")));
                     while self.notifications.len() > MAX_NOTIFICATIONS {
                         self.notifications.remove(0);
                     }

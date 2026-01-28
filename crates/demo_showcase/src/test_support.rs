@@ -273,7 +273,12 @@ impl ScenarioRecorder {
                     format!("Key: {}+{}", modifiers.join("+"), key)
                 }
             }
-            TestInput::Mouse { action, x, y, button } => {
+            TestInput::Mouse {
+                action,
+                x,
+                y,
+                button,
+            } => {
                 if let Some(btn) = button {
                     format!("Mouse: {action} {btn} at ({x}, {y})")
                 } else {
@@ -348,7 +353,12 @@ impl ScenarioRecorder {
         actual: &T,
     ) -> bool {
         let passed = expected == actual;
-        self.record_assertion(name, passed, &format!("{expected:?}"), &format!("{actual:?}"))
+        self.record_assertion(
+            name,
+            passed,
+            &format!("{expected:?}"),
+            &format!("{actual:?}"),
+        )
     }
 
     /// Records an assertion with custom expected/actual strings
@@ -367,11 +377,7 @@ impl ScenarioRecorder {
         };
 
         let status = if passed { "PASS" } else { "FAIL" };
-        let mut event = self.create_event(
-            level,
-            "assertion",
-            format!("[{status}] {name}"),
-        );
+        let mut event = self.create_event(level, "assertion", format!("[{status}] {name}"));
         event.assertion = Some(name.to_string());
         event.expected = Some(expected.to_string());
         event.actual = Some(actual.to_string());
@@ -392,7 +398,11 @@ impl ScenarioRecorder {
         let duration = self.start_time.elapsed();
 
         // Record scenario end
-        let status = if self.has_failures { "FAILED" } else { "PASSED" };
+        let status = if self.has_failures {
+            "FAILED"
+        } else {
+            "PASSED"
+        };
         self.record_event(
             if self.has_failures {
                 EventLevel::Error
@@ -450,8 +460,7 @@ impl ScenarioRecorder {
                 && let (Some(frame_path), Some(content)) = (&event.frame_path, &event.actual)
             {
                 let path = self.artifact_dir.join(frame_path);
-                fs::write(&path, content)
-                    .map_err(|e| format!("Failed to write frame: {e}"))?;
+                fs::write(&path, content).map_err(|e| format!("Failed to write frame: {e}"))?;
             }
         }
 
@@ -484,7 +493,11 @@ impl ScenarioRecorder {
              Status: {}\n\n",
             self.scenario,
             self.run_id,
-            if self.has_failures { "FAILED" } else { "PASSED" }
+            if self.has_failures {
+                "FAILED"
+            } else {
+                "PASSED"
+            }
         ));
 
         // Config info
@@ -536,10 +549,7 @@ impl ScenarioRecorder {
         summary.push('\n');
 
         // Artifact location
-        summary.push_str(&format!(
-            "Artifacts: {}\n",
-            self.artifact_dir.display()
-        ));
+        summary.push_str(&format!("Artifacts: {}\n", self.artifact_dir.display()));
 
         summary
     }

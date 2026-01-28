@@ -462,8 +462,16 @@ impl Simulation {
                 value: new_rps,
                 reason: format!(
                     "Request rate {} from {:.0} to {:.0} req/s",
-                    if self.metrics.requests_per_sec.health == MetricHealth::Ok { "recovered" } else { "dropped" },
-                    self.metrics.requests_per_sec.history.first().unwrap_or(&new_rps),
+                    if self.metrics.requests_per_sec.health == MetricHealth::Ok {
+                        "recovered"
+                    } else {
+                        "dropped"
+                    },
+                    self.metrics
+                        .requests_per_sec
+                        .history
+                        .first()
+                        .unwrap_or(&new_rps),
                     new_rps
                 ),
             });
@@ -474,14 +482,21 @@ impl Simulation {
         let base_latency = 45.0;
         let latency_noise = self.rng.random_range(-10.0..15.0);
         // High load can cause latency spikes
-        let latency_load_factor = if new_rps < 100.0 { 0.0 } else { (new_rps - 100.0) * 0.5 };
+        let latency_load_factor = if new_rps < 100.0 {
+            0.0
+        } else {
+            (new_rps - 100.0) * 0.5
+        };
         // Occasional latency spike (simulating GC pause, network issue, etc.)
         let latency_spike = if self.rng.random_bool(0.03) {
             self.rng.random_range(50.0..300.0)
         } else {
             0.0
         };
-        let new_latency = f64::max(base_latency + latency_noise + latency_load_factor + latency_spike, 10.0);
+        let new_latency = f64::max(
+            base_latency + latency_noise + latency_load_factor + latency_spike,
+            10.0,
+        );
 
         if let Some(old) = self.metrics.p95_latency_ms.update(new_latency) {
             self.pending_metric_changes.push(MetricHealthChanged {
@@ -491,9 +506,17 @@ impl Simulation {
                 value: new_latency,
                 reason: format!(
                     "Latency {} to {:.0}ms (threshold: {}ms)",
-                    if self.metrics.p95_latency_ms.health == MetricHealth::Ok { "improved" } else { "increased" },
+                    if self.metrics.p95_latency_ms.health == MetricHealth::Ok {
+                        "improved"
+                    } else {
+                        "increased"
+                    },
                     new_latency,
-                    if self.metrics.p95_latency_ms.health == MetricHealth::Error { 500 } else { 200 }
+                    if self.metrics.p95_latency_ms.health == MetricHealth::Error {
+                        500
+                    } else {
+                        200
+                    }
                 ),
             });
             changed = true;
@@ -518,17 +541,33 @@ impl Simulation {
                 value: new_error_rate,
                 reason: format!(
                     "Error rate {} to {:.1}% (threshold: {}%)",
-                    if self.metrics.error_rate.health == MetricHealth::Ok { "dropped" } else { "increased" },
+                    if self.metrics.error_rate.health == MetricHealth::Ok {
+                        "dropped"
+                    } else {
+                        "increased"
+                    },
                     new_error_rate,
-                    if self.metrics.error_rate.health == MetricHealth::Error { 5 } else { 1 }
+                    if self.metrics.error_rate.health == MetricHealth::Error {
+                        5
+                    } else {
+                        1
+                    }
                 ),
             });
             changed = true;
         }
 
         // Job throughput (based on actual job completions, with some smoothing)
-        let completed_jobs = self.jobs.iter().filter(|j| j.status == JobStatus::Completed).count();
-        let running_jobs = self.jobs.iter().filter(|j| j.status == JobStatus::Running).count();
+        let completed_jobs = self
+            .jobs
+            .iter()
+            .filter(|j| j.status == JobStatus::Completed)
+            .count();
+        let running_jobs = self
+            .jobs
+            .iter()
+            .filter(|j| j.status == JobStatus::Running)
+            .count();
         // Estimated throughput: completed + fraction of running that will complete
         #[expect(clippy::cast_precision_loss)] // small counts, precision loss irrelevant
         let estimated_throughput = (completed_jobs as f64).mul_add(0.5, running_jobs as f64 * 0.3);
@@ -543,9 +582,17 @@ impl Simulation {
                 value: new_throughput,
                 reason: format!(
                     "Throughput {} to {:.0} jobs/min (threshold: {} jobs/min)",
-                    if self.metrics.job_throughput.health == MetricHealth::Ok { "recovered" } else { "dropped" },
+                    if self.metrics.job_throughput.health == MetricHealth::Ok {
+                        "recovered"
+                    } else {
+                        "dropped"
+                    },
                     new_throughput,
-                    if self.metrics.job_throughput.health == MetricHealth::Error { 2 } else { 5 }
+                    if self.metrics.job_throughput.health == MetricHealth::Error {
+                        2
+                    } else {
+                        5
+                    }
                 ),
             });
             changed = true;
@@ -720,7 +767,12 @@ impl LiveMetric {
     /// - `false`: higher values are worse (latency, error rate)
     /// - `true`: lower values are worse (throughput, uptime)
     #[must_use]
-    pub fn new(initial_value: f64, warn_threshold: f64, error_threshold: f64, invert: bool) -> Self {
+    pub fn new(
+        initial_value: f64,
+        warn_threshold: f64,
+        error_threshold: f64,
+        invert: bool,
+    ) -> Self {
         Self {
             value: initial_value,
             health: MetricHealth::Ok,
@@ -771,7 +823,8 @@ impl LiveMetric {
         // Compare recent average to older average
         let mid = self.history.len() / 2;
         #[expect(clippy::cast_precision_loss)] // small history, precision loss irrelevant
-        let recent_avg: f64 = self.history[mid..].iter().sum::<f64>() / (self.history.len() - mid) as f64;
+        let recent_avg: f64 =
+            self.history[mid..].iter().sum::<f64>() / (self.history.len() - mid) as f64;
         #[expect(clippy::cast_precision_loss)]
         let older_avg: f64 = self.history[..mid].iter().sum::<f64>() / mid as f64;
 
@@ -820,14 +873,18 @@ impl LiveMetric {
     fn apply_hysteresis(&mut self, raw_health: MetricHealth) {
         let target_worse = matches!(
             (self.health, raw_health),
-            (MetricHealth::Ok, MetricHealth::Warning | MetricHealth::Error)
-                | (MetricHealth::Warning, MetricHealth::Error)
+            (
+                MetricHealth::Ok,
+                MetricHealth::Warning | MetricHealth::Error
+            ) | (MetricHealth::Warning, MetricHealth::Error)
         );
 
         let target_better = matches!(
             (self.health, raw_health),
-            (MetricHealth::Error, MetricHealth::Warning | MetricHealth::Ok)
-                | (MetricHealth::Warning, MetricHealth::Ok)
+            (
+                MetricHealth::Error,
+                MetricHealth::Warning | MetricHealth::Ok
+            ) | (MetricHealth::Warning, MetricHealth::Ok)
         );
 
         if target_worse {

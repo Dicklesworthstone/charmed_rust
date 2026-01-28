@@ -234,8 +234,7 @@ impl Sidebar {
             .iter()
             .enumerate()
             .filter(|(_, page)| {
-                filter_lower.is_empty()
-                    || page.name().to_lowercase().contains(&filter_lower)
+                filter_lower.is_empty() || page.name().to_lowercase().contains(&filter_lower)
             })
             .map(|(i, _)| i)
             .collect();

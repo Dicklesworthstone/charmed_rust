@@ -8,7 +8,7 @@
 
 use std::time::Duration;
 
-use bubbletea::{tick, Cmd, KeyMsg, KeyType, Message};
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, tick};
 use lipgloss::{Position, Style};
 
 use super::PageModel;
@@ -73,7 +73,10 @@ impl DashboardPage {
 
         // Initialize animator with current metric values (snap, don't animate from 0)
         let mut animator = Animator::new(animations_enabled);
-        animator.set("requests_per_sec", simulation.metrics.requests_per_sec.value);
+        animator.set(
+            "requests_per_sec",
+            simulation.metrics.requests_per_sec.value,
+        );
         animator.set("p95_latency_ms", simulation.metrics.p95_latency_ms.value);
         animator.set("error_rate", simulation.metrics.error_rate.value);
         animator.set("job_throughput", simulation.metrics.job_throughput.value);
@@ -111,10 +114,20 @@ impl DashboardPage {
         // Re-initialize animator with fresh metric values (snap, don't animate)
         let animations_enabled = self.animator.is_enabled();
         self.animator = Animator::new(animations_enabled);
-        self.animator.set("requests_per_sec", self.simulation.metrics.requests_per_sec.value);
-        self.animator.set("p95_latency_ms", self.simulation.metrics.p95_latency_ms.value);
-        self.animator.set("error_rate", self.simulation.metrics.error_rate.value);
-        self.animator.set("job_throughput", self.simulation.metrics.job_throughput.value);
+        self.animator.set(
+            "requests_per_sec",
+            self.simulation.metrics.requests_per_sec.value,
+        );
+        self.animator.set(
+            "p95_latency_ms",
+            self.simulation.metrics.p95_latency_ms.value,
+        );
+        self.animator
+            .set("error_rate", self.simulation.metrics.error_rate.value);
+        self.animator.set(
+            "job_throughput",
+            self.simulation.metrics.job_throughput.value,
+        );
     }
 
     /// Schedule the next simulation tick.
@@ -130,10 +143,20 @@ impl DashboardPage {
         self.simulation.tick();
 
         // Update animator targets with new metric values (animator handles smoothing)
-        self.animator.animate("requests_per_sec", self.simulation.metrics.requests_per_sec.value);
-        self.animator.animate("p95_latency_ms", self.simulation.metrics.p95_latency_ms.value);
-        self.animator.animate("error_rate", self.simulation.metrics.error_rate.value);
-        self.animator.animate("job_throughput", self.simulation.metrics.job_throughput.value);
+        self.animator.animate(
+            "requests_per_sec",
+            self.simulation.metrics.requests_per_sec.value,
+        );
+        self.animator.animate(
+            "p95_latency_ms",
+            self.simulation.metrics.p95_latency_ms.value,
+        );
+        self.animator
+            .animate("error_rate", self.simulation.metrics.error_rate.value);
+        self.animator.animate(
+            "job_throughput",
+            self.simulation.metrics.job_throughput.value,
+        );
 
         // Advance animations
         self.animator.tick();
@@ -527,7 +550,9 @@ impl DashboardPage {
                 // For metrics where "up" is bad (latency, error rate), show good trends in green
                 (MetricHealth::Ok, MetricTrend::Down) => theme.success_style().render(trend_icon),
                 // Warning with upward trend is concerning
-                (MetricHealth::Warning, MetricTrend::Up) => theme.warning_style().render(trend_icon),
+                (MetricHealth::Warning, MetricTrend::Up) => {
+                    theme.warning_style().render(trend_icon)
+                }
                 // Error state always shows red
                 (MetricHealth::Error, _) => theme.error_style().render(trend_icon),
                 // All other combinations (ok/flat, ok/up, warning/flat, warning/down) use muted
@@ -535,10 +560,7 @@ impl DashboardPage {
             };
 
             // Label and value
-            let label_styled = Style::new()
-                .foreground(theme.text)
-                .width(14)
-                .render(label);
+            let label_styled = Style::new().foreground(theme.text).width(14).render(label);
             let value_styled = theme.heading_style().render(&value_str);
 
             format!("{health_chip} {label_styled} {value_styled} {trend_styled}")
@@ -548,7 +570,8 @@ impl DashboardPage {
         // Health and trend indicators use raw simulation data (categorical, not animated)
         lines.push(render_metric(
             "Requests/s",
-            self.animator.get_or("requests_per_sec", metrics.requests_per_sec.value),
+            self.animator
+                .get_or("requests_per_sec", metrics.requests_per_sec.value),
             "",
             metrics.requests_per_sec.health,
             metrics.requests_per_sec.trend,
@@ -556,7 +579,8 @@ impl DashboardPage {
 
         lines.push(render_metric(
             "P95 Latency",
-            self.animator.get_or("p95_latency_ms", metrics.p95_latency_ms.value),
+            self.animator
+                .get_or("p95_latency_ms", metrics.p95_latency_ms.value),
             "ms",
             metrics.p95_latency_ms.health,
             metrics.p95_latency_ms.trend,
@@ -572,7 +596,8 @@ impl DashboardPage {
 
         lines.push(render_metric(
             "Job Throughput",
-            self.animator.get_or("job_throughput", metrics.job_throughput.value),
+            self.animator
+                .get_or("job_throughput", metrics.job_throughput.value),
             "/min",
             metrics.job_throughput.health,
             metrics.job_throughput.trend,

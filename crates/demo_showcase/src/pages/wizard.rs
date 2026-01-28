@@ -181,14 +181,7 @@ impl Default for WizardState {
 const TOTAL_STEPS: usize = 6;
 
 /// Step names for the progress indicator.
-const STEP_NAMES: &[&str] = &[
-    "Type",
-    "Config",
-    "Options",
-    "Variables",
-    "Review",
-    "Deploy",
-];
+const STEP_NAMES: &[&str] = &["Type", "Config", "Options", "Variables", "Review", "Deploy"];
 
 /// Wizard page for service deployment workflow.
 pub struct WizardPage {
@@ -670,9 +663,10 @@ impl WizardPage {
 
         let indicator = parts.join("  >  ");
         let title = theme.title_style().render("Deploy Service");
-        let step_label = theme
-            .muted_style()
-            .render(&format!("Step {}/{}", self.state.step + 1, TOTAL_STEPS));
+        let step_label =
+            theme
+                .muted_style()
+                .render(&format!("Step {}/{}", self.state.step + 1, TOTAL_STEPS));
 
         format!("{title}  {step_label}\n\n{indicator}")
     }
@@ -998,7 +992,10 @@ impl WizardPage {
             lines.push(
                 theme
                     .heading_style()
-                    .render(&format!("Environment Variables ({}):", self.state.env_vars.len()))
+                    .render(&format!(
+                        "Environment Variables ({}):",
+                        self.state.env_vars.len()
+                    ))
                     .to_string(),
             );
             for &idx in &self.state.env_vars {
@@ -1015,11 +1012,7 @@ impl WizardPage {
         } else {
             theme.muted_style()
         };
-        let checkbox = if self.state.confirmed {
-            "[x]"
-        } else {
-            "[ ]"
-        };
+        let checkbox = if self.state.confirmed { "[x]" } else { "[ ]" };
         lines.push(format!(
             "> {} {}",
             checkbox,
@@ -1056,7 +1049,12 @@ impl WizardPage {
 
         match &self.state.deployment_status {
             DeploymentStatus::NotStarted => {
-                lines.push(theme.muted_style().render("Press Enter to begin deployment").to_string());
+                lines.push(
+                    theme
+                        .muted_style()
+                        .render("Press Enter to begin deployment")
+                        .to_string(),
+                );
             }
             DeploymentStatus::InProgress(current) => {
                 for (i, step) in steps.iter().enumerate() {
@@ -1095,7 +1093,12 @@ impl WizardPage {
                     theme.info_style().render(&self.state.name)
                 ));
                 lines.push(String::new());
-                lines.push(theme.muted_style().render("Press Enter to deploy another service").to_string());
+                lines.push(
+                    theme
+                        .muted_style()
+                        .render("Press Enter to deploy another service")
+                        .to_string(),
+                );
             }
             DeploymentStatus::Failed(err) => {
                 for (i, step) in steps.iter().enumerate() {
@@ -1176,14 +1179,12 @@ impl PageModel for WizardPage {
             1 | 2 => "j/k fields  Enter continue  b back",
             3 => "j/k navigate  Space toggle  Enter continue  b back",
             4 => "Space confirm  Enter deploy  b back",
-            5 => {
-                match self.state.deployment_status {
-                    DeploymentStatus::NotStarted => "Enter start",
-                    DeploymentStatus::InProgress(_) => "deploying...",
-                    DeploymentStatus::Complete => "Enter new wizard",
-                    DeploymentStatus::Failed(_) => "Enter retry  b back",
-                }
-            }
+            5 => match self.state.deployment_status {
+                DeploymentStatus::NotStarted => "Enter start",
+                DeploymentStatus::InProgress(_) => "deploying...",
+                DeploymentStatus::Complete => "Enter new wizard",
+                DeploymentStatus::Failed(_) => "Enter retry  b back",
+            },
             _ => "j/k navigate  Enter select",
         }
     }
@@ -1264,7 +1265,10 @@ mod tests {
         page.state.deployment_status = DeploymentStatus::InProgress(0);
 
         page.tick_deployment();
-        assert_eq!(page.state.deployment_status, DeploymentStatus::InProgress(1));
+        assert_eq!(
+            page.state.deployment_status,
+            DeploymentStatus::InProgress(1)
+        );
 
         page.tick_deployment();
         page.tick_deployment();
