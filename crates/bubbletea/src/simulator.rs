@@ -248,6 +248,80 @@ impl<M: Model> ProgramSimulator<M> {
     pub fn pending_count(&self) -> usize {
         self.input_queue.len()
     }
+
+    // ========================================================================
+    // Event Simulation Helpers
+    // ========================================================================
+
+    /// Simulate a key press (single character).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use bubbletea::simulator::ProgramSimulator;
+    /// # use bubbletea::{Model, Message, Cmd};
+    /// # struct MyModel;
+    /// # impl Model for MyModel {
+    /// #     fn init(&self) -> Option<Cmd> { None }
+    /// #     fn update(&mut self, _: Message) -> Option<Cmd> { None }
+    /// #     fn view(&self) -> String { String::new() }
+    /// # }
+    ///
+    /// let mut sim = ProgramSimulator::new(MyModel);
+    /// sim.init();
+    /// sim.sim_key('a');  // Queue 'a' key press
+    /// sim.step();
+    /// ```
+    pub fn sim_key(&mut self, c: char) {
+        use crate::key::KeyMsg;
+        self.send(Message::new(KeyMsg::from_char(c)));
+    }
+
+    /// Simulate a special key press (Enter, Escape, Arrow keys, etc.).
+    pub fn sim_key_type(&mut self, key_type: crate::key::KeyType) {
+        use crate::key::KeyMsg;
+        self.send(Message::new(KeyMsg::from_type(key_type)));
+    }
+
+    /// Simulate a mouse event.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - Column position (0-indexed)
+    /// * `y` - Row position (0-indexed)
+    /// * `button` - Which button (Left, Right, Middle, etc.)
+    /// * `action` - What happened (Press, Release, Motion)
+    pub fn sim_mouse(
+        &mut self,
+        x: u16,
+        y: u16,
+        button: crate::mouse::MouseButton,
+        action: crate::mouse::MouseAction,
+    ) {
+        use crate::mouse::MouseMsg;
+        self.send(Message::new(MouseMsg {
+            x,
+            y,
+            button,
+            action,
+            shift: false,
+            alt: false,
+            ctrl: false,
+        }));
+    }
+
+    /// Simulate a window resize event.
+    pub fn sim_resize(&mut self, width: u16, height: u16) {
+        use crate::message::WindowSizeMsg;
+        self.send(Message::new(WindowSizeMsg { width, height }));
+    }
+
+    /// Simulate a paste operation (bracketed paste).
+    pub fn sim_paste(&mut self, text: &str) {
+        use crate::key::KeyMsg;
+        let runes: Vec<char> = text.chars().collect();
+        self.send(Message::new(KeyMsg::from_runes(runes).with_paste()));
+    }
 }
 
 /// A test model that tracks lifecycle calls with atomic counters.
@@ -550,5 +624,351 @@ mod tests {
 
         // Value should be 10 + 5 = 15
         assert_eq!(sim.model().value, 15, "Batch commands should set 10 then add 5");
+    }
+
+    // ========================================================================
+    // Event Simulation Tests (bd-ikfq)
+    // ========================================================================
+
+    #[test]
+    fn test_sim_key_sends_char() {
+        use crate::key::{KeyMsg, KeyType};
+
+        struct KeyModel {
+            keys: Vec<char>,
+        }
+
+        impl Model for KeyModel {
+            fn init(&self) -> Option<crate::Cmd> { None }
+            fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
+                if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+                    if key.key_type == KeyType::Runes {
+                        self.keys.extend(&key.runes);
+                    }
+                }
+                None
+            }
+            fn view(&self) -> String { format!("Keys: {:?}", self.keys) }
+        }
+
+        let mut sim = ProgramSimulator::new(KeyModel { keys: Vec::new() });
+        sim.init();
+        sim.sim_key('a');
+        sim.sim_key('b');
+        sim.sim_key('c');
+        sim.run_until_empty();
+
+        assert_eq!(sim.model().keys, vec!['a', 'b', 'c']);
+    }
+
+    #[test]
+    fn test_sim_key_type_sends_special_keys() {
+        use crate::key::{KeyMsg, KeyType};
+
+        struct KeyModel {
+            special_keys: Vec<KeyType>,
+        }
+
+        impl Model for KeyModel {
+            fn init(&self) -> Option<crate::Cmd> { None }
+            fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
+                if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+                    if key.key_type != KeyType::Runes {
+                        self.special_keys.push(key.key_type.clone());
+                    }
+                }
+                None
+            }
+            fn view(&self) -> String { format!("Keys: {:?}", self.special_keys) }
+        }
+
+        let mut sim = ProgramSimulator::new(KeyModel { special_keys: Vec::new() });
+        sim.init();
+        sim.sim_key_type(KeyType::Enter);
+        sim.sim_key_type(KeyType::Esc);
+        sim.sim_key_type(KeyType::Tab);
+        sim.sim_key_type(KeyType::Up);
+        sim.sim_key_type(KeyType::Down);
+        sim.run_until_empty();
+
+        assert_eq!(sim.model().special_keys, vec![
+            KeyType::Enter,
+            KeyType::Esc,
+            KeyType::Tab,
+            KeyType::Up,
+            KeyType::Down,
+        ]);
+    }
+
+    #[test]
+    fn test_sim_mouse_sends_clicks() {
+        use crate::mouse::{MouseMsg, MouseButton, MouseAction};
+
+        struct MouseModel {
+            clicks: Vec<(u16, u16)>,
+        }
+
+        impl Model for MouseModel {
+            fn init(&self) -> Option<crate::Cmd> { None }
+            fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
+                if let Some(mouse) = msg.downcast_ref::<MouseMsg>() {
+                    if mouse.button == MouseButton::Left && mouse.action == MouseAction::Press {
+                        self.clicks.push((mouse.x, mouse.y));
+                    }
+                }
+                None
+            }
+            fn view(&self) -> String { format!("Clicks: {:?}", self.clicks) }
+        }
+
+        let mut sim = ProgramSimulator::new(MouseModel { clicks: Vec::new() });
+        sim.init();
+        sim.sim_mouse(10, 5, MouseButton::Left, MouseAction::Press);
+        sim.sim_mouse(20, 15, MouseButton::Left, MouseAction::Press);
+        sim.run_until_empty();
+
+        assert_eq!(sim.model().clicks, vec![(10, 5), (20, 15)]);
+    }
+
+    #[test]
+    fn test_sim_resize_sends_dimensions() {
+        use crate::message::WindowSizeMsg;
+
+        struct SizeModel {
+            width: u16,
+            height: u16,
+        }
+
+        impl Model for SizeModel {
+            fn init(&self) -> Option<crate::Cmd> { None }
+            fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
+                if let Some(size) = msg.downcast_ref::<WindowSizeMsg>() {
+                    self.width = size.width;
+                    self.height = size.height;
+                }
+                None
+            }
+            fn view(&self) -> String { format!("{}x{}", self.width, self.height) }
+        }
+
+        let mut sim = ProgramSimulator::new(SizeModel { width: 0, height: 0 });
+        sim.init();
+        sim.sim_resize(120, 40);
+        sim.run_until_empty();
+
+        assert_eq!(sim.model().width, 120);
+        assert_eq!(sim.model().height, 40);
+    }
+
+    #[test]
+    fn test_sim_paste_sends_text() {
+        use crate::key::KeyMsg;
+
+        struct PasteModel {
+            pasted: String,
+        }
+
+        impl Model for PasteModel {
+            fn init(&self) -> Option<crate::Cmd> { None }
+            fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
+                if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+                    if key.paste {
+                        self.pasted = key.runes.iter().collect();
+                    }
+                }
+                None
+            }
+            fn view(&self) -> String { format!("Pasted: {}", self.pasted) }
+        }
+
+        let mut sim = ProgramSimulator::new(PasteModel { pasted: String::new() });
+        sim.init();
+        sim.sim_paste("Hello, World!");
+        sim.run_until_empty();
+
+        assert_eq!(sim.model().pasted, "Hello, World!");
+    }
+
+    // ========================================================================
+    // Sequence Command Tests (bd-ikfq)
+    // ========================================================================
+
+    #[test]
+    fn test_simulator_sequence_command() {
+        use crate::sequence;
+
+        struct SequenceTrigger;
+        #[derive(Clone, Copy)]
+        struct Append(char);
+
+        struct SequenceModel {
+            chars: String,
+        }
+
+        impl Model for SequenceModel {
+            fn init(&self) -> Option<crate::Cmd> { None }
+            fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
+                if msg.is::<SequenceTrigger>() {
+                    return sequence(vec![
+                        Some(crate::Cmd::new(|| Message::new(Append('A')))),
+                        Some(crate::Cmd::new(|| Message::new(Append('B')))),
+                        Some(crate::Cmd::new(|| Message::new(Append('C')))),
+                    ]);
+                }
+                if let Some(Append(c)) = msg.downcast_ref::<Append>() {
+                    self.chars.push(*c);
+                }
+                None
+            }
+            fn view(&self) -> String { self.chars.clone() }
+        }
+
+        let mut sim = ProgramSimulator::new(SequenceModel { chars: String::new() });
+        sim.init();
+        sim.send(Message::new(SequenceTrigger));
+
+        // Step to get the sequence command
+        let cmd = sim.step();
+        assert!(cmd.is_some());
+
+        // Execute and send the result
+        if let Some(msg) = cmd.unwrap().execute() {
+            sim.send(msg);
+        }
+
+        sim.run_until_empty();
+
+        // Sequence should execute in order: A, B, C
+        assert_eq!(sim.model().chars, "ABC");
+    }
+
+    // ========================================================================
+    // Edge Case Tests (bd-ikfq)
+    // ========================================================================
+
+    #[test]
+    fn test_empty_batch_does_not_panic() {
+        use crate::batch;
+
+        struct EmptyBatchModel;
+
+        impl Model for EmptyBatchModel {
+            fn init(&self) -> Option<crate::Cmd> {
+                // Return an empty batch
+                batch(vec![])
+            }
+            fn update(&mut self, _: Message) -> Option<crate::Cmd> { None }
+            fn view(&self) -> String { "ok".to_string() }
+        }
+
+        let mut sim = ProgramSimulator::new(EmptyBatchModel);
+        let cmd = sim.init();
+
+        // Should handle empty batch gracefully
+        if let Some(c) = cmd {
+            let msg = c.execute();
+            if let Some(m) = msg {
+                sim.send(m);
+                sim.run_until_empty();
+            }
+        }
+
+        assert_eq!(sim.last_view(), Some("ok"));
+    }
+
+    #[test]
+    fn test_recursive_updates_bounded() {
+        // Model that spawns new messages from update
+        struct RecursiveModel {
+            count: usize,
+        }
+
+        impl Model for RecursiveModel {
+            fn init(&self) -> Option<crate::Cmd> { None }
+            fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
+                if let Some(&n) = msg.downcast_ref::<usize>() {
+                    self.count += 1;
+                    if n > 0 {
+                        // Spawn more messages
+                        return Some(crate::Cmd::new(move || Message::new(n - 1)));
+                    }
+                }
+                None
+            }
+            fn view(&self) -> String { format!("Count: {}", self.count) }
+        }
+
+        let mut sim = ProgramSimulator::new(RecursiveModel { count: 0 });
+        sim.init();
+        sim.send(Message::new(100usize)); // Will spawn 100 recursive messages
+
+        let processed = sim.run_until_empty();
+
+        // Should process all but stay bounded by MAX_ITERATIONS
+        assert!(processed <= 1000);
+        assert_eq!(sim.model().count, 101); // Initial + 100 recursive
+    }
+
+    #[test]
+    fn test_large_message_queue() {
+        let model = TrackingModel::new();
+        let mut sim = ProgramSimulator::new(model);
+        sim.init();
+
+        // Queue many messages
+        for i in 0..500 {
+            sim.send(Message::new(i as i32));
+        }
+
+        let processed = sim.run_until_empty();
+
+        assert_eq!(processed, 500);
+        // Sum of 0..500 = 499*500/2 = 124750
+        assert_eq!(sim.model().value, 124750);
+    }
+
+    #[test]
+    fn test_model_mut_allows_direct_modification() {
+        let model = TrackingModel::new();
+        let mut sim = ProgramSimulator::new(model);
+        sim.init();
+
+        // Directly modify the model
+        sim.model_mut().value = 999;
+
+        assert_eq!(sim.model().value, 999);
+    }
+
+    #[test]
+    fn test_step_without_messages_returns_none() {
+        let model = TrackingModel::new();
+        let mut sim = ProgramSimulator::new(model);
+        sim.init();
+
+        // No messages in queue
+        let cmd = sim.step();
+        assert!(cmd.is_none());
+    }
+
+    #[test]
+    fn test_views_accumulate() {
+        let model = TrackingModel::new();
+        let mut sim = ProgramSimulator::new(model);
+        sim.init();
+
+        assert_eq!(sim.views().len(), 1);
+
+        sim.send(Message::new(1));
+        sim.step();
+        assert_eq!(sim.views().len(), 2);
+
+        sim.send(Message::new(2));
+        sim.step();
+        assert_eq!(sim.views().len(), 3);
+
+        // Views should show progression
+        assert_eq!(sim.views()[0], "Value: 0");
+        assert_eq!(sim.views()[1], "Value: 1");
+        assert_eq!(sim.views()[2], "Value: 3");
     }
 }
