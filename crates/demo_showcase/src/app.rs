@@ -6,7 +6,8 @@
 //! - App chrome rendering (header, sidebar, footer)
 
 use bubbletea::{
-    Cmd, KeyMsg, KeyType, Message, Model, WindowSizeMsg, batch, println, quit, set_window_title,
+    BlurMsg, Cmd, FocusMsg, KeyMsg, KeyType, Message, Model, WindowSizeMsg, batch, println, quit,
+    set_window_title,
 };
 use lipgloss::{Position, Style};
 
@@ -316,6 +317,11 @@ pub struct App {
     force_ascii: bool,
     /// Whether running in headless mode (for shell-out safety).
     is_headless: bool,
+    /// Whether the terminal has focus (bd-1fxl).
+    ///
+    /// When false, animations may be paused and a visual indicator is shown.
+    /// Defaults to true (focused) until a BlurMsg is received.
+    focused: bool,
 }
 
 impl App {
@@ -359,6 +365,7 @@ impl App {
             syntax_enabled: true,
             force_ascii: false,
             is_headless,
+            focused: true, // Default to focused until BlurMsg received (bd-1fxl)
         }
     }
 
@@ -622,14 +629,13 @@ impl App {
             return Some(quit());
         }
 
-        // Handle sidebar focus toggle with Tab
-        if key.key_type == KeyType::Tab && self.sidebar_visible {
-            self.sidebar.toggle_focus();
-            return None;
-        }
-
         // When sidebar is focused, pass keys to it (except global shortcuts)
+        // Tab while sidebar is focused will unfocus it
         if self.sidebar.is_focused() && self.sidebar_visible {
+            if key.key_type == KeyType::Tab {
+                self.sidebar.toggle_focus(); // Unfocus sidebar
+                return None;
+            }
             // Allow Escape to unfocus sidebar
             if key.key_type == KeyType::Esc {
                 self.sidebar.set_focus(SidebarFocus::Inactive);
@@ -787,6 +793,16 @@ impl App {
 
         let status = self.theme.success_style().render("Connected");
 
+        // Focus indicator (bd-1fxl): show subtle unfocused state
+        let focus_indicator = if self.focused {
+            String::new()
+        } else {
+            format!(
+                "  {}",
+                self.theme.muted_style().render("[unfocused]")
+            )
+        };
+
         // Add theme name indicator
         let theme_name = self
             .theme
@@ -794,7 +810,7 @@ impl App {
             .render(&format!("[{}]", self.theme.preset.name()));
 
         // Calculate spacing to right-align theme name
-        let left_content = format!("{title}  {status}");
+        let left_content = format!("{title}  {status}{focus_indicator}");
         let left_len = strip_ansi_len(&left_content);
         let right_len = strip_ansi_len(&theme_name);
         let gap = self.width.saturating_sub(left_len + right_len + 2);
@@ -1009,6 +1025,16 @@ impl App {
 
         (content_width, content_height)
     }
+
+    /// Check if the terminal has focus (bd-1fxl).
+    ///
+    /// Returns true if the terminal window is focused, false if blurred.
+    /// Used for UI rendering (shows unfocused indicator) and can be used
+    /// to pause animations when unfocused.
+    #[must_use]
+    pub const fn focused(&self) -> bool {
+        self.focused
+    }
 }
 
 impl Default for App {
@@ -1032,6 +1058,16 @@ impl Model for App {
             self.width = size.width as usize;
             self.height = size.height as usize;
             self.ready = true;
+            return None;
+        }
+
+        // Handle focus/blur events (bd-1fxl)
+        if msg.is::<FocusMsg>() {
+            self.focused = true;
+            return None;
+        }
+        if msg.is::<BlurMsg>() {
+            self.focused = false;
             return None;
         }
 
@@ -2050,6 +2086,68 @@ mod tests {
             sim.model().theme_preset(),
             ThemePreset::Light,
             "Theme should be Light after Enter on Settings page"
+        );
+    }
+
+    // =========================================================================
+    // Focus/Blur Awareness Tests (bd-1fxl)
+    // =========================================================================
+
+    #[test]
+    fn app_default_focused() {
+        let app = App::new();
+        assert!(app.focused(), "app should default to focused");
+    }
+
+    #[test]
+    fn focus_msg_sets_focused() {
+        let mut app = App::new();
+        // First blur to unfocus
+        app.update(Message::new(BlurMsg));
+        assert!(!app.focused(), "app should be unfocused after BlurMsg");
+
+        // Then focus
+        app.update(Message::new(FocusMsg));
+        assert!(app.focused(), "app should be focused after FocusMsg");
+    }
+
+    #[test]
+    fn blur_msg_sets_unfocused() {
+        let mut app = App::new();
+        assert!(app.focused(), "app should start focused");
+
+        app.update(Message::new(BlurMsg));
+        assert!(!app.focused(), "app should be unfocused after BlurMsg");
+    }
+
+    #[test]
+    fn header_shows_unfocused_indicator() {
+        let mut app = App::new();
+        app.width = 120;
+        app.height = 40;
+        app.ready = true;
+
+        // Focused - no indicator
+        let focused_header = app.render_header();
+        assert!(
+            !focused_header.contains("unfocused"),
+            "focused header should not show unfocused indicator"
+        );
+
+        // Unfocused - shows indicator
+        app.update(Message::new(BlurMsg));
+        let unfocused_header = app.render_header();
+        assert!(
+            unfocused_header.contains("unfocused"),
+            "unfocused header should show unfocused indicator"
+        );
+
+        // Refocused - indicator gone
+        app.update(Message::new(FocusMsg));
+        let refocused_header = app.render_header();
+        assert!(
+            !refocused_header.contains("unfocused"),
+            "refocused header should not show unfocused indicator"
         );
     }
 }
