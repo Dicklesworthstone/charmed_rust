@@ -176,27 +176,86 @@ fn init_tracing(verbosity: u8) {
 }
 
 /// Run headless self-check mode.
+///
+/// This exercises the app through multiple pages to verify core functionality
+/// works without a real terminal. Uses the E2E runner infrastructure for
+/// deterministic, artifact-producing test execution.
 fn run_self_check(config: &Config) -> anyhow::Result<()> {
+    use test_support::E2ERunner;
+
     eprintln!("Running self-check...");
     eprintln!(
         "Config: {}",
         config.to_diagnostic_string().replace('\n', ", ")
     );
 
-    // Bootstrap app from config (canonical entrypoint)
-    let app = App::from_config(config);
+    // Create E2E runner with self-check scenario
+    let mut runner = E2ERunner::with_config("self_check", config.clone());
 
-    // Just verify we can create and view the app
-    let view = app.view();
-    if view.is_empty() {
-        anyhow::bail!("Self-check failed: empty view");
+    // Step 1: Verify initial render
+    runner.step("Verify initial render");
+    if !runner.assert_view_not_empty() {
+        let result = runner.finish();
+        anyhow::bail!("Self-check failed: empty view\n{}", result.unwrap_err());
     }
-
     eprintln!("✓ App creates successfully");
-    eprintln!("✓ View renders ({} chars)", view.len());
-    eprintln!("✓ Self-check passed");
+    eprintln!("✓ View renders ({} chars)", runner.view().len());
 
-    Ok(())
+    // Step 2: Navigate through pages
+    runner.step("Navigate to Jobs page");
+    runner.press_key('3'); // Jobs shortcut
+    if !runner.assert_page(messages::Page::Jobs) {
+        let result = runner.finish();
+        anyhow::bail!(
+            "Self-check failed: navigation to Jobs\n{}",
+            result.unwrap_err()
+        );
+    }
+    eprintln!("✓ Jobs page renders");
+
+    runner.step("Navigate to Logs page");
+    runner.press_key('4'); // Logs shortcut
+    if !runner.assert_page(messages::Page::Logs) {
+        let result = runner.finish();
+        anyhow::bail!(
+            "Self-check failed: navigation to Logs\n{}",
+            result.unwrap_err()
+        );
+    }
+    eprintln!("✓ Logs page renders");
+
+    runner.step("Navigate to Docs page");
+    runner.press_key('5'); // Docs shortcut
+    if !runner.assert_page(messages::Page::Docs) {
+        let result = runner.finish();
+        anyhow::bail!(
+            "Self-check failed: navigation to Docs\n{}",
+            result.unwrap_err()
+        );
+    }
+    eprintln!("✓ Docs page renders");
+
+    runner.step("Return to Dashboard");
+    runner.press_key('1'); // Dashboard shortcut
+    if !runner.assert_page(messages::Page::Dashboard) {
+        let result = runner.finish();
+        anyhow::bail!(
+            "Self-check failed: return to Dashboard\n{}",
+            result.unwrap_err()
+        );
+    }
+    eprintln!("✓ Dashboard page renders");
+
+    // Step 3: Finish and verify no failures
+    match runner.finish() {
+        Ok(()) => {
+            eprintln!("✓ Self-check passed ({} pages validated)", 4);
+            Ok(())
+        }
+        Err(summary) => {
+            anyhow::bail!("Self-check failed:\n{summary}");
+        }
+    }
 }
 
 /// Print diagnostic information.

@@ -46,17 +46,21 @@
 //! See [`logs::LogsPage`] for a complete example of responsive resize handling.
 
 mod dashboard;
+mod docs;
 mod files;
 mod jobs;
 mod logs;
 mod placeholder;
+mod settings;
 mod wizard;
 
 pub use dashboard::DashboardPage;
+pub use docs::DocsPage;
 pub use files::FilesPage;
 pub use jobs::JobsPage;
 pub use logs::LogsPage;
 pub use placeholder::PlaceholderPage;
+pub use settings::SettingsPage;
 pub use wizard::WizardPage;
 
 use bubbletea::{Cmd, Message};
@@ -118,9 +122,9 @@ pub struct Pages {
     pub services: PlaceholderPage,
     pub jobs: JobsPage,
     pub logs: LogsPage,
-    pub docs: FilesPage,
+    pub docs: DocsPage,
     pub wizard: WizardPage,
-    pub settings: PlaceholderPage,
+    pub settings: SettingsPage,
 }
 
 impl Default for Pages {
@@ -130,9 +134,9 @@ impl Default for Pages {
             services: PlaceholderPage::new(Page::Services),
             jobs: JobsPage::new(),
             logs: LogsPage::new(),
-            docs: FilesPage::new(),
+            docs: DocsPage::new(),
             wizard: WizardPage::new(),
-            settings: PlaceholderPage::new(Page::Settings),
+            settings: SettingsPage::new(),
         }
     }
 }
