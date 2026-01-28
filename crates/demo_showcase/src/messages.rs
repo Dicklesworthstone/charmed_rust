@@ -61,6 +61,8 @@ pub enum Page {
     Logs,
     /// Docs - documentation browser.
     Docs,
+    /// Files - file browser with preview.
+    Files,
     /// Wizard - multi-step workflows.
     Wizard,
     /// Settings - preferences and about.
@@ -77,12 +79,13 @@ impl Page {
             Self::Jobs => "Jobs",
             Self::Logs => "Logs",
             Self::Docs => "Docs",
+            Self::Files => "Files",
             Self::Wizard => "Wizard",
             Self::Settings => "Settings",
         }
     }
 
-    /// Get the keyboard shortcut for this page (1-7).
+    /// Get the keyboard shortcut for this page (1-8).
     #[must_use]
     #[allow(dead_code)] // Will be used in future implementations
     pub const fn shortcut(self) -> char {
@@ -92,8 +95,9 @@ impl Page {
             Self::Jobs => '3',
             Self::Logs => '4',
             Self::Docs => '5',
-            Self::Wizard => '6',
-            Self::Settings => '7',
+            Self::Files => '6',
+            Self::Wizard => '7',
+            Self::Settings => '8',
         }
     }
 
@@ -106,21 +110,23 @@ impl Page {
             '3' => Some(Self::Jobs),
             '4' => Some(Self::Logs),
             '5' => Some(Self::Docs),
-            '6' => Some(Self::Wizard),
-            '7' => Some(Self::Settings),
+            '6' => Some(Self::Files),
+            '7' => Some(Self::Wizard),
+            '8' => Some(Self::Settings),
             _ => None,
         }
     }
 
     /// Get all pages in navigation order.
     #[must_use]
-    pub const fn all() -> [Self; 7] {
+    pub const fn all() -> [Self; 8] {
         [
             Self::Dashboard,
             Self::Services,
             Self::Jobs,
             Self::Logs,
             Self::Docs,
+            Self::Files,
             Self::Wizard,
             Self::Settings,
         ]
@@ -135,6 +141,7 @@ impl Page {
             Self::Jobs => ">>",
             Self::Logs => " #",
             Self::Docs => " ?",
+            Self::Files => "<>",
             Self::Wizard => " *",
             Self::Settings => " @",
         }

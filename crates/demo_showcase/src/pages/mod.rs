@@ -123,6 +123,7 @@ pub struct Pages {
     pub jobs: JobsPage,
     pub logs: LogsPage,
     pub docs: DocsPage,
+    pub files: FilesPage,
     pub wizard: WizardPage,
     pub settings: SettingsPage,
 }
@@ -135,6 +136,7 @@ impl Default for Pages {
             jobs: JobsPage::new(),
             logs: LogsPage::new(),
             docs: DocsPage::new(),
+            files: FilesPage::new(),
             wizard: WizardPage::new(),
             settings: SettingsPage::new(),
         }
@@ -150,6 +152,7 @@ impl Pages {
             Page::Jobs => &self.jobs,
             Page::Logs => &self.logs,
             Page::Docs => &self.docs,
+            Page::Files => &self.files,
             Page::Wizard => &self.wizard,
             Page::Settings => &self.settings,
         }
@@ -163,6 +166,7 @@ impl Pages {
             Page::Jobs => &mut self.jobs,
             Page::Logs => &mut self.logs,
             Page::Docs => &mut self.docs,
+            Page::Files => &mut self.files,
             Page::Wizard => &mut self.wizard,
             Page::Settings => &mut self.settings,
         }

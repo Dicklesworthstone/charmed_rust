@@ -33,6 +33,7 @@ impl PageModel for PlaceholderPage {
             Page::Jobs => "Background job monitoring with progress tracking.",
             Page::Logs => "Aggregated log viewer with search and filtering.",
             Page::Docs => "Markdown documentation browser.",
+            Page::Files => "File browser with preview pane.",
             Page::Wizard => "Multi-step workflow for service deployment.",
             Page::Settings => "Theme selection and application preferences.",
             Page::Dashboard => "Platform health overview.",
