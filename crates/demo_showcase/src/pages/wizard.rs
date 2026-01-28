@@ -1333,4 +1333,68 @@ mod tests {
 
         assert_eq!(page.state.deployment_status, DeploymentStatus::Complete);
     }
+
+    #[test]
+    fn wizard_start_deployment_returns_cmd() {
+        let mut page = WizardPage::new();
+        page.state.name = "test-service".to_string();
+        page.state.deployment_status = DeploymentStatus::NotStarted;
+
+        // Start deployment should return a command
+        let cmd = page.start_deployment();
+        assert!(cmd.is_some());
+
+        // Status should now be InProgress
+        assert!(matches!(
+            page.state.deployment_status,
+            DeploymentStatus::InProgress(0)
+        ));
+
+        // Starting again should return None
+        let cmd2 = page.start_deployment();
+        assert!(cmd2.is_none());
+    }
+
+    #[test]
+    fn wizard_tick_returns_cmds() {
+        let mut page = WizardPage::new();
+        page.state.name = "test-service".to_string();
+
+        // Starting returns cmd
+        let start_cmd = page.start_deployment();
+        assert!(start_cmd.is_some());
+
+        // Each tick returns progress cmd
+        for _ in 0..4 {
+            let tick_cmd = page.tick_deployment();
+            assert!(tick_cmd.is_some());
+        }
+
+        // Final tick returns completion cmd and sets Complete
+        let final_cmd = page.tick_deployment();
+        assert!(final_cmd.is_some());
+        assert_eq!(page.state.deployment_status, DeploymentStatus::Complete);
+
+        // Ticking after complete returns None
+        let noop = page.tick_deployment();
+        assert!(noop.is_none());
+    }
+
+    #[test]
+    fn wizard_deployment_config_captures_state() {
+        let mut page = WizardPage::new();
+        page.state.name = "my-api".to_string();
+        page.state.service_type = ServiceType::WebService;
+        page.state.environment = Environment::Production;
+        page.state.env_vars = vec![0, 2]; // DATABASE_URL and API_KEY
+
+        let config = page.deployment_config();
+
+        assert_eq!(config.service_name, "my-api");
+        assert_eq!(config.service_type, "Web Service");
+        assert_eq!(config.environment, "production");
+        assert_eq!(config.env_vars.len(), 2);
+        assert!(config.env_vars.contains(&"DATABASE_URL".to_string()));
+        assert!(config.env_vars.contains(&"API_KEY".to_string()));
+    }
 }

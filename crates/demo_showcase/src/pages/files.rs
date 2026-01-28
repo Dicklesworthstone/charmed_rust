@@ -17,10 +17,12 @@
 //! - Breadcrumb path display
 
 use std::path::PathBuf;
+use std::sync::RwLock;
 
 use bubbles::filepicker::FilePicker;
 use bubbles::viewport::Viewport;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message};
+use glamour::{Style as GlamourStyle, TermRenderer};
 use lipgloss::Style;
 
 use super::PageModel;
@@ -51,12 +53,24 @@ pub struct FilesPage {
     height: usize,
     /// Scroll offset for file list.
     scroll_offset: usize,
-    /// Viewport for scrollable preview content.
-    preview_viewport: Viewport,
+    /// Viewport for scrollable preview content (`RwLock` for thread-safe interior mutability).
+    preview_viewport: RwLock<Viewport>,
     /// Whether the preview content was truncated.
     preview_truncated: bool,
     /// Whether focus is on the preview pane (for scrolling).
     preview_focused: bool,
+    /// Raw content for markdown rendering (stored for re-render on resize/theme change).
+    raw_content: Option<String>,
+    /// Whether the current file is markdown.
+    is_markdown: bool,
+    /// Whether syntax highlighting is enabled.
+    syntax_highlighting: bool,
+    /// Whether to show line numbers in code blocks.
+    line_numbers: bool,
+    /// Last known width for detecting resize (`RwLock` for interior mutability during view).
+    last_width: RwLock<usize>,
+    /// Last known theme name for detecting theme changes (`RwLock` for interior mutability during view).
+    last_theme: RwLock<String>,
 }
 
 impl FilesPage {
@@ -75,9 +89,15 @@ impl FilesPage {
             real_mode: false,
             height: 20,
             scroll_offset: 0,
-            preview_viewport: Viewport::new(40, 20),
+            preview_viewport: RwLock::new(Viewport::new(40, 20)),
             preview_truncated: false,
             preview_focused: false,
+            raw_content: None,
+            is_markdown: false,
+            syntax_highlighting: true,
+            line_numbers: false,
+            last_width: RwLock::new(0),
+            last_theme: RwLock::new(String::new()),
         }
     }
 
@@ -103,9 +123,15 @@ impl FilesPage {
             real_mode: true,
             height: 20,
             scroll_offset: 0,
-            preview_viewport: Viewport::new(40, 20),
+            preview_viewport: RwLock::new(Viewport::new(40, 20)),
             preview_truncated: false,
             preview_focused: false,
+            raw_content: None,
+            is_markdown: false,
+            syntax_highlighting: true,
+            line_numbers: false,
+            last_width: RwLock::new(0),
+            last_theme: RwLock::new(String::new()),
         }
     }
 
@@ -160,7 +186,7 @@ impl FilesPage {
                 self.virtual_entries = children;
                 self.selected = 0;
                 self.scroll_offset = 0;
-                self.preview_viewport.set_content("");
+                self.preview_viewport.write().unwrap().set_content("");
                 self.preview_name = None;
                 self.preview_truncated = false;
             } else if let Some(content) = content_opt {
@@ -175,8 +201,9 @@ impl FilesPage {
                 } else {
                     (content, false)
                 };
-                self.preview_viewport.set_content(&truncated_content);
-                self.preview_viewport.goto_top();
+                let mut viewport = self.preview_viewport.write().unwrap();
+                viewport.set_content(&truncated_content);
+                viewport.goto_top();
                 self.preview_name = Some(name.to_string());
                 self.preview_truncated = was_truncated;
             }
@@ -290,6 +317,9 @@ impl FilesPage {
         };
 
         if !name.is_empty() {
+            // Check if file is markdown
+            self.is_markdown = !is_dir && Self::is_markdown_file(&name);
+
             self.preview_name = if is_dir {
                 Some(format!("{}/", name))
             } else {
@@ -308,17 +338,33 @@ impl FilesPage {
                 } else {
                     (content, false)
                 };
-                self.preview_viewport.set_content(&truncated_content);
+
+                // Store raw content for markdown files (will be rendered in view)
+                if self.is_markdown {
+                    self.raw_content = Some(truncated_content.clone());
+                    // Clear viewport - will be filled in render_preview with proper theme
+                    self.preview_viewport.write().unwrap().set_content("");
+                    // Force re-render by clearing last dimensions
+                    *self.last_width.write().unwrap() = 0;
+                    self.last_theme.write().unwrap().clear();
+                } else {
+                    // Non-markdown: show raw content directly
+                    self.raw_content = None;
+                    self.preview_viewport.write().unwrap().set_content(&truncated_content);
+                }
                 self.preview_truncated = was_truncated;
             } else {
-                self.preview_viewport.set_content("");
+                self.preview_viewport.write().unwrap().set_content("");
+                self.raw_content = None;
                 self.preview_truncated = false;
             }
             // Reset scroll position when switching files
-            self.preview_viewport.goto_top();
+            self.preview_viewport.write().unwrap().goto_top();
         } else {
-            self.preview_viewport.set_content("");
+            self.preview_viewport.write().unwrap().set_content("");
             self.preview_name = None;
+            self.raw_content = None;
+            self.is_markdown = false;
             self.preview_truncated = false;
         }
     }
@@ -407,10 +453,11 @@ impl FilesPage {
     fn render_preview(&self, width: usize, height: usize, theme: &Theme) -> String {
         let mut lines = Vec::new();
 
-        // Header with focus indicator
+        // Header with focus indicator and markdown indicator
         let focus_indicator = if self.preview_focused { "● " } else { "" };
+        let md_indicator = if self.is_markdown { " [MD]" } else { "" };
         let header = if let Some(ref name) = self.preview_name {
-            let header_text = format!("{}{}", focus_indicator, name);
+            let header_text = format!("{}{}{}", focus_indicator, name, md_indicator);
             theme.heading_style().render(&header_text)
         } else {
             theme.muted_style().render("(no selection)")
@@ -418,11 +465,30 @@ impl FilesPage {
         lines.push(header);
         lines.push(theme.muted_style().render(&"─".repeat(width.min(40))));
 
+        // For markdown files, check if we need to re-render
+        let theme_name = theme.preset.name().to_string();
+        if self.is_markdown {
+            if let Some(ref raw) = self.raw_content {
+                // Re-render if width or theme changed
+                let last_w = *self.last_width.read().unwrap();
+                let last_t = self.last_theme.read().unwrap().clone();
+                if last_w != width || last_t != theme_name {
+                    let content_width = width.saturating_sub(2);
+                    let rendered = self.render_markdown(raw, theme, content_width);
+                    self.preview_viewport.write().unwrap().set_content(&rendered);
+                    *self.last_width.write().unwrap() = width;
+                    *self.last_theme.write().unwrap() = theme_name;
+                }
+            }
+        }
+
         // Content via viewport
-        let has_content = self.preview_viewport.total_line_count() > 0;
+        let viewport = self.preview_viewport.read().unwrap();
+        let has_content = viewport.total_line_count() > 0
+            || (self.is_markdown && self.raw_content.is_some());
         if has_content {
             // Create a viewport clone with correct dimensions for rendering
-            let mut render_viewport = self.preview_viewport.clone();
+            let mut render_viewport = viewport.clone();
             let content_height = height.saturating_sub(4); // header + separator + status
             render_viewport.width = width.saturating_sub(2);
             render_viewport.height = content_height;
@@ -433,12 +499,12 @@ impl FilesPage {
             }
 
             // Scroll position indicator
-            let scroll_pct = self.preview_viewport.scroll_percent();
-            let scroll_indicator = if self.preview_viewport.total_line_count() <= content_height {
+            let scroll_pct = viewport.scroll_percent();
+            let scroll_indicator = if viewport.total_line_count() <= content_height {
                 String::new()
-            } else if self.preview_viewport.at_top() {
+            } else if viewport.at_top() {
                 "Top".to_string()
-            } else if self.preview_viewport.at_bottom() {
+            } else if viewport.at_bottom() {
                 "End".to_string()
             } else {
                 format!("{}%", (scroll_pct * 100.0) as usize)
@@ -450,7 +516,16 @@ impl FilesPage {
                 ""
             };
 
-            let status = format!("{}{}", scroll_indicator, truncated_indicator);
+            // Add toggle indicators for markdown files
+            let toggle_indicator = if self.is_markdown {
+                let syntax_char = if self.syntax_highlighting { "S" } else { "·" };
+                let line_char = if self.line_numbers { "#" } else { "·" };
+                format!(" [{}{}]", syntax_char, line_char)
+            } else {
+                String::new()
+            };
+
+            let status = format!("{}{}{}", scroll_indicator, truncated_indicator, toggle_indicator);
             lines.push(theme.muted_style().render(&status));
         } else if self.preview_name.is_some() {
             lines.push(theme.muted_style().render("(directory)"));
@@ -467,6 +542,51 @@ impl FilesPage {
     /// Toggle focus between file list and preview pane.
     fn toggle_preview_focus(&mut self) {
         self.preview_focused = !self.preview_focused;
+    }
+
+    /// Check if a filename indicates a markdown file.
+    fn is_markdown_file(name: &str) -> bool {
+        let lower = name.to_lowercase();
+        lower.ends_with(".md")
+            || lower.ends_with(".markdown")
+            || lower.ends_with(".mdx")
+            || lower.ends_with(".mdown")
+    }
+
+    /// Toggle syntax highlighting on/off.
+    pub fn toggle_syntax_highlighting(&mut self) {
+        self.syntax_highlighting = !self.syntax_highlighting;
+    }
+
+    /// Toggle line numbers on/off.
+    pub fn toggle_line_numbers(&mut self) {
+        self.line_numbers = !self.line_numbers;
+    }
+
+    /// Render markdown content via glamour.
+    fn render_markdown(&self, content: &str, theme: &Theme, width: usize) -> String {
+        // Choose glamour style based on theme and syntax highlighting setting
+        let glamour_style = if !self.syntax_highlighting {
+            // When syntax highlighting is disabled, use Ascii style (no colors)
+            GlamourStyle::Ascii
+        } else if theme.preset.name() == "Light" {
+            GlamourStyle::Light
+        } else {
+            GlamourStyle::Dark
+        };
+
+        // Create renderer with appropriate settings
+        let mut renderer = TermRenderer::new()
+            .with_style(glamour_style)
+            .with_word_wrap(width.saturating_sub(4)); // Leave margin for borders
+
+        // Add line numbers if enabled (only available with syntax-highlighting feature)
+        #[cfg(feature = "syntax-highlighting")]
+        if self.line_numbers {
+            renderer.set_line_numbers(true);
+        }
+
+        renderer.render(content)
     }
 }
 
@@ -491,21 +611,39 @@ impl PageModel for FilesPage {
 
             // When preview is focused, delegate scroll keys to viewport
             if self.preview_focused {
+                let mut viewport = self.preview_viewport.write().unwrap();
                 match key.key_type {
-                    KeyType::Up => self.preview_viewport.scroll_up(1),
-                    KeyType::Down => self.preview_viewport.scroll_down(1),
-                    KeyType::PgUp => self.preview_viewport.page_up(),
-                    KeyType::PgDown => self.preview_viewport.page_down(),
-                    KeyType::Home => self.preview_viewport.goto_top(),
-                    KeyType::End => self.preview_viewport.goto_bottom(),
-                    KeyType::Esc => self.preview_focused = false,
+                    KeyType::Up => viewport.scroll_up(1),
+                    KeyType::Down => viewport.scroll_down(1),
+                    KeyType::PgUp => viewport.page_up(),
+                    KeyType::PgDown => viewport.page_down(),
+                    KeyType::Home => viewport.goto_top(),
+                    KeyType::End => viewport.goto_bottom(),
+                    KeyType::Esc => {
+                        drop(viewport);
+                        self.preview_focused = false;
+                    }
                     KeyType::Runes => match key.runes.as_slice() {
-                        ['j'] => self.preview_viewport.scroll_down(1),
-                        ['k'] => self.preview_viewport.scroll_up(1),
-                        ['g'] => self.preview_viewport.goto_top(),
-                        ['G'] => self.preview_viewport.goto_bottom(),
-                        ['d'] => self.preview_viewport.half_page_down(),
-                        ['u'] => self.preview_viewport.half_page_up(),
+                        ['j'] => viewport.scroll_down(1),
+                        ['k'] => viewport.scroll_up(1),
+                        ['g'] => viewport.goto_top(),
+                        ['G'] => viewport.goto_bottom(),
+                        ['d'] => viewport.half_page_down(),
+                        ['u'] => viewport.half_page_up(),
+                        // Toggle syntax highlighting with 's' for markdown files
+                        ['s'] if self.is_markdown => {
+                            drop(viewport);
+                            self.toggle_syntax_highlighting();
+                            // Force re-render
+                            *self.last_width.write().unwrap() = 0;
+                        }
+                        // Toggle line numbers with '#' for markdown files
+                        ['#'] if self.is_markdown => {
+                            drop(viewport);
+                            self.toggle_line_numbers();
+                            // Force re-render
+                            *self.last_width.write().unwrap() = 0;
+                        }
                         _ => {}
                     },
                     _ => {}
@@ -592,7 +730,11 @@ impl PageModel for FilesPage {
 
     fn hints(&self) -> &'static str {
         if self.preview_focused {
-            "j/k scroll  g/G top/bottom  Tab list  Esc back"
+            if self.is_markdown {
+                "j/k scroll  s syntax  # lines  Tab list  Esc back"
+            } else {
+                "j/k scroll  g/G top/bottom  Tab list  Esc back"
+            }
         } else {
             "j/k nav  l/Enter open  h back  H hidden  Tab preview"
         }
@@ -724,7 +866,7 @@ mod tests {
     #[test]
     fn files_page_viewport_initialized() {
         let page = FilesPage::new();
-        assert_eq!(page.preview_viewport.total_line_count(), 0);
+        assert_eq!(page.preview_viewport.read().unwrap().total_line_count(), 0);
         assert!(!page.preview_truncated);
     }
 
@@ -743,7 +885,42 @@ mod tests {
             page.update_preview();
 
             // Verify content was loaded into viewport
-            assert!(page.preview_viewport.total_line_count() > 0 || page.preview_name.is_some());
+            assert!(page.preview_viewport.read().unwrap().total_line_count() > 0 || page.preview_name.is_some());
         }
+    }
+
+    #[test]
+    fn files_page_markdown_detection() {
+        assert!(FilesPage::is_markdown_file("README.md"));
+        assert!(FilesPage::is_markdown_file("doc.markdown"));
+        assert!(FilesPage::is_markdown_file("test.MDX"));
+        assert!(FilesPage::is_markdown_file("notes.mdown"));
+        assert!(!FilesPage::is_markdown_file("code.rs"));
+        assert!(!FilesPage::is_markdown_file("config.toml"));
+        assert!(!FilesPage::is_markdown_file("file.txt"));
+    }
+
+    #[test]
+    fn files_page_syntax_highlighting_toggle() {
+        let mut page = FilesPage::new();
+        assert!(page.syntax_highlighting);
+
+        page.toggle_syntax_highlighting();
+        assert!(!page.syntax_highlighting);
+
+        page.toggle_syntax_highlighting();
+        assert!(page.syntax_highlighting);
+    }
+
+    #[test]
+    fn files_page_line_numbers_toggle() {
+        let mut page = FilesPage::new();
+        assert!(!page.line_numbers);
+
+        page.toggle_line_numbers();
+        assert!(page.line_numbers);
+
+        page.toggle_line_numbers();
+        assert!(!page.line_numbers);
     }
 }

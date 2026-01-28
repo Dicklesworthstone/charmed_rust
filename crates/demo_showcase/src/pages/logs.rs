@@ -14,6 +14,7 @@
 //!
 //! Uses `RwLock` for thread-safe interior mutability, enabling SSH mode.
 
+use std::path::PathBuf;
 use std::sync::RwLock;
 
 use bubbles::textinput::TextInput;
@@ -23,7 +24,7 @@ use bubbletea::{Cmd, KeyMsg, KeyType, Message};
 use super::PageModel;
 use crate::data::generator::GeneratedData;
 use crate::data::{LogColumnWidths, LogEntry, LogFormatter, LogLevel, LogStream};
-use crate::messages::Page;
+use crate::messages::{Notification, NotificationMsg, Page};
 use crate::theme::Theme;
 
 /// Default seed for deterministic data generation.
@@ -397,6 +398,149 @@ impl LogsPage {
         }
     }
 
+    // =========================================================================
+    // Actions (bd-15xi)
+    // =========================================================================
+
+    /// Get the export directory path based on mode.
+    ///
+    /// In E2E/test mode, writes to `target/demo_showcase_e2e/logs/`.
+    /// Otherwise, writes to `./demo_showcase_exports/`.
+    fn export_dir() -> PathBuf {
+        // Check for E2E mode via environment variable
+        if std::env::var("DEMO_SHOWCASE_E2E").is_ok() {
+            PathBuf::from("target/demo_showcase_e2e/logs")
+        } else {
+            PathBuf::from("demo_showcase_exports")
+        }
+    }
+
+    /// Copy the current visible viewport content to a file.
+    ///
+    /// Returns a command to show a notification.
+    fn action_copy_viewport(&self, theme: &Theme) -> Option<Cmd> {
+        let content = self.viewport.read().unwrap().view();
+        Self::write_to_export_file("viewport", &content, theme)
+    }
+
+    /// Copy all filtered log entries to a file.
+    ///
+    /// Returns a command to show a notification.
+    fn action_copy_all(&self, theme: &Theme) -> Option<Cmd> {
+        let content = self.format_logs_plain();
+        Self::write_to_export_file("logs_full", &content, theme)
+    }
+
+    /// Export the full log buffer to a file (plain text format).
+    ///
+    /// Returns a command to show a notification.
+    fn action_export(&self, _theme: &Theme) -> Option<Cmd> {
+        let content = self.format_logs_plain();
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
+        let export_dir = Self::export_dir();
+        let filename = format!("logs_export_{timestamp}.txt");
+        let filepath = export_dir.join(&filename);
+
+        // Use blocking command to write file
+        Some(Cmd::blocking(move || {
+            // Ensure export directory exists
+            if let Err(e) = std::fs::create_dir_all(&export_dir) {
+                let notification =
+                    Notification::error(0, format!("Failed to create export dir: {e}"));
+                return NotificationMsg::Show(notification).into_message();
+            }
+
+            match std::fs::write(&filepath, content) {
+                Ok(()) => {
+                    let notification = Notification::success(
+                        0,
+                        format!("Exported logs to {}", filepath.display()),
+                    );
+                    NotificationMsg::Show(notification).into_message()
+                }
+                Err(e) => {
+                    let notification =
+                        Notification::error(0, format!("Export failed: {e}"));
+                    NotificationMsg::Show(notification).into_message()
+                }
+            }
+        }))
+    }
+
+    /// Clear all logs from the buffer.
+    ///
+    /// Returns a command to show a notification.
+    fn action_clear(&mut self) -> Option<Cmd> {
+        let count = self.logs.len();
+        self.logs = LogStream::new(MAX_LOG_ENTRIES);
+        self.filtered_indices.clear();
+        *self.needs_reformat.write().unwrap() = true;
+        self.viewport.write().unwrap().set_content("");
+
+        Some(Cmd::new(move || {
+            let notification = Notification::info(0, format!("Cleared {count} log entries"));
+            NotificationMsg::Show(notification).into_message()
+        }))
+    }
+
+    /// Write content to an export file and return a notification command.
+    fn write_to_export_file(prefix: &str, content: &str, _theme: &Theme) -> Option<Cmd> {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
+        let export_dir = Self::export_dir();
+        let filename = format!("{prefix}_{timestamp}.txt");
+        let filepath = export_dir.join(&filename);
+        let content = content.to_string();
+
+        Some(Cmd::blocking(move || {
+            // Ensure export directory exists
+            if let Err(e) = std::fs::create_dir_all(&export_dir) {
+                let notification =
+                    Notification::error(0, format!("Failed to create export dir: {e}"));
+                return NotificationMsg::Show(notification).into_message();
+            }
+
+            match std::fs::write(&filepath, content) {
+                Ok(()) => {
+                    let notification = Notification::success(
+                        0,
+                        format!("Copied to {}", filepath.display()),
+                    );
+                    NotificationMsg::Show(notification).into_message()
+                }
+                Err(e) => {
+                    let notification = Notification::error(0, format!("Copy failed: {e}"));
+                    NotificationMsg::Show(notification).into_message()
+                }
+            }
+        }))
+    }
+
+    /// Format logs as plain text without ANSI styling.
+    fn format_logs_plain(&self) -> String {
+        let entries = self.logs.entries();
+        self.filtered_indices
+            .iter()
+            .filter_map(|&i| entries.get(i))
+            .map(|entry| {
+                let timestamp = entry.timestamp.format("%H:%M:%S");
+                let level = entry.level.abbrev();
+                format!(
+                    "{} {} [{}] {}",
+                    timestamp, level, entry.target, entry.message
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     /// Format filtered log entries for display.
     fn format_logs(&self, theme: &Theme, target_width: usize) -> String {
         // Calculate optimal target width based on available space
@@ -609,6 +753,30 @@ impl PageModel for LogsPage {
                             self.toggle_level_filter(LogLevel::Trace);
                             return None;
                         }
+                        // Copy/export/clear actions (bd-15xi)
+                        ['y'] => {
+                            // Copy visible viewport to file
+                            // Note: We need a theme for format_logs, but viewport.view()
+                            // returns already-rendered content
+                            let content = self.viewport.read().unwrap().view();
+                            return Self::write_to_export_file("viewport", &content, &Theme::default());
+                        }
+                        ['Y'] => {
+                            // Copy all filtered logs to file
+                            return Self::write_to_export_file(
+                                "logs_all",
+                                &self.format_logs_plain(),
+                                &Theme::default(),
+                            );
+                        }
+                        ['e'] => {
+                            // Export full log buffer to file
+                            return self.action_export(&Theme::default());
+                        }
+                        ['X'] => {
+                            // Clear log buffer (capital X for dangerous action)
+                            return self.action_clear();
+                        }
                         // Clear filters
                         ['c'] => {
                             self.clear_filters();
@@ -676,7 +844,7 @@ impl PageModel for LogsPage {
     }
 
     fn hints(&self) -> &'static str {
-        "/ filter  1-5 levels  c clear  f follow  j/k scroll  r refresh"
+        "y copy  e export  X clear  / filter  1-5 levels  f follow  j/k scroll"
     }
 
     fn on_enter(&mut self) -> Option<Cmd> {
@@ -991,5 +1159,69 @@ mod tests {
         let second_result = page.filtered_indices.clone();
 
         assert_eq!(first_result, second_result, "Filter should be idempotent");
+    }
+
+    // =========================================================================
+    // Action Tests (bd-15xi)
+    // =========================================================================
+
+    #[test]
+    fn action_clear_empties_logs() {
+        let mut page = LogsPage::new();
+        assert!(!page.logs.is_empty(), "Should start with logs");
+
+        let cmd = page.action_clear();
+
+        // Logs should be cleared
+        assert!(page.logs.is_empty(), "Logs should be empty after clear");
+        assert!(page.filtered_indices.is_empty(), "Filtered indices should be empty");
+        // Should return a notification command
+        assert!(cmd.is_some(), "Should return a notification command");
+    }
+
+    #[test]
+    fn format_logs_plain_produces_text() {
+        let page = LogsPage::new();
+
+        let plain = page.format_logs_plain();
+
+        // Should produce non-empty plain text
+        assert!(!plain.is_empty(), "Plain log format should not be empty");
+        // Should contain timestamp format (HH:MM:SS)
+        assert!(plain.contains(':'), "Should contain timestamp separators");
+        // Should not contain ANSI escape codes
+        assert!(
+            !plain.contains("\x1b["),
+            "Plain text should not contain ANSI escapes"
+        );
+    }
+
+    #[test]
+    fn export_dir_default_path() {
+        // Test the default export directory (when E2E env var is not set)
+        // Note: We cannot safely modify env vars in tests due to forbid(unsafe_code),
+        // so we test the default case only.
+        // The E2E case is covered by integration/E2E tests.
+        let dir = LogsPage::export_dir();
+        // Either the default or E2E path is valid depending on test environment
+        let valid_paths = [
+            std::path::PathBuf::from("demo_showcase_exports"),
+            std::path::PathBuf::from("target/demo_showcase_e2e/logs"),
+        ];
+        assert!(
+            valid_paths.contains(&dir),
+            "Export dir should be a valid path: {:?}",
+            dir
+        );
+    }
+
+    #[test]
+    fn action_export_returns_command() {
+        let page = LogsPage::new();
+
+        let cmd = page.action_export(&Theme::default());
+
+        // Should return a command for file export
+        assert!(cmd.is_some(), "action_export should return a command");
     }
 }
