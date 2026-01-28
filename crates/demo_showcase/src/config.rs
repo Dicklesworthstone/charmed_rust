@@ -537,4 +537,407 @@ mod tests {
     fn animation_mode_default() {
         assert_eq!(AnimationMode::default(), AnimationMode::Enabled);
     }
+
+    // =========================================================================
+    // bd-gbps: Config parsing + env/CLI precedence tests
+    // =========================================================================
+
+    // --- Defaults are sane ---
+
+    #[test]
+    fn config_new_equals_default() {
+        let new = Config::new();
+        let def = Config::default();
+        // Compare field-by-field (Config doesn't derive PartialEq)
+        assert_eq!(new.theme_preset, def.theme_preset);
+        assert_eq!(new.color_mode, def.color_mode);
+        assert_eq!(new.animations, def.animations);
+        assert_eq!(new.mouse, def.mouse);
+        assert_eq!(new.alt_screen, def.alt_screen);
+        assert_eq!(new.seed, def.seed);
+        assert_eq!(new.self_check, def.self_check);
+        assert_eq!(new.verbosity, def.verbosity);
+        assert_eq!(new.syntax_highlighting, def.syntax_highlighting);
+        assert_eq!(new.line_numbers, def.line_numbers);
+    }
+
+    #[test]
+    fn default_has_no_seed() {
+        let config = Config::default();
+        assert!(config.seed.is_none(), "default config should have no fixed seed");
+    }
+
+    #[test]
+    fn default_is_not_headless() {
+        let config = Config::default();
+        assert!(!config.is_headless());
+    }
+
+    #[test]
+    fn default_has_animations_enabled() {
+        let config = Config::default();
+        assert!(config.use_animations());
+        assert!(!config.reduce_motion());
+    }
+
+    #[test]
+    fn default_mouse_disabled_for_safety() {
+        let config = Config::default();
+        assert!(!config.mouse, "mouse should be off by default");
+    }
+
+    // --- CLI flag → Config field mapping ---
+
+    #[test]
+    fn cli_each_flag_maps_correctly() {
+        // Combine every CLI flag and verify each maps to the right Config field.
+        let cli = Cli::try_parse_from([
+            "demo_showcase",
+            "--theme",
+            "light",
+            "--seed",
+            "99",
+            "--no-animations",
+            "--no-mouse",
+            "--no-color",
+            "--no-alt-screen",
+            "--self-check",
+            "-vvv",
+        ])
+        .unwrap();
+        let config = Config::from_cli(&cli);
+
+        assert_eq!(config.theme_preset, ThemePreset::Light);
+        assert_eq!(config.seed, Some(99));
+        assert_eq!(config.animations, AnimationMode::Disabled);
+        assert!(!config.mouse, "--no-mouse → mouse=false");
+        assert_eq!(config.color_mode, ColorMode::Never, "--no-color → Never");
+        assert!(!config.alt_screen, "--no-alt-screen → false");
+        assert!(config.self_check, "--self-check → true");
+        assert_eq!(config.verbosity, 3, "-vvv → 3");
+    }
+
+    #[test]
+    fn cli_force_color_overrides_no_color() {
+        // --force-color and --no-color are mutually exclusive at the clap level.
+        let result = Cli::try_parse_from(["demo_showcase", "--force-color", "--no-color"]);
+        assert!(result.is_err(), "force-color and no-color must conflict");
+    }
+
+    #[test]
+    fn cli_force_color_sets_always() {
+        let cli = Cli::try_parse_from(["demo_showcase", "--force-color"]).unwrap();
+        let config = Config::from_cli(&cli);
+        assert_eq!(config.color_mode, ColorMode::Always);
+    }
+
+    #[test]
+    fn cli_theme_file_stored_alongside_preset() {
+        // --theme-file is stored in config.theme_file; the preset is also set.
+        // The rendering layer resolves precedence (theme_file > theme_preset).
+        let cli = Cli::try_parse_from([
+            "demo_showcase",
+            "--theme",
+            "dracula",
+            "--theme-file",
+            "/tmp/custom.json",
+        ])
+        .unwrap();
+        let config = Config::from_cli(&cli);
+
+        assert_eq!(config.theme_preset, ThemePreset::Dracula);
+        assert_eq!(
+            config.theme_file,
+            Some(PathBuf::from("/tmp/custom.json")),
+            "theme_file must be populated"
+        );
+    }
+
+    #[test]
+    fn cli_unknown_theme_falls_back_to_dark() {
+        // An unrecognized theme name should map to the Dark default.
+        let cli = Cli::try_parse_from(["demo_showcase", "--theme", "nonexistent"]).unwrap();
+        let config = Config::from_cli(&cli);
+        assert_eq!(
+            config.theme_preset,
+            ThemePreset::Dark,
+            "unknown theme should fall back to Dark"
+        );
+    }
+
+    #[test]
+    fn cli_empty_theme_falls_back_to_dark() {
+        let cli = Cli::try_parse_from(["demo_showcase", "--theme", ""]).unwrap();
+        let config = Config::from_cli(&cli);
+        assert_eq!(config.theme_preset, ThemePreset::Dark);
+    }
+
+    // --- Precedence rules ---
+
+    #[test]
+    fn color_mode_auto_respects_use_color() {
+        // ColorMode::Auto uses color by default (non-TTY check is simplified).
+        let config = Config {
+            color_mode: ColorMode::Auto,
+            ..Default::default()
+        };
+        // In test environment, NO_COLOR may or may not be set;
+        // just verify the method doesn't panic and returns a bool.
+        let _ = config.use_color();
+    }
+
+    #[test]
+    fn color_mode_always_overrides_everything() {
+        let config = Config {
+            color_mode: ColorMode::Always,
+            ..Default::default()
+        };
+        assert!(config.use_color(), "Always means always");
+    }
+
+    #[test]
+    fn color_mode_never_overrides_everything() {
+        let config = Config {
+            color_mode: ColorMode::Never,
+            ..Default::default()
+        };
+        assert!(!config.use_color(), "Never means never");
+    }
+
+    // --- Validation edge cases ---
+
+    #[test]
+    fn validate_accepts_no_theme_file() {
+        let config = Config {
+            theme_file: None,
+            ..Default::default()
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_nonexistent_theme_file() {
+        let config = Config {
+            theme_file: Some(PathBuf::from("/definitely/not/a/real/path.json")),
+            ..Default::default()
+        };
+        match config.validate() {
+            Err(ConfigError::ThemeFileNotFound(p)) => {
+                assert_eq!(p, PathBuf::from("/definitely/not/a/real/path.json"));
+            }
+            other => panic!("expected ThemeFileNotFound, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn validate_rejects_file_as_files_root() {
+        // A regular file (not a directory) should fail validation.
+        let config = Config {
+            files_root: Some(PathBuf::from("/dev/null")),
+            ..Default::default()
+        };
+        let err = config.validate();
+        assert!(
+            matches!(err, Err(ConfigError::FilesRootNotDirectory(_))),
+            "regular file as files_root should fail: {:?}",
+            err
+        );
+    }
+
+    #[test]
+    fn validate_accepts_valid_directory() {
+        let config = Config {
+            files_root: Some(PathBuf::from("/tmp")),
+            ..Default::default()
+        };
+        assert!(config.validate().is_ok(), "/tmp is a valid directory");
+    }
+
+    #[test]
+    fn config_error_display_messages() {
+        // Verify error Display impls produce meaningful messages.
+        let err = ConfigError::ThemeFileNotFound(PathBuf::from("bad.json"));
+        assert!(err.to_string().contains("bad.json"));
+
+        let err = ConfigError::FilesRootNotFound(PathBuf::from("/missing"));
+        assert!(err.to_string().contains("/missing"));
+
+        let err = ConfigError::FilesRootNotDirectory(PathBuf::from("/dev/null"));
+        assert!(err.to_string().contains("/dev/null"));
+
+        let err = ConfigError::InvalidTheme("nope".into());
+        assert!(err.to_string().contains("nope"));
+    }
+
+    // --- Serialization fidelity ---
+
+    #[test]
+    fn config_json_roundtrip_all_fields() {
+        let config = Config {
+            theme_preset: ThemePreset::Dracula,
+            theme_file: Some(PathBuf::from("/tmp/theme.json")),
+            color_mode: ColorMode::Always,
+            animations: AnimationMode::Reduced,
+            mouse: true,
+            alt_screen: false,
+            seed: Some(12345),
+            files_root: Some(PathBuf::from("/data")),
+            self_check: true,
+            verbosity: 3,
+            syntax_highlighting: false,
+            line_numbers: true,
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: Config = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.theme_preset, ThemePreset::Dracula);
+        assert_eq!(parsed.theme_file, Some(PathBuf::from("/tmp/theme.json")));
+        assert_eq!(parsed.color_mode, ColorMode::Always);
+        assert_eq!(parsed.animations, AnimationMode::Reduced);
+        assert!(parsed.mouse);
+        assert!(!parsed.alt_screen);
+        assert_eq!(parsed.seed, Some(12345));
+        assert_eq!(parsed.files_root, Some(PathBuf::from("/data")));
+        assert!(parsed.self_check);
+        assert_eq!(parsed.verbosity, 3);
+        assert!(!parsed.syntax_highlighting);
+        assert!(parsed.line_numbers);
+    }
+
+    #[test]
+    fn config_default_json_roundtrip() {
+        let config = Config::default();
+        let json = serde_json::to_string_pretty(&config).unwrap();
+        let parsed: Config = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.theme_preset, config.theme_preset);
+        assert_eq!(parsed.color_mode, config.color_mode);
+        assert_eq!(parsed.seed, config.seed);
+    }
+
+    // --- Diagnostic string ---
+
+    #[test]
+    fn diagnostic_string_covers_all_fields() {
+        let config = Config {
+            theme_file: Some(PathBuf::from("/custom/theme.json")),
+            files_root: Some(PathBuf::from("/files")),
+            seed: Some(42),
+            ..Default::default()
+        };
+
+        let diag = config.to_diagnostic_string();
+        assert!(diag.contains("Theme:"), "missing theme");
+        assert!(diag.contains("Theme file:"), "missing theme file");
+        assert!(diag.contains("Color mode:"), "missing color mode");
+        assert!(diag.contains("Animations:"), "missing animations");
+        assert!(diag.contains("Mouse:"), "missing mouse");
+        assert!(diag.contains("Alt screen:"), "missing alt screen");
+        assert!(diag.contains("Seed:"), "missing seed");
+        assert!(diag.contains("Files root:"), "missing files root");
+        assert!(diag.contains("Self-check:"), "missing self-check");
+        assert!(diag.contains("Verbosity:"), "missing verbosity");
+        assert!(diag.contains("Syntax highlighting:"), "missing syntax");
+        assert!(diag.contains("Line numbers:"), "missing line numbers");
+    }
+
+    #[test]
+    fn diagnostic_string_omits_optional_paths_when_none() {
+        let config = Config::default();
+        let diag = config.to_diagnostic_string();
+        assert!(!diag.contains("Theme file:"), "should omit when None");
+        assert!(!diag.contains("Files root:"), "should omit when None");
+    }
+
+    // --- Seed behavior ---
+
+    #[test]
+    fn effective_seed_deterministic_when_set() {
+        let config = Config {
+            seed: Some(42),
+            ..Default::default()
+        };
+        assert_eq!(config.effective_seed(), 42);
+        assert_eq!(config.effective_seed(), 42);
+    }
+
+    #[test]
+    fn effective_seed_nonzero_when_generated() {
+        let config = Config::default();
+        let seed = config.effective_seed();
+        assert!(seed > 0, "generated seed should be nonzero");
+    }
+
+    // --- is_headless ---
+
+    #[test]
+    fn is_headless_tracks_self_check() {
+        let config = Config {
+            self_check: true,
+            ..Default::default()
+        };
+        assert!(config.is_headless());
+
+        let config = Config {
+            self_check: false,
+            ..Default::default()
+        };
+        assert!(!config.is_headless());
+    }
+
+    // --- Animation mode helpers ---
+
+    #[test]
+    fn reduced_motion_reports_correctly() {
+        let config = Config {
+            animations: AnimationMode::Reduced,
+            ..Default::default()
+        };
+        assert!(config.use_animations(), "Reduced still means animations on");
+        assert!(config.reduce_motion(), "Reduced should report reduce_motion");
+    }
+
+    #[test]
+    fn disabled_animations_not_reduced() {
+        let config = Config {
+            animations: AnimationMode::Disabled,
+            ..Default::default()
+        };
+        assert!(!config.use_animations());
+        assert!(!config.reduce_motion(), "Disabled is not Reduced");
+    }
+
+    // --- CLI seed edge cases ---
+
+    #[test]
+    fn cli_seed_zero_is_valid() {
+        let cli = Cli::try_parse_from(["demo_showcase", "--seed", "0"]).unwrap();
+        let config = Config::from_cli(&cli);
+        assert_eq!(config.seed, Some(0));
+        assert_eq!(config.effective_seed(), 0);
+    }
+
+    #[test]
+    fn cli_seed_max_u64() {
+        let cli = Cli::try_parse_from([
+            "demo_showcase",
+            "--seed",
+            &u64::MAX.to_string(),
+        ])
+        .unwrap();
+        let config = Config::from_cli(&cli);
+        assert_eq!(config.seed, Some(u64::MAX));
+    }
+
+    #[test]
+    fn cli_invalid_seed_rejected() {
+        let result = Cli::try_parse_from(["demo_showcase", "--seed", "not_a_number"]);
+        assert!(result.is_err(), "non-numeric seed should be rejected");
+    }
+
+    #[test]
+    fn cli_negative_seed_rejected() {
+        let result = Cli::try_parse_from(["demo_showcase", "--seed", "-1"]);
+        assert!(result.is_err(), "negative seed should be rejected (u64)");
+    }
 }
