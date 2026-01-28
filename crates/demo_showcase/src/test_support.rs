@@ -756,3 +756,415 @@ mod tests {
         assert!(result.is_ok());
     }
 }
+
+// =============================================================================
+// E2E HEADLESS RUNNER
+// =============================================================================
+
+use bubbletea::simulator::ProgramSimulator;
+use bubbletea::{KeyMsg, KeyType, Message, MouseAction, MouseButton, MouseMsg, WindowSizeMsg};
+
+use crate::app::App;
+use crate::config::Config;
+use crate::messages::Page;
+
+/// E2E test runner for headless execution of the demo_showcase app.
+///
+/// This runner provides a high-level DSL for driving the app without a real terminal,
+/// capturing frames at each step, and asserting on the output.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use demo_showcase::test_support::E2ERunner;
+///
+/// let mut runner = E2ERunner::new("navigation_test");
+/// runner.press_key('j');  // Move down
+/// runner.assert_contains("Jobs");
+/// runner.press_key('2');  // Navigate to Services
+/// runner.assert_page(Page::Services);
+/// runner.finish().expect("test should pass");
+/// ```
+pub struct E2ERunner {
+    /// The program simulator
+    sim: ProgramSimulator<App>,
+    /// Scenario recorder for artifacts
+    recorder: ScenarioRecorder,
+    /// Current window size
+    width: u16,
+    height: u16,
+    /// Step counter for automatic step naming
+    auto_step: u32,
+}
+
+impl E2ERunner {
+    /// Creates a new E2E runner with default config.
+    ///
+    /// Uses a deterministic seed and default theme for reproducible tests.
+    pub fn new(scenario: impl Into<String>) -> Self {
+        let scenario_name = scenario.into();
+        Self::with_config(scenario_name, Config::default_test())
+    }
+
+    /// Creates a new E2E runner with the given config.
+    pub fn with_config(scenario: impl Into<String>, config: Config) -> Self {
+        let scenario_name = scenario.into();
+        let mut recorder = ScenarioRecorder::new(&scenario_name);
+
+        // Set config snapshot
+        recorder.set_config(ConfigSnapshot {
+            seed: config.effective_seed(),
+            theme: config.theme_preset.name().to_string(),
+            sidebar: true, // App starts with sidebar visible
+            animations: config.use_animations(),
+            color_mode: format!("{:?}", config.color_mode),
+        });
+
+        // Create app from config
+        let app = App::from_config(&config);
+
+        // Create simulator and initialize
+        let mut sim = ProgramSimulator::new(app);
+        let _init_cmd = sim.init();
+
+        Self {
+            sim,
+            recorder,
+            width: 120,
+            height: 40,
+            auto_step: 0,
+        }
+    }
+
+    /// Begins a named step in the scenario.
+    ///
+    /// Steps provide structure to the test and appear in artifact summaries.
+    pub fn step(&mut self, description: impl Into<String>) {
+        self.recorder.step(description);
+        self.capture_frame();
+    }
+
+    /// Presses a single character key.
+    pub fn press_key(&mut self, c: char) {
+        self.auto_step("Press key");
+        self.recorder.key(&c.to_string());
+
+        let msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: vec![c],
+            alt: false,
+            paste: false,
+        });
+        self.sim.send(msg);
+        self.sim.step();
+        self.capture_frame();
+    }
+
+    /// Presses multiple keys in sequence.
+    pub fn press_keys(&mut self, keys: &str) {
+        for c in keys.chars() {
+            self.press_key(c);
+        }
+    }
+
+    /// Presses a special key (Enter, Esc, Arrow keys, etc.).
+    pub fn press_special(&mut self, key_type: KeyType) {
+        self.auto_step(&format!("Press {:?}", key_type));
+        self.recorder.key(&format!("{:?}", key_type));
+
+        let msg = Message::new(KeyMsg {
+            key_type,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        });
+        self.sim.send(msg);
+        self.sim.step();
+        self.capture_frame();
+    }
+
+    /// Presses a key with Alt modifier.
+    pub fn press_alt(&mut self, c: char) {
+        self.auto_step(&format!("Press Alt+{}", c));
+        self.recorder.key_with_modifiers(&c.to_string(), &["alt"]);
+
+        let msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: vec![c],
+            alt: true,
+            paste: false,
+        });
+        self.sim.send(msg);
+        self.sim.step();
+        self.capture_frame();
+    }
+
+    /// Types a string (simulates paste event).
+    pub fn type_text(&mut self, text: &str) {
+        self.auto_step(&format!("Type: {:?}", text));
+        self.recorder.input(TestInput::Paste {
+            text: text.to_string(),
+        });
+
+        let msg = Message::new(KeyMsg {
+            key_type: KeyType::Runes,
+            runes: text.chars().collect(),
+            alt: false,
+            paste: true,
+        });
+        self.sim.send(msg);
+        self.sim.step();
+        self.capture_frame();
+    }
+
+    /// Simulates a mouse click at the given position.
+    pub fn click(&mut self, x: u16, y: u16) {
+        self.auto_step(&format!("Click at ({}, {})", x, y));
+        self.recorder.input(TestInput::Mouse {
+            action: "click".to_string(),
+            x,
+            y,
+            button: Some("left".to_string()),
+        });
+
+        let msg = Message::new(MouseMsg {
+            x,
+            y,
+            shift: false,
+            alt: false,
+            ctrl: false,
+            action: MouseAction::Press,
+            button: MouseButton::Left,
+        });
+        self.sim.send(msg);
+        self.sim.step();
+        self.capture_frame();
+    }
+
+    /// Simulates a window resize.
+    pub fn resize(&mut self, width: u16, height: u16) {
+        self.auto_step(&format!("Resize to {}x{}", width, height));
+        self.recorder.input(TestInput::Resize { width, height });
+
+        self.width = width;
+        self.height = height;
+
+        let msg = Message::new(WindowSizeMsg { width, height });
+        self.sim.send(msg);
+        self.sim.step();
+        self.capture_frame();
+    }
+
+    /// Runs update steps until the message queue is empty.
+    pub fn drain(&mut self) {
+        self.sim.run_until_empty();
+        self.capture_frame();
+    }
+
+    /// Gets the current rendered view.
+    pub fn view(&self) -> String {
+        self.sim
+            .last_view()
+            .map(|s| s.to_string())
+            .unwrap_or_default()
+    }
+
+    /// Asserts that the current view contains the given text.
+    pub fn assert_contains(&mut self, text: &str) -> bool {
+        let view = self.view();
+        let contains = view.contains(text);
+        self.recorder.record_assertion(
+            &format!("view contains {:?}", text),
+            contains,
+            &format!("contains {:?}", text),
+            &if contains {
+                "found".to_string()
+            } else {
+                format!("not found in: {}", truncate_view(&view, 200))
+            },
+        )
+    }
+
+    /// Asserts that the current view does NOT contain the given text.
+    pub fn assert_not_contains(&mut self, text: &str) -> bool {
+        let view = self.view();
+        let not_contains = !view.contains(text);
+        self.recorder.record_assertion(
+            &format!("view does not contain {:?}", text),
+            not_contains,
+            &format!("does not contain {:?}", text),
+            &if not_contains {
+                "not found (good)".to_string()
+            } else {
+                format!("unexpectedly found in: {}", truncate_view(&view, 200))
+            },
+        )
+    }
+
+    /// Asserts that the app is on the given page.
+    pub fn assert_page(&mut self, expected: Page) -> bool {
+        let actual = self.sim.model().current_page();
+        self.recorder.assert_eq(
+            &format!("current page is {:?}", expected),
+            &expected,
+            &actual,
+        )
+    }
+
+    /// Asserts that the view is not empty.
+    pub fn assert_view_not_empty(&mut self) -> bool {
+        let view = self.view();
+        let not_empty = !view.trim().is_empty();
+        self.recorder.record_assertion(
+            "view is not empty",
+            not_empty,
+            "non-empty view",
+            &if not_empty {
+                format!("{} chars", view.len())
+            } else {
+                "empty".to_string()
+            },
+        )
+    }
+
+    /// Asserts that no ANSI escape codes are present (for no-color mode testing).
+    pub fn assert_no_ansi(&mut self) -> bool {
+        let view = self.view();
+        let has_ansi = view.contains("\x1b[");
+        self.recorder.record_assertion(
+            "no ANSI escape codes",
+            !has_ansi,
+            "no \\x1b[",
+            &if has_ansi {
+                "found ANSI codes".to_string()
+            } else {
+                "clean".to_string()
+            },
+        )
+    }
+
+    /// Gets the underlying model for direct state inspection.
+    pub fn model(&self) -> &App {
+        self.sim.model()
+    }
+
+    /// Gets simulation statistics.
+    pub fn stats(&self) -> &bubbletea::simulator::SimulationStats {
+        self.sim.stats()
+    }
+
+    /// Finishes the test and writes artifacts (on failure).
+    ///
+    /// Returns `Ok(())` if all assertions passed, `Err(summary)` otherwise.
+    pub fn finish(self) -> Result<(), String> {
+        self.recorder.finish()
+    }
+
+    /// Captures the current frame.
+    fn capture_frame(&mut self) {
+        let view = self.view();
+        self.recorder.capture_frame(&view);
+    }
+
+    /// Auto-generates a step if none is active.
+    fn auto_step(&mut self, description: &str) {
+        self.auto_step += 1;
+        if self.recorder.step == 0 {
+            self.recorder.step(description);
+        }
+    }
+}
+
+/// Truncates a view string for error messages.
+fn truncate_view(view: &str, max_len: usize) -> String {
+    if view.len() <= max_len {
+        view.to_string()
+    } else {
+        format!("{}...", &view[..max_len])
+    }
+}
+
+// Extension trait for Config to provide test defaults
+impl Config {
+    /// Creates a default config for E2E testing.
+    ///
+    /// Uses:
+    /// - Deterministic seed (42)
+    /// - Default theme
+    /// - Animations disabled (for faster/deterministic tests)
+    /// - Mouse enabled
+    pub fn default_test() -> Self {
+        use crate::config::{AnimationMode, ColorMode};
+        use crate::theme::ThemePreset;
+
+        Self {
+            theme_preset: ThemePreset::default(),
+            theme_file: None,
+            color_mode: ColorMode::Auto,
+            animations: AnimationMode::Disabled,
+            mouse: true,
+            alt_screen: false,
+            seed: Some(42),
+            files_root: None,
+            self_check: false,
+            verbosity: 0,
+            syntax_highlighting: false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod e2e_runner_tests {
+    use super::*;
+
+    #[test]
+    fn e2e_runner_creates_and_initializes() {
+        let runner = E2ERunner::new("init_test");
+        assert!(runner.view().len() > 0);
+        runner.finish().expect("should pass");
+    }
+
+    #[test]
+    fn e2e_runner_press_key() {
+        let mut runner = E2ERunner::new("key_test");
+        runner.step("Press navigation keys");
+        runner.press_key('j'); // Move down in sidebar
+        runner.assert_view_not_empty();
+        runner.finish().expect("should pass");
+    }
+
+    #[test]
+    fn e2e_runner_navigate_pages() {
+        let mut runner = E2ERunner::new("page_nav_test");
+        runner.step("Start on Dashboard");
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Navigate to Jobs");
+        runner.press_key('3'); // Jobs page shortcut
+        runner.assert_page(Page::Jobs);
+
+        runner.step("Navigate to Logs");
+        runner.press_key('4'); // Logs page shortcut
+        runner.assert_page(Page::Logs);
+
+        runner.finish().expect("should pass");
+    }
+
+    #[test]
+    fn e2e_runner_view_contains() {
+        let mut runner = E2ERunner::new("contains_test");
+        runner.step("Check view content");
+        // The app should show some content
+        runner.assert_view_not_empty();
+        runner.finish().expect("should pass");
+    }
+
+    #[test]
+    fn e2e_runner_resize() {
+        let mut runner = E2ERunner::new("resize_test");
+        runner.step("Resize window");
+        runner.resize(80, 24);
+        runner.assert_view_not_empty();
+        runner.finish().expect("should pass");
+    }
+}

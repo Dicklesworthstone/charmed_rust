@@ -426,6 +426,14 @@ impl App {
         id
     }
 
+    /// Get the current page.
+    ///
+    /// Used primarily by E2E tests for assertions.
+    #[must_use]
+    pub const fn current_page(&self) -> Page {
+        self.current_page
+    }
+
     /// Dismiss a notification by ID.
     fn dismiss_notification(&mut self, id: u64) {
         self.notifications.retain(|n| n.id != id);
