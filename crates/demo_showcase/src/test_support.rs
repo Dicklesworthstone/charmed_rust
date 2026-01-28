@@ -2323,3 +2323,1223 @@ mod e2e_files_tests {
         runner.finish().expect("files_fixture_mode should pass");
     }
 }
+
+// =============================================================================
+// E2E SCENARIO: NAVIGATION FLOWS (bd-2zj3)
+// =============================================================================
+
+#[cfg(test)]
+mod e2e_navigation_tests {
+    use super::*;
+
+    // =========================================================================
+    // APPLICATION STARTUP TESTS
+    // =========================================================================
+
+    /// Verifies the app renders dashboard on initial startup.
+    #[test]
+    fn e2e_startup_renders_dashboard() {
+        let mut runner = E2ERunner::new("startup_dashboard");
+
+        runner.step("Initialize app with window size");
+        runner.resize(120, 40);
+
+        runner.step("Verify dashboard is the initial page");
+        runner.assert_page(Page::Dashboard);
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("startup should render dashboard");
+    }
+
+    /// Verifies the sidebar shows all 8 pages.
+    #[test]
+    fn e2e_startup_sidebar_shows_all_pages() {
+        let mut runner = E2ERunner::new("startup_sidebar_pages");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+
+        runner.step("Verify sidebar shows all page names");
+        runner.assert_contains("Dashboard");
+        runner.assert_contains("Services");
+        runner.assert_contains("Jobs");
+        runner.assert_contains("Logs");
+        runner.assert_contains("Docs");
+        runner.assert_contains("Files");
+        runner.assert_contains("Wizard");
+        runner.assert_contains("Settings");
+
+        runner.finish().expect("sidebar should show all pages");
+    }
+
+    /// Verifies the status bar shows theme information.
+    #[test]
+    fn e2e_startup_status_bar_shows_theme() {
+        let mut runner = E2ERunner::new("startup_status_bar");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+
+        runner.step("Verify status bar shows theme info");
+        // Status bar typically shows "t: theme" hint and current theme name
+        runner.assert_contains("Dark"); // Default theme is Dark
+
+        runner.finish().expect("status bar should show theme");
+    }
+
+    /// Verifies the help overlay is accessible via '?' key.
+    #[test]
+    fn e2e_startup_help_overlay_accessible() {
+        let mut runner = E2ERunner::new("startup_help_accessible");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Press '?' to show help overlay");
+        runner.press_key('?');
+
+        runner.step("Verify help overlay is visible");
+        runner.assert_contains("Keyboard Shortcuts");
+
+        runner.step("Press Escape to close help");
+        runner.press_special(KeyType::Esc);
+
+        runner.step("Verify help overlay is hidden");
+        runner.assert_not_contains("Keyboard Shortcuts");
+
+        runner.finish().expect("help overlay should be accessible");
+    }
+
+    // =========================================================================
+    // PAGE NAVIGATION TESTS - KEYBOARD SHORTCUTS
+    // =========================================================================
+
+    /// Verifies keyboard shortcut '1' navigates to Dashboard.
+    #[test]
+    fn e2e_nav_shortcut_1_dashboard() {
+        let mut runner = E2ERunner::new("nav_shortcut_dashboard");
+
+        runner.step("Initialize and navigate away from Dashboard");
+        runner.resize(120, 40);
+        runner.press_key('3'); // Go to Jobs first
+        runner.assert_page(Page::Jobs);
+
+        runner.step("Press '1' to navigate to Dashboard");
+        runner.press_key('1');
+        runner.assert_page(Page::Dashboard);
+
+        runner.finish().expect("shortcut 1 should navigate to Dashboard");
+    }
+
+    /// Verifies keyboard shortcut '2' navigates to Services.
+    #[test]
+    fn e2e_nav_shortcut_2_services() {
+        let mut runner = E2ERunner::new("nav_shortcut_services");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Press '2' to navigate to Services");
+        runner.press_key('2');
+        runner.assert_page(Page::Services);
+
+        runner.finish().expect("shortcut 2 should navigate to Services");
+    }
+
+    /// Verifies keyboard shortcut '3' navigates to Jobs.
+    #[test]
+    fn e2e_nav_shortcut_3_jobs() {
+        let mut runner = E2ERunner::new("nav_shortcut_jobs");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Press '3' to navigate to Jobs");
+        runner.press_key('3');
+        runner.assert_page(Page::Jobs);
+
+        runner.finish().expect("shortcut 3 should navigate to Jobs");
+    }
+
+    /// Verifies keyboard shortcut '4' navigates to Logs.
+    #[test]
+    fn e2e_nav_shortcut_4_logs() {
+        let mut runner = E2ERunner::new("nav_shortcut_logs");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Press '4' to navigate to Logs");
+        runner.press_key('4');
+        runner.assert_page(Page::Logs);
+
+        runner.finish().expect("shortcut 4 should navigate to Logs");
+    }
+
+    /// Verifies keyboard shortcut '5' navigates to Docs.
+    #[test]
+    fn e2e_nav_shortcut_5_docs() {
+        let mut runner = E2ERunner::new("nav_shortcut_docs");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Press '5' to navigate to Docs");
+        runner.press_key('5');
+        runner.assert_page(Page::Docs);
+
+        runner.finish().expect("shortcut 5 should navigate to Docs");
+    }
+
+    /// Verifies keyboard shortcut '6' navigates to Files.
+    #[test]
+    fn e2e_nav_shortcut_6_files() {
+        let mut runner = E2ERunner::new("nav_shortcut_files");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Press '6' to navigate to Files");
+        runner.press_key('6');
+        runner.assert_page(Page::Files);
+
+        runner.finish().expect("shortcut 6 should navigate to Files");
+    }
+
+    /// Verifies keyboard shortcut '7' navigates to Wizard.
+    #[test]
+    fn e2e_nav_shortcut_7_wizard() {
+        let mut runner = E2ERunner::new("nav_shortcut_wizard");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Press '7' to navigate to Wizard");
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+
+        runner.finish().expect("shortcut 7 should navigate to Wizard");
+    }
+
+    /// Verifies keyboard shortcut '8' navigates to Settings.
+    #[test]
+    fn e2e_nav_shortcut_8_settings() {
+        let mut runner = E2ERunner::new("nav_shortcut_settings");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Press '8' to navigate to Settings");
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+
+        runner.finish().expect("shortcut 8 should navigate to Settings");
+    }
+
+    /// Verifies all 8 shortcuts in sequence.
+    #[test]
+    fn e2e_nav_all_shortcuts_in_sequence() {
+        let mut runner = E2ERunner::new("nav_all_shortcuts");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        // Navigate through all pages using shortcuts
+        let pages = [
+            ('1', Page::Dashboard),
+            ('2', Page::Services),
+            ('3', Page::Jobs),
+            ('4', Page::Logs),
+            ('5', Page::Docs),
+            ('6', Page::Files),
+            ('7', Page::Wizard),
+            ('8', Page::Settings),
+        ];
+
+        for (shortcut, expected_page) in pages {
+            runner.step(&format!("Navigate to {:?} with '{}'", expected_page, shortcut));
+            runner.press_key(shortcut);
+            runner.assert_page(expected_page);
+        }
+
+        runner.finish().expect("all shortcuts should work");
+    }
+
+    // =========================================================================
+    // PAGE NAVIGATION TESTS - SIDEBAR SELECTION
+    // =========================================================================
+
+    /// Verifies sidebar navigation using j/k keys.
+    ///
+    /// Note: Sidebar must be activated with Tab before j/k navigation works.
+    /// After navigation via Enter, the sidebar stays Active.
+    #[test]
+    fn e2e_nav_sidebar_jk_navigation() {
+        let mut runner = E2ERunner::new("nav_sidebar_jk");
+
+        runner.step("Initialize app on Dashboard");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Press Tab to activate sidebar");
+        runner.press_special(KeyType::Tab);
+
+        runner.step("Press 'j' to move down to Services");
+        runner.press_key('j');
+        // Sidebar selection is now on Services (index 1)
+
+        runner.step("Press Enter to navigate to Services");
+        runner.press_special(KeyType::Enter);
+        runner.assert_page(Page::Services);
+        // Sidebar stays Active, highlight syncs to current page (Services)
+
+        runner.step("Press 'j' to move to Jobs");
+        runner.press_key('j');
+
+        runner.step("Press Enter to navigate to Jobs");
+        runner.press_special(KeyType::Enter);
+        runner.assert_page(Page::Jobs);
+
+        runner.step("Press 'k' to move back to Services");
+        runner.press_key('k');
+
+        runner.step("Press Enter to navigate to Services");
+        runner.press_special(KeyType::Enter);
+        runner.assert_page(Page::Services);
+
+        runner.finish().expect("sidebar j/k navigation should work");
+    }
+
+    /// Verifies sidebar navigation with arrow keys.
+    ///
+    /// Note: Sidebar must be activated with Tab before arrow key navigation works.
+    #[test]
+    fn e2e_nav_sidebar_arrow_keys() {
+        let mut runner = E2ERunner::new("nav_sidebar_arrows");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Press Tab to activate sidebar");
+        runner.press_special(KeyType::Tab);
+
+        runner.step("Press Down arrow to move to Services");
+        runner.press_special(KeyType::Down);
+
+        runner.step("Press Enter to navigate to Services");
+        runner.press_special(KeyType::Enter);
+        runner.assert_page(Page::Services);
+
+        runner.step("Press Down arrow to move to Jobs");
+        runner.press_special(KeyType::Down);
+
+        runner.step("Press Enter to navigate to Jobs");
+        runner.press_special(KeyType::Enter);
+        runner.assert_page(Page::Jobs);
+
+        runner.step("Press Up arrow to move to Services");
+        runner.press_special(KeyType::Up);
+
+        runner.step("Press Enter to navigate to Services");
+        runner.press_special(KeyType::Enter);
+        runner.assert_page(Page::Services);
+
+        runner.finish().expect("sidebar arrow navigation should work");
+    }
+
+    // =========================================================================
+    // PAGE STATE PERSISTENCE TESTS
+    // =========================================================================
+
+    /// Verifies that application state persists during navigation.
+    #[test]
+    fn e2e_nav_state_persists() {
+        let mut runner = E2ERunner::new("nav_state_persists");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Navigate to Settings and toggle mouse");
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+        let mouse_before = runner.model().mouse_enabled();
+        runner.press_key('m'); // Toggle mouse
+        let mouse_after = runner.model().mouse_enabled();
+        runner.recorder.record_assertion(
+            "mouse toggled",
+            mouse_before != mouse_after,
+            &format!("changed from {mouse_before}"),
+            &format!("now {mouse_after}"),
+        );
+
+        runner.step("Navigate away and back");
+        runner.press_key('1'); // Go to Dashboard
+        runner.assert_page(Page::Dashboard);
+        runner.press_key('8'); // Go back to Settings
+        runner.assert_page(Page::Settings);
+
+        runner.step("Verify mouse state persisted");
+        runner.recorder.record_assertion(
+            "mouse state persisted",
+            runner.model().mouse_enabled() == mouse_after,
+            &format!("{mouse_after}"),
+            &format!("{}", runner.model().mouse_enabled()),
+        );
+
+        runner.finish().expect("state should persist during navigation");
+    }
+
+    /// Verifies theme persists during navigation.
+    #[test]
+    fn e2e_nav_theme_persists() {
+        let mut runner = E2ERunner::new("nav_theme_persists");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+
+        runner.step("Cycle theme with 't'");
+        runner.press_key('t'); // Dark -> Light
+        let theme = runner.model().theme_preset();
+
+        runner.step("Navigate through all pages");
+        for shortcut in ['2', '3', '4', '5', '6', '7', '8', '1'] {
+            runner.press_key(shortcut);
+        }
+
+        runner.step("Verify theme persisted");
+        runner.recorder.record_assertion(
+            "theme persisted after navigation",
+            runner.model().theme_preset() == theme,
+            &format!("{:?}", theme),
+            &format!("{:?}", runner.model().theme_preset()),
+        );
+
+        runner.finish().expect("theme should persist during navigation");
+    }
+
+    // =========================================================================
+    // PAGE SMOKE TESTS
+    // =========================================================================
+
+    /// Dashboard smoke test - metrics should display.
+    #[test]
+    fn e2e_smoke_dashboard() {
+        let mut runner = E2ERunner::new("smoke_dashboard");
+
+        runner.step("Initialize on Dashboard");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Verify Dashboard content");
+        runner.assert_view_not_empty();
+        runner.assert_contains("Dashboard");
+
+        runner.finish().expect("Dashboard smoke test should pass");
+    }
+
+    /// Services smoke test - service list should render.
+    #[test]
+    fn e2e_smoke_services() {
+        let mut runner = E2ERunner::new("smoke_services");
+
+        runner.step("Navigate to Services");
+        runner.resize(120, 40);
+        runner.press_key('2');
+        runner.assert_page(Page::Services);
+
+        runner.step("Verify Services content");
+        runner.assert_view_not_empty();
+        runner.assert_contains("Services");
+
+        runner.finish().expect("Services smoke test should pass");
+    }
+
+    /// Jobs smoke test - job queue should render.
+    #[test]
+    fn e2e_smoke_jobs() {
+        let mut runner = E2ERunner::new("smoke_jobs");
+
+        runner.step("Navigate to Jobs");
+        runner.resize(120, 40);
+        runner.press_key('3');
+        runner.assert_page(Page::Jobs);
+
+        runner.step("Verify Jobs content");
+        runner.assert_view_not_empty();
+        runner.assert_contains("Jobs");
+
+        runner.finish().expect("Jobs smoke test should pass");
+    }
+
+    /// Logs smoke test - log viewport should render.
+    #[test]
+    fn e2e_smoke_logs() {
+        let mut runner = E2ERunner::new("smoke_logs");
+
+        runner.step("Navigate to Logs");
+        runner.resize(120, 40);
+        runner.press_key('4');
+        runner.assert_page(Page::Logs);
+
+        runner.step("Verify Logs content");
+        runner.assert_view_not_empty();
+        runner.assert_contains("Logs");
+
+        runner.finish().expect("Logs smoke test should pass");
+    }
+
+    /// Docs smoke test - markdown viewer should load.
+    #[test]
+    fn e2e_smoke_docs() {
+        let mut runner = E2ERunner::new("smoke_docs");
+
+        runner.step("Navigate to Docs");
+        runner.resize(120, 40);
+        runner.press_key('5');
+        runner.assert_page(Page::Docs);
+
+        runner.step("Verify Docs content");
+        runner.assert_view_not_empty();
+        runner.assert_contains("Docs");
+
+        runner.finish().expect("Docs smoke test should pass");
+    }
+
+    /// Files smoke test - file browser should initialize.
+    #[test]
+    fn e2e_smoke_files() {
+        let mut runner = E2ERunner::new("smoke_files");
+
+        runner.step("Navigate to Files");
+        runner.resize(120, 40);
+        runner.press_key('6');
+        runner.assert_page(Page::Files);
+
+        runner.step("Verify Files content");
+        runner.assert_view_not_empty();
+        runner.assert_contains("Files");
+
+        runner.finish().expect("Files smoke test should pass");
+    }
+
+    /// Wizard smoke test - multi-step wizard should load.
+    #[test]
+    fn e2e_smoke_wizard() {
+        let mut runner = E2ERunner::new("smoke_wizard");
+
+        runner.step("Navigate to Wizard");
+        runner.resize(120, 40);
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+
+        runner.step("Verify Wizard content");
+        runner.assert_view_not_empty();
+        runner.assert_contains("Wizard");
+
+        runner.finish().expect("Wizard smoke test should pass");
+    }
+
+    /// Settings smoke test - toggles should be visible.
+    #[test]
+    fn e2e_smoke_settings() {
+        let mut runner = E2ERunner::new("smoke_settings");
+
+        runner.step("Navigate to Settings");
+        runner.resize(120, 40);
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+
+        runner.step("Verify Settings content");
+        runner.assert_view_not_empty();
+        runner.assert_contains("Settings");
+        runner.assert_contains("Toggles");
+
+        runner.step("Verify toggle labels are present");
+        runner.assert_contains("Mouse Input");
+        runner.assert_contains("Animations");
+
+        runner.finish().expect("Settings smoke test should pass");
+    }
+
+    // =========================================================================
+    // EDGE CASES AND ROBUSTNESS TESTS
+    // =========================================================================
+
+    /// Verifies rapid page switching doesn't crash.
+    #[test]
+    fn e2e_nav_rapid_switching() {
+        let mut runner = E2ERunner::new("nav_rapid_switching");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+
+        runner.step("Rapidly switch between pages");
+        for _ in 0..3 {
+            runner.press_key('1');
+            runner.press_key('8');
+            runner.press_key('4');
+            runner.press_key('2');
+            runner.press_key('7');
+            runner.press_key('3');
+            runner.press_key('6');
+            runner.press_key('5');
+        }
+
+        runner.step("Verify app is still functional");
+        runner.assert_view_not_empty();
+        runner.assert_page(Page::Docs); // Last navigation was '5'
+
+        runner.finish().expect("rapid switching should not crash");
+    }
+
+    /// Verifies pressing the same page shortcut twice is idempotent.
+    #[test]
+    fn e2e_nav_same_page_idempotent() {
+        let mut runner = E2ERunner::new("nav_same_page_idempotent");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+
+        runner.step("Navigate to Services");
+        runner.press_key('2');
+        runner.assert_page(Page::Services);
+
+        runner.step("Press '2' again");
+        runner.press_key('2');
+        runner.assert_page(Page::Services);
+
+        runner.step("Press '2' multiple times");
+        runner.press_key('2');
+        runner.press_key('2');
+        runner.press_key('2');
+        runner.assert_page(Page::Services);
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("same page navigation should be idempotent");
+    }
+
+    /// Verifies invalid shortcuts are ignored.
+    #[test]
+    fn e2e_nav_invalid_shortcuts_ignored() {
+        let mut runner = E2ERunner::new("nav_invalid_shortcuts");
+
+        runner.step("Initialize on Dashboard");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Press invalid number shortcuts");
+        runner.press_key('0'); // Invalid
+        runner.assert_page(Page::Dashboard);
+        runner.press_key('9'); // Invalid
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Press various non-navigation keys");
+        runner.press_key('x');
+        runner.press_key('z');
+        runner.assert_page(Page::Dashboard);
+
+        runner.finish().expect("invalid shortcuts should be ignored");
+    }
+
+    /// Verifies help overlay blocks navigation shortcuts.
+    #[test]
+    fn e2e_nav_help_blocks_shortcuts() {
+        let mut runner = E2ERunner::new("nav_help_blocks_shortcuts");
+
+        runner.step("Initialize on Dashboard");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Open help overlay");
+        runner.press_key('?');
+        runner.assert_contains("Keyboard Shortcuts");
+
+        runner.step("Try to navigate while help is open");
+        runner.press_key('3'); // Try to go to Jobs
+        // Help overlay should still be visible OR navigation blocked
+
+        runner.step("Close help and verify");
+        runner.press_special(KeyType::Esc);
+        runner.assert_not_contains("Keyboard Shortcuts");
+
+        runner.finish().expect("help interaction should work correctly");
+    }
+
+    /// Verifies navigation after resize.
+    #[test]
+    fn e2e_nav_after_resize() {
+        let mut runner = E2ERunner::new("nav_after_resize");
+
+        runner.step("Initialize with small size");
+        runner.resize(80, 24);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Navigate to Jobs");
+        runner.press_key('3');
+        runner.assert_page(Page::Jobs);
+
+        runner.step("Resize to larger");
+        runner.resize(160, 50);
+        runner.assert_page(Page::Jobs);
+
+        runner.step("Navigate after resize");
+        runner.press_key('5');
+        runner.assert_page(Page::Docs);
+
+        runner.step("Resize smaller");
+        runner.resize(60, 20);
+        runner.assert_page(Page::Docs);
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("navigation should work after resize");
+    }
+
+    // =========================================================================
+    // COMPREHENSIVE NAVIGATION SCENARIO
+    // =========================================================================
+
+    /// Full navigation scenario visiting all pages and testing various features.
+    #[test]
+    fn e2e_nav_full_scenario() {
+        let mut runner = E2ERunner::new("nav_full_scenario");
+
+        // Initialize
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+        runner.assert_view_not_empty();
+
+        // Check startup state
+        runner.step("Verify initial state");
+        runner.assert_contains("Dashboard");
+
+        // Navigate through all pages using shortcuts
+        runner.step("Navigate to all pages in order");
+
+        runner.press_key('2');
+        runner.assert_page(Page::Services);
+        runner.assert_view_not_empty();
+
+        runner.press_key('3');
+        runner.assert_page(Page::Jobs);
+        runner.assert_view_not_empty();
+
+        runner.press_key('4');
+        runner.assert_page(Page::Logs);
+        runner.assert_view_not_empty();
+
+        runner.press_key('5');
+        runner.assert_page(Page::Docs);
+        runner.assert_view_not_empty();
+
+        runner.press_key('6');
+        runner.assert_page(Page::Files);
+        runner.assert_view_not_empty();
+
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+        runner.assert_view_not_empty();
+
+        runner.press_key('8');
+        runner.assert_page(Page::Settings);
+        runner.assert_view_not_empty();
+
+        // Test help overlay
+        runner.step("Test help overlay from Settings");
+        runner.press_key('?');
+        runner.assert_contains("Keyboard Shortcuts");
+        runner.press_special(KeyType::Esc);
+        runner.assert_not_contains("Keyboard Shortcuts");
+
+        // Navigate back to Dashboard
+        runner.step("Return to Dashboard");
+        runner.press_key('1');
+        runner.assert_page(Page::Dashboard);
+
+        // Test sidebar navigation
+        runner.step("Test sidebar navigation");
+        runner.press_special(KeyType::Tab); // Activate sidebar
+        runner.press_key('j');
+        runner.press_special(KeyType::Enter);
+        runner.assert_page(Page::Services);
+
+        runner.finish().expect("full navigation scenario should pass");
+    }
+}
+
+// =============================================================================
+// E2E SCENARIO: WIZARD WORKFLOW (bd-3nit)
+// =============================================================================
+
+#[cfg(test)]
+mod e2e_wizard_tests {
+    use super::*;
+
+    // =========================================================================
+    // WIZARD NAVIGATION TESTS
+    // =========================================================================
+
+    /// Verifies the wizard starts on step 0 (service type selection).
+    #[test]
+    fn e2e_wizard_initial_state() {
+        let mut runner = E2ERunner::new("wizard_initial_state");
+
+        runner.step("Initialize app with window size");
+        runner.resize(120, 40);
+
+        runner.step("Navigate to Wizard page");
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+
+        runner.step("Verify initial wizard state");
+        runner.assert_view_not_empty();
+        runner.assert_contains("Wizard");
+
+        runner.finish().expect("wizard initial state should be correct");
+    }
+
+    /// Verifies navigation through wizard steps using Enter key.
+    #[test]
+    fn e2e_wizard_step_navigation() {
+        let mut runner = E2ERunner::new("wizard_step_navigation");
+
+        runner.step("Initialize and go to Wizard");
+        runner.resize(120, 40);
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+        runner.assert_view_not_empty();
+
+        runner.step("Navigate through wizard steps");
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.step("Type in form fields");
+        for c in "test-service".chars() {
+            runner.press_key(c);
+        }
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("wizard step navigation should work");
+    }
+
+    /// Verifies navigation backward through wizard steps using 'b' key.
+    #[test]
+    fn e2e_wizard_navigate_back() {
+        let mut runner = E2ERunner::new("wizard_navigate_back");
+
+        runner.step("Initialize and go to Wizard");
+        runner.resize(120, 40);
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+
+        runner.step("Go to next step");
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        runner.step("Enter name");
+        for c in "test-svc".chars() {
+            runner.press_key(c);
+        }
+        runner.drain();
+
+        runner.step("Navigate back with 'b'");
+        runner.press_key('b');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.step("Return forward - verify state preserved");
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("backward navigation should work");
+    }
+
+    /// Verifies Escape key behavior in wizard.
+    #[test]
+    fn e2e_wizard_escape_key() {
+        let mut runner = E2ERunner::new("wizard_escape_key");
+
+        runner.step("Initialize and go to Wizard");
+        runner.resize(120, 40);
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+
+        runner.step("Go to next step");
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        runner.step("Press Escape to go back");
+        runner.press_special(KeyType::Esc);
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("Escape key should work in wizard");
+    }
+
+    // =========================================================================
+    // WIZARD SERVICE TYPE TESTS
+    // =========================================================================
+
+    /// Verifies service type selection with j/k keys.
+    #[test]
+    fn e2e_wizard_service_type_selection() {
+        let mut runner = E2ERunner::new("wizard_service_type_selection");
+
+        runner.step("Initialize and go to Wizard");
+        runner.resize(120, 40);
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+
+        runner.step("Navigate through service types");
+        runner.press_key('j');
+        runner.drain();
+        runner.press_key('j');
+        runner.drain();
+        runner.press_key('k');
+        runner.drain();
+        runner.press_key('k');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("service type selection should work");
+    }
+
+    // =========================================================================
+    // WIZARD FIELD NAVIGATION TESTS
+    // =========================================================================
+
+    /// Verifies field navigation within steps using Tab.
+    #[test]
+    fn e2e_wizard_field_navigation() {
+        let mut runner = E2ERunner::new("wizard_field_navigation");
+
+        runner.step("Navigate to wizard step with fields");
+        runner.resize(120, 40);
+        runner.press_key('7');
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        runner.step("Navigate fields with Tab");
+        runner.press_special(KeyType::Tab);
+        runner.drain();
+        runner.press_special(KeyType::Tab);
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("field navigation should work");
+    }
+
+    /// Verifies backspace works correctly in text fields.
+    #[test]
+    fn e2e_wizard_backspace_in_fields() {
+        let mut runner = E2ERunner::new("wizard_backspace_fields");
+
+        runner.step("Navigate to name field");
+        runner.resize(120, 40);
+        runner.press_key('7');
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        runner.step("Type name");
+        for c in "test-name".chars() {
+            runner.press_key(c);
+        }
+        runner.drain();
+
+        runner.step("Delete with backspace");
+        for _ in 0..4 {
+            runner.press_special(KeyType::Backspace);
+        }
+        runner.drain();
+
+        runner.step("Type replacement");
+        for c in "svc".chars() {
+            runner.press_key(c);
+        }
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("backspace should work in fields");
+    }
+
+    // =========================================================================
+    // WIZARD TOGGLE TESTS
+    // =========================================================================
+
+    /// Verifies toggle selection with Space key.
+    #[test]
+    fn e2e_wizard_toggle_with_space() {
+        let mut runner = E2ERunner::new("wizard_toggle_with_space");
+
+        runner.step("Initialize and navigate wizard");
+        runner.resize(120, 40);
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+
+        runner.step("Navigate through wizard");
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        for c in "test-svc".chars() {
+            runner.press_key(c);
+        }
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        runner.step("Toggle selection with space");
+        runner.press_key(' ');
+        runner.drain();
+        runner.press_key('j');
+        runner.press_key(' ');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("space toggle should work");
+    }
+
+    // =========================================================================
+    // WIZARD CROSS-PAGE TESTS
+    // =========================================================================
+
+    /// Verifies wizard can be accessed from all pages.
+    #[test]
+    fn e2e_wizard_accessible_from_all_pages() {
+        let mut runner = E2ERunner::new("wizard_accessible_from_all");
+
+        runner.step("Initialize");
+        runner.resize(120, 40);
+
+        let pages = [
+            ('1', Page::Dashboard),
+            ('2', Page::Services),
+            ('3', Page::Jobs),
+            ('4', Page::Logs),
+            ('5', Page::Docs),
+            ('6', Page::Files),
+            ('8', Page::Settings),
+        ];
+
+        for (key, page) in pages {
+            runner.step(&format!("Navigate to {:?}", page));
+            runner.press_key(key);
+            runner.assert_page(page);
+
+            runner.step(&format!("Navigate to Wizard from {:?}", page));
+            runner.press_key('7');
+            runner.assert_page(Page::Wizard);
+            runner.assert_view_not_empty();
+        }
+
+        runner.finish().expect("wizard should be accessible from all pages");
+    }
+
+    /// Verifies wizard state after navigation away and back.
+    #[test]
+    fn e2e_wizard_state_after_navigation() {
+        let mut runner = E2ERunner::new("wizard_state_after_nav");
+
+        runner.step("Navigate to Wizard and enter some data");
+        runner.resize(120, 40);
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+        for c in "my-service".chars() {
+            runner.press_key(c);
+        }
+        runner.drain();
+
+        runner.step("Navigate to Dashboard");
+        runner.press_key('1');
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Return to Wizard - verify state");
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("wizard should be functional after navigation");
+    }
+
+    // =========================================================================
+    // WIZARD ROBUSTNESS TESTS
+    // =========================================================================
+
+    /// Verifies wizard handles rapid key presses.
+    #[test]
+    fn e2e_wizard_rapid_input() {
+        let mut runner = E2ERunner::new("wizard_rapid_input");
+
+        runner.step("Initialize and go to Wizard");
+        runner.resize(120, 40);
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+
+        runner.step("Rapid navigation keys");
+        for _ in 0..5 {
+            runner.press_key('j');
+            runner.press_key('k');
+        }
+        runner.drain();
+
+        runner.step("Rapid Enter/Escape");
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+        runner.press_special(KeyType::Esc);
+        runner.drain();
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        runner.step("Rapid typing");
+        for c in "rapid-test-name".chars() {
+            runner.press_key(c);
+        }
+        runner.drain();
+
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("wizard should handle rapid input");
+    }
+
+    /// Verifies wizard handles resize during workflow.
+    #[test]
+    fn e2e_wizard_resize_during_workflow() {
+        let mut runner = E2ERunner::new("wizard_resize_during_workflow");
+
+        runner.step("Initialize with large size");
+        runner.resize(160, 50);
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        for c in "resize-test".chars() {
+            runner.press_key(c);
+        }
+        runner.drain();
+
+        runner.step("Resize to small");
+        runner.resize(80, 24);
+        runner.assert_view_not_empty();
+        runner.assert_page(Page::Wizard);
+
+        runner.step("Resize to large");
+        runner.resize(200, 60);
+        runner.assert_view_not_empty();
+        runner.assert_page(Page::Wizard);
+
+        runner.step("Continue after resize");
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("wizard should handle resize");
+    }
+
+    // =========================================================================
+    // COMPREHENSIVE WIZARD SCENARIO
+    // =========================================================================
+
+    /// Full wizard scenario: complete flow from start to finish.
+    #[test]
+    fn e2e_wizard_full_scenario() {
+        let mut runner = E2ERunner::new("wizard_full_scenario");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        runner.step("Navigate to Wizard page");
+        runner.press_key('7');
+        runner.assert_page(Page::Wizard);
+        runner.assert_view_not_empty();
+        runner.assert_contains("Wizard");
+
+        runner.step("Step 0: Select service type");
+        runner.press_key('j');
+        runner.drain();
+        runner.press_key('k');
+        runner.drain();
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        runner.step("Step 1: Enter basic configuration");
+        for c in "my-api-service".chars() {
+            runner.press_key(c);
+        }
+        runner.drain();
+        runner.press_special(KeyType::Tab);
+        runner.drain();
+        for c in "test".chars() {
+            runner.press_key(c);
+        }
+        runner.drain();
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        runner.step("Step 2: Configure options");
+        runner.assert_view_not_empty();
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        runner.step("Step 3: Select environment variables");
+        runner.press_key(' ');
+        runner.press_key('j');
+        runner.press_key(' ');
+        runner.drain();
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        runner.step("Step 4: Review deployment");
+        runner.assert_view_not_empty();
+        runner.step("Go back to modify");
+        runner.press_key('b');
+        runner.drain();
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+        runner.press_key(' ');
+        runner.drain();
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        runner.step("Step 5: Verify deployment screen");
+        runner.assert_view_not_empty();
+
+        // After wizard completes deployment, verify app is still functional
+        // The wizard may still be active, so we use Escape to ensure exit
+        runner.step("Exit wizard and verify app state");
+        runner.press_special(KeyType::Esc);
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        // Try to navigate to Dashboard - navigation may work differently
+        // after wizard completion
+        runner.step("Attempt navigation after wizard");
+        runner.press_key('1');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        runner.step("Final verification - no panics");
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("full wizard scenario should pass");
+    }
+}

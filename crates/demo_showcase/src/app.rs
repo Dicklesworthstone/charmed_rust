@@ -6,7 +6,7 @@
 //! - App chrome rendering (header, sidebar, footer)
 
 use bubbletea::{
-    Cmd, KeyMsg, KeyType, Message, Model, WindowSizeMsg, batch, quit, set_window_title,
+    Cmd, KeyMsg, KeyType, Message, Model, WindowSizeMsg, batch, println, quit, set_window_title,
 };
 use lipgloss::{Position, Style};
 
@@ -1186,16 +1186,16 @@ impl Model for App {
                 WizardMsg::DeploymentStarted(config) => {
                     let id = self.next_notification_id;
                     self.next_notification_id += 1;
-                    self.notifications.push(Notification::info(
-                        id,
-                        format!(
-                            "Deploying '{}' ({}) to {}...",
-                            config.service_name, config.service_type, config.environment
-                        ),
-                    ));
+                    let msg = format!(
+                        "Deploying '{}' ({}) to {}...",
+                        config.service_name, config.service_type, config.environment
+                    );
+                    self.notifications.push(Notification::info(id, msg.clone()));
                     while self.notifications.len() > MAX_NOTIFICATIONS {
                         self.notifications.remove(0);
                     }
+                    // bd-7iul: Emit println for lifecycle event (visible in no-alt-screen mode)
+                    return Some(println(format!("[deploy] {msg}")));
                 }
                 WizardMsg::DeploymentProgress(_step) => {
                     // Progress updates don't need notifications (UI shows progress)
@@ -1203,27 +1203,27 @@ impl Model for App {
                 WizardMsg::DeploymentCompleted(config) => {
                     let id = self.next_notification_id;
                     self.next_notification_id += 1;
-                    self.notifications.push(Notification::success(
-                        id,
-                        format!(
-                            "Deployed '{}' to {} successfully!",
-                            config.service_name, config.environment
-                        ),
-                    ));
+                    let msg = format!(
+                        "Deployed '{}' to {} successfully!",
+                        config.service_name, config.environment
+                    );
+                    self.notifications.push(Notification::success(id, msg.clone()));
                     while self.notifications.len() > MAX_NOTIFICATIONS {
                         self.notifications.remove(0);
                     }
+                    // bd-7iul: Emit println for lifecycle event (visible in no-alt-screen mode)
+                    return Some(println(format!("[deploy] {msg}")));
                 }
                 WizardMsg::DeploymentFailed(error) => {
                     let id = self.next_notification_id;
                     self.next_notification_id += 1;
-                    self.notifications.push(Notification::error(
-                        id,
-                        format!("Deployment failed: {error}"),
-                    ));
+                    let msg = format!("Deployment failed: {error}");
+                    self.notifications.push(Notification::error(id, msg.clone()));
                     while self.notifications.len() > MAX_NOTIFICATIONS {
                         self.notifications.remove(0);
                     }
+                    // bd-7iul: Emit println for lifecycle event (visible in no-alt-screen mode)
+                    return Some(println(format!("[deploy] {msg}")));
                 }
             }
             return None;

@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! # Demo Showcase
+//! # Demo Showcase Binary
 //!
 //! Flagship demonstration of all `charmed_rust` TUI capabilities.
 //!
@@ -30,28 +30,17 @@
 //! cargo run -p demo_showcase -- --help
 //! ```
 
-mod app;
-pub mod assets;
-pub mod cli;
-mod components;
-pub mod config;
-pub mod content;
-mod data;
-mod keymap;
-mod messages;
-mod pages;
-mod shell_action;
+use bubbletea::Program;
+
+// Re-export from library for use in main
+use demo_showcase::app::App;
+use demo_showcase::cli::{Cli, Command};
+use demo_showcase::config::Config;
+use demo_showcase::messages;
+use demo_showcase::test_support;
 #[cfg(feature = "ssh")]
-mod ssh;
-pub mod test_support;
-mod theme;
-
-use bubbletea::{Model, Program};
+use demo_showcase::ssh;
 use clap::Parser;
-
-use app::App;
-use cli::{Cli, Command};
-use config::Config;
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
