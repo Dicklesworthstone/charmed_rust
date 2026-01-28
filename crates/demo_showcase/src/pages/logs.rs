@@ -756,18 +756,11 @@ impl PageModel for LogsPage {
                         // Copy/export/clear actions (bd-15xi)
                         ['y'] => {
                             // Copy visible viewport to file
-                            // Note: We need a theme for format_logs, but viewport.view()
-                            // returns already-rendered content
-                            let content = self.viewport.read().unwrap().view();
-                            return Self::write_to_export_file("viewport", &content, &Theme::default());
+                            return self.action_copy_viewport(&Theme::default());
                         }
                         ['Y'] => {
                             // Copy all filtered logs to file
-                            return Self::write_to_export_file(
-                                "logs_all",
-                                &self.format_logs_plain(),
-                                &Theme::default(),
-                            );
+                            return self.action_copy_all(&Theme::default());
                         }
                         ['e'] => {
                             // Export full log buffer to file

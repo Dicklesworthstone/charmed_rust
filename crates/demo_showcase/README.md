@@ -74,8 +74,8 @@ The showcase includes 7 interactive pages:
 |-----|--------|
 | `n` | Create new job |
 | `⏎` | Start queued job |
-| `x` | Cancel running job |
-| `R` | Retry failed job |
+| `x` | Cancel job (running/queued) |
+| `R` | Retry job (failed/cancelled) |
 | `/` | Filter by query |
 | `1-4` | Toggle status filters |
 | `s/S` | Sort / reverse sort |
