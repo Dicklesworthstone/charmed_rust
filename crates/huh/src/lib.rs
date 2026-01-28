@@ -1438,7 +1438,13 @@ impl Field for Input {
                         key_msg
                             .runes
                             .iter()
-                            .map(|&c| if c == '\n' || c == '\r' || c == '\t' { ' ' } else { c })
+                            .map(|&c| {
+                                if c == '\n' || c == '\r' || c == '\t' {
+                                    ' '
+                                } else {
+                                    c
+                                }
+                            })
                             // Collapse multiple consecutive spaces into one
                             .fold(Vec::new(), |mut acc, c| {
                                 if c == ' ' && acc.last() == Some(&' ') {
@@ -1459,7 +1465,8 @@ impl Field for Input {
                     } else {
                         self.char_limit.saturating_sub(current_count)
                     };
-                    let chars_to_add: Vec<char> = chars_to_insert.into_iter().take(available).collect();
+                    let chars_to_add: Vec<char> =
+                        chars_to_insert.into_iter().take(available).collect();
 
                     if !chars_to_add.is_empty() {
                         // Convert character position to byte position for insertion
@@ -3210,7 +3217,8 @@ impl Field for Text {
 
                     // For paste operations, handle bulk insert with proper cursor tracking
                     // Multi-line textareas preserve newlines
-                    let chars_to_add: Vec<char> = key_msg.runes.iter().copied().take(available).collect();
+                    let chars_to_add: Vec<char> =
+                        key_msg.runes.iter().copied().take(available).collect();
 
                     for c in chars_to_add {
                         self.value.push(c);
@@ -5912,14 +5920,12 @@ mod tests {
     #[test]
     fn test_multiselect_filter_cursor_stays_on_item() {
         // Test that cursor stays on the same item when filter narrows results
-        let mut multi: MultiSelect<String> = MultiSelect::new()
-            .filterable(true)
-            .options(vec![
-                SelectOption::new("Apple", "apple".to_string()),
-                SelectOption::new("Banana", "banana".to_string()),
-                SelectOption::new("Cherry", "cherry".to_string()),
-                SelectOption::new("Blueberry", "blueberry".to_string()),
-            ]);
+        let mut multi: MultiSelect<String> = MultiSelect::new().filterable(true).options(vec![
+            SelectOption::new("Apple", "apple".to_string()),
+            SelectOption::new("Banana", "banana".to_string()),
+            SelectOption::new("Cherry", "cherry".to_string()),
+            SelectOption::new("Blueberry", "blueberry".to_string()),
+        ]);
 
         multi.focus();
 
@@ -5945,13 +5951,11 @@ mod tests {
     #[test]
     fn test_multiselect_filter_cursor_clamps() {
         // Test that cursor clamps when the current item is filtered out
-        let mut multi: MultiSelect<String> = MultiSelect::new()
-            .filterable(true)
-            .options(vec![
-                SelectOption::new("Apple", "apple".to_string()),
-                SelectOption::new("Banana", "banana".to_string()),
-                SelectOption::new("Cherry", "cherry".to_string()),
-            ]);
+        let mut multi: MultiSelect<String> = MultiSelect::new().filterable(true).options(vec![
+            SelectOption::new("Apple", "apple".to_string()),
+            SelectOption::new("Banana", "banana".to_string()),
+            SelectOption::new("Cherry", "cherry".to_string()),
+        ]);
 
         multi.focus();
 
@@ -5978,14 +5982,12 @@ mod tests {
     #[test]
     fn test_multiselect_filter_then_toggle() {
         // Test that toggling selection works correctly with filtered results
-        let mut multi: MultiSelect<String> = MultiSelect::new()
-            .filterable(true)
-            .options(vec![
-                SelectOption::new("Apple", "apple".to_string()),
-                SelectOption::new("Banana", "banana".to_string()),
-                SelectOption::new("Cherry", "cherry".to_string()),
-                SelectOption::new("Blueberry", "blueberry".to_string()),
-            ]);
+        let mut multi: MultiSelect<String> = MultiSelect::new().filterable(true).options(vec![
+            SelectOption::new("Apple", "apple".to_string()),
+            SelectOption::new("Banana", "banana".to_string()),
+            SelectOption::new("Cherry", "cherry".to_string()),
+            SelectOption::new("Blueberry", "blueberry".to_string()),
+        ]);
 
         multi.focus();
 
@@ -6025,14 +6027,12 @@ mod tests {
     #[test]
     fn test_multiselect_filter_navigation_bounds() {
         // Test that navigation respects filtered list bounds
-        let mut multi: MultiSelect<String> = MultiSelect::new()
-            .filterable(true)
-            .options(vec![
-                SelectOption::new("Apple", "apple".to_string()),
-                SelectOption::new("Banana", "banana".to_string()),
-                SelectOption::new("Cherry", "cherry".to_string()),
-                SelectOption::new("Date", "date".to_string()),
-            ]);
+        let mut multi: MultiSelect<String> = MultiSelect::new().filterable(true).options(vec![
+            SelectOption::new("Apple", "apple".to_string()),
+            SelectOption::new("Banana", "banana".to_string()),
+            SelectOption::new("Cherry", "cherry".to_string()),
+            SelectOption::new("Date", "date".to_string()),
+        ]);
 
         multi.focus();
 

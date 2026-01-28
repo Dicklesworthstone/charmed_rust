@@ -1648,7 +1648,11 @@ mod tests {
         });
         let _ = Model::update(&mut ta, key_msg);
 
-        assert_eq!(ta.value(), "line1\nline2", "CRLF should be normalized to LF");
+        assert_eq!(
+            ta.value(),
+            "line1\nline2",
+            "CRLF should be normalized to LF"
+        );
         assert_eq!(ta.line_count(), 2);
     }
 
@@ -1745,7 +1749,11 @@ mod tests {
         });
         let _ = Model::update(&mut ta, key_msg);
 
-        assert_eq!(ta.value().len(), 1000, "Large paste should work without issues");
+        assert_eq!(
+            ta.value().len(),
+            1000,
+            "Large paste should work without issues"
+        );
     }
 
     #[test]

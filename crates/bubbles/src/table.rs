@@ -1287,11 +1287,7 @@ mod tests {
 
         #[test]
         fn test_table_mouse_click_select_row() {
-            let rows = vec![
-                vec!["1".into()],
-                vec!["2".into()],
-                vec!["3".into()],
-            ];
+            let rows = vec![vec!["1".into()], vec!["2".into()], vec!["3".into()]];
             let mut table = Table::new().rows(rows).focused(true);
             assert_eq!(table.cursor(), 0);
 
@@ -1306,10 +1302,7 @@ mod tests {
 
         #[test]
         fn test_table_mouse_click_header_does_nothing() {
-            let rows = vec![
-                vec!["1".into()],
-                vec!["2".into()],
-            ];
+            let rows = vec![vec!["1".into()], vec!["2".into()]];
             let mut table = Table::new().rows(rows).focused(true);
             assert_eq!(table.cursor(), 0);
 
@@ -1321,10 +1314,7 @@ mod tests {
 
         #[test]
         fn test_table_mouse_click_out_of_bounds() {
-            let rows = vec![
-                vec!["1".into()],
-                vec!["2".into()],
-            ];
+            let rows = vec![vec!["1".into()], vec!["2".into()]];
             let mut table = Table::new().rows(rows).focused(true);
             assert_eq!(table.cursor(), 0);
 
@@ -1336,11 +1326,7 @@ mod tests {
 
         #[test]
         fn test_table_mouse_disabled() {
-            let rows = vec![
-                vec!["1".into()],
-                vec!["2".into()],
-                vec!["3".into()],
-            ];
+            let rows = vec![vec!["1".into()], vec!["2".into()], vec!["3".into()]];
             let mut table = Table::new()
                 .rows(rows)
                 .focused(true)
@@ -1358,10 +1344,7 @@ mod tests {
 
         #[test]
         fn test_table_mouse_not_focused() {
-            let rows = vec![
-                vec!["1".into()],
-                vec!["2".into()],
-            ];
+            let rows = vec![vec!["1".into()], vec!["2".into()]];
             let mut table = Table::new().rows(rows).focused(false);
 
             // Mouse should be ignored when not focused
@@ -1381,10 +1364,7 @@ mod tests {
                 vec!["4".into()],
                 vec!["5".into()],
             ];
-            let mut table = Table::new()
-                .rows(rows)
-                .focused(true)
-                .mouse_wheel_delta(1); // Single step
+            let mut table = Table::new().rows(rows).focused(true).mouse_wheel_delta(1); // Single step
 
             table.update(&wheel_down_msg());
             assert_eq!(table.cursor(), 1); // Only moved by 1

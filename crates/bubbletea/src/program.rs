@@ -1778,7 +1778,10 @@ mod tests {
             assert_eq!(len, input.len());
             let key = msg.downcast_ref::<KeyMsg>().unwrap();
             assert!(key.paste, "Key should have paste flag set");
-            assert_eq!(key.runes, vec!['h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd']);
+            assert_eq!(
+                key.runes,
+                vec!['h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd']
+            );
         } else {
             panic!("Expected Parsed outcome");
         }

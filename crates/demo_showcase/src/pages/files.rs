@@ -18,11 +18,12 @@
 
 use std::path::PathBuf;
 
-use bubbles::filepicker::{DirEntry, FilePicker, ReadDirMsg};
+use bubbles::filepicker::FilePicker;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message};
+use lipgloss::Style;
 
 use super::PageModel;
-use crate::assets::fixtures::{EntryKind, VirtualEntry, FIXTURE_TREE};
+use crate::assets::fixtures::{FIXTURE_TREE, VirtualEntry};
 use crate::messages::Page;
 use crate::theme::Theme;
 
@@ -120,18 +121,38 @@ impl FilesPage {
 
     /// Navigate into a directory.
     fn enter_directory(&mut self) {
-        let entries = self.visible_entries();
-        if let Some(entry) = entries.get(self.selected) {
-            if let Some(children) = entry.children() {
-                self.virtual_path.push(entry.name);
-                self.virtual_entries = children.to_vec();
+        // Extract data first to avoid borrow conflicts
+        let action = {
+            let entries: Vec<_> = self
+                .virtual_entries
+                .iter()
+                .filter(|e| self.show_hidden || !e.is_hidden())
+                .collect();
+
+            if let Some(entry) = entries.get(self.selected) {
+                if let Some(children) = entry.children() {
+                    Some((entry.name, Some(children.to_vec()), None::<String>))
+                } else if let Some(content) = entry.content() {
+                    Some((entry.name, None, Some(content.to_string())))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
+
+        if let Some((name, children_opt, content_opt)) = action {
+            if let Some(children) = children_opt {
+                self.virtual_path.push(name);
+                self.virtual_entries = children;
                 self.selected = 0;
                 self.scroll_offset = 0;
                 self.preview_content = None;
                 self.preview_name = None;
-            } else if let Some(content) = entry.content() {
-                self.preview_content = Some(content.to_string());
-                self.preview_name = Some(entry.name.to_string());
+            } else if let Some(content) = content_opt {
+                self.preview_content = Some(content);
+                self.preview_name = Some(name.to_string());
             }
         }
     }
@@ -207,23 +228,48 @@ impl FilesPage {
     fn toggle_hidden(&mut self) {
         self.show_hidden = !self.show_hidden;
         // Clamp selection
-        let entries = self.visible_entries();
-        if self.selected >= entries.len() {
-            self.selected = entries.len().saturating_sub(1);
+        let count = self.visible_entry_count();
+        if self.selected >= count {
+            self.selected = count.saturating_sub(1);
         }
+    }
+
+    /// Count visible entries.
+    fn visible_entry_count(&self) -> usize {
+        self.virtual_entries
+            .iter()
+            .filter(|e| self.show_hidden || !e.is_hidden())
+            .count()
     }
 
     /// Update preview based on current selection.
     fn update_preview(&mut self) {
-        let entries = self.visible_entries();
-        if let Some(entry) = entries.get(self.selected) {
-            if let Some(content) = entry.content() {
-                self.preview_content = Some(content.to_string());
-                self.preview_name = Some(entry.name.to_string());
+        // Extract data first to avoid borrow conflicts
+        let (content, name, is_dir) = {
+            let entries: Vec<_> = self
+                .virtual_entries
+                .iter()
+                .filter(|e| self.show_hidden || !e.is_hidden())
+                .collect();
+
+            if let Some(entry) = entries.get(self.selected) {
+                (
+                    entry.content().map(String::from),
+                    entry.name.to_string(),
+                    entry.is_dir(),
+                )
             } else {
-                self.preview_content = None;
-                self.preview_name = Some(format!("{}/", entry.name));
+                (None, String::new(), false)
             }
+        };
+
+        if !name.is_empty() {
+            self.preview_content = content;
+            self.preview_name = if is_dir {
+                Some(format!("{}/", name))
+            } else {
+                Some(name)
+            };
         } else {
             self.preview_content = None;
             self.preview_name = None;
@@ -231,7 +277,7 @@ impl FilesPage {
     }
 
     /// Render the file list.
-    fn render_list(&self, width: usize, height: usize, theme: &Theme) -> String {
+    fn render_list(&self, _width: usize, height: usize, theme: &Theme) -> String {
         let entries = self.visible_entries();
         let visible_rows = height.saturating_sub(2); // For breadcrumb + status
 
@@ -265,15 +311,15 @@ impl FilesPage {
             };
 
             let name_style = if is_selected {
-                theme.highlight_style()
+                theme.title_style()
             } else if entry.is_dir() {
-                theme.primary_style()
+                theme.info_style()
             } else {
-                theme.text_style()
+                Style::new()
             };
 
             let cursor_style = if is_selected {
-                theme.primary_style()
+                theme.info_style()
             } else {
                 theme.muted_style()
             };
@@ -294,7 +340,11 @@ impl FilesPage {
         }
 
         // Status line
-        let hidden_indicator = if self.show_hidden { "[h] Hide" } else { "[h] Show hidden" };
+        let hidden_indicator = if self.show_hidden {
+            "[h] Hide"
+        } else {
+            "[h] Show hidden"
+        };
         let status = format!(
             "{}/{} {}",
             self.selected + 1,
@@ -312,12 +362,12 @@ impl FilesPage {
 
         // Header
         let header = if let Some(ref name) = self.preview_name {
-            theme.secondary_style().bold().render(name)
+            theme.heading_style().render(name)
         } else {
             theme.muted_style().render("(no selection)")
         };
         lines.push(header);
-        lines.push(theme.border_style().render(&"─".repeat(width.min(40))));
+        lines.push(theme.muted_style().render(&"─".repeat(width.min(40))));
 
         // Content
         if let Some(ref content) = self.preview_content {
@@ -351,17 +401,8 @@ impl Default for FilesPage {
 
 impl PageModel for FilesPage {
     fn update(&mut self, msg: &Message) -> Option<Cmd> {
-        // Handle real mode messages
-        if self.real_mode {
-            if let Some(picker) = &mut self.picker {
-                if let Some(read_msg) = msg.downcast_ref::<ReadDirMsg>() {
-                    if read_msg.id == picker.id() {
-                        // Update happened via picker.update()
-                    }
-                }
-                picker.update(msg);
-            }
-        }
+        // Note: Real filesystem mode requires changes to bubbletea's Message type
+        // to support Clone. For now, we only support virtual fixture mode.
 
         // Handle key messages
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
@@ -375,7 +416,7 @@ impl PageModel for FilesPage {
                 KeyType::Enter | KeyType::Right => {
                     self.enter_directory();
                 }
-                KeyType::Left | KeyType::Backspace | KeyType::Escape => {
+                KeyType::Left | KeyType::Backspace | KeyType::Esc => {
                     self.go_back();
                 }
                 KeyType::Home => {
@@ -384,19 +425,17 @@ impl PageModel for FilesPage {
                 KeyType::End => {
                     self.goto_bottom();
                 }
-                KeyType::Runes => {
-                    match key.runes.as_slice() {
-                        ['j'] => self.move_down(),
-                        ['k'] => self.move_up(),
-                        ['l'] => self.enter_directory(),
-                        ['h'] if key.alt => self.toggle_hidden(),
-                        ['h'] => self.go_back(),
-                        ['g'] => self.goto_top(),
-                        ['G'] => self.goto_bottom(),
-                        ['H'] => self.toggle_hidden(),
-                        _ => {}
-                    }
-                }
+                KeyType::Runes => match key.runes.as_slice() {
+                    ['j'] => self.move_down(),
+                    ['k'] => self.move_up(),
+                    ['l'] => self.enter_directory(),
+                    ['h'] if key.alt => self.toggle_hidden(),
+                    ['h'] => self.go_back(),
+                    ['g'] => self.goto_top(),
+                    ['G'] => self.goto_bottom(),
+                    ['H'] => self.toggle_hidden(),
+                    _ => {}
+                },
                 _ => {}
             }
         }

@@ -1355,11 +1355,11 @@ mod tests {
 
     impl Write for FailingWriter {
         fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
-            Err(io::Error::new(io::ErrorKind::Other, "simulated failure"))
+            Err(io::Error::other("simulated failure"))
         }
 
         fn flush(&mut self) -> io::Result<()> {
-            Err(io::Error::new(io::ErrorKind::Other, "simulated failure"))
+            Err(io::Error::other("simulated failure"))
         }
     }
 

@@ -1343,13 +1343,19 @@ mod tests {
         // Try to paste more than the limit
         let key_msg = Message::new(KeyMsg {
             key_type: bubbletea::KeyType::Runes,
-            runes: "this is a very long paste that exceeds the limit".chars().collect(),
+            runes: "this is a very long paste that exceeds the limit"
+                .chars()
+                .collect(),
             alt: false,
             paste: true,
         });
         let _ = Model::update(&mut input, key_msg);
 
-        assert_eq!(input.value().len(), 10, "Paste should be truncated at char_limit");
+        assert_eq!(
+            input.value().len(),
+            10,
+            "Paste should be truncated at char_limit"
+        );
         assert_eq!(input.value(), "this is a ");
     }
 
@@ -1389,7 +1395,11 @@ mod tests {
         });
         let _ = Model::update(&mut input, key_msg);
 
-        assert_eq!(input.value(), "hello", "Paste at full capacity should be ignored");
+        assert_eq!(
+            input.value(),
+            "hello",
+            "Paste at full capacity should be ignored"
+        );
     }
 
     #[test]
