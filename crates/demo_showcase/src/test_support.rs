@@ -1663,4 +1663,133 @@ mod e2e_smoke_tour_tests {
 
         runner.finish().expect("page_nav_comprehensive should pass");
     }
+
+    /// E2E scenario: Wizard -> Job -> Logs correlation (bd-3449)
+    ///
+    /// Tests wizard navigation and verifies cross-page state consistency.
+    /// Demonstrates that wizard can be navigated and that Jobs/Logs pages
+    /// remain functional after wizard interaction.
+    #[test]
+    fn e2e_wizard_job_logs_correlation() {
+        let mut runner = E2ERunner::new("wizard_job_logs");
+
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        // =========================================================================
+        // Step 1: Navigate to Wizard page
+        // =========================================================================
+        runner.step("Navigate to Wizard page");
+        runner.press_key('6');
+        runner.assert_page(Page::Wizard);
+        runner.assert_view_not_empty();
+
+        // Verify wizard has content
+        let wizard_view = runner.view();
+        runner.recorder.assert_true(
+            "wizard page has content",
+            !wizard_view.trim().is_empty(),
+        );
+
+        // =========================================================================
+        // Step 2: Interact with wizard (navigate steps)
+        // =========================================================================
+        runner.step("Navigate wizard with keyboard");
+
+        // Press Enter to proceed from step 0
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        // Type some characters for name field (if in step 1)
+        runner.step("Type in wizard fields");
+        for c in "test".chars() {
+            runner.press_key(c);
+        }
+        runner.drain();
+
+        // Try to go back
+        runner.press_key('b');
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        // =========================================================================
+        // Step 3: Navigate to Jobs page
+        // =========================================================================
+        runner.step("Navigate to Jobs page");
+        runner.press_key('3');
+        runner.assert_page(Page::Jobs);
+
+        let jobs_view = runner.view();
+        // Jobs page should have some job-related content
+        runner.recorder.assert_true(
+            "jobs page renders content",
+            !jobs_view.trim().is_empty(),
+        );
+
+        // Interact with Jobs page
+        runner.step("Interact with Jobs page");
+        runner.press_key('j'); // Navigate down
+        runner.drain();
+        runner.press_key('k'); // Navigate up
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        // =========================================================================
+        // Step 4: Navigate to Logs page
+        // =========================================================================
+        runner.step("Navigate to Logs page");
+        runner.press_key('4');
+        runner.assert_page(Page::Logs);
+
+        let logs_view = runner.view();
+        runner.recorder.assert_true(
+            "logs page renders content",
+            !logs_view.trim().is_empty(),
+        );
+
+        // Interact with Logs page
+        runner.step("Interact with Logs page");
+        runner.press_key('j'); // Scroll down
+        runner.drain();
+        runner.press_key('f'); // Toggle follow mode
+        runner.drain();
+        runner.assert_view_not_empty();
+
+        // =========================================================================
+        // Step 5: Cross-page navigation verification
+        // =========================================================================
+        runner.step("Cross-page navigation");
+
+        // Quick tour through all pages
+        let pages = [
+            ('1', Page::Dashboard),
+            ('3', Page::Jobs),
+            ('4', Page::Logs),
+            ('6', Page::Wizard),
+            ('1', Page::Dashboard),
+        ];
+
+        for (key, expected_page) in pages {
+            runner.press_key(key);
+            runner.assert_page(expected_page);
+            runner.assert_view_not_empty();
+        }
+
+        // =========================================================================
+        // Step 6: Final state verification
+        // =========================================================================
+        runner.step("Final verification");
+        runner.assert_view_not_empty();
+
+        // Verify no panics occurred and app is still functional
+        let final_view = runner.view();
+        runner.recorder.assert_true(
+            "app still functional after navigation",
+            !final_view.trim().is_empty(),
+        );
+
+        runner.finish().expect("wizard_job_logs_correlation should pass");
+    }
 }

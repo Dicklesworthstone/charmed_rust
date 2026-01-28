@@ -6,9 +6,10 @@
 //! This page integrates with the simulation engine to provide live-updating
 //! metrics with trends, health indicators, and notifications.
 
+use std::sync::RwLock;
 use std::time::Duration;
 
-use bubbletea::{Cmd, KeyMsg, KeyType, Message, tick};
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, MouseAction, MouseButton, MouseMsg, tick};
 use lipgloss::{Position, Style};
 
 use super::PageModel;
@@ -18,7 +19,7 @@ use crate::components::{
 use crate::data::animation::Animator;
 use crate::data::simulation::{MetricHealth, MetricTrend, SimConfig, Simulation, TickMsg};
 use crate::data::{Deployment, DeploymentStatus, Job, JobStatus, Service, ServiceHealth};
-use crate::messages::{Notification, NotificationMsg, Page};
+use crate::messages::{AppMsg, Notification, NotificationMsg, Page};
 use crate::theme::Theme;
 
 /// Default seed for deterministic data generation.
@@ -26,6 +27,58 @@ const DEFAULT_SEED: u64 = 42;
 
 /// Tick interval for simulation updates (100ms = 10 fps).
 const TICK_INTERVAL_MS: u64 = 100;
+
+/// Dashboard cards that can be selected/clicked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DashboardCard {
+    /// No card selected.
+    #[default]
+    None,
+    /// Services card (navigates to Services page).
+    Services,
+    /// Jobs card (navigates to Jobs page).
+    Jobs,
+    /// Deployments card.
+    Deployments,
+    /// Live metrics card.
+    Metrics,
+}
+
+impl DashboardCard {
+    /// Get the navigation target page for this card, if any.
+    #[must_use]
+    pub const fn target_page(self) -> Option<Page> {
+        match self {
+            Self::Services => Some(Page::Services),
+            Self::Jobs => Some(Page::Jobs),
+            Self::Deployments | Self::Metrics | Self::None => None,
+        }
+    }
+
+    /// Cycle to the next card (for keyboard navigation).
+    #[must_use]
+    pub const fn next(self) -> Self {
+        match self {
+            Self::None => Self::Services,
+            Self::Services => Self::Jobs,
+            Self::Jobs => Self::Deployments,
+            Self::Deployments => Self::Metrics,
+            Self::Metrics => Self::Services,
+        }
+    }
+
+    /// Cycle to the previous card.
+    #[must_use]
+    pub const fn prev(self) -> Self {
+        match self {
+            Self::None => Self::Metrics,
+            Self::Services => Self::Metrics,
+            Self::Jobs => Self::Services,
+            Self::Deployments => Self::Jobs,
+            Self::Metrics => Self::Deployments,
+        }
+    }
+}
 
 /// Dashboard page showing platform health overview.
 ///
@@ -50,6 +103,24 @@ pub struct DashboardPage {
     next_notification_id: u64,
     /// Animator for smooth metric value transitions.
     animator: Animator,
+    /// Currently selected/focused card.
+    selected_card: DashboardCard,
+    /// Last rendered card bounds for hit testing (y_start, y_end, x_start, x_end).
+    /// Uses RwLock for interior mutability since view() takes &self.
+    card_bounds: RwLock<CardBounds>,
+}
+
+/// Bounds for dashboard cards used for mouse hit testing.
+#[derive(Debug, Clone, Default)]
+struct CardBounds {
+    /// Services card bounds (y_start, y_end, x_start, x_end).
+    services: Option<(usize, usize, usize, usize)>,
+    /// Jobs card bounds.
+    jobs: Option<(usize, usize, usize, usize)>,
+    /// Deployments card bounds.
+    deployments: Option<(usize, usize, usize, usize)>,
+    /// Metrics card bounds.
+    metrics: Option<(usize, usize, usize, usize)>,
 }
 
 impl DashboardPage {
@@ -88,6 +159,8 @@ impl DashboardPage {
             ticks_since_uptime: 0,
             next_notification_id: 1,
             animator,
+            selected_card: DashboardCard::None,
+            card_bounds: RwLock::new(CardBounds::default()),
         }
     }
 
@@ -285,8 +358,114 @@ impl DashboardPage {
     }
 
     // ========================================================================
+    // Mouse Interaction
+    // ========================================================================
+
+    /// Select the next card (keyboard navigation).
+    fn select_next_card(&mut self) {
+        self.selected_card = self.selected_card.next();
+    }
+
+    /// Select the previous card.
+    fn select_prev_card(&mut self) {
+        self.selected_card = self.selected_card.prev();
+    }
+
+    /// Handle a mouse click at the given position.
+    ///
+    /// Returns a command to navigate if a card was clicked.
+    fn handle_click(&mut self, x: usize, y: usize) -> Option<Cmd> {
+        // Check which card was clicked based on bounds
+        let clicked_card = self.hit_test(x, y);
+
+        if clicked_card != DashboardCard::None {
+            self.selected_card = clicked_card;
+
+            // If card has a navigation target, navigate to it on click
+            if let Some(page) = clicked_card.target_page() {
+                return Some(Cmd::new(move || AppMsg::Navigate(page).into_message()));
+            }
+        }
+
+        None
+    }
+
+    /// Determine which card (if any) contains the given point.
+    fn hit_test(&self, x: usize, y: usize) -> DashboardCard {
+        let bounds = self.card_bounds.read().unwrap();
+
+        // Check each card's bounds
+        if let Some((y1, y2, x1, x2)) = bounds.services {
+            if y >= y1 && y < y2 && x >= x1 && x < x2 {
+                return DashboardCard::Services;
+            }
+        }
+        if let Some((y1, y2, x1, x2)) = bounds.jobs {
+            if y >= y1 && y < y2 && x >= x1 && x < x2 {
+                return DashboardCard::Jobs;
+            }
+        }
+        if let Some((y1, y2, x1, x2)) = bounds.deployments {
+            if y >= y1 && y < y2 && x >= x1 && x < x2 {
+                return DashboardCard::Deployments;
+            }
+        }
+        if let Some((y1, y2, x1, x2)) = bounds.metrics {
+            if y >= y1 && y < y2 && x >= x1 && x < x2 {
+                return DashboardCard::Metrics;
+            }
+        }
+
+        DashboardCard::None
+    }
+
+    /// Get the currently selected card.
+    #[must_use]
+    pub const fn selected_card(&self) -> DashboardCard {
+        self.selected_card
+    }
+
+    // ========================================================================
     // Render Helpers
     // ========================================================================
+
+    /// Render a card section with selection highlighting.
+    ///
+    /// When the card is selected, applies a subtle highlight to indicate focus.
+    fn render_card_section(
+        &self,
+        card: DashboardCard,
+        content: &str,
+        theme: &Theme,
+        _width: usize,
+    ) -> String {
+        if self.selected_card == card {
+            // Apply selection highlight: bold first line (header) and subtle left border
+            let lines: Vec<&str> = content.lines().collect();
+            if lines.is_empty() {
+                return content.to_string();
+            }
+
+            // Highlight the header with primary/accent color
+            let header = Style::new()
+                .foreground(theme.primary)
+                .bold()
+                .render(lines[0]);
+
+            // Add a subtle selection indicator
+            let indicator = Style::new().foreground(theme.primary).render("▸ ");
+
+            if lines.len() == 1 {
+                format!("{indicator}{header}")
+            } else {
+                let rest = lines[1..].join("\n");
+                format!("{indicator}{header}\n{rest}")
+            }
+        } else {
+            // No selection, return as-is with spacing for alignment
+            format!("  {}", content.replace('\n', "\n  "))
+        }
+    }
 
     /// Render the status bar (top row).
     fn render_status_bar(&self, theme: &Theme, width: usize) -> String {
@@ -626,12 +805,40 @@ impl PageModel for DashboardPage {
             return Some(self.schedule_tick());
         }
 
+        // Handle mouse input (bd-3d1w)
+        if let Some(mouse) = msg.downcast_ref::<MouseMsg>() {
+            // Only handle left button press (click)
+            if mouse.button == MouseButton::Left && mouse.action == MouseAction::Press {
+                return self.handle_click(mouse.x as usize, mouse.y as usize);
+            }
+        }
+
         // Handle keyboard input
-        if let Some(key) = msg.downcast_ref::<KeyMsg>()
-            && key.key_type == KeyType::Runes
-            && key.runes.as_slice() == ['r']
-        {
-            self.refresh();
+        if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+            match key.key_type {
+                KeyType::Runes => {
+                    match key.runes.as_slice() {
+                        ['r'] => self.refresh(),
+                        // j to select next card
+                        ['j'] => self.select_next_card(),
+                        // k to select previous card
+                        ['k'] => self.select_prev_card(),
+                        _ => {}
+                    }
+                }
+                // Tab cycles through cards
+                KeyType::Tab => self.select_next_card(),
+                // Arrow keys for card navigation
+                KeyType::Down | KeyType::Right => self.select_next_card(),
+                KeyType::Up | KeyType::Left => self.select_prev_card(),
+                // Enter to navigate to selected card's target page
+                KeyType::Enter => {
+                    if let Some(page) = self.selected_card.target_page() {
+                        return Some(Cmd::new(move || AppMsg::Navigate(page).into_message()));
+                    }
+                }
+                _ => {}
+            }
         }
 
         None
@@ -651,18 +858,82 @@ impl PageModel for DashboardPage {
         let status_bar = self.render_status_bar(theme, width);
         let stats_row = self.render_stats_row(theme, width);
 
-        let services = self.render_services(theme, left_width);
-        let deployments = self.render_deployments(theme, right_width);
-        let jobs = self.render_jobs(theme, left_width);
+        // Render card sections with selection highlighting
+        let services = self.render_card_section(
+            DashboardCard::Services,
+            &self.render_services(theme, left_width),
+            theme,
+            left_width,
+        );
+        let deployments = self.render_card_section(
+            DashboardCard::Deployments,
+            &self.render_deployments(theme, right_width),
+            theme,
+            right_width,
+        );
+        let jobs = self.render_card_section(
+            DashboardCard::Jobs,
+            &self.render_jobs(theme, left_width),
+            theme,
+            left_width,
+        );
 
         // Live metrics panel with trends and health indicators
-        let live_metrics = self.render_live_metrics(theme, right_width);
+        let live_metrics = self.render_card_section(
+            DashboardCard::Metrics,
+            &self.render_live_metrics(theme, right_width),
+            theme,
+            right_width,
+        );
 
         // Compose main content
         let left_col = format!("{services}\n\n{jobs}");
         let right_col = format!("{deployments}\n\n{live_metrics}");
 
         let main_content = lipgloss::join_horizontal(Position::Top, &[&left_col, " ", &right_col]);
+
+        // Calculate card bounds for mouse hit testing
+        // Layout: status_bar (1) + blank (1) + stats_row + blank (1) + main_content
+        let status_lines = 1;
+        let stats_lines = stats_row.lines().count();
+        let header_lines = status_lines + 1 + stats_lines + 1; // +1 for each blank line
+
+        let services_lines = services.lines().count();
+        let jobs_lines = jobs.lines().count();
+        let deployments_lines = deployments.lines().count();
+        let live_metrics_lines = live_metrics.lines().count();
+
+        // Update card bounds (interior mutability via RwLock)
+        if let Ok(mut bounds) = self.card_bounds.write() {
+            // Services: left column, starts at header_lines
+            bounds.services = Some((
+                header_lines,
+                header_lines + services_lines,
+                0,
+                left_width,
+            ));
+
+            // Jobs: left column, after services + 2 blank lines
+            let jobs_start = header_lines + services_lines + 2;
+            bounds.jobs = Some((jobs_start, jobs_start + jobs_lines, 0, left_width));
+
+            // Deployments: right column, starts at header_lines
+            bounds.deployments = Some((
+                header_lines,
+                header_lines + deployments_lines,
+                left_width + 1,
+                width,
+            ));
+
+            // Live Metrics: right column, after deployments + 2 blank lines
+            let metrics_start = header_lines + deployments_lines + 2;
+            bounds.metrics = Some((
+                metrics_start,
+                metrics_start + live_metrics_lines,
+                left_width + 1,
+                width,
+            ));
+        }
 
         // Final layout
         let content = format!("{status_bar}\n\n{stats_row}\n\n{main_content}");
@@ -680,7 +951,7 @@ impl PageModel for DashboardPage {
     }
 
     fn hints(&self) -> &'static str {
-        "r refresh  s services  j jobs"
+        "r refresh  j/k nav  Tab cycle  Enter select"
     }
 }
 
@@ -850,5 +1121,87 @@ mod tests {
         let sim_rps = page.simulation.metrics.requests_per_sec.value;
         let animated_rps = page.animator.get("requests_per_sec").unwrap();
         assert!((animated_rps - sim_rps).abs() < 0.001);
+    }
+
+    #[test]
+    fn card_navigation_cycles() {
+        let mut page = DashboardPage::new();
+        assert_eq!(page.selected_card(), DashboardCard::None);
+
+        // Next from None goes to Services
+        page.select_next_card();
+        assert_eq!(page.selected_card(), DashboardCard::Services);
+
+        // Continue cycling forward
+        page.select_next_card();
+        assert_eq!(page.selected_card(), DashboardCard::Jobs);
+
+        page.select_next_card();
+        assert_eq!(page.selected_card(), DashboardCard::Deployments);
+
+        page.select_next_card();
+        assert_eq!(page.selected_card(), DashboardCard::Metrics);
+
+        // Wraps back to Services
+        page.select_next_card();
+        assert_eq!(page.selected_card(), DashboardCard::Services);
+    }
+
+    #[test]
+    fn card_navigation_prev() {
+        let mut page = DashboardPage::new();
+
+        // Prev from None goes to Metrics
+        page.select_prev_card();
+        assert_eq!(page.selected_card(), DashboardCard::Metrics);
+
+        // Continue cycling backward
+        page.select_prev_card();
+        assert_eq!(page.selected_card(), DashboardCard::Deployments);
+
+        page.select_prev_card();
+        assert_eq!(page.selected_card(), DashboardCard::Jobs);
+
+        page.select_prev_card();
+        assert_eq!(page.selected_card(), DashboardCard::Services);
+    }
+
+    #[test]
+    fn card_target_pages() {
+        // Services and Jobs have target pages
+        assert_eq!(
+            DashboardCard::Services.target_page(),
+            Some(crate::messages::Page::Services)
+        );
+        assert_eq!(
+            DashboardCard::Jobs.target_page(),
+            Some(crate::messages::Page::Jobs)
+        );
+
+        // Deployments, Metrics, and None don't navigate
+        assert_eq!(DashboardCard::Deployments.target_page(), None);
+        assert_eq!(DashboardCard::Metrics.target_page(), None);
+        assert_eq!(DashboardCard::None.target_page(), None);
+    }
+
+    #[test]
+    fn view_updates_card_bounds() {
+        use crate::theme::Theme;
+
+        let page = DashboardPage::new();
+        let theme = Theme::default();
+
+        // Render the view (this should update card_bounds)
+        let _ = page.view(100, 40, &theme);
+
+        // Card bounds should now be populated
+        let bounds = page.card_bounds.read().unwrap();
+        assert!(bounds.services.is_some(), "Services bounds should be set");
+        assert!(bounds.jobs.is_some(), "Jobs bounds should be set");
+        assert!(
+            bounds.deployments.is_some(),
+            "Deployments bounds should be set"
+        );
+        assert!(bounds.metrics.is_some(), "Metrics bounds should be set");
     }
 }
