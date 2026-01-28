@@ -5,7 +5,9 @@
 //! - Message routing to page models
 //! - App chrome rendering (header, sidebar, footer)
 
-use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, WindowSizeMsg, batch, quit};
+use bubbletea::{
+    Cmd, KeyMsg, KeyType, Message, Model, WindowSizeMsg, batch, quit, set_window_title,
+};
 use lipgloss::{Position, Style};
 
 use crate::messages::{AppMsg, Page};
@@ -298,7 +300,11 @@ impl Default for App {
 
 impl Model for App {
     fn init(&self) -> Option<Cmd> {
-        Some(bubbletea::window_size())
+        // Set window title and request initial window size
+        batch(vec![
+            Some(set_window_title("Charmed Control Center")),
+            Some(bubbletea::window_size()),
+        ])
     }
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {

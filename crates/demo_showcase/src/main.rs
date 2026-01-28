@@ -72,14 +72,24 @@ fn main() -> anyhow::Result<()> {
     let app = App::with_config(app_config);
 
     // Build program with appropriate options
+    // All terminal behavior is driven from Config (single source of truth)
     let mut program = Program::new(app);
 
+    // Alternate screen mode (default: on, override: --no-alt-screen)
     if config.alt_screen {
         program = program.with_alt_screen();
     }
 
-    // Note: mouse support is handled by the Program defaults
-    // The mouse flag will be used by the App to handle mouse events
+    // Focus reporting: enables FocusMsg/BlurMsg when terminal gains/loses focus
+    program = program.with_report_focus();
+
+    // Mouse support: enable cell motion tracking when mouse is enabled
+    // This reports clicks and drags. Config controls via --no-mouse flag.
+    if config.mouse {
+        program = program.with_mouse_cell_motion();
+    }
+
+    // Bracketed paste is enabled by default in bubbletea Program
 
     program.run()?;
 
