@@ -58,6 +58,18 @@ enum DocsFocus {
     List,
     /// Content viewport is focused.
     Content,
+    /// Search input is focused.
+    Search,
+}
+
+/// A search match with line number and character offset.
+#[derive(Debug, Clone)]
+struct SearchMatch {
+    /// Line number in the content (0-indexed).
+    line: usize,
+    /// Character offset within the line.
+    #[allow(dead_code)] // Reserved for future highlight overlay
+    offset: usize,
 }
 
 /// Docs page showing markdown documentation with split-view layout.
@@ -80,6 +92,14 @@ pub struct DocsPage {
     focus: DocsFocus,
     /// Saved scroll positions per document index.
     scroll_positions: HashMap<usize, usize>,
+    /// Search query string.
+    search_query: String,
+    /// Search matches in current document.
+    search_matches: Vec<SearchMatch>,
+    /// Current match index (0-indexed).
+    current_match: usize,
+    /// Previous focus state (to restore when exiting search).
+    prev_focus: DocsFocus,
 }
 
 impl DocsPage {
@@ -107,6 +127,10 @@ impl DocsPage {
             last_theme: RwLock::new(String::new()),
             focus: DocsFocus::List,
             scroll_positions: HashMap::new(),
+            search_query: String::new(),
+            search_matches: Vec::new(),
+            current_match: 0,
+            prev_focus: DocsFocus::List,
         }
     }
 
@@ -138,6 +162,10 @@ impl DocsPage {
             // Change document
             self.current_index = index;
             *self.needs_render.write().unwrap() = true;
+            // Clear search state when changing documents
+            self.search_query.clear();
+            self.search_matches.clear();
+            self.current_match = 0;
         }
     }
 
@@ -172,7 +200,100 @@ impl DocsPage {
         self.focus = match self.focus {
             DocsFocus::List => DocsFocus::Content,
             DocsFocus::Content => DocsFocus::List,
+            DocsFocus::Search => DocsFocus::Content, // Exit search to content
         };
+    }
+
+    /// Enter search mode.
+    fn enter_search(&mut self) {
+        self.prev_focus = self.focus;
+        self.focus = DocsFocus::Search;
+        self.search_query.clear();
+        self.search_matches.clear();
+        self.current_match = 0;
+    }
+
+    /// Exit search mode.
+    fn exit_search(&mut self) {
+        self.focus = self.prev_focus;
+        // Keep search query and matches visible for n/N navigation
+    }
+
+    /// Update search matches based on current query.
+    fn update_search_matches(&mut self) {
+        self.search_matches.clear();
+        self.current_match = 0;
+
+        let query = self.search_query.to_lowercase();
+        if query.is_empty() {
+            return;
+        }
+
+        // Search in raw markdown content
+        let Some(entry) = self.current_entry() else {
+            return;
+        };
+
+        let content_lower = entry.content.to_lowercase();
+        for (line_idx, line) in content_lower.lines().enumerate() {
+            let mut offset = 0;
+            while let Some(pos) = line[offset..].find(&query) {
+                self.search_matches.push(SearchMatch {
+                    line: line_idx,
+                    offset: offset + pos,
+                });
+                offset += pos + query.len();
+            }
+        }
+    }
+
+    /// Navigate to the current search match.
+    fn goto_current_match(&self) {
+        if let Some(m) = self.search_matches.get(self.current_match) {
+            // Scroll viewport to show the match line
+            // Center the match in the viewport if possible
+            let viewport = self.viewport.read().unwrap();
+            let visible_lines = viewport.height;
+            drop(viewport);
+
+            let target_offset = if m.line > visible_lines / 2 {
+                m.line.saturating_sub(visible_lines / 2)
+            } else {
+                0
+            };
+            self.viewport.write().unwrap().set_y_offset(target_offset);
+        }
+    }
+
+    /// Go to the next search match.
+    fn next_match(&mut self) {
+        if !self.search_matches.is_empty() {
+            self.current_match = (self.current_match + 1) % self.search_matches.len();
+            self.goto_current_match();
+        }
+    }
+
+    /// Go to the previous search match.
+    fn prev_match(&mut self) {
+        if !self.search_matches.is_empty() {
+            if self.current_match == 0 {
+                self.current_match = self.search_matches.len() - 1;
+            } else {
+                self.current_match -= 1;
+            }
+            self.goto_current_match();
+        }
+    }
+
+    /// Get search status string.
+    fn search_status(&self) -> String {
+        if self.search_query.is_empty() {
+            String::new()
+        } else if self.search_matches.is_empty() {
+            "No matches".to_string()
+        } else {
+            format!("{}/{}", self.current_match + 1, self.search_matches.len())
+        }
     }
 
     /// Render markdown content with glamour.
@@ -275,7 +396,8 @@ impl DocsPage {
 
     /// Render the content panel.
     fn render_content(&self, theme: &Theme, width: usize, height: usize) -> String {
-        let is_focused = self.focus == DocsFocus::Content;
+        let is_focused = self.focus == DocsFocus::Content || self.focus == DocsFocus::Search;
+        let is_searching = self.focus == DocsFocus::Search;
 
         // Get viewport content
         let viewport_content = self.viewport.read().unwrap().view();
@@ -293,13 +415,22 @@ impl DocsPage {
             ((offset as f64 / (total - visible).max(1) as f64) * 100.0) as usize
         };
 
-        // Build header with title and scroll position
+        // Build header with title, scroll position, and optional search info
         let title = self
             .current_entry()
             .map(|e| e.title)
             .unwrap_or("Documentation");
         let scroll_info = format!("{}%", percent);
-        let title_width = width.saturating_sub(scroll_info.len() + 4);
+
+        // Add search status if we have a search query
+        let search_status = self.search_status();
+        let right_info = if search_status.is_empty() {
+            scroll_info
+        } else {
+            format!("{} | {}", search_status, scroll_info)
+        };
+
+        let title_width = width.saturating_sub(right_info.len() + 4);
         let truncated_title = if title.len() > title_width {
             format!("{}…", &title[..title_width.saturating_sub(1)])
         } else {
@@ -314,7 +445,7 @@ impl DocsPage {
         let header = format!(
             "{} {}",
             header_style.render(&truncated_title),
-            theme.muted_style().render(&scroll_info)
+            theme.muted_style().render(&right_info)
         );
 
         // Build content
@@ -323,30 +454,47 @@ impl DocsPage {
             .render(&"─".repeat(width.saturating_sub(2)));
         let mut content_lines = Vec::new();
         content_lines.push(header);
-        content_lines.push(separator);
+        content_lines.push(separator.clone());
+
+        // Reserve space for search bar at bottom if in search mode
+        let search_bar_height = if is_searching { 2 } else { 0 };
 
         // Add viewport content (already height-limited by viewport)
         for line in viewport_content.lines() {
             content_lines.push(line.to_string());
         }
 
-        // Pad to fill height
+        // Pad to fill height, leaving room for search bar
         let used_lines = content_lines.len();
-        let needed_lines = height.saturating_sub(2); // Account for border
+        let needed_lines = height.saturating_sub(2 + search_bar_height); // Account for border + search
         for _ in used_lines..needed_lines {
             content_lines.push(String::new());
         }
 
+        // Add search bar if in search mode
+        if is_searching {
+            content_lines.push(separator);
+            let prompt = theme.info_style().render("/");
+            let query = if self.search_query.is_empty() {
+                theme.muted_style().render("type to search...")
+            } else {
+                Style::new().foreground(theme.text).render(&format!("{}_", self.search_query))
+            };
+            content_lines.push(format!("{prompt} {query}"));
+        }
+
         // Apply border
-        let border_style = if is_focused {
-            Style::new()
-                .border(Border::rounded())
-                .border_foreground(theme.primary)
+        let border_color = if is_searching {
+            theme.info // Highlight border when searching
+        } else if is_focused {
+            theme.primary
         } else {
-            Style::new()
-                .border(Border::rounded())
-                .border_foreground(theme.border)
+            theme.border
         };
+
+        let border_style = Style::new()
+            .border(Border::rounded())
+            .border_foreground(border_color);
 
         let content = content_lines.join("\n");
         #[expect(clippy::cast_possible_truncation)]
@@ -367,6 +515,46 @@ impl PageModel for DocsPage {
     fn update(&mut self, msg: &Message) -> Option<Cmd> {
         // Handle keyboard navigation
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+            // Search mode handling
+            if self.focus == DocsFocus::Search {
+                match key.key_type {
+                    KeyType::Esc => {
+                        self.exit_search();
+                        return None;
+                    }
+                    KeyType::Enter => {
+                        // Exit search and go to first match
+                        self.exit_search();
+                        if !self.search_matches.is_empty() {
+                            self.goto_current_match();
+                        }
+                        return None;
+                    }
+                    KeyType::Backspace => {
+                        self.search_query.pop();
+                        self.update_search_matches();
+                        if !self.search_matches.is_empty() {
+                            self.goto_current_match();
+                        }
+                        return None;
+                    }
+                    KeyType::Runes => {
+                        // Add typed characters to search query
+                        for c in &key.runes {
+                            if c.is_alphanumeric() || c.is_whitespace() || matches!(c, '-' | '_' | '.' | ':') {
+                                self.search_query.push(*c);
+                            }
+                        }
+                        self.update_search_matches();
+                        if !self.search_matches.is_empty() {
+                            self.goto_current_match();
+                        }
+                        return None;
+                    }
+                    _ => return None,
+                }
+            }
+
             match key.key_type {
                 // Tab to switch focus
                 KeyType::Tab => {
@@ -399,6 +587,20 @@ impl PageModel for DocsPage {
                 // Vim-style navigation
                 KeyType::Runes => {
                     match key.runes.as_slice() {
+                        // Search: / to enter search mode
+                        ['/'] if self.focus == DocsFocus::Content => {
+                            self.enter_search();
+                            return None;
+                        }
+                        // Search navigation: n/N for next/prev match
+                        ['n'] if self.focus == DocsFocus::Content && !self.search_matches.is_empty() => {
+                            self.next_match();
+                            return None;
+                        }
+                        ['N'] if self.focus == DocsFocus::Content && !self.search_matches.is_empty() => {
+                            self.prev_match();
+                            return None;
+                        }
                         ['j'] => {
                             if self.focus == DocsFocus::List {
                                 self.next_doc();
@@ -545,7 +747,17 @@ impl PageModel for DocsPage {
     }
 
     fn hints(&self) -> &'static str {
-        "j/k nav  Tab focus  g/G top/btm  Enter select"
+        match self.focus {
+            DocsFocus::List => "j/k nav  Tab focus  Enter select",
+            DocsFocus::Content => {
+                if !self.search_matches.is_empty() {
+                    "j/k scroll  / search  n/N prev/next  g/G top/btm"
+                } else {
+                    "j/k scroll  / search  g/G top/btm  Tab list"
+                }
+            }
+            DocsFocus::Search => "type to search  Enter confirm  Esc cancel",
+        }
     }
 
     fn on_enter(&mut self) -> Option<Cmd> {
@@ -683,9 +895,157 @@ mod tests {
             assert_eq!(page.current_index, 1);
 
             // Selecting same doc should not change anything
-            let needs_render = *page.needs_render.read().unwrap();
+            let _needs_render = *page.needs_render.read().unwrap();
             page.select_doc(1);
             // Note: needs_render won't change if index is same
         }
+    }
+
+    #[test]
+    fn docs_search_enter_exit() {
+        let mut page = DocsPage::new();
+        assert_eq!(page.focus, DocsFocus::List);
+
+        // Enter search mode
+        page.enter_search();
+        assert_eq!(page.focus, DocsFocus::Search);
+        assert!(page.search_query.is_empty());
+
+        // Exit search mode
+        page.exit_search();
+        assert_eq!(page.focus, DocsFocus::List);
+    }
+
+    #[test]
+    fn docs_search_finds_matches() {
+        let mut page = DocsPage::new();
+
+        // The first doc (Welcome) should contain common words
+        page.search_query = "the".to_string();
+        page.update_search_matches();
+
+        // Should find matches (markdown typically contains "the")
+        assert!(
+            !page.search_matches.is_empty(),
+            "Should find matches for common word 'the'"
+        );
+    }
+
+    #[test]
+    fn docs_search_no_matches() {
+        let mut page = DocsPage::new();
+
+        page.search_query = "xyzzy_nonexistent_12345".to_string();
+        page.update_search_matches();
+
+        assert!(
+            page.search_matches.is_empty(),
+            "Should not find matches for nonsense string"
+        );
+        assert_eq!(page.search_status(), "No matches");
+    }
+
+    #[test]
+    fn docs_search_navigation() {
+        let mut page = DocsPage::new();
+
+        // Search for a common word
+        page.search_query = "the".to_string();
+        page.update_search_matches();
+
+        if page.search_matches.len() > 1 {
+            let initial = page.current_match;
+
+            page.next_match();
+            assert_eq!(page.current_match, initial + 1);
+
+            page.prev_match();
+            assert_eq!(page.current_match, initial);
+
+            // Test wrap around
+            page.current_match = 0;
+            page.prev_match();
+            assert_eq!(
+                page.current_match,
+                page.search_matches.len() - 1,
+                "Should wrap to last match"
+            );
+
+            page.next_match();
+            assert_eq!(page.current_match, 0, "Should wrap to first match");
+        }
+    }
+
+    #[test]
+    fn docs_search_cleared_on_doc_change() {
+        let mut page = DocsPage::new();
+
+        if page.entries.len() > 1 {
+            page.search_query = "test".to_string();
+            page.update_search_matches();
+
+            page.select_doc(1);
+
+            assert!(
+                page.search_query.is_empty(),
+                "Search query should be cleared"
+            );
+            assert!(
+                page.search_matches.is_empty(),
+                "Search matches should be cleared"
+            );
+        }
+    }
+
+    #[test]
+    fn docs_search_status_formatting() {
+        let mut page = DocsPage::new();
+
+        // Empty query
+        assert_eq!(page.search_status(), "");
+
+        // No matches
+        page.search_query = "xyzzy_nonexistent".to_string();
+        page.update_search_matches();
+        assert_eq!(page.search_status(), "No matches");
+
+        // With matches
+        page.search_query = "the".to_string();
+        page.update_search_matches();
+        if !page.search_matches.is_empty() {
+            let status = page.search_status();
+            assert!(
+                status.contains('/'),
+                "Status should show current/total format"
+            );
+        }
+    }
+
+    #[test]
+    fn docs_search_hints_update() {
+        let mut page = DocsPage::new();
+
+        // List focus hints
+        page.focus = DocsFocus::List;
+        let list_hints = page.hints();
+        assert!(list_hints.contains("nav"), "List hints should mention navigation");
+
+        // Content focus hints without search
+        page.focus = DocsFocus::Content;
+        let content_hints = page.hints();
+        assert!(content_hints.contains("search"), "Content hints should mention search");
+
+        // Content focus hints with search matches
+        page.search_query = "the".to_string();
+        page.update_search_matches();
+        if !page.search_matches.is_empty() {
+            let search_hints = page.hints();
+            assert!(search_hints.contains("n/N"), "Should show n/N for match navigation");
+        }
+
+        // Search mode hints
+        page.focus = DocsFocus::Search;
+        let search_mode_hints = page.hints();
+        assert!(search_mode_hints.contains("Esc"), "Search hints should mention Esc");
     }
 }
