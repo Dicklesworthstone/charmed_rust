@@ -612,4 +612,454 @@ mod tests {
         animator.clear();
         assert!(animator.is_empty());
     }
+
+    // =========================================================================
+    // bd-lxky: Determinism + reduce-motion + boundedness tests
+    // =========================================================================
+
+    // --- Determinism with fixed tick counts ---
+
+    #[test]
+    fn determinism_fixed_tick_sequence() {
+        // Same initial + target + tick count → identical intermediate values.
+        let mut a = AnimatedValue::new(10.0);
+        let mut b = AnimatedValue::new(10.0);
+
+        a.animate_to(200.0);
+        b.animate_to(200.0);
+
+        let mut a_values = Vec::new();
+        let mut b_values = Vec::new();
+
+        for _ in 0..120 {
+            a.tick();
+            b.tick();
+            a_values.push(a.get());
+            b_values.push(b.get());
+        }
+
+        for (i, (va, vb)) in a_values.iter().zip(&b_values).enumerate() {
+            assert!(
+                (va - vb).abs() < f64::EPSILON,
+                "frame {i}: a={va} != b={vb}"
+            );
+        }
+    }
+
+    #[test]
+    fn determinism_different_initial_values() {
+        // Two values starting at different positions but animating to the same target.
+        let mut low = AnimatedValue::new(0.0);
+        let mut high = AnimatedValue::new(1000.0);
+
+        low.animate_to(500.0);
+        high.animate_to(500.0);
+
+        for _ in 0..300 {
+            low.tick();
+            high.tick();
+        }
+
+        // Both should converge to 500
+        assert!(
+            (low.get() - 500.0).abs() < 0.1,
+            "low didn't converge: {}",
+            low.get()
+        );
+        assert!(
+            (high.get() - 500.0).abs() < 0.1,
+            "high didn't converge: {}",
+            high.get()
+        );
+    }
+
+    #[test]
+    fn determinism_retarget_mid_animation() {
+        // Change target midway; two identical sequences should match.
+        let run = || {
+            let mut v = AnimatedValue::new(0.0);
+            v.animate_to(100.0);
+            for _ in 0..30 {
+                v.tick();
+            }
+            v.animate_to(50.0); // Retarget midway
+            for _ in 0..60 {
+                v.tick();
+            }
+            v.get()
+        };
+
+        let r1 = run();
+        let r2 = run();
+        assert!(
+            (r1 - r2).abs() < f64::EPSILON,
+            "retarget not deterministic: {r1} vs {r2}"
+        );
+    }
+
+    // --- Boundedness: no NaN, no Inf, no runaway ---
+
+    #[test]
+    fn bounded_no_nan_or_inf_during_animation() {
+        let mut value = AnimatedValue::new(0.0);
+        value.animate_to(1000.0);
+
+        for i in 0..1000 {
+            value.tick();
+            let v = value.get();
+            assert!(v.is_finite(), "NaN/Inf at tick {i}: {v}");
+        }
+    }
+
+    #[test]
+    fn bounded_negative_target() {
+        let mut value = AnimatedValue::new(100.0);
+        value.animate_to(-100.0);
+
+        for i in 0..300 {
+            value.tick();
+            let v = value.get();
+            assert!(v.is_finite(), "NaN/Inf at tick {i}: {v}");
+        }
+
+        assert!(
+            (value.get() - (-100.0)).abs() < 0.1,
+            "didn't reach negative target: {}",
+            value.get()
+        );
+    }
+
+    #[test]
+    fn bounded_large_target_value() {
+        let mut value = AnimatedValue::new(0.0);
+        value.animate_to(1e9);
+
+        for i in 0..600 {
+            value.tick();
+            let v = value.get();
+            assert!(v.is_finite(), "NaN/Inf at tick {i}: {v}");
+        }
+
+        assert!(
+            (value.get() - 1e9).abs() < 1e6,
+            "didn't converge to large target: {}",
+            value.get()
+        );
+    }
+
+    #[test]
+    fn bounded_zero_target_from_large() {
+        let mut value = AnimatedValue::new(1e6);
+        value.animate_to(0.0);
+
+        for i in 0..600 {
+            value.tick();
+            let v = value.get();
+            assert!(v.is_finite(), "NaN/Inf at tick {i}: {v}");
+        }
+
+        assert!(
+            value.get().abs() < 1.0,
+            "didn't converge to zero: {}",
+            value.get()
+        );
+    }
+
+    #[test]
+    fn bounded_extreme_spring_parameters() {
+        // Very high frequency
+        let mut fast = AnimatedValue::with_spring(0.0, 100.0, 1.0);
+        fast.animate_to(100.0);
+        for i in 0..300 {
+            fast.tick();
+            assert!(fast.get().is_finite(), "NaN/Inf (fast) at tick {i}");
+        }
+
+        // Very low damping (very bouncy)
+        let mut bouncy = AnimatedValue::with_spring(0.0, 6.0, 0.01);
+        bouncy.animate_to(100.0);
+        for i in 0..600 {
+            bouncy.tick();
+            assert!(bouncy.get().is_finite(), "NaN/Inf (bouncy) at tick {i}");
+        }
+
+        // Very high damping (overdamped)
+        let mut sluggish = AnimatedValue::with_spring(0.0, 6.0, 10.0);
+        sluggish.animate_to(100.0);
+        for i in 0..600 {
+            sluggish.tick();
+            assert!(
+                sluggish.get().is_finite(),
+                "NaN/Inf (sluggish) at tick {i}"
+            );
+        }
+    }
+
+    #[test]
+    fn bounded_rapid_retargeting() {
+        // Rapidly change target every few ticks; values stay finite.
+        let mut value = AnimatedValue::new(0.0);
+
+        for cycle in 0..100 {
+            let target = if cycle % 2 == 0 { 100.0 } else { -100.0 };
+            value.animate_to(target);
+            for _ in 0..3 {
+                value.tick();
+                assert!(
+                    value.get().is_finite(),
+                    "NaN/Inf during rapid retarget at cycle {cycle}"
+                );
+            }
+        }
+    }
+
+    // --- Reduce-motion / disabled behavior ---
+
+    #[test]
+    fn reduce_motion_snap_to_target_immediately() {
+        let mut animator = Animator::new(false);
+
+        animator.animate("x", 42.0);
+        animator.animate("y", -99.5);
+
+        assert!(
+            (animator.get("x").unwrap() - 42.0).abs() < f64::EPSILON,
+            "disabled: x should snap"
+        );
+        assert!(
+            (animator.get("y").unwrap() - (-99.5)).abs() < f64::EPSILON,
+            "disabled: y should snap"
+        );
+    }
+
+    #[test]
+    fn reduce_motion_no_tick_scheduling() {
+        let mut animator = Animator::new(false);
+        animator.animate("x", 100.0);
+
+        // tick() should return false (no work)
+        assert!(!animator.tick(), "disabled animator should not tick");
+        // is_animating() should be false
+        assert!(
+            !animator.is_animating(),
+            "disabled animator should not be animating"
+        );
+    }
+
+    #[test]
+    fn reduce_motion_animate_from_snaps() {
+        let mut animator = Animator::new(false);
+        animator.animate_from("x", 10.0, 90.0);
+
+        // When disabled, animate_from should snap to target (90.0)
+        assert!(
+            (animator.get("x").unwrap() - 90.0).abs() < f64::EPSILON,
+            "disabled animate_from should snap to target, got {}",
+            animator.get("x").unwrap()
+        );
+    }
+
+    #[test]
+    fn reduce_motion_toggle_mid_animation() {
+        let mut animator = Animator::new(true);
+        animator.animate("x", 100.0);
+
+        // Tick a few times while enabled
+        for _ in 0..10 {
+            animator.tick();
+        }
+        let mid_value = animator.get("x").unwrap();
+        assert!(mid_value > 0.0 && mid_value < 100.0, "should be mid-animation");
+
+        // Disable animations
+        animator.set_enabled(false);
+
+        // New animation should snap
+        animator.animate("y", 200.0);
+        assert!(
+            (animator.get("y").unwrap() - 200.0).abs() < f64::EPSILON,
+            "after disable, new animations should snap"
+        );
+
+        // tick should now return false
+        assert!(!animator.tick(), "tick should be no-op when disabled");
+    }
+
+    #[test]
+    fn reduce_motion_re_enable_resumes() {
+        let mut animator = Animator::new(false);
+        animator.animate("x", 100.0); // Snaps to 100
+
+        // Re-enable
+        animator.set_enabled(true);
+        animator.animate("x", 0.0); // Should now animate
+
+        // x should be animating, not snapped
+        assert!(
+            animator.values.get("x").unwrap().is_animating(),
+            "re-enabled animator should animate"
+        );
+    }
+
+    // --- Edge cases ---
+
+    #[test]
+    fn animate_to_same_value_no_animation() {
+        let mut value = AnimatedValue::new(50.0);
+        value.animate_to(50.0); // Already there
+        assert!(
+            !value.is_animating(),
+            "should not animate when already at target"
+        );
+    }
+
+    #[test]
+    fn animate_to_very_close_value_no_animation() {
+        let mut value = AnimatedValue::new(50.0);
+        value.animate_to(50.0 + REST_THRESHOLD * 0.5); // Within threshold
+        assert!(
+            !value.is_animating(),
+            "should not animate for sub-threshold difference"
+        );
+    }
+
+    #[test]
+    fn tick_when_not_animating_returns_false() {
+        let mut value = AnimatedValue::new(50.0);
+        assert!(!value.tick(), "tick on idle value should return false");
+    }
+
+    #[test]
+    fn tick_when_animating_returns_true() {
+        let mut value = AnimatedValue::new(0.0);
+        value.animate_to(100.0);
+        assert!(value.tick(), "tick on active animation should return true");
+    }
+
+    #[test]
+    fn set_clears_velocity() {
+        let mut value = AnimatedValue::new(0.0);
+        value.animate_to(100.0);
+        for _ in 0..5 {
+            value.tick();
+        }
+        assert!(value.velocity().abs() > 0.0, "should have velocity");
+
+        value.set(50.0);
+        assert!(
+            value.velocity().abs() < f64::EPSILON,
+            "set() should clear velocity"
+        );
+    }
+
+    #[test]
+    fn default_animated_value_is_zero() {
+        let value = AnimatedValue::default();
+        assert!((value.get() - 0.0).abs() < f64::EPSILON);
+        assert!(!value.is_animating());
+    }
+
+    #[test]
+    fn default_animator_is_enabled() {
+        let animator = Animator::default();
+        assert!(animator.is_enabled());
+        assert!(animator.is_empty());
+    }
+
+    #[test]
+    fn animator_get_int_and_usize() {
+        let mut animator = Animator::new(false);
+        animator.animate("pos", 42.7);
+        animator.animate("neg", -5.3);
+
+        assert_eq!(animator.get_int("pos"), Some(43));
+        assert_eq!(animator.get_int("neg"), Some(-5));
+        assert_eq!(animator.get_usize("pos"), Some(43));
+        assert_eq!(animator.get_usize("neg"), Some(0)); // clamped
+    }
+
+    #[test]
+    fn animator_set_bypasses_enabled_flag() {
+        let mut animator = Animator::new(true);
+        animator.set("x", 42.0);
+
+        // set() should snap regardless of enabled state
+        assert!(
+            (animator.get("x").unwrap() - 42.0).abs() < f64::EPSILON,
+            "set() must snap even when animations are enabled"
+        );
+        assert!(
+            !animator.values.get("x").unwrap().is_animating(),
+            "set() must not start animation"
+        );
+    }
+
+    // --- No wall-clock dependency ---
+
+    #[test]
+    fn animation_independent_of_wall_clock() {
+        // Run the same animation twice with a real-time gap between them.
+        // Both should produce identical results because the spring
+        // advances by fixed dt per tick, not by elapsed wall time.
+        let run_animation = || {
+            let mut v = AnimatedValue::new(0.0);
+            v.animate_to(100.0);
+            let mut history = Vec::new();
+            for _ in 0..60 {
+                v.tick();
+                history.push(v.get());
+            }
+            history
+        };
+
+        let h1 = run_animation();
+        // Simulate "time passing" (doesn't affect the spring math)
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let h2 = run_animation();
+
+        for (i, (a, b)) in h1.iter().zip(&h2).enumerate() {
+            assert!(
+                (a - b).abs() < f64::EPSILON,
+                "frame {i}: {a} != {b} — animation depends on wall clock!"
+            );
+        }
+    }
+
+    // --- Convergence ---
+
+    #[test]
+    fn all_springs_eventually_converge() {
+        // Different spring parameters all converge within 600 frames.
+        let configs = [
+            (6.0, 0.3),  // bouncy
+            (6.0, 0.8),  // default
+            (6.0, 1.0),  // critically damped
+            (6.0, 2.0),  // overdamped
+            (12.0, 0.8), // fast
+            (2.0, 0.8),  // slow
+        ];
+
+        for (freq, damp) in configs {
+            let mut v = AnimatedValue::with_spring(0.0, freq, damp);
+            v.animate_to(100.0);
+
+            for _ in 0..600 {
+                if !v.is_animating() {
+                    break;
+                }
+                v.tick();
+            }
+
+            assert!(
+                !v.is_animating(),
+                "spring(freq={freq}, damp={damp}) did not converge in 600 frames, value={}",
+                v.get()
+            );
+            assert!(
+                (v.get() - 100.0).abs() < 0.1,
+                "spring(freq={freq}, damp={damp}) converged to {} (expected 100.0)",
+                v.get()
+            );
+        }
+    }
 }

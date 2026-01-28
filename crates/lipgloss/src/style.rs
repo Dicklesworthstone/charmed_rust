@@ -2817,9 +2817,7 @@ mod tests {
     #[test]
     fn test_style_chain_override() {
         // Later settings should override earlier ones
-        let style = Style::new()
-            .foreground("#ff0000")
-            .foreground("#00ff00");
+        let style = Style::new().foreground("#ff0000").foreground("#00ff00");
 
         let rendered = style.render("X");
         // Should use green (#00ff00), not red
@@ -3062,9 +3060,7 @@ mod tests {
 
     #[test]
     fn test_unset_underline_spaces() {
-        let style = Style::new()
-            .underline_spaces(true)
-            .unset_underline_spaces();
+        let style = Style::new().underline_spaces(true).unset_underline_spaces();
         assert!(!style.attrs.contains(Attrs::UNDERLINE_SPACES));
     }
 
