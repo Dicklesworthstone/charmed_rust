@@ -9,7 +9,7 @@ use lipgloss::Style;
 
 use super::PageModel;
 use crate::data::generator::GeneratedData;
-use crate::data::{Job, JobStatus, LogEntry, LogLevel, LogStream};
+use crate::data::{Job, JobKind, JobStatus, LogEntry, LogLevel, LogStream};
 use crate::messages::Page;
 use crate::theme::Theme;
 
@@ -244,61 +244,99 @@ impl JobsPage {
     }
 
     /// Render the details pane for the selected job.
-    #[allow(unused_variables)] // height used for scrolling in enhanced version
     fn render_details(&self, theme: &Theme, width: usize, height: usize) -> String {
         let Some(job) = self.selected_job() else {
-            return theme.muted_style().render("No job selected");
+            return theme.muted_style().render("  No job selected");
         };
 
-        let status_style = match job.status {
-            JobStatus::Completed => theme.success_style(),
-            JobStatus::Running => theme.info_style(),
-            JobStatus::Failed => theme.error_style(),
-            JobStatus::Cancelled => theme.warning_style(),
-            JobStatus::Queued => theme.muted_style(),
-        };
+        let mut lines: Vec<String> = Vec::new();
+        let content_width = width.saturating_sub(4);
 
+        // === HEADER ===
+        let status_style = Self::status_style(job.status, theme);
         let title = theme.heading_style().render(&job.name);
-        let status_line = format!(
-            "{} {}",
-            status_style.render(&format!("{} {}", job.status.icon(), job.status.name())),
-            theme
-                .muted_style()
-                .render(&format!("({})", job.kind.name()))
-        );
+        let status_badge =
+            status_style.render(&format!(" {} {} ", job.status.icon(), job.status.name()));
+        lines.push(format!("{title}  {status_badge}"));
+        lines.push(String::new());
 
+        // === SUMMARY ===
+        lines.push(theme.heading_style().render("Summary"));
+        let duration = Self::calculate_duration(job);
         let progress_bar = Self::render_progress_bar(job.progress, 20, theme);
+        lines.push(format!(
+            "  Kind:     {}",
+            theme.muted_style().render(job.kind.name())
+        ));
+        lines.push(format!("  Progress: {progress_bar}"));
+        lines.push(format!(
+            "  Duration: {}",
+            theme.muted_style().render(&duration)
+        ));
+        if let Some(ref error) = job.error {
+            lines.push(format!("  Error:    {}", theme.error_style().render(error)));
+        }
+        lines.push(String::new());
 
-        let created = format!("Created: {}", job.created_at.format("%Y-%m-%d %H:%M:%S"));
-        let started = job.started_at.map_or_else(
-            || "Started: —".to_string(),
-            |t| format!("Started: {}", t.format("%Y-%m-%d %H:%M:%S")),
-        );
-        let ended = job.ended_at.map_or_else(
-            || "Ended:   —".to_string(),
-            |t| format!("Ended:   {}", t.format("%Y-%m-%d %H:%M:%S")),
-        );
+        // === PARAMETERS ===
+        lines.push(theme.heading_style().render("Parameters"));
+        for (key, value) in Self::derive_parameters(job) {
+            let key_styled = theme.muted_style().render(&format!("{key:>12}"));
+            lines.push(format!("  {key_styled}  {value}"));
+        }
+        lines.push(String::new());
 
-        let times = theme
-            .muted_style()
-            .render(&format!("{created}\n{started}\n{ended}"));
+        // === TIMELINE ===
+        lines.push(theme.heading_style().render("Timeline"));
+        for line in Self::render_timeline(job, theme) {
+            lines.push(format!("  {line}"));
+        }
+        lines.push(String::new());
 
-        let error_section = job.error.as_ref().map_or(String::new(), |e| {
-            format!("\n{}", theme.error_style().render(&format!("Error: {e}")))
-        });
+        // === LOGS ===
+        lines.push(theme.heading_style().render("Logs"));
+        let job_logs: Vec<_> = self.logs.filter_by_job(job.id).collect();
+        if job_logs.is_empty() {
+            lines.push(format!(
+                "  {}",
+                theme.muted_style().render("No logs available")
+            ));
+        } else {
+            let display_logs: Vec<_> = job_logs.iter().rev().take(5).collect();
+            for entry in display_logs.into_iter().rev() {
+                let level_style = match entry.level {
+                    LogLevel::Error => theme.error_style(),
+                    LogLevel::Warn => theme.warning_style(),
+                    LogLevel::Info => theme.info_style(),
+                    _ => theme.muted_style(),
+                };
+                let level_str = level_style.render(entry.level.abbrev());
+                let time_str = entry.timestamp.format("%H:%M:%S");
+                let msg = if entry.message.len() > content_width.saturating_sub(20) {
+                    format!("{}...", &entry.message[..content_width.saturating_sub(23)])
+                } else {
+                    entry.message.clone()
+                };
+                lines.push(format!("  {time_str} {level_str} {msg}"));
+            }
+            if job_logs.len() > 5 {
+                lines.push(format!(
+                    "  {}",
+                    theme
+                        .muted_style()
+                        .render(&format!("... and {} more entries", job_logs.len() - 5))
+                ));
+            }
+        }
 
-        let content =
-            format!("{title}\n{status_line}\n\nProgress: {progress_bar}\n\n{times}{error_section}");
-
-        // Wrap in a box
-        #[expect(clippy::cast_possible_truncation)]
-        let box_width = width.min(50) as u16;
-
-        theme
-            .box_style()
-            .width(box_width)
-            .padding(1)
-            .render(&content)
+        // Apply height limiting
+        let visible_height = height.saturating_sub(1);
+        let visible: Vec<&String> = lines.iter().take(visible_height).collect();
+        visible
+            .iter()
+            .map(|s| (*s).clone())
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     /// Render a simple progress bar.
@@ -319,6 +357,139 @@ impl JobsPage {
         } else {
             theme.muted_style().render(&bar)
         }
+    }
+
+    /// Get style for job status.
+    fn status_style(status: JobStatus, theme: &Theme) -> Style {
+        match status {
+            JobStatus::Completed => theme.success_style(),
+            JobStatus::Running => theme.info_style(),
+            JobStatus::Failed => theme.error_style(),
+            JobStatus::Cancelled => theme.warning_style(),
+            JobStatus::Queued => theme.muted_style(),
+        }
+    }
+
+    /// Calculate job duration as a human-readable string.
+    fn calculate_duration(job: &Job) -> String {
+        let (start, end) = match (job.started_at, job.ended_at) {
+            (Some(s), Some(e)) => (s, e),
+            (Some(s), None) => (s, chrono::Utc::now()),
+            _ => return "—".to_string(),
+        };
+
+        let duration = end.signed_duration_since(start);
+        let secs = duration.num_seconds();
+
+        if secs < 60 {
+            format!("{secs}s")
+        } else if secs < 3600 {
+            format!("{}m {}s", secs / 60, secs % 60)
+        } else {
+            format!("{}h {}m", secs / 3600, (secs % 3600) / 60)
+        }
+    }
+
+    /// Derive synthetic parameters from job data.
+    fn derive_parameters(job: &Job) -> Vec<(&'static str, String)> {
+        let mut params = Vec::new();
+
+        let env = match job.id % 4 {
+            0 => "production",
+            1 => "staging",
+            2 => "development",
+            _ => "qa",
+        };
+        params.push(("Environment", env.to_string()));
+
+        let target = match job.kind {
+            JobKind::Backup => "database-primary",
+            JobKind::Migration => "schema-manager",
+            JobKind::Build => "ci-pipeline",
+            JobKind::Test => "test-runner",
+            JobKind::Cron => "scheduler",
+            JobKind::Task => "worker-pool",
+        };
+        params.push(("Target", target.to_string()));
+
+        let actors = ["alice", "bob", "carol", "system", "scheduler"];
+        #[allow(clippy::cast_possible_truncation)] // Safe: modulo keeps result in bounds
+        let actor = actors[(job.id as usize) % actors.len()];
+        params.push(("Actor", actor.to_string()));
+
+        let priority = match job.kind {
+            JobKind::Backup | JobKind::Migration => "high",
+            JobKind::Build | JobKind::Test => "normal",
+            _ => "low",
+        };
+        params.push(("Priority", priority.to_string()));
+
+        params
+    }
+
+    /// Render the job timeline.
+    fn render_timeline(job: &Job, theme: &Theme) -> Vec<String> {
+        let mut lines = Vec::new();
+        let check = "●";
+        let pending = "○";
+        let current = "◐";
+
+        let created_time = job.created_at.format("%H:%M:%S").to_string();
+        let created_icon = theme.success_style().render(check);
+        lines.push(format!(
+            "{created_icon} Created     {}",
+            theme.muted_style().render(&created_time)
+        ));
+
+        let (started_icon, started_time) = job.started_at.map_or_else(
+            || (theme.muted_style().render(pending), "—".to_string()),
+            |t| {
+                let icon = if job.status == JobStatus::Running {
+                    theme.info_style().render(current)
+                } else {
+                    theme.success_style().render(check)
+                };
+                (icon, t.format("%H:%M:%S").to_string())
+            },
+        );
+        lines.push(format!(
+            "{started_icon} Started     {}",
+            theme.muted_style().render(&started_time)
+        ));
+
+        let (end_icon, end_label, end_time) = match (job.status, job.ended_at) {
+            (JobStatus::Completed, Some(t)) => (
+                theme.success_style().render(check),
+                "Completed",
+                t.format("%H:%M:%S").to_string(),
+            ),
+            (JobStatus::Failed, Some(t)) => (
+                theme.error_style().render("✕"),
+                "Failed",
+                t.format("%H:%M:%S").to_string(),
+            ),
+            (JobStatus::Cancelled, Some(t)) => (
+                theme.warning_style().render("⊘"),
+                "Cancelled",
+                t.format("%H:%M:%S").to_string(),
+            ),
+            (JobStatus::Running, _) => (
+                theme.muted_style().render(pending),
+                "Running...",
+                "—".to_string(),
+            ),
+            _ => (
+                theme.muted_style().render(pending),
+                "Pending",
+                "—".to_string(),
+            ),
+        };
+        lines.push(format!(
+            "{end_icon} {end_label:<11} {}",
+            theme.muted_style().render(&end_time)
+        ));
+
+        lines
     }
 }
 
