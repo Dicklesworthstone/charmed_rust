@@ -307,6 +307,10 @@ pub struct App {
     /// This is stored so pages can access it for generating domain data.
     /// The same seed produces the same demo data across sessions.
     seed: u64,
+    /// Whether syntax highlighting is enabled.
+    syntax_enabled: bool,
+    /// Whether ASCII mode is forced (no colors, ASCII borders).
+    force_ascii: bool,
 }
 
 impl App {
@@ -341,6 +345,8 @@ impl App {
             notifications: Vec::new(),
             next_notification_id: 1,
             seed,
+            syntax_enabled: true,
+            force_ascii: false,
         }
     }
 
@@ -997,6 +1003,18 @@ impl Model for App {
                 }
                 AppMsg::HideHelp => {
                     self.show_help = false;
+                    None
+                }
+                AppMsg::ToggleMouse => {
+                    self.config.mouse = !self.config.mouse;
+                    None
+                }
+                AppMsg::ToggleSyntax => {
+                    self.syntax_enabled = !self.syntax_enabled;
+                    None
+                }
+                AppMsg::ForceAscii(enable) => {
+                    self.force_ascii = *enable;
                     None
                 }
                 AppMsg::Quit => Some(quit()),
