@@ -1433,19 +1433,47 @@ impl Field for Input {
             // Note: cursor_pos is a character index (not byte index) for proper Unicode support
             match key_msg.key_type {
                 KeyType::Runes => {
-                    for c in &key_msg.runes {
-                        let char_count = self.value.chars().count();
-                        if self.char_limit == 0 || char_count < self.char_limit {
-                            // Convert character position to byte position for insertion
-                            let byte_pos = self
-                                .value
-                                .char_indices()
-                                .nth(self.cursor_pos)
-                                .map(|(i, _)| i)
-                                .unwrap_or(self.value.len());
-                            self.value.insert(byte_pos, *c);
-                            self.cursor_pos += 1;
-                        }
+                    // Preprocess paste content: for single-line inputs, collapse newlines/tabs to spaces
+                    let chars_to_insert: Vec<char> = if key_msg.paste {
+                        key_msg
+                            .runes
+                            .iter()
+                            .map(|&c| if c == '\n' || c == '\r' || c == '\t' { ' ' } else { c })
+                            // Collapse multiple consecutive spaces into one
+                            .fold(Vec::new(), |mut acc, c| {
+                                if c == ' ' && acc.last() == Some(&' ') {
+                                    // Skip duplicate space
+                                } else {
+                                    acc.push(c);
+                                }
+                                acc
+                            })
+                    } else {
+                        key_msg.runes.clone()
+                    };
+
+                    // Calculate how many chars we can insert respecting char_limit
+                    let current_count = self.value.chars().count();
+                    let available = if self.char_limit == 0 {
+                        usize::MAX
+                    } else {
+                        self.char_limit.saturating_sub(current_count)
+                    };
+                    let chars_to_add: Vec<char> = chars_to_insert.into_iter().take(available).collect();
+
+                    if !chars_to_add.is_empty() {
+                        // Convert character position to byte position for insertion
+                        let byte_pos = self
+                            .value
+                            .char_indices()
+                            .nth(self.cursor_pos)
+                            .map(|(i, _)| i)
+                            .unwrap_or(self.value.len());
+
+                        // Build the new string efficiently for bulk insert
+                        let insert_str: String = chars_to_add.iter().collect();
+                        self.value.insert_str(byte_pos, &insert_str);
+                        self.cursor_pos += chars_to_add.len();
                     }
                 }
                 KeyType::Backspace => {
@@ -3079,9 +3107,24 @@ impl Field for Text {
             // Handle text input
             match key_msg.key_type {
                 KeyType::Runes => {
-                    for c in &key_msg.runes {
-                        if self.char_limit == 0 || self.value.chars().count() < self.char_limit {
-                            self.value.push(*c);
+                    // Calculate how many chars we can insert respecting char_limit
+                    let current_count = self.value.chars().count();
+                    let available = if self.char_limit == 0 {
+                        usize::MAX
+                    } else {
+                        self.char_limit.saturating_sub(current_count)
+                    };
+
+                    // For paste operations, handle bulk insert with proper cursor tracking
+                    // Multi-line textareas preserve newlines
+                    let chars_to_add: Vec<char> = key_msg.runes.iter().copied().take(available).collect();
+
+                    for c in chars_to_add {
+                        self.value.push(c);
+                        if c == '\n' {
+                            self.cursor_row += 1;
+                            self.cursor_col = 0;
+                        } else {
                             self.cursor_col += 1;
                         }
                     }
@@ -5507,5 +5550,269 @@ mod tests {
                 .get_keys()
                 .contains(&"ctrl+t".to_string())
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // Paste handling tests (bd-3jg2)
+    // -------------------------------------------------------------------------
+
+    mod paste_tests {
+        use super::*;
+        use bubbletea::{KeyMsg, Message};
+
+        /// Helper to create a paste KeyMsg from a string
+        fn paste_msg(s: &str) -> Message {
+            let key = KeyMsg::from_runes(s.chars().collect()).with_paste();
+            Message::new(key)
+        }
+
+        /// Helper to create a regular typing KeyMsg from a string
+        fn type_msg(s: &str) -> Message {
+            let key = KeyMsg::from_runes(s.chars().collect());
+            Message::new(key)
+        }
+
+        #[test]
+        fn test_input_paste_collapses_newlines() {
+            let mut input = Input::new().key("query");
+            input.focused = true;
+
+            // Paste multi-line content
+            let msg = paste_msg("hello\nworld\nfoo");
+            input.update(&msg);
+
+            // Newlines should be collapsed to spaces
+            assert_eq!(input.get_string_value(), "hello world foo");
+        }
+
+        #[test]
+        fn test_input_paste_collapses_tabs() {
+            let mut input = Input::new().key("query");
+            input.focused = true;
+
+            // Paste content with tabs
+            let msg = paste_msg("col1\tcol2\tcol3");
+            input.update(&msg);
+
+            // Tabs should be collapsed to spaces
+            assert_eq!(input.get_string_value(), "col1 col2 col3");
+        }
+
+        #[test]
+        fn test_input_paste_collapses_multiple_spaces() {
+            let mut input = Input::new().key("query");
+            input.focused = true;
+
+            // Paste content with multiple consecutive newlines/spaces
+            let msg = paste_msg("hello\n\n\nworld");
+            input.update(&msg);
+
+            // Multiple consecutive whitespace should collapse to single space
+            assert_eq!(input.get_string_value(), "hello world");
+        }
+
+        #[test]
+        fn test_input_paste_respects_char_limit() {
+            let mut input = Input::new().key("query").char_limit(10);
+            input.focused = true;
+
+            // Paste more than char_limit
+            let msg = paste_msg("hello world this is too long");
+            input.update(&msg);
+
+            // Should be truncated at limit
+            assert_eq!(input.get_string_value().chars().count(), 10);
+            assert_eq!(input.get_string_value(), "hello worl");
+        }
+
+        #[test]
+        fn test_input_paste_partial_fill() {
+            let mut input = Input::new().key("query").char_limit(15);
+            input.focused = true;
+
+            // Type some chars first
+            let msg = type_msg("hi ");
+            input.update(&msg);
+
+            // Paste more - should fill up to limit
+            let msg = paste_msg("hello world this is long");
+            input.update(&msg);
+
+            assert_eq!(input.get_string_value().chars().count(), 15);
+            assert_eq!(input.get_string_value(), "hi hello world ");
+        }
+
+        #[test]
+        fn test_input_paste_cursor_position() {
+            let mut input = Input::new().key("query");
+            input.focused = true;
+
+            // Paste some content
+            let msg = paste_msg("hello world");
+            input.update(&msg);
+
+            // Cursor should be at end
+            assert_eq!(input.cursor_pos, 11);
+        }
+
+        #[test]
+        fn test_input_regular_typing_not_affected() {
+            let mut input = Input::new().key("query");
+            input.focused = true;
+
+            // Regular typing of newline (shouldn't happen but test defensive behavior)
+            let msg = type_msg("hello\nworld");
+            input.update(&msg);
+
+            // Regular typing should preserve newlines (they're just chars)
+            assert_eq!(input.get_string_value(), "hello\nworld");
+        }
+
+        #[test]
+        fn test_text_paste_preserves_newlines() {
+            let mut text = Text::new().key("bio");
+            text.focused = true;
+
+            // Paste multi-line content
+            let msg = paste_msg("line 1\nline 2\nline 3");
+            text.update(&msg);
+
+            // Newlines should be preserved in Text field
+            assert_eq!(text.get_string_value(), "line 1\nline 2\nline 3");
+        }
+
+        #[test]
+        fn test_text_paste_updates_cursor_row() {
+            let mut text = Text::new().key("bio");
+            text.focused = true;
+
+            // Paste multi-line content
+            let msg = paste_msg("line 1\nline 2\nline 3");
+            text.update(&msg);
+
+            // Cursor should be on line 3 (0-indexed = 2)
+            assert_eq!(text.cursor_row, 2);
+            // Cursor col should be at end of "line 3"
+            assert_eq!(text.cursor_col, 6);
+        }
+
+        #[test]
+        fn test_text_paste_respects_char_limit() {
+            let mut text = Text::new().key("bio").char_limit(20);
+            text.focused = true;
+
+            // Paste content exceeding limit
+            let msg = paste_msg("line 1\nline 2\nline 3 is very long");
+            text.update(&msg);
+
+            // Should truncate at 20 chars
+            assert_eq!(text.get_string_value().chars().count(), 20);
+        }
+
+        #[test]
+        fn test_input_paste_unicode() {
+            let mut input = Input::new().key("query");
+            input.focused = true;
+
+            // Paste unicode content with newlines
+            let msg = paste_msg("héllo\nwörld\n日本語");
+            input.update(&msg);
+
+            // Should collapse newlines, preserve unicode
+            assert_eq!(input.get_string_value(), "héllo wörld 日本語");
+        }
+
+        #[test]
+        fn test_text_paste_unicode_cursor() {
+            let mut text = Text::new().key("bio");
+            text.focused = true;
+
+            // Paste unicode content
+            let msg = paste_msg("日本語\n한국어");
+            text.update(&msg);
+
+            assert_eq!(text.get_string_value(), "日本語\n한국어");
+            assert_eq!(text.cursor_row, 1);
+            assert_eq!(text.cursor_col, 3); // 3 Korean chars
+        }
+
+        #[test]
+        fn test_input_paste_empty() {
+            let mut input = Input::new().key("query");
+            input.focused = true;
+
+            // Paste empty content
+            let msg = paste_msg("");
+            input.update(&msg);
+
+            assert_eq!(input.get_string_value(), "");
+            assert_eq!(input.cursor_pos, 0);
+        }
+
+        #[test]
+        fn test_input_paste_crlf_handling() {
+            let mut input = Input::new().key("query");
+            input.focused = true;
+
+            // Paste Windows-style line endings
+            let msg = paste_msg("hello\r\nworld");
+            input.update(&msg);
+
+            // Both \r and \n should become spaces, then collapse
+            assert_eq!(input.get_string_value(), "hello world");
+        }
+
+        #[test]
+        fn test_input_not_focused_ignores_paste() {
+            let mut input = Input::new().key("query");
+            input.focused = false;
+
+            let msg = paste_msg("hello world");
+            input.update(&msg);
+
+            // Should ignore paste when not focused
+            assert_eq!(input.get_string_value(), "");
+        }
+
+        #[test]
+        fn test_text_not_focused_ignores_paste() {
+            let mut text = Text::new().key("bio");
+            text.focused = false;
+
+            let msg = paste_msg("hello\nworld");
+            text.update(&msg);
+
+            // Should ignore paste when not focused
+            assert_eq!(text.get_string_value(), "");
+        }
+
+        #[test]
+        fn test_input_large_paste() {
+            let mut input = Input::new().key("query");
+            input.focused = true;
+
+            // Paste a large amount of text (simulating a real paste operation)
+            let large_text: String = (0..1000).map(|i| format!("word{} ", i)).collect();
+            let msg = paste_msg(&large_text);
+            input.update(&msg);
+
+            // Should handle large paste without panic
+            assert!(input.get_string_value().chars().count() > 100);
+        }
+
+        #[test]
+        fn test_text_large_paste() {
+            let mut text = Text::new().key("bio");
+            text.focused = true;
+
+            // Paste large multi-line text
+            let large_text: String = (0..100).map(|i| format!("line {}\n", i)).collect();
+            let msg = paste_msg(&large_text);
+            text.update(&msg);
+
+            // Should handle large paste without panic
+            assert!(text.get_string_value().contains('\n'));
+            assert_eq!(text.cursor_row, 100); // 100 newlines = row 100
+        }
     }
 }

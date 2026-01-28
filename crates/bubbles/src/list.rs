@@ -33,7 +33,7 @@ use crate::key::{Binding, matches};
 use crate::paginator::Paginator;
 use crate::spinner::{SpinnerModel, TickMsg};
 use crate::textinput::TextInput;
-use bubbletea::{Cmd, KeyMsg, Message, Model};
+use bubbletea::{Cmd, KeyMsg, Message, Model, MouseAction, MouseButton, MouseMsg};
 use lipgloss::{Color, Style};
 use std::time::Duration;
 
@@ -352,6 +352,12 @@ pub struct List<I: Item, D: ItemDelegate<I>> {
     pub styles: Styles,
     /// Status message lifetime.
     pub status_message_lifetime: Duration,
+    /// Whether mouse wheel scrolling is enabled.
+    pub mouse_wheel_enabled: bool,
+    /// Number of items to scroll per mouse wheel tick.
+    pub mouse_wheel_delta: usize,
+    /// Whether mouse click selection is enabled.
+    pub mouse_click_enabled: bool,
 
     // Components
     /// Spinner for loading state.
@@ -407,6 +413,9 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
             key_map: KeyMap::default(),
             styles: Styles::default(),
             status_message_lifetime: Duration::from_secs(1),
+            mouse_wheel_enabled: true,
+            mouse_wheel_delta: 1,
+            mouse_click_enabled: true,
             spinner: SpinnerModel::new(),
             paginator,
             help: Help::new(),
@@ -427,6 +436,27 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
     #[must_use]
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = title.into();
+        self
+    }
+
+    /// Enables or disables mouse wheel scrolling (builder pattern).
+    #[must_use]
+    pub fn mouse_wheel(mut self, enabled: bool) -> Self {
+        self.mouse_wheel_enabled = enabled;
+        self
+    }
+
+    /// Sets the number of items to scroll per mouse wheel tick (builder pattern).
+    #[must_use]
+    pub fn mouse_wheel_delta(mut self, delta: usize) -> Self {
+        self.mouse_wheel_delta = delta;
+        self
+    }
+
+    /// Enables or disables mouse click item selection (builder pattern).
+    #[must_use]
+    pub fn mouse_click(mut self, enabled: bool) -> Self {
+        self.mouse_click_enabled = enabled;
         self
     }
 
@@ -692,6 +722,59 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
                 self.help.show_all = true;
             } else if matches(&key_str, &[&self.key_map.close_full_help]) {
                 self.help.show_all = false;
+            }
+        }
+
+        // Handle mouse events
+        if let Some(mouse) = msg.downcast_ref::<MouseMsg>() {
+            // Only respond to press events
+            if mouse.action != MouseAction::Press {
+                return None;
+            }
+
+            match mouse.button {
+                // Wheel scrolling moves cursor
+                MouseButton::WheelUp if self.mouse_wheel_enabled => {
+                    for _ in 0..self.mouse_wheel_delta {
+                        self.cursor_up();
+                    }
+                }
+                MouseButton::WheelDown if self.mouse_wheel_enabled => {
+                    for _ in 0..self.mouse_wheel_delta {
+                        self.cursor_down();
+                    }
+                }
+                // Click to select item
+                MouseButton::Left if self.mouse_click_enabled => {
+                    // Calculate y offset for items area
+                    // Title takes 1 line if shown
+                    // Filter input takes 1 line if filtering
+                    let mut content_start_y = 0usize;
+                    if self.show_title && !self.title.is_empty() {
+                        content_start_y += 1;
+                    }
+                    if self.show_filter && self.filter_state == FilterState::Filtering {
+                        content_start_y += 1;
+                    }
+
+                    let click_y = mouse.y as usize;
+                    if click_y >= content_start_y {
+                        let item_height = self.delegate.height() + self.delegate.spacing();
+                        let relative_y = click_y - content_start_y;
+                        let item_index_in_view = relative_y / item_height.max(1);
+
+                        // Convert to global cursor position
+                        let per_page = self.paginator.get_per_page();
+                        let page_start = self.paginator.page() * per_page;
+                        let target_cursor = page_start + item_index_in_view;
+
+                        // Only select if within bounds
+                        if target_cursor < self.filtered_indices.len() {
+                            self.cursor = target_cursor;
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 

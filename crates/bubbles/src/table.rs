@@ -26,7 +26,7 @@
 
 use crate::key::{Binding, matches};
 use crate::viewport::Viewport;
-use bubbletea::{Cmd, KeyMsg, Message, Model};
+use bubbletea::{Cmd, KeyMsg, Message, Model, MouseAction, MouseButton, MouseMsg};
 use lipgloss::{Color, Style};
 
 /// A single column definition for the table.
@@ -126,6 +126,12 @@ pub struct Table {
     pub key_map: KeyMap,
     /// Styles for rendering.
     pub styles: Styles,
+    /// Whether mouse wheel scrolling is enabled.
+    pub mouse_wheel_enabled: bool,
+    /// Number of rows to scroll per mouse wheel tick.
+    pub mouse_wheel_delta: usize,
+    /// Whether mouse click selection is enabled.
+    pub mouse_click_enabled: bool,
     /// Column definitions.
     columns: Vec<Column>,
     /// Table rows (data).
@@ -155,6 +161,9 @@ impl Table {
         Self {
             key_map: KeyMap::default(),
             styles: Styles::default(),
+            mouse_wheel_enabled: true,
+            mouse_wheel_delta: 3,
+            mouse_click_enabled: true,
             columns: Vec::new(),
             rows: Vec::new(),
             cursor: 0,
@@ -218,6 +227,27 @@ impl Table {
     #[must_use]
     pub fn with_key_map(mut self, key_map: KeyMap) -> Self {
         self.key_map = key_map;
+        self
+    }
+
+    /// Enables or disables mouse wheel scrolling (builder pattern).
+    #[must_use]
+    pub fn mouse_wheel(mut self, enabled: bool) -> Self {
+        self.mouse_wheel_enabled = enabled;
+        self
+    }
+
+    /// Sets the number of rows to scroll per mouse wheel tick (builder pattern).
+    #[must_use]
+    pub fn mouse_wheel_delta(mut self, delta: usize) -> Self {
+        self.mouse_wheel_delta = delta;
+        self
+    }
+
+    /// Enables or disables mouse click row selection (builder pattern).
+    #[must_use]
+    pub fn mouse_click(mut self, enabled: bool) -> Self {
+        self.mouse_click_enabled = enabled;
         self
     }
 
@@ -457,6 +487,45 @@ impl Table {
                 self.goto_top();
             } else if matches(&key_str, &[&self.key_map.goto_bottom]) {
                 self.goto_bottom();
+            }
+        }
+
+        // Handle mouse events
+        if let Some(mouse) = msg.downcast_ref::<MouseMsg>() {
+            // Only respond to press events
+            if mouse.action != MouseAction::Press {
+                return None;
+            }
+
+            match mouse.button {
+                // Wheel scrolling
+                MouseButton::WheelUp if self.mouse_wheel_enabled => {
+                    self.move_up(self.mouse_wheel_delta);
+                }
+                MouseButton::WheelDown if self.mouse_wheel_enabled => {
+                    self.move_down(self.mouse_wheel_delta);
+                }
+                // Click to select row
+                MouseButton::Left if self.mouse_click_enabled => {
+                    // y=0 is the header row, data rows start at y=1
+                    // Convert click y to row index, accounting for viewport scroll
+                    let header_height = 1usize;
+                    let click_y = mouse.y as usize;
+
+                    if click_y >= header_height {
+                        // Calculate which visible row was clicked
+                        let visible_row = click_y - header_height;
+                        // Convert to actual row index using viewport offset
+                        let row_index = self.start + visible_row;
+
+                        // Only select if within bounds
+                        if row_index < self.rows.len() {
+                            self.cursor = row_index;
+                            self.update_viewport();
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 

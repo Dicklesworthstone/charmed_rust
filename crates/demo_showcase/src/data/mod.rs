@@ -7,12 +7,14 @@
 //! - Serializable for persistence/debugging
 //!
 //! The [`actions`] module provides the domain action API for state changes.
+//! The [`animation`] module provides spring-based animation primitives.
 //! The [`generator`] module provides seedable, deterministic data generation.
 //! The [`simulation`] module provides a background simulation engine.
 
 #![allow(dead_code)] // Types are used by downstream tasks (generator, pages, actions)
 
 pub mod actions;
+pub mod animation;
 pub mod generator;
 pub mod simulation;
 
