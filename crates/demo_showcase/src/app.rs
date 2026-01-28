@@ -1782,4 +1782,171 @@ mod tests {
         // Help state is set (will be visible once ready)
         assert!(app.show_help);
     }
+
+    #[test]
+    fn set_theme_message_works() {
+        use bubbletea::{Message, Model};
+        use crate::messages::AppMsg;
+        use crate::theme::ThemePreset;
+
+        let mut app = App::new();
+        assert_eq!(app.theme_preset(), ThemePreset::Dark);
+
+        // Send SetTheme message directly
+        let msg = Message::new(AppMsg::SetTheme(ThemePreset::Light));
+        app.update(msg);
+        assert_eq!(app.theme_preset(), ThemePreset::Light);
+    }
+
+    #[test]
+    fn batch_set_theme_works_via_simulator() {
+        use bubbletea::{batch, Cmd, Message, Model, simulator::ProgramSimulator};
+        use crate::messages::AppMsg;
+        use crate::theme::ThemePreset;
+
+        let app = App::new();
+        let mut sim = ProgramSimulator::new(app);
+        sim.init();
+
+        // Make app ready
+        sim.send(Message::new(bubbletea::WindowSizeMsg { width: 120, height: 40 }));
+        sim.run_until_empty();
+
+        assert_eq!(sim.model().theme_preset(), ThemePreset::Dark);
+
+        // Create a batch command that sets theme
+        let batch_cmd = batch(vec![
+            Some(Cmd::new(|| Message::new(AppMsg::SetTheme(ThemePreset::Light)))),
+        ]);
+
+        // Execute the batch command to get BatchMsg
+        if let Some(cmd) = batch_cmd {
+            if let Some(batch_msg) = cmd.execute() {
+                // Send the BatchMsg (or the SetTheme message directly for single command)
+                sim.send(batch_msg);
+                sim.run_until_empty();
+            }
+        }
+
+        assert_eq!(sim.model().theme_preset(), ThemePreset::Light);
+    }
+
+    #[test]
+    fn batch_two_commands_works_via_simulator() {
+        use bubbletea::{batch, Cmd, Message, Model, simulator::ProgramSimulator};
+        use crate::messages::{AppMsg, Notification, NotificationMsg};
+        use crate::theme::ThemePreset;
+
+        let app = App::new();
+        let mut sim = ProgramSimulator::new(app);
+        sim.init();
+
+        // Make app ready
+        sim.send(Message::new(bubbletea::WindowSizeMsg { width: 120, height: 40 }));
+        sim.run_until_empty();
+
+        assert_eq!(sim.model().theme_preset(), ThemePreset::Dark);
+        assert_eq!(sim.model().notifications.len(), 0);
+
+        // Create a batch command with TWO commands (like SettingsPage does)
+        let batch_cmd = batch(vec![
+            Some(Cmd::new(|| Message::new(AppMsg::SetTheme(ThemePreset::Light)))),
+            Some(Cmd::new(|| {
+                Message::new(NotificationMsg::Show(Notification::success(
+                    0,
+                    "Theme changed".to_string(),
+                )))
+            })),
+        ]);
+
+        // Execute the batch command to get BatchMsg
+        if let Some(cmd) = batch_cmd {
+            if let Some(batch_msg) = cmd.execute() {
+                // BatchMsg contains the two commands
+                sim.send(batch_msg);
+                sim.run_until_empty();
+            }
+        }
+
+        // Both should have been processed
+        assert_eq!(
+            sim.model().theme_preset(),
+            ThemePreset::Light,
+            "Theme should be Light after batch processing"
+        );
+        assert_eq!(
+            sim.model().notifications.len(),
+            1,
+            "Should have one notification after batch processing"
+        );
+    }
+
+    #[test]
+    fn settings_theme_change_via_keys() {
+        use bubbletea::{KeyMsg, KeyType, Message, Model, simulator::ProgramSimulator};
+        use crate::theme::ThemePreset;
+
+        let app = App::new();
+        let mut sim = ProgramSimulator::new(app);
+        sim.init();
+
+        // Make app ready
+        sim.send(Message::new(bubbletea::WindowSizeMsg { width: 120, height: 40 }));
+        let init_processed = sim.run_until_empty();
+        eprintln!("After init: processed {} messages", init_processed);
+
+        assert_eq!(sim.model().theme_preset(), ThemePreset::Dark);
+
+        // Navigate to Settings page with '7' key
+        sim.send(Message::new(KeyMsg::from_char('7')));
+        let nav_processed = sim.run_until_empty();
+        eprintln!("After nav to Settings: processed {} messages", nav_processed);
+        assert_eq!(sim.model().current_page(), Page::Settings);
+
+        // Tab to switch to Themes section
+        sim.send(Message::new(KeyMsg {
+            key_type: KeyType::Tab,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        }));
+        let tab_processed = sim.run_until_empty();
+        eprintln!("After Tab: processed {} messages", tab_processed);
+
+        // 'j' to move down to Light theme
+        sim.send(Message::new(KeyMsg::from_char('j')));
+        let j_processed = sim.run_until_empty();
+        eprintln!("After j: processed {} messages", j_processed);
+
+        // Enter to apply theme - this returns a batch command!
+        sim.send(Message::new(KeyMsg {
+            key_type: KeyType::Enter,
+            runes: vec![],
+            alt: false,
+            paste: false,
+        }));
+
+        // Process the Enter key, which should return a batch command
+        let cmd = sim.step();
+        eprintln!("After Enter step: cmd is {:?}", cmd.is_some());
+        if let Some(batch_cmd) = cmd {
+            // Execute the batch command
+            if let Some(batch_msg) = batch_cmd.execute() {
+                eprintln!("Batch command executed, sending batch_msg");
+                // Send the batch message
+                sim.send(batch_msg);
+            }
+        }
+
+        // Process all remaining messages
+        let final_processed = sim.run_until_empty();
+        eprintln!("After run_until_empty: processed {} messages", final_processed);
+
+        // Theme should now be Light
+        assert_eq!(
+            sim.model().theme_preset(),
+            ThemePreset::Light,
+            "Theme should be Light after Enter on Settings page"
+        );
+    }
 }

@@ -1,0 +1,26 @@
+=== E2E Test Summary ===
+Scenario: settings_and_theme
+Run ID: 19c05b3e163
+Status: FAILED
+
+Configuration:
+- Seed: 42
+- Theme: Dark
+- Animations: false
+- Color Mode: Auto
+
+Failed Assertions:
+  Step 4: syntax toggled to true
+    Expected: true
+    Actual:   false
+
+Step Timeline:
+  [2026-01-28T17:43:20.676Z] Step 1: Initialize app
+  [2026-01-28T17:43:20.677Z] Step 2: Navigate to Settings
+  [2026-01-28T17:43:20.677Z] Step 3: Toggle ASCII mode
+  [2026-01-28T17:43:20.678Z] Step 4: Toggle syntax highlighting
+  [2026-01-28T17:43:20.679Z] Step 5: Return to Dashboard and cycle theme
+  [2026-01-28T17:43:30.662Z] Step 6: Verify settings persisted
+  [2026-01-28T17:43:30.662Z] Step 7: Navigate through pages
+
+Artifacts: target/demo_showcase_e2e/settings_and_theme/19c05b3e163

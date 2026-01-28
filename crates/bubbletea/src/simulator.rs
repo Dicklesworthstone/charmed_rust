@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::Model;
 use crate::command::Cmd;
-use crate::message::{Message, QuitMsg};
+use crate::message::{BatchMsg, Message, QuitMsg, SequenceMsg};
 
 /// Statistics tracked during simulation.
 #[derive(Debug, Clone, Default)]
@@ -118,6 +118,36 @@ impl<M: Model> ProgramSimulator<M> {
                 return Some(crate::quit());
             }
 
+            // Handle batch messages specially - extract and execute the commands
+            if msg.is::<BatchMsg>() {
+                if let Some(batch) = msg.downcast::<BatchMsg>() {
+                    for cmd in batch.0 {
+                        if let Some(result_msg) = cmd.execute() {
+                            self.input_queue.push_back(result_msg);
+                        }
+                    }
+                }
+                // View after batch
+                self.stats.view_calls += 1;
+                self.output_views.push(self.model.view());
+                return None;
+            }
+
+            // Handle sequence messages specially - execute commands in order
+            if msg.is::<SequenceMsg>() {
+                if let Some(seq) = msg.downcast::<SequenceMsg>() {
+                    for cmd in seq.0 {
+                        if let Some(result_msg) = cmd.execute() {
+                            self.input_queue.push_back(result_msg);
+                        }
+                    }
+                }
+                // View after sequence
+                self.stats.view_calls += 1;
+                self.output_views.push(self.model.view());
+                return None;
+            }
+
             // Update
             self.stats.update_calls += 1;
             let cmd = self.model.update(msg);
@@ -138,9 +168,11 @@ impl<M: Model> ProgramSimulator<M> {
     /// Process all pending messages until the queue is empty or quit is requested.
     ///
     /// Returns the number of messages processed.
+    /// Has a built-in safety limit of 1000 iterations to prevent infinite loops.
     pub fn run_until_empty(&mut self) -> usize {
+        const MAX_ITERATIONS: usize = 1000;
         let mut processed = 0;
-        while !self.input_queue.is_empty() && !self.stats.quit_requested {
+        while !self.input_queue.is_empty() && !self.stats.quit_requested && processed < MAX_ITERATIONS {
             if let Some(cmd) = self.step() {
                 // Execute command and queue resulting message
                 if let Some(msg) = cmd.execute() {
@@ -453,5 +485,70 @@ mod tests {
 
         assert_eq!(init_count.load(Ordering::SeqCst), 1);
         assert!(sim.is_initialized());
+    }
+
+    #[test]
+    fn test_simulator_batch_command() {
+        use crate::batch;
+
+        // Model that triggers a batch command on a specific message
+        struct BatchTrigger;
+        #[derive(Clone, Copy)]
+        struct SetValue(i32);
+        #[derive(Clone, Copy)]
+        struct AddValue(i32);
+
+        struct BatchModel {
+            value: i32,
+        }
+
+        impl Model for BatchModel {
+            fn init(&self) -> Option<crate::Cmd> {
+                None
+            }
+
+            fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
+                if msg.is::<BatchTrigger>() {
+                    // Return a batch of two commands
+                    return batch(vec![
+                        Some(crate::Cmd::new(|| Message::new(SetValue(10)))),
+                        Some(crate::Cmd::new(|| Message::new(AddValue(5)))),
+                    ]);
+                }
+                if let Some(SetValue(v)) = msg.downcast_ref::<SetValue>() {
+                    self.value = *v;
+                } else if let Some(AddValue(v)) = msg.downcast_ref::<AddValue>() {
+                    self.value += *v;
+                }
+                None
+            }
+
+            fn view(&self) -> String {
+                format!("Value: {}", self.value)
+            }
+        }
+
+        let mut sim = ProgramSimulator::new(BatchModel { value: 0 });
+        sim.init();
+
+        // Send the batch trigger message
+        sim.send(Message::new(BatchTrigger));
+
+        // Step once to get the batch command
+        let cmd = sim.step();
+        assert!(cmd.is_some(), "Should return batch command");
+
+        // Execute the batch command, which returns BatchMsg
+        let batch_msg = cmd.unwrap().execute();
+        assert!(batch_msg.is_some(), "Batch command should return BatchMsg");
+
+        // Send the BatchMsg to the simulator
+        sim.send(batch_msg.unwrap());
+
+        // Process all messages
+        sim.run_until_empty();
+
+        // Value should be 10 + 5 = 15
+        assert_eq!(sim.model().value, 15, "Batch commands should set 10 then add 5");
     }
 }
