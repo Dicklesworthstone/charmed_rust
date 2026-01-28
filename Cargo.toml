@@ -12,6 +12,7 @@ members = [
     "crates/wish",             # SSH apps (uses bubbletea)
     "crates/glow",             # Markdown reader CLI (uses all)
     "crates/charmed-wasm",     # WASM bindings for web (uses lipgloss)
+    "crates/demo_showcase",    # Flagship showcase (uses all)
     "tests/conformance",       # Conformance testing harness
 ]
 
@@ -36,6 +37,7 @@ huh = { path = "crates/huh" }
 wish = { path = "crates/wish" }
 glow = { path = "crates/glow" }
 charmed-wasm = { path = "crates/charmed-wasm" }
+demo_showcase = { path = "crates/demo_showcase" }
 
 # Terminal & TUI
 crossterm = "0.29"

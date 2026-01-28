@@ -1,0 +1,54 @@
+[package]
+name = "demo_showcase"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Flagship showcase demonstrating all charmed_rust capabilities"
+
+[features]
+default = ["syntax-highlighting"]
+syntax-highlighting = ["glamour/syntax-highlighting"]
+ssh = ["dep:wish"]
+
+[dependencies]
+# Core TUI framework
+bubbletea = { path = "../bubbletea" }
+lipgloss = { path = "../lipgloss" }
+bubbles = { path = "../bubbles" }
+
+# Additional charmed_rust crates
+glamour = { path = "../glamour" }
+harmonica = { path = "../harmonica" }
+huh = { path = "../huh" }
+charmed_log = { path = "../charmed_log" }
+
+# Optional SSH support
+wish = { path = "../wish", optional = true }
+
+# CLI
+clap = { version = "4.4", features = ["derive", "env"] }
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Serialization (for config/data)
+serde = { version = "1.0", features = ["derive"] }
+serde_json.workspace = true
+
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+
+# Utilities
+unicode-width.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+assert_cmd.workspace = true
+predicates.workspace = true
+
+[lints]
+workspace = true
