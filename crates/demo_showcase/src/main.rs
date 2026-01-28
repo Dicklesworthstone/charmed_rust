@@ -24,6 +24,7 @@
 //! ```
 
 mod app;
+mod components;
 mod data;
 mod messages;
 mod pages;

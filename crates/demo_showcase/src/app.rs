@@ -202,10 +202,7 @@ impl App {
         #[expect(clippy::cast_possible_truncation)]
         let width_u16 = self.width as u16;
 
-        self.theme
-            .footer_style()
-            .width(width_u16)
-            .render(&hints)
+        self.theme.footer_style().width(width_u16).render(&hints)
     }
 
     /// Render the help overlay.
@@ -251,9 +248,11 @@ impl App {
         lines.push(format!(
             "{}{}",
             " ".repeat(start_x),
-            modal_style
-                .width(box_width_u16)
-                .render(&format!("{}Help{}", " ".repeat(14), " ".repeat(14)))
+            modal_style.width(box_width_u16).render(&format!(
+                "{}Help{}",
+                " ".repeat(14),
+                " ".repeat(14)
+            ))
         ));
 
         // Content
