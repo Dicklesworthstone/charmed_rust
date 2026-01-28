@@ -26,6 +26,7 @@
 mod app;
 mod components;
 mod data;
+mod keymap;
 mod messages;
 mod pages;
 mod theme;
