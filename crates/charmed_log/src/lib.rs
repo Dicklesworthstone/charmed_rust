@@ -704,41 +704,41 @@ impl Logger {
     }
 
     /// Logs a message at the specified level.
+    ///
+    /// This method uses a single write lock for the entire operation (format + write)
+    /// to ensure configuration consistency. The only exception is caller info capture,
+    /// which happens inside formatting but is atomic with respect to the log entry.
     pub fn log(&self, level: Level, msg: &str, keyvals: &[(&str, &str)]) {
-        // Check if we need to emit caller overhead warning (before acquiring read lock)
-        {
-            let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
-            if inner.report_caller
-                && !inner.warned_caller_overhead
-                && !inner.suppress_caller_warning
-            {
-                inner.warned_caller_overhead = true;
-                // Emit warning to stderr (separate from the log output)
-                let _ = io::stderr().write_all(
-                    b"[charmed_log] PERF WARNING: caller reporting enabled - expect 100-1000x slowdown\n",
-                );
-            }
+        // Use a single write lock for the entire operation to avoid race conditions
+        // between configuration reads and writes. This eliminates the window where
+        // another thread could modify settings between formatting and writing.
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+
+        // Check if we need to emit caller overhead warning
+        if inner.report_caller && !inner.warned_caller_overhead && !inner.suppress_caller_warning {
+            inner.warned_caller_overhead = true;
+            // Emit warning to stderr (separate from the log output)
+            let _ = io::stderr().write_all(
+                b"[charmed_log] PERF WARNING: caller reporting enabled - expect 100-1000x slowdown\n",
+            );
         }
 
-        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
-
-        // Check level
+        // Check level - early return while holding the lock is fine
         if level < inner.level {
             return;
         }
 
+        // Format output using current configuration (atomic snapshot)
         let mut output = String::new();
-
         match inner.formatter {
-            Formatter::Text => self.format_text(&inner, level, msg, keyvals, &mut output),
-            Formatter::Json => self.format_json(&inner, level, msg, keyvals, &mut output),
-            Formatter::Logfmt => self.format_logfmt(&inner, level, msg, keyvals, &mut output),
+            Formatter::Text => Self::format_text_inner(&inner, level, msg, keyvals, &mut output),
+            Formatter::Json => Self::format_json_inner(&inner, level, msg, keyvals, &mut output),
+            Formatter::Logfmt => {
+                Self::format_logfmt_inner(&inner, level, msg, keyvals, &mut output);
+            }
         }
 
-        drop(inner);
-
-        // Write output with error handling
-        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        // Write output with error handling (still holding the lock for consistency)
         if let Err(e) = inner.writer.write_all(output.as_bytes()) {
             // Call user-provided error handler if available
             if let Some(ref handler) = inner.error_handler {
@@ -757,8 +757,12 @@ impl Logger {
         }
     }
 
-    fn format_text(
-        &self,
+    // =========================================================================
+    // Associated functions for formatting (no &self, used by log() for atomicity)
+    // =========================================================================
+
+    /// Format text output without requiring &self (for use in atomic log operation).
+    fn format_text_inner(
         inner: &LoggerInner,
         level: Level,
         msg: &str,
@@ -773,7 +777,6 @@ impl Logger {
             let ts = (inner.time_function)(SystemTime::now());
             if let Ok(duration) = ts.duration_since(UNIX_EPOCH) {
                 let secs = duration.as_secs();
-                // Simple timestamp formatting
                 let ts_str = format_timestamp(secs, &inner.time_format);
                 let styled = styles.timestamp.render(&ts_str);
                 if !first {
@@ -831,19 +834,19 @@ impl Logger {
 
         // Default fields
         for (key, value) in &inner.fields {
-            self.format_text_keyval(styles, key, value, &mut first, output);
+            Self::format_text_keyval_inner(styles, key, value, &mut first, output);
         }
 
         // Additional keyvals
         for (key, value) in keyvals {
-            self.format_text_keyval(styles, key, value, &mut first, output);
+            Self::format_text_keyval_inner(styles, key, value, &mut first, output);
         }
 
         output.push('\n');
     }
 
-    fn format_text_keyval(
-        &self,
+    /// Format a key-value pair for text output.
+    fn format_text_keyval_inner(
         styles: &Styles,
         key: &str,
         value: &str,
@@ -871,8 +874,8 @@ impl Logger {
         *first = false;
     }
 
-    fn format_json(
-        &self,
+    /// Format JSON output without requiring &self.
+    fn format_json_inner(
         inner: &LoggerInner,
         level: Level,
         msg: &str,
@@ -918,8 +921,8 @@ impl Logger {
         output.push_str("}\n");
     }
 
-    fn format_logfmt(
-        &self,
+    /// Format logfmt output without requiring &self.
+    fn format_logfmt_inner(
         inner: &LoggerInner,
         level: Level,
         msg: &str,
@@ -962,6 +965,58 @@ impl Logger {
         }
 
         output.push('\n');
+    }
+
+    // =========================================================================
+    // Instance method wrappers (for backward compatibility)
+    // =========================================================================
+
+    #[expect(dead_code, reason = "Kept for API compatibility")]
+    fn format_text(
+        &self,
+        inner: &LoggerInner,
+        level: Level,
+        msg: &str,
+        keyvals: &[(&str, &str)],
+        output: &mut String,
+    ) {
+        Self::format_text_inner(inner, level, msg, keyvals, output);
+    }
+
+    #[expect(dead_code, reason = "Kept for API compatibility")]
+    fn format_text_keyval(
+        &self,
+        styles: &Styles,
+        key: &str,
+        value: &str,
+        first: &mut bool,
+        output: &mut String,
+    ) {
+        Self::format_text_keyval_inner(styles, key, value, first, output);
+    }
+
+    #[expect(dead_code, reason = "Kept for API compatibility")]
+    fn format_json(
+        &self,
+        inner: &LoggerInner,
+        level: Level,
+        msg: &str,
+        keyvals: &[(&str, &str)],
+        output: &mut String,
+    ) {
+        Self::format_json_inner(inner, level, msg, keyvals, output);
+    }
+
+    #[expect(dead_code, reason = "Kept for API compatibility")]
+    fn format_logfmt(
+        &self,
+        inner: &LoggerInner,
+        level: Level,
+        msg: &str,
+        keyvals: &[(&str, &str)],
+        output: &mut String,
+    ) {
+        Self::format_logfmt_inner(inner, level, msg, keyvals, output);
     }
 
     /// Logs a debug message.
