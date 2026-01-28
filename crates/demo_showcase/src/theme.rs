@@ -655,11 +655,7 @@ pub mod progress_chars {
     /// Get fill character for the given color profile.
     #[must_use]
     pub const fn fill(has_color: bool) -> char {
-        if has_color {
-            FILL_UNICODE
-        } else {
-            FILL_ASCII
-        }
+        if has_color { FILL_UNICODE } else { FILL_ASCII }
     }
 
     /// Get empty character for the given color profile.

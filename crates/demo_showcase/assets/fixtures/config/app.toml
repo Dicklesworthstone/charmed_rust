@@ -1,0 +1,31 @@
+# Application Configuration
+# Charmed Control Center
+
+[server]
+host = "0.0.0.0"
+port = 8080
+workers = 4
+
+[database]
+url = "postgres://localhost:5432/charmed"
+pool_size = 10
+timeout_ms = 5000
+
+[redis]
+url = "redis://localhost:6379"
+pool_size = 5
+
+[logging]
+level = "info"
+format = "json"
+output = "stdout"
+
+[metrics]
+enabled = true
+port = 9090
+path = "/metrics"
+
+[features]
+enable_wizard = true
+enable_ssh = false
+dark_mode = true

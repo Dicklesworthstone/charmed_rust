@@ -1,0 +1,4 @@
+This is a sample text file in a nested directory.
+
+It demonstrates the FilePicker's ability to navigate
+through directory hierarchies.

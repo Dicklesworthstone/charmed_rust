@@ -1,0 +1,33 @@
+# Service Registry
+# Lists all monitored microservices
+
+services:
+  - name: api-service
+    host: api.internal
+    port: 8001
+    health_path: /health
+
+  - name: auth-handler
+    host: auth.internal
+    port: 8002
+    health_path: /health
+
+  - name: billing-worker
+    host: billing.internal
+    port: 8003
+    health_path: /ready
+
+  - name: cache-proxy
+    host: cache.internal
+    port: 6380
+    health_path: /ping
+
+  - name: notification-service
+    host: notify.internal
+    port: 8004
+    health_path: /health
+
+defaults:
+  timeout_ms: 3000
+  retry_count: 3
+  health_interval_s: 30

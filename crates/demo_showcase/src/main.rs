@@ -31,6 +31,7 @@
 //! ```
 
 mod app;
+pub mod assets;
 pub mod cli;
 mod components;
 pub mod config;

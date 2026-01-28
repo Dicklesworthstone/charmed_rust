@@ -1,0 +1,14 @@
+=== E2E Test Summary ===
+Scenario: failing_test
+Run ID: 19c02a40014
+Status: FAILED
+
+Failed Assertions:
+  Step 1: should fail
+    Expected: 1
+    Actual:   2
+
+Step Timeline:
+  [2026-01-28T03:27:08.308Z] Step 1: Failing step
+
+Artifacts: target/demo_showcase_e2e/failing_test/19c02a40014

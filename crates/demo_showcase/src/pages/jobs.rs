@@ -555,14 +555,7 @@ impl JobsPage {
     }
 
     /// Render the query bar.
-    fn render_query_bar(&self, theme: &Theme, width: usize) -> String {
-        // Style based on focus state
-        let input_style = if self.focus == JobsFocus::QueryInput {
-            theme.input_focused_style()
-        } else {
-            theme.input_style()
-        };
-
+    fn render_query_bar(&self, theme: &Theme, _width: usize) -> String {
         let label = if self.focus == JobsFocus::QueryInput {
             theme.info_style().render("Filter: ")
         } else {
@@ -570,9 +563,8 @@ impl JobsPage {
         };
 
         let input_view = self.query_input.view();
-        let input_styled = input_style.width(width.saturating_sub(12) as u16).render(&input_view);
 
-        format!("{label}{input_styled}")
+        format!("{label}{input_view}")
     }
 
     /// Render the details pane for the selected job.
@@ -841,24 +833,42 @@ impl PageModel for JobsPage {
                     KeyType::Esc => {
                         // Exit query input, return to table
                         self.focus = JobsFocus::Table;
+                        self.query_input.blur();
                         self.table.focus();
                         return None;
                     }
                     KeyType::Enter => {
                         // Apply filter and return to table
-                        self.query = self.query_input.value().to_string();
-                        self.apply_filter_and_sort();
                         self.focus = JobsFocus::Table;
+                        self.query_input.blur();
                         self.table.focus();
                         return None;
                     }
-                    _ => {
-                        // Delegate to text input
-                        let cmd = self.query_input.update(msg);
-                        // Update filter on each keystroke for instant feedback
-                        self.query = self.query_input.value().to_string();
+                    KeyType::Backspace => {
+                        // Delete last character
+                        self.query.pop();
+                        self.query_input.set_value(&self.query);
                         self.apply_filter_and_sort();
-                        return cmd;
+                        return None;
+                    }
+                    KeyType::Runes => {
+                        // Add typed characters
+                        for c in &key.runes {
+                            if c.is_alphanumeric()
+                                || *c == '-'
+                                || *c == '_'
+                                || *c == ' '
+                                || *c == '#'
+                            {
+                                self.query.push(*c);
+                            }
+                        }
+                        self.query_input.set_value(&self.query);
+                        self.apply_filter_and_sort();
+                        return None;
+                    }
+                    _ => {
+                        return None;
                     }
                 }
             }
@@ -1090,5 +1100,121 @@ mod tests {
         assert!(!row[1].is_empty()); // Name
         assert!(!row[3].is_empty()); // Status with icon
         assert!(row[4].ends_with('%')); // Progress
+    }
+
+    // =========================================================================
+    // Filtering Tests
+    // =========================================================================
+
+    #[test]
+    fn initial_filter_shows_all() {
+        let page = JobsPage::new();
+        assert_eq!(page.filtered_indices.len(), page.jobs.len());
+    }
+
+    #[test]
+    fn status_filter_reduces_count() {
+        let mut page = JobsPage::new();
+
+        // Disable completed filter
+        page.status_filter.completed = false;
+        page.apply_filter_and_sort();
+
+        let completed_count = page
+            .jobs
+            .iter()
+            .filter(|j| j.status == JobStatus::Completed)
+            .count();
+        assert_eq!(
+            page.filtered_indices.len(),
+            page.jobs.len() - completed_count
+        );
+    }
+
+    #[test]
+    fn query_filter_matches_name() {
+        let mut page = JobsPage::new();
+
+        // Filter to jobs containing "backup"
+        page.query = "backup".to_string();
+        page.apply_filter_and_sort();
+
+        // All filtered jobs should contain "backup" (case-insensitive)
+        for &idx in &page.filtered_indices {
+            assert!(page.jobs[idx].name.to_lowercase().contains("backup"));
+        }
+    }
+
+    #[test]
+    fn query_filter_matches_id() {
+        let mut page = JobsPage::new();
+        let first_job_id = page.jobs[0].id;
+
+        // Filter by ID
+        page.query = format!("#{}", first_job_id);
+        page.apply_filter_and_sort();
+
+        // Should find the job with that ID
+        assert!(page.filtered_indices.contains(&0));
+    }
+
+    #[test]
+    fn clear_filters_restores_all() {
+        let mut page = JobsPage::new();
+        let original_count = page.filtered_indices.len();
+
+        // Apply some filters
+        page.query = "nonexistent".to_string();
+        page.status_filter.running = false;
+        page.apply_filter_and_sort();
+        assert!(page.filtered_indices.len() < original_count);
+
+        // Clear and restore
+        page.clear_filters();
+        assert_eq!(page.filtered_indices.len(), original_count);
+    }
+
+    #[test]
+    fn sort_column_cycles() {
+        let col = SortColumn::StartTime;
+        assert_eq!(col.next(), SortColumn::Name);
+        assert_eq!(col.next().next(), SortColumn::Status);
+        assert_eq!(col.next().next().next(), SortColumn::Progress);
+        assert_eq!(col.next().next().next().next(), SortColumn::StartTime);
+    }
+
+    #[test]
+    fn sort_direction_toggles() {
+        let dir = SortDirection::Ascending;
+        assert_eq!(dir.toggle(), SortDirection::Descending);
+        assert_eq!(dir.toggle().toggle(), SortDirection::Ascending);
+    }
+
+    #[test]
+    fn status_filter_toggle() {
+        let mut filter = StatusFilter::all();
+        assert!(filter.running);
+
+        filter.toggle(JobStatus::Running);
+        assert!(!filter.running);
+
+        filter.toggle(JobStatus::Running);
+        assert!(filter.running);
+    }
+
+    #[test]
+    fn status_filter_matches_correctly() {
+        let filter = StatusFilter {
+            running: true,
+            completed: false,
+            failed: true,
+            queued: false,
+        };
+
+        assert!(filter.matches(JobStatus::Running));
+        assert!(!filter.matches(JobStatus::Completed));
+        assert!(filter.matches(JobStatus::Failed));
+        assert!(filter.matches(JobStatus::Cancelled)); // Grouped with Failed
+        assert!(!filter.matches(JobStatus::Queued));
     }
 }

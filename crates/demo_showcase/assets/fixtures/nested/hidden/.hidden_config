@@ -1,0 +1,5 @@
+# Hidden configuration file
+# Toggle hidden file visibility with 'h' key
+
+SECRET_TOKEN=demo-token-12345
+DEBUG_MODE=false

@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "features": {
+    "dark_mode": true,
+    "animations": true,
+    "mouse_support": false
+  },
+  "limits": {
+    "max_connections": 100,
+    "timeout_seconds": 30
+  }
+}
