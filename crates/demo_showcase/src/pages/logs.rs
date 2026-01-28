@@ -193,7 +193,7 @@ impl LogsPage {
     }
 
     /// Add a new log entry (for live updates).
-    #[expect(dead_code, reason = "Reserved for simulation tick integration")]
+    #[allow(dead_code)] // Reserved for simulation tick integration
     pub fn push_log(&mut self, entry: LogEntry) {
         self.logs.push(entry);
         *self.needs_reformat.borrow_mut() = true;

@@ -17,12 +17,23 @@ use crate::pages::Pages;
 use crate::theme::{Theme, ThemePreset, spacing};
 
 /// Application configuration.
+///
+/// This struct holds runtime settings that can be toggled during the session.
+/// For animation settings, the canonical source of truth is [`App::use_animations()`].
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Fields will be used as features are implemented
 pub struct AppConfig {
     /// Initial theme preset.
     pub theme: ThemePreset,
     /// Whether animations are enabled.
+    ///
+    /// This controls all motion in the app. When disabled:
+    /// - Transitions are instant
+    /// - Progress bars don't animate
+    /// - Spinners show static state
+    ///
+    /// Can be toggled at runtime via `AppMsg::ToggleAnimations`.
+    /// Query via [`App::use_animations()`].
     pub animations: bool,
     /// Whether mouse support is enabled.
     pub mouse: bool,
@@ -139,6 +150,56 @@ impl App {
     fn clear_notifications(&mut self) {
         self.notifications.clear();
     }
+
+    // =========================================================================
+    // Animation Control (bd-2szb)
+    // =========================================================================
+
+    /// Check if animations should be used.
+    ///
+    /// This is the **canonical source of truth** for all animation decisions.
+    /// All code that performs animations must consult this method.
+    ///
+    /// Returns `false` when:
+    /// - `--no-animations` CLI flag was passed
+    /// - `REDUCE_MOTION` environment variable is set (returns false for full disable)
+    /// - User toggled animations off via Settings
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// if app.use_animations() {
+    ///     // Perform smooth transition
+    ///     spring.animate_to(target);
+    /// } else {
+    ///     // Instant snap to target
+    ///     value = target;
+    /// }
+    /// ```
+    #[must_use]
+    #[allow(dead_code)] // Will be used by components, pages, and animations
+    pub const fn use_animations(&self) -> bool {
+        self.config.animations
+    }
+
+    /// Toggle animations on/off.
+    ///
+    /// This is typically called from the Settings page or via keyboard shortcut.
+    pub const fn toggle_animations(&mut self) {
+        self.config.animations = !self.config.animations;
+    }
+
+    /// Set animations enabled state directly.
+    ///
+    /// Useful for tests that need deterministic rendering.
+    #[allow(dead_code)] // Used by tests for deterministic rendering
+    pub const fn set_animations(&mut self, enabled: bool) {
+        self.config.animations = enabled;
+    }
+
+    // =========================================================================
+    // Navigation
+    // =========================================================================
 
     /// Navigate to a new page.
     fn navigate(&mut self, page: Page) -> Option<Cmd> {
@@ -569,7 +630,7 @@ impl Model for App {
                     None
                 }
                 AppMsg::ToggleAnimations => {
-                    self.config.animations = !self.config.animations;
+                    self.toggle_animations();
                     None
                 }
                 AppMsg::ShowHelp => {
@@ -808,5 +869,62 @@ mod tests {
         let notif = Notification::info(4, "Info!").with_action_hint("Press Enter");
         assert_eq!(notif.level, StatusLevel::Info);
         assert_eq!(notif.action_hint, Some("Press Enter".to_string()));
+    }
+
+    // =========================================================================
+    // Animation Control tests (bd-2szb)
+    // =========================================================================
+
+    #[test]
+    fn app_use_animations_default_enabled() {
+        let app = App::new();
+        assert!(app.use_animations());
+    }
+
+    #[test]
+    fn app_use_animations_respects_config() {
+        let config = AppConfig {
+            animations: false,
+            ..Default::default()
+        };
+        let app = App::with_config(config);
+        assert!(!app.use_animations());
+    }
+
+    #[test]
+    fn app_toggle_animations() {
+        let mut app = App::new();
+        assert!(app.use_animations());
+
+        app.toggle_animations();
+        assert!(!app.use_animations());
+
+        app.toggle_animations();
+        assert!(app.use_animations());
+    }
+
+    #[test]
+    fn app_set_animations() {
+        let mut app = App::new();
+
+        app.set_animations(false);
+        assert!(!app.use_animations());
+
+        app.set_animations(true);
+        assert!(app.use_animations());
+    }
+
+    #[test]
+    fn app_animations_for_deterministic_tests() {
+        // Tests can disable animations for deterministic rendering
+        let config = AppConfig {
+            animations: false,
+            ..Default::default()
+        };
+        let app = App::with_config(config);
+
+        // All animation checks should return false
+        assert!(!app.use_animations());
+        // Layout should still work (not tested here, but this is the contract)
     }
 }
