@@ -6,11 +6,13 @@
 //! - Cheaply cloneable
 //! - Serializable for persistence/debugging
 //!
+//! The [`actions`] module provides the domain action API for state changes.
 //! The [`generator`] module provides seedable, deterministic data generation.
 //! The [`simulation`] module provides a background simulation engine.
 
 #![allow(dead_code)] // Types are used by downstream tasks (generator, pages, actions)
 
+pub mod actions;
 pub mod generator;
 pub mod simulation;
 
