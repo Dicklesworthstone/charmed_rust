@@ -11,6 +11,7 @@ use bubbletea::{
 use lipgloss::{Position, Style};
 
 use crate::components::{Sidebar, SidebarFocus, StatusLevel, banner, key_hint};
+use crate::config::Config;
 use crate::keymap::{HELP_SECTIONS, help_total_lines};
 use crate::messages::{AppMsg, ExportFormat, ExportMsg, Notification, NotificationMsg, Page};
 use crate::pages::Pages;
@@ -301,6 +302,11 @@ pub struct App {
     notifications: Vec<Notification>,
     /// Counter for generating unique notification IDs.
     next_notification_id: u64,
+    /// Seed used for deterministic data generation.
+    ///
+    /// This is stored so pages can access it for generating domain data.
+    /// The same seed produces the same demo data across sessions.
+    seed: u64,
 }
 
 impl App {
@@ -313,6 +319,12 @@ impl App {
     /// Create a new application with the given configuration.
     #[must_use]
     pub fn with_config(config: AppConfig) -> Self {
+        Self::with_config_and_seed(config, Self::generate_seed())
+    }
+
+    /// Create a new application with configuration and explicit seed.
+    #[must_use]
+    fn with_config_and_seed(config: AppConfig, seed: u64) -> Self {
         let theme = Theme::from_preset(config.theme);
         Self {
             config,
@@ -328,7 +340,62 @@ impl App {
             sidebar: Sidebar::new(),
             notifications: Vec::new(),
             next_notification_id: 1,
+            seed,
         }
+    }
+
+    /// Create a new application from the full runtime configuration.
+    ///
+    /// This is the **canonical bootstrap path** for creating an App instance.
+    /// It initializes all app state from the `Config` struct:
+    ///
+    /// - Theme preset from `config.theme_preset`
+    /// - Animation mode from `config.use_animations()`
+    /// - Mouse support from `config.mouse`
+    /// - Deterministic seed from `config.effective_seed()`
+    ///
+    /// All entrypoints (CLI, self-check, SSH) should use this method
+    /// to ensure consistent initialization.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use demo_showcase::config::Config;
+    /// use demo_showcase::app::App;
+    ///
+    /// let config = Config::from_cli(&cli);
+    /// let app = App::from_config(&config);
+    /// ```
+    #[must_use]
+    pub fn from_config(config: &Config) -> Self {
+        let app_config = AppConfig {
+            theme: config.theme_preset,
+            animations: config.use_animations(),
+            mouse: config.mouse,
+        };
+        let seed = config.effective_seed();
+        Self::with_config_and_seed(app_config, seed)
+    }
+
+    /// Generate a seed from current time.
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "Seed truncation is acceptable"
+    )]
+    fn generate_seed() -> u64 {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(42, |d| d.as_nanos() as u64)
+    }
+
+    /// Get the seed used for deterministic data generation.
+    ///
+    /// Pages can use this to initialize their domain data generators.
+    #[must_use]
+    #[allow(dead_code)] // Will be used by pages for data generation
+    pub const fn seed(&self) -> u64 {
+        self.seed
     }
 
     /// Show a notification to the user.
@@ -1328,5 +1395,122 @@ mod tests {
         };
         let app = App::with_config(config);
         assert_eq!(app.theme_preset(), ThemePreset::Dracula);
+    }
+
+    // =========================================================================
+    // Bootstrap from Config tests (bd-13np)
+    // =========================================================================
+
+    #[test]
+    fn app_from_config_uses_theme_preset() {
+        use crate::config::{AnimationMode, Config};
+
+        let config = Config {
+            theme_preset: ThemePreset::Light,
+            ..Default::default()
+        };
+        let app = App::from_config(&config);
+        assert_eq!(app.theme_preset(), ThemePreset::Light);
+    }
+
+    #[test]
+    fn app_from_config_uses_animations() {
+        use crate::config::{AnimationMode, Config};
+
+        // Enabled
+        let config = Config {
+            animations: AnimationMode::Enabled,
+            ..Default::default()
+        };
+        let app = App::from_config(&config);
+        assert!(app.use_animations());
+
+        // Disabled
+        let config = Config {
+            animations: AnimationMode::Disabled,
+            ..Default::default()
+        };
+        let app = App::from_config(&config);
+        assert!(!app.use_animations());
+    }
+
+    #[test]
+    fn app_from_config_uses_mouse() {
+        use crate::config::Config;
+
+        let config = Config {
+            mouse: true,
+            ..Default::default()
+        };
+        let app = App::from_config(&config);
+        assert!(app.config.mouse);
+
+        let config = Config {
+            mouse: false,
+            ..Default::default()
+        };
+        let app = App::from_config(&config);
+        assert!(!app.config.mouse);
+    }
+
+    #[test]
+    fn app_from_config_uses_seed() {
+        use crate::config::Config;
+
+        let config = Config {
+            seed: Some(12345),
+            ..Default::default()
+        };
+        let app = App::from_config(&config);
+        assert_eq!(app.seed(), 12345);
+    }
+
+    #[test]
+    fn app_from_config_generates_seed_when_none() {
+        use crate::config::Config;
+
+        let config = Config {
+            seed: None,
+            ..Default::default()
+        };
+        let app = App::from_config(&config);
+        // Seed should be non-zero (generated from time)
+        assert!(app.seed() > 0);
+    }
+
+    #[test]
+    fn app_seed_is_deterministic() {
+        use crate::config::Config;
+
+        // Same seed should produce same value
+        let config = Config {
+            seed: Some(42),
+            ..Default::default()
+        };
+        let app1 = App::from_config(&config);
+        let app2 = App::from_config(&config);
+        assert_eq!(app1.seed(), app2.seed());
+    }
+
+    #[test]
+    fn app_from_config_is_canonical_path() {
+        use crate::config::{AnimationMode, Config};
+
+        // This test verifies that from_config produces equivalent results
+        // to with_config when given the same settings
+        let config = Config {
+            theme_preset: ThemePreset::Dracula,
+            animations: AnimationMode::Disabled,
+            mouse: true,
+            seed: Some(999),
+            ..Default::default()
+        };
+
+        let app = App::from_config(&config);
+
+        assert_eq!(app.theme_preset(), ThemePreset::Dracula);
+        assert!(!app.use_animations());
+        assert!(app.config.mouse);
+        assert_eq!(app.seed(), 999);
     }
 }

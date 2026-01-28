@@ -48,7 +48,7 @@ mod theme;
 use bubbletea::{Model, Program};
 use clap::Parser;
 
-use app::{App, AppConfig};
+use app::App;
 use cli::{Cli, Command};
 use config::Config;
 
@@ -71,9 +71,8 @@ fn main() -> anyhow::Result<()> {
         return run_self_check(&config);
     }
 
-    // Build app config from runtime config
-    let app_config = build_app_config(&config);
-    let app = App::with_config(app_config);
+    // Bootstrap app from config (canonical entrypoint)
+    let app = App::from_config(&config);
 
     // Build program with appropriate options
     // All terminal behavior is driven from Config (single source of truth)
@@ -98,15 +97,6 @@ fn main() -> anyhow::Result<()> {
     program.run()?;
 
     Ok(())
-}
-
-/// Build application config from runtime config.
-const fn build_app_config(config: &Config) -> AppConfig {
-    AppConfig {
-        theme: config.theme_preset,
-        animations: config.use_animations(),
-        mouse: config.mouse,
-    }
 }
 
 /// Handle subcommands.
@@ -193,8 +183,8 @@ fn run_self_check(config: &Config) -> anyhow::Result<()> {
         config.to_diagnostic_string().replace('\n', ", ")
     );
 
-    let app_config = build_app_config(config);
-    let app = App::with_config(app_config);
+    // Bootstrap app from config (canonical entrypoint)
+    let app = App::from_config(config);
 
     // Just verify we can create and view the app
     let view = app.view();

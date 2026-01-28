@@ -19,7 +19,6 @@ use std::sync::RwLock;
 use bubbles::textinput::TextInput;
 use bubbles::viewport::Viewport;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message};
-use lipgloss::Style;
 
 use super::PageModel;
 use crate::data::generator::GeneratedData;
