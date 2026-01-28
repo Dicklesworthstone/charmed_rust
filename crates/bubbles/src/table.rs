@@ -1203,4 +1203,210 @@ mod tests {
         let _ = Model::update(&mut table, Message::new(KeyMsg::from_type(KeyType::Down)));
         assert_eq!(table.selected_row().unwrap()[0], "Carol");
     }
+
+    // -------------------------------------------------------------------------
+    // Mouse support tests (bd-3ps4)
+    // -------------------------------------------------------------------------
+
+    mod mouse_tests {
+        use super::*;
+        use bubbletea::Message;
+
+        fn wheel_up_msg() -> Message {
+            Message::new(MouseMsg {
+                x: 0,
+                y: 0,
+                shift: false,
+                alt: false,
+                ctrl: false,
+                action: MouseAction::Press,
+                button: MouseButton::WheelUp,
+            })
+        }
+
+        fn wheel_down_msg() -> Message {
+            Message::new(MouseMsg {
+                x: 0,
+                y: 0,
+                shift: false,
+                alt: false,
+                ctrl: false,
+                action: MouseAction::Press,
+                button: MouseButton::WheelDown,
+            })
+        }
+
+        fn click_msg(x: u16, y: u16) -> Message {
+            Message::new(MouseMsg {
+                x,
+                y,
+                shift: false,
+                alt: false,
+                ctrl: false,
+                action: MouseAction::Press,
+                button: MouseButton::Left,
+            })
+        }
+
+        #[test]
+        fn test_table_mouse_wheel_scroll_down() {
+            let rows = vec![
+                vec!["1".into()],
+                vec!["2".into()],
+                vec!["3".into()],
+                vec!["4".into()],
+                vec!["5".into()],
+            ];
+            let mut table = Table::new().rows(rows).focused(true);
+            assert_eq!(table.cursor(), 0);
+
+            table.update(&wheel_down_msg());
+            // Default delta is 3, so cursor should be at 3
+            assert_eq!(table.cursor(), 3);
+        }
+
+        #[test]
+        fn test_table_mouse_wheel_scroll_up() {
+            let rows = vec![
+                vec!["1".into()],
+                vec!["2".into()],
+                vec!["3".into()],
+                vec!["4".into()],
+                vec!["5".into()],
+            ];
+            let mut table = Table::new().rows(rows).focused(true);
+
+            // Move to bottom first
+            table.goto_bottom();
+            assert_eq!(table.cursor(), 4);
+
+            table.update(&wheel_up_msg());
+            // Default delta is 3, so cursor should be at 1
+            assert_eq!(table.cursor(), 1);
+        }
+
+        #[test]
+        fn test_table_mouse_click_select_row() {
+            let rows = vec![
+                vec!["1".into()],
+                vec!["2".into()],
+                vec!["3".into()],
+            ];
+            let mut table = Table::new().rows(rows).focused(true);
+            assert_eq!(table.cursor(), 0);
+
+            // Click on row 2 (y=0 is header, y=1 is row 0, y=2 is row 1)
+            table.update(&click_msg(5, 2));
+            assert_eq!(table.cursor(), 1);
+
+            // Click on row 3
+            table.update(&click_msg(5, 3));
+            assert_eq!(table.cursor(), 2);
+        }
+
+        #[test]
+        fn test_table_mouse_click_header_does_nothing() {
+            let rows = vec![
+                vec!["1".into()],
+                vec!["2".into()],
+            ];
+            let mut table = Table::new().rows(rows).focused(true);
+            assert_eq!(table.cursor(), 0);
+
+            // Click on header (y=0)
+            table.update(&click_msg(5, 0));
+            // Cursor should not change
+            assert_eq!(table.cursor(), 0);
+        }
+
+        #[test]
+        fn test_table_mouse_click_out_of_bounds() {
+            let rows = vec![
+                vec!["1".into()],
+                vec!["2".into()],
+            ];
+            let mut table = Table::new().rows(rows).focused(true);
+            assert_eq!(table.cursor(), 0);
+
+            // Click way below the table
+            table.update(&click_msg(5, 100));
+            // Cursor should not change (out of bounds)
+            assert_eq!(table.cursor(), 0);
+        }
+
+        #[test]
+        fn test_table_mouse_disabled() {
+            let rows = vec![
+                vec!["1".into()],
+                vec!["2".into()],
+                vec!["3".into()],
+            ];
+            let mut table = Table::new()
+                .rows(rows)
+                .focused(true)
+                .mouse_wheel(false)
+                .mouse_click(false);
+
+            // Wheel should be ignored
+            table.update(&wheel_down_msg());
+            assert_eq!(table.cursor(), 0);
+
+            // Click should be ignored
+            table.update(&click_msg(5, 2));
+            assert_eq!(table.cursor(), 0);
+        }
+
+        #[test]
+        fn test_table_mouse_not_focused() {
+            let rows = vec![
+                vec!["1".into()],
+                vec!["2".into()],
+            ];
+            let mut table = Table::new().rows(rows).focused(false);
+
+            // Mouse should be ignored when not focused
+            table.update(&wheel_down_msg());
+            assert_eq!(table.cursor(), 0);
+
+            table.update(&click_msg(5, 2));
+            assert_eq!(table.cursor(), 0);
+        }
+
+        #[test]
+        fn test_table_mouse_wheel_delta_builder() {
+            let rows = vec![
+                vec!["1".into()],
+                vec!["2".into()],
+                vec!["3".into()],
+                vec!["4".into()],
+                vec!["5".into()],
+            ];
+            let mut table = Table::new()
+                .rows(rows)
+                .focused(true)
+                .mouse_wheel_delta(1); // Single step
+
+            table.update(&wheel_down_msg());
+            assert_eq!(table.cursor(), 1); // Only moved by 1
+        }
+
+        #[test]
+        fn test_table_mouse_release_ignored() {
+            let rows = vec![vec!["1".into()], vec!["2".into()]];
+            let mut table = Table::new().rows(rows).focused(true);
+
+            // Release event should be ignored
+            let release_msg = Message::new(MouseMsg {
+                x: 5,
+                y: 2,
+                shift: false,
+                alt: false,
+                ctrl: false,
+                action: MouseAction::Release,
+                button: MouseButton::Left,
+            });
+            table.update(&release_msg);
+            assert_eq!(table.cursor(), 0);
+        }
+    }
 }
