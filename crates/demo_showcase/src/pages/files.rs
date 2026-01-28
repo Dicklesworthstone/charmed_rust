@@ -19,6 +19,7 @@
 use std::path::PathBuf;
 
 use bubbles::filepicker::FilePicker;
+use bubbles::viewport::Viewport;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message};
 use lipgloss::Style;
 
@@ -26,6 +27,9 @@ use super::PageModel;
 use crate::assets::fixtures::{FIXTURE_TREE, VirtualEntry};
 use crate::messages::Page;
 use crate::theme::Theme;
+
+/// Maximum bytes to load for preview (64 KB).
+const PREVIEW_MAX_BYTES: usize = 64 * 1024;
 
 /// Files page showing file browser with preview.
 pub struct FilesPage {
@@ -39,8 +43,6 @@ pub struct FilesPage {
     selected: usize,
     /// Whether showing hidden files.
     show_hidden: bool,
-    /// Selected file content for preview.
-    preview_content: Option<String>,
     /// Preview file name.
     preview_name: Option<String>,
     /// Whether using real filesystem mode.
@@ -49,6 +51,12 @@ pub struct FilesPage {
     height: usize,
     /// Scroll offset for file list.
     scroll_offset: usize,
+    /// Viewport for scrollable preview content.
+    preview_viewport: Viewport,
+    /// Whether the preview content was truncated.
+    preview_truncated: bool,
+    /// Whether focus is on the preview pane (for scrolling).
+    preview_focused: bool,
 }
 
 impl FilesPage {
@@ -63,11 +71,13 @@ impl FilesPage {
             virtual_path: Vec::new(),
             selected: 0,
             show_hidden: false,
-            preview_content: None,
             preview_name: None,
             real_mode: false,
             height: 20,
             scroll_offset: 0,
+            preview_viewport: Viewport::new(40, 20),
+            preview_truncated: false,
+            preview_focused: false,
         }
     }
 
@@ -89,11 +99,13 @@ impl FilesPage {
             virtual_path: Vec::new(),
             selected: 0,
             show_hidden: false,
-            preview_content: None,
             preview_name: None,
             real_mode: true,
             height: 20,
             scroll_offset: 0,
+            preview_viewport: Viewport::new(40, 20),
+            preview_truncated: false,
+            preview_focused: false,
         }
     }
 
@@ -148,11 +160,25 @@ impl FilesPage {
                 self.virtual_entries = children;
                 self.selected = 0;
                 self.scroll_offset = 0;
-                self.preview_content = None;
+                self.preview_viewport.set_content("");
                 self.preview_name = None;
+                self.preview_truncated = false;
             } else if let Some(content) = content_opt {
-                self.preview_content = Some(content);
+                // Handle file content with truncation
+                let (truncated_content, was_truncated) = if content.len() > PREVIEW_MAX_BYTES {
+                    let truncated = content
+                        .char_indices()
+                        .take_while(|(i, _)| *i < PREVIEW_MAX_BYTES)
+                        .map(|(_, c)| c)
+                        .collect::<String>();
+                    (truncated, true)
+                } else {
+                    (content, false)
+                };
+                self.preview_viewport.set_content(&truncated_content);
+                self.preview_viewport.goto_top();
                 self.preview_name = Some(name.to_string());
+                self.preview_truncated = was_truncated;
             }
         }
     }
@@ -264,15 +290,36 @@ impl FilesPage {
         };
 
         if !name.is_empty() {
-            self.preview_content = content;
             self.preview_name = if is_dir {
                 Some(format!("{}/", name))
             } else {
                 Some(name)
             };
+
+            // Set viewport content with truncation for large files
+            if let Some(content) = content {
+                let (truncated_content, was_truncated) = if content.len() > PREVIEW_MAX_BYTES {
+                    let truncated = content
+                        .char_indices()
+                        .take_while(|(i, _)| *i < PREVIEW_MAX_BYTES)
+                        .map(|(_, c)| c)
+                        .collect::<String>();
+                    (truncated, true)
+                } else {
+                    (content, false)
+                };
+                self.preview_viewport.set_content(&truncated_content);
+                self.preview_truncated = was_truncated;
+            } else {
+                self.preview_viewport.set_content("");
+                self.preview_truncated = false;
+            }
+            // Reset scroll position when switching files
+            self.preview_viewport.goto_top();
         } else {
-            self.preview_content = None;
+            self.preview_viewport.set_content("");
             self.preview_name = None;
+            self.preview_truncated = false;
         }
     }
 
@@ -360,26 +407,51 @@ impl FilesPage {
     fn render_preview(&self, width: usize, height: usize, theme: &Theme) -> String {
         let mut lines = Vec::new();
 
-        // Header
+        // Header with focus indicator
+        let focus_indicator = if self.preview_focused { "● " } else { "" };
         let header = if let Some(ref name) = self.preview_name {
-            theme.heading_style().render(name)
+            let header_text = format!("{}{}", focus_indicator, name);
+            theme.heading_style().render(&header_text)
         } else {
             theme.muted_style().render("(no selection)")
         };
         lines.push(header);
         lines.push(theme.muted_style().render(&"─".repeat(width.min(40))));
 
-        // Content
-        if let Some(ref content) = self.preview_content {
-            let content_height = height.saturating_sub(3);
-            for (i, line) in content.lines().enumerate() {
-                if i >= content_height {
-                    lines.push(theme.muted_style().render("..."));
-                    break;
-                }
-                let truncated: String = line.chars().take(width.saturating_sub(2)).collect();
-                lines.push(truncated);
+        // Content via viewport
+        let has_content = self.preview_viewport.total_line_count() > 0;
+        if has_content {
+            // Create a viewport clone with correct dimensions for rendering
+            let mut render_viewport = self.preview_viewport.clone();
+            let content_height = height.saturating_sub(4); // header + separator + status
+            render_viewport.width = width.saturating_sub(2);
+            render_viewport.height = content_height;
+
+            let viewport_view = render_viewport.view();
+            for line in viewport_view.lines() {
+                lines.push(line.to_string());
             }
+
+            // Scroll position indicator
+            let scroll_pct = self.preview_viewport.scroll_percent();
+            let scroll_indicator = if self.preview_viewport.total_line_count() <= content_height {
+                String::new()
+            } else if self.preview_viewport.at_top() {
+                "Top".to_string()
+            } else if self.preview_viewport.at_bottom() {
+                "End".to_string()
+            } else {
+                format!("{}%", (scroll_pct * 100.0) as usize)
+            };
+
+            let truncated_indicator = if self.preview_truncated {
+                " [truncated]"
+            } else {
+                ""
+            };
+
+            let status = format!("{}{}", scroll_indicator, truncated_indicator);
+            lines.push(theme.muted_style().render(&status));
         } else if self.preview_name.is_some() {
             lines.push(theme.muted_style().render("(directory)"));
         }
@@ -390,6 +462,11 @@ impl FilesPage {
         }
 
         lines.join("\n")
+    }
+
+    /// Toggle focus between file list and preview pane.
+    fn toggle_preview_focus(&mut self) {
+        self.preview_focused = !self.preview_focused;
     }
 }
 
