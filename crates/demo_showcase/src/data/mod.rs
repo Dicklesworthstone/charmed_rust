@@ -1,12 +1,16 @@
-//! Domain model types for `demo_showcase`.
+//! Domain model types and data generation for `demo_showcase`.
 //!
 //! These types represent the data the application displays and manipulates.
 //! They are designed to be:
 //! - Small and presentation-friendly
 //! - Cheaply cloneable
 //! - Serializable for persistence/debugging
+//!
+//! The [`generator`] module provides seedable, deterministic data generation.
 
 #![allow(dead_code)] // Types are used by downstream tasks (generator, pages, actions)
+
+pub mod generator;
 
 use std::collections::BTreeMap;
 

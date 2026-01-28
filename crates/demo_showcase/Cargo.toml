@@ -44,6 +44,8 @@ tokio = { version = "1.40", features = ["full"] }
 # Utilities
 unicode-width.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
+rand = "0.9"
+rand_pcg = "0.9"
 
 [dev-dependencies]
 tempfile.workspace = true
