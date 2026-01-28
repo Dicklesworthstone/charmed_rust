@@ -441,4 +441,215 @@ mod tests {
         assert!(approx_eq(new_pos, 10.0));
         assert!(approx_eq(new_vel, 5.0));
     }
+
+    // =========================================================================
+    // bd-228s: Additional spring tests
+    // =========================================================================
+
+    #[test]
+    fn test_zero_damping_oscillates_indefinitely() {
+        // Zero damping should cause infinite oscillation (no energy loss)
+        let spring = Spring::new(fps(60), 5.0, 0.0);
+        let mut pos = 0.0;
+        let mut vel = 0.0;
+        let target = 100.0;
+
+        // Run for 10 seconds at 60 FPS
+        let mut oscillations = 0;
+        let mut last_sign = f64::signum(pos - target);
+
+        for _ in 0..600 {
+            (pos, vel) = spring.update(pos, vel, target);
+            let current_sign = f64::signum(pos - target);
+            if current_sign != last_sign && current_sign != 0.0 {
+                oscillations += 1;
+                last_sign = current_sign;
+            }
+        }
+
+        // With zero damping, should oscillate many times
+        assert!(
+            oscillations >= 5,
+            "Zero damping should oscillate indefinitely, got {oscillations} oscillations"
+        );
+    }
+
+    #[test]
+    fn test_very_high_stiffness_snaps() {
+        // Very high angular frequency should snap quickly to target
+        let spring = Spring::new(fps(60), 100.0, 1.0);
+        let mut pos = 0.0;
+        let mut vel = 0.0;
+        let target = 100.0;
+
+        // Run for just a few frames
+        for _ in 0..30 {
+            (pos, vel) = spring.update(pos, vel, target);
+        }
+
+        // Should be very close to target quickly
+        assert!(
+            (pos - target).abs() < 1.0,
+            "High stiffness should snap quickly, got pos={pos}"
+        );
+    }
+
+    #[test]
+    fn test_negative_target() {
+        let spring = Spring::new(fps(60), 5.0, 1.0);
+        let mut pos = 100.0;
+        let mut vel = 0.0;
+        let target = -50.0;
+
+        // Run for 5 seconds
+        for _ in 0..300 {
+            (pos, vel) = spring.update(pos, vel, target);
+        }
+
+        // Should approach negative target
+        assert!(
+            (pos - target).abs() < 0.1,
+            "Should approach negative target, got pos={pos}"
+        );
+    }
+
+    #[test]
+    fn test_very_small_movements() {
+        let spring = Spring::new(fps(60), 5.0, 1.0);
+        let mut pos = 0.0;
+        let mut vel = 0.0;
+        let target = 0.001; // Very small target
+
+        for _ in 0..300 {
+            (pos, vel) = spring.update(pos, vel, target);
+        }
+
+        // Should still converge to tiny target
+        assert!(
+            (pos - target).abs() < 0.0001,
+            "Should handle small movements, got pos={pos}, target={target}"
+        );
+    }
+
+    #[test]
+    fn test_large_time_delta() {
+        // Large time delta (low FPS)
+        let spring = Spring::new(1.0, 5.0, 1.0); // 1 FPS
+        let mut pos = 0.0;
+        let mut vel = 0.0;
+        let target = 100.0;
+
+        // Run for 10 "frames" (10 seconds)
+        for _ in 0..10 {
+            (pos, vel) = spring.update(pos, vel, target);
+        }
+
+        // Should still converge (though less accurately)
+        assert!(
+            (pos - target).abs() < 5.0,
+            "Large delta should still converge, got pos={pos}"
+        );
+    }
+
+    #[test]
+    fn test_accumulated_error_bounded() {
+        // Run for a long time and check error doesn't grow
+        let spring = Spring::new(fps(60), 5.0, 0.5);
+        let mut pos = 0.0;
+        let mut vel = 0.0;
+        let target = 100.0;
+
+        // Run for 60 seconds (3600 frames)
+        for _ in 0..3600 {
+            (pos, vel) = spring.update(pos, vel, target);
+        }
+
+        // After settling, error should be tiny
+        assert!(
+            (pos - target).abs() < 0.001,
+            "Accumulated error should be bounded, got pos={pos}"
+        );
+        assert!(
+            vel.abs() < 0.001,
+            "Velocity should decay completely, got vel={vel}"
+        );
+    }
+
+    #[test]
+    fn test_spring_default() {
+        let spring = Spring::default();
+        // Default spring has all coefficients = 0.0
+        // update() computes: new_pos = old_pos * 0 + old_vel * 0 + equilibrium
+        //                    new_vel = old_pos * 0 + old_vel * 0 = 0
+        let (new_pos, new_vel) = spring.update(10.0, 5.0, 100.0);
+        // With all-zero coefficients, position snaps to equilibrium
+        assert!(approx_eq(new_pos, 100.0));
+        assert!(approx_eq(new_vel, 0.0));
+    }
+
+    #[test]
+    fn test_spring_clone() {
+        let spring1 = Spring::new(fps(60), 5.0, 0.5);
+        let spring2 = spring1;
+
+        // Both should produce same results
+        let result1 = spring1.update(0.0, 0.0, 100.0);
+        let result2 = spring2.update(0.0, 0.0, 100.0);
+
+        assert!(approx_eq(result1.0, result2.0));
+        assert!(approx_eq(result1.1, result2.1));
+    }
+
+    #[test]
+    fn test_spring_equilibrium_at_target() {
+        // When pos == target and vel == 0, should stay at target
+        let spring = Spring::new(fps(60), 5.0, 0.5);
+        let target = 50.0;
+        let (new_pos, new_vel) = spring.update(target, 0.0, target);
+
+        assert!(approx_eq(new_pos, target));
+        assert!(approx_eq(new_vel, 0.0));
+    }
+
+    #[test]
+    fn test_fps_various_rates() {
+        // Common frame rates
+        assert!(approx_eq(fps(30), 1.0 / 30.0));
+        assert!(approx_eq(fps(60), 1.0 / 60.0));
+        assert!(approx_eq(fps(120), 1.0 / 120.0));
+        assert!(approx_eq(fps(144), 1.0 / 144.0));
+        assert!(approx_eq(fps(240), 1.0 / 240.0));
+        assert!(approx_eq(fps(1), 1.0));
+    }
+
+    #[test]
+    fn test_damping_ratio_boundary() {
+        // Test exactly at critical damping boundaries
+        let under = Spring::new(fps(60), 5.0, 0.999);
+        let critical = Spring::new(fps(60), 5.0, 1.0);
+        let over = Spring::new(fps(60), 5.0, 1.001);
+
+        // All should work without panicking
+        let _ = under.update(0.0, 0.0, 100.0);
+        let _ = critical.update(0.0, 0.0, 100.0);
+        let _ = over.update(0.0, 0.0, 100.0);
+    }
+
+    #[test]
+    fn test_initial_velocity() {
+        // Spring with initial velocity should still converge
+        let spring = Spring::new(fps(60), 5.0, 1.0);
+        let mut pos = 0.0;
+        let mut vel = 1000.0; // Large initial velocity
+        let target = 50.0;
+
+        for _ in 0..600 {
+            (pos, vel) = spring.update(pos, vel, target);
+        }
+
+        assert!(
+            (pos - target).abs() < 0.1,
+            "Should converge despite initial velocity"
+        );
+    }
 }

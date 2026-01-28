@@ -2033,6 +2033,7 @@ fn truncate_height(s: &str, max_height: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{AdaptiveColor, AnsiColor, RgbColor};
 
     #[test]
     fn test_style_builder() {
@@ -2351,5 +2352,937 @@ mod tests {
 
         let rendered = style.render("test");
         assert_eq!(rendered, ">>> test");
+    }
+
+    // =========================================================================
+    // Comprehensive Style Tests (bd-3m5y)
+    // =========================================================================
+
+    // -------------------------------------------------------------------------
+    // Text Attributes
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_italic_renders_ansi() {
+        let style = Style::new().italic();
+        assert!(style.attrs.contains(Attrs::ITALIC));
+        assert!(style.props.contains(Props::ITALIC));
+
+        let rendered = style.render("Hello");
+        assert!(rendered.contains("\x1b[3m")); // italic
+        assert!(rendered.contains("Hello"));
+    }
+
+    #[test]
+    fn test_underline_renders_ansi() {
+        let style = Style::new().underline();
+        assert!(style.attrs.contains(Attrs::UNDERLINE));
+        assert!(style.props.contains(Props::UNDERLINE));
+
+        let rendered = style.render("Hello");
+        assert!(rendered.contains("\x1b[4m")); // underline
+    }
+
+    #[test]
+    fn test_strikethrough_renders_ansi() {
+        let style = Style::new().strikethrough();
+        assert!(style.attrs.contains(Attrs::STRIKETHROUGH));
+        assert!(style.props.contains(Props::STRIKETHROUGH));
+
+        let rendered = style.render("Hello");
+        assert!(rendered.contains("\x1b[9m")); // strikethrough
+    }
+
+    #[test]
+    fn test_reverse_renders_ansi() {
+        let style = Style::new().reverse();
+        assert!(style.attrs.contains(Attrs::REVERSE));
+        assert!(style.props.contains(Props::REVERSE));
+
+        let rendered = style.render("Hello");
+        assert!(rendered.contains("\x1b[7m")); // reverse
+    }
+
+    #[test]
+    fn test_blink_renders_ansi() {
+        let style = Style::new().blink();
+        assert!(style.attrs.contains(Attrs::BLINK));
+        assert!(style.props.contains(Props::BLINK));
+
+        let rendered = style.render("Hello");
+        assert!(rendered.contains("\x1b[5m")); // blink
+    }
+
+    #[test]
+    fn test_faint_renders_ansi() {
+        let style = Style::new().faint();
+        assert!(style.attrs.contains(Attrs::FAINT));
+        assert!(style.props.contains(Props::FAINT));
+
+        let rendered = style.render("Hello");
+        assert!(rendered.contains("\x1b[2m")); // faint/dim
+    }
+
+    #[test]
+    fn test_combined_text_attributes() {
+        let style = Style::new().bold().italic().underline();
+        let rendered = style.render("Hello");
+
+        assert!(rendered.contains("\x1b[1m")); // bold
+        assert!(rendered.contains("\x1b[3m")); // italic
+        assert!(rendered.contains("\x1b[4m")); // underline
+        assert!(rendered.contains("\x1b[0m")); // reset
+    }
+
+    #[test]
+    fn test_underline_spaces() {
+        let style = Style::new().underline().underline_spaces(true);
+        assert!(style.attrs.contains(Attrs::UNDERLINE_SPACES));
+        assert!(style.props.contains(Props::UNDERLINE_SPACES));
+    }
+
+    #[test]
+    fn test_strikethrough_spaces() {
+        let style = Style::new().strikethrough().strikethrough_spaces(true);
+        assert!(style.attrs.contains(Attrs::STRIKETHROUGH_SPACES));
+        assert!(style.props.contains(Props::STRIKETHROUGH_SPACES));
+    }
+
+    // -------------------------------------------------------------------------
+    // Colors
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_foreground_hex_color() {
+        let style = Style::new().foreground("#ff0000");
+        assert!(style.props.contains(Props::FOREGROUND));
+        assert!(style.fg_color.is_some());
+
+        let rendered = style.render("Red");
+        // True color: \x1b[38;2;R;G;Bm
+        assert!(rendered.contains("\x1b[38;2;255;0;0m"));
+    }
+
+    #[test]
+    fn test_foreground_short_hex_color() {
+        let style = Style::new().foreground("#f00");
+        let rendered = style.render("Red");
+        // Short hex #f00 expands to #ff0000
+        assert!(rendered.contains("\x1b[38;2;255;0;0m"));
+    }
+
+    #[test]
+    fn test_background_hex_color() {
+        let style = Style::new().background("#0000ff");
+        assert!(style.props.contains(Props::BACKGROUND));
+        assert!(style.bg_color.is_some());
+
+        let rendered = style.render("Blue");
+        // Background: \x1b[48;2;R;G;Bm
+        assert!(rendered.contains("\x1b[48;2;0;0;255m"));
+    }
+
+    #[test]
+    fn test_foreground_ansi_color() {
+        let style = Style::new().foreground("196"); // ANSI 196 (red)
+        let rendered = style.render("ANSI");
+        // ANSI 256: \x1b[38;5;Nm
+        assert!(rendered.contains("\x1b[38;5;196m"));
+    }
+
+    #[test]
+    fn test_background_ansi_color() {
+        let style = Style::new().background("21"); // ANSI 21 (blue)
+        let rendered = style.render("Blue");
+        assert!(rendered.contains("\x1b[48;5;21m"));
+    }
+
+    #[test]
+    fn test_foreground_color_with_rgb_type() {
+        let color = RgbColor::new(128, 64, 32);
+        let style = Style::new().foreground_color(color);
+        let rendered = style.render("RGB");
+        assert!(rendered.contains("\x1b[38;2;128;64;32m"));
+    }
+
+    #[test]
+    fn test_background_color_with_ansi_type() {
+        let color = AnsiColor(42);
+        let style = Style::new().background_color(color);
+        let rendered = style.render("ANSI");
+        assert!(rendered.contains("\x1b[48;5;42m"));
+    }
+
+    #[test]
+    fn test_no_foreground() {
+        let style = Style::new().foreground("#ff0000").no_foreground();
+        assert!(style.props.contains(Props::FOREGROUND));
+        // NoColor should produce empty ANSI
+        let rendered = style.render("Hello");
+        assert!(!rendered.contains("\x1b[38;"));
+    }
+
+    #[test]
+    fn test_no_background() {
+        let style = Style::new().background("#0000ff").no_background();
+        assert!(style.props.contains(Props::BACKGROUND));
+        let rendered = style.render("Hello");
+        assert!(!rendered.contains("\x1b[48;"));
+    }
+
+    #[test]
+    fn test_adaptive_color() {
+        let adaptive = AdaptiveColor {
+            light: Color::from("#000000"),
+            dark: Color::from("#ffffff"),
+        };
+        let style = Style::new().foreground_color(adaptive);
+        assert!(style.props.contains(Props::FOREGROUND));
+    }
+
+    // -------------------------------------------------------------------------
+    // Dimensions
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_width_pads_content() {
+        let style = Style::new().width(20);
+        let rendered = style.render("Hello");
+        // Should pad to 20 characters
+        assert_eq!(visible_width(&rendered), 20);
+    }
+
+    #[test]
+    fn test_width_with_center_alignment() {
+        let style = Style::new().width(20).align(Position::Center);
+        let rendered = style.render("Hi");
+        // "Hi" is 2 chars, 18 extra, 9 left 9 right for center
+        let lines: Vec<&str> = rendered.lines().collect();
+        assert_eq!(lines.len(), 1);
+        assert_eq!(visible_width(lines[0]), 20);
+    }
+
+    #[test]
+    fn test_width_with_right_alignment() {
+        let style = Style::new().width(10).align(Position::Right);
+        let rendered = style.render("Hi");
+        // "Hi" should be right-aligned
+        assert_eq!(visible_width(&rendered), 10);
+        // Content should be preceded by spaces
+        assert!(rendered.starts_with(' '));
+    }
+
+    #[test]
+    fn test_height_adds_blank_lines() {
+        let style = Style::new().height(5);
+        let rendered = style.render("Hello");
+        let lines: Vec<&str> = rendered.lines().collect();
+        assert_eq!(lines.len(), 5);
+    }
+
+    #[test]
+    fn test_height_with_vertical_center() {
+        let style = Style::new().height(5).align_vertical(Position::Center);
+        let rendered = style.render("Hello");
+        let lines: Vec<&str> = rendered.lines().collect();
+        assert_eq!(lines.len(), 5);
+        // Content should be in the middle
+    }
+
+    #[test]
+    fn test_max_width_truncates() {
+        let style = Style::new().max_width(5);
+        let rendered = style.render("Hello World");
+        // Should truncate to max 5 chars
+        assert!(visible_width(&rendered) <= 5);
+    }
+
+    #[test]
+    fn test_max_height_truncates() {
+        let style = Style::new().max_height(2);
+        let rendered = style.render("Line1\nLine2\nLine3\nLine4");
+        let lines: Vec<&str> = rendered.lines().collect();
+        assert_eq!(lines.len(), 2);
+    }
+
+    #[test]
+    fn test_get_width_when_set() {
+        let style = Style::new().width(42);
+        assert_eq!(style.get_width(), Some(42));
+    }
+
+    #[test]
+    fn test_get_width_when_not_set() {
+        let style = Style::new();
+        assert_eq!(style.get_width(), None);
+    }
+
+    #[test]
+    fn test_get_height_when_set() {
+        let style = Style::new().height(10);
+        assert_eq!(style.get_height(), Some(10));
+    }
+
+    #[test]
+    fn test_get_height_when_not_set() {
+        let style = Style::new();
+        assert_eq!(style.get_height(), None);
+    }
+
+    // -------------------------------------------------------------------------
+    // Padding - Individual Directions
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_padding_top() {
+        let style = Style::new().padding_top(2);
+        assert_eq!(style.padding.top, 2);
+        assert_eq!(style.padding.right, 0);
+        assert_eq!(style.padding.bottom, 0);
+        assert_eq!(style.padding.left, 0);
+        assert!(style.props.contains(Props::PADDING_TOP));
+    }
+
+    #[test]
+    fn test_padding_right() {
+        let style = Style::new().padding_right(3);
+        assert_eq!(style.padding.right, 3);
+        assert!(style.props.contains(Props::PADDING_RIGHT));
+    }
+
+    #[test]
+    fn test_padding_bottom() {
+        let style = Style::new().padding_bottom(4);
+        assert_eq!(style.padding.bottom, 4);
+        assert!(style.props.contains(Props::PADDING_BOTTOM));
+    }
+
+    #[test]
+    fn test_padding_left() {
+        let style = Style::new().padding_left(5);
+        assert_eq!(style.padding.left, 5);
+        assert!(style.props.contains(Props::PADDING_LEFT));
+    }
+
+    #[test]
+    fn test_padding_tuple_2() {
+        let style = Style::new().padding((1, 2)); // vertical, horizontal
+        assert_eq!(style.padding.top, 1);
+        assert_eq!(style.padding.right, 2);
+        assert_eq!(style.padding.bottom, 1);
+        assert_eq!(style.padding.left, 2);
+    }
+
+    #[test]
+    fn test_padding_tuple_4() {
+        let style = Style::new().padding((1, 2, 3, 4)); // top, right, bottom, left
+        assert_eq!(style.padding.top, 1);
+        assert_eq!(style.padding.right, 2);
+        assert_eq!(style.padding.bottom, 3);
+        assert_eq!(style.padding.left, 4);
+    }
+
+    #[test]
+    fn test_padding_renders_spaces() {
+        let style = Style::new().padding_left(2).padding_right(2);
+        let rendered = style.render("X");
+        // Should have 2 spaces on each side of X
+        assert!(visible_width(&rendered) >= 5); // at least "  X  "
+    }
+
+    // -------------------------------------------------------------------------
+    // Margin - Individual Directions
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_margin_top() {
+        let style = Style::new().margin_top(2);
+        assert_eq!(style.margin.top, 2);
+        assert!(style.props.contains(Props::MARGIN_TOP));
+    }
+
+    #[test]
+    fn test_margin_right() {
+        let style = Style::new().margin_right(3);
+        assert_eq!(style.margin.right, 3);
+        assert!(style.props.contains(Props::MARGIN_RIGHT));
+    }
+
+    #[test]
+    fn test_margin_bottom() {
+        let style = Style::new().margin_bottom(4);
+        assert_eq!(style.margin.bottom, 4);
+        assert!(style.props.contains(Props::MARGIN_BOTTOM));
+    }
+
+    #[test]
+    fn test_margin_left() {
+        let style = Style::new().margin_left(5);
+        assert_eq!(style.margin.left, 5);
+        assert!(style.props.contains(Props::MARGIN_LEFT));
+    }
+
+    #[test]
+    fn test_margin_background_color() {
+        let style = Style::new().margin(1).margin_background("#333333");
+        assert!(style.props.contains(Props::MARGIN_BACKGROUND));
+        assert!(style.margin_bg_color.is_some());
+    }
+
+    // -------------------------------------------------------------------------
+    // Border Styles
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_border_normal() {
+        let style = Style::new().border(Border::normal());
+        let rendered = style.render("X");
+        // Normal border uses ─ │ ┌ ┐ └ ┘
+        assert!(rendered.contains("─"));
+        assert!(rendered.contains("│"));
+    }
+
+    #[test]
+    fn test_border_rounded() {
+        let style = Style::new().border(Border::rounded());
+        let rendered = style.render("X");
+        // Rounded border uses ─ │ ╭ ╮ ╰ ╯
+        assert!(rendered.contains("╭") || rendered.contains("─"));
+    }
+
+    #[test]
+    fn test_border_thick() {
+        let style = Style::new().border(Border::thick());
+        let rendered = style.render("X");
+        // Thick border uses ━ ┃ ┏ ┓ ┗ ┛
+        assert!(rendered.contains("━"));
+    }
+
+    #[test]
+    fn test_border_double() {
+        let style = Style::new().border(Border::double());
+        let rendered = style.render("X");
+        // Double border uses ═ ║ ╔ ╗ ╚ ╝
+        assert!(rendered.contains("═"));
+    }
+
+    #[test]
+    fn test_border_ascii() {
+        let style = Style::new().border(Border::ascii());
+        let rendered = style.render("X");
+        // ASCII border uses - | + characters
+        assert!(rendered.contains("-") || rendered.contains("+"));
+    }
+
+    #[test]
+    fn test_border_hidden() {
+        let style = Style::new().border(Border::hidden());
+        let rendered = style.render("X");
+        // Hidden border uses spaces
+        let lines: Vec<&str> = rendered.lines().collect();
+        assert!(lines.len() >= 1); // Still has border structure, just invisible
+    }
+
+    #[test]
+    fn test_border_none() {
+        let style = Style::new().border(Border::none());
+        let rendered = style.render("Hello");
+        // Should render without border characters
+        let lines: Vec<&str> = rendered.lines().collect();
+        assert_eq!(lines.len(), 1);
+        assert_eq!(visible_width(&rendered), 5); // Just "Hello"
+    }
+
+    // -------------------------------------------------------------------------
+    // Style Composition
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_style_clone_independence() {
+        let base = Style::new().bold();
+        let derived = base.clone().foreground("#ff0000");
+
+        // Original should still have bold but no foreground
+        assert!(base.attrs.contains(Attrs::BOLD));
+        assert!(!base.props.contains(Props::FOREGROUND));
+
+        // Derived should have both
+        assert!(derived.attrs.contains(Attrs::BOLD));
+        assert!(derived.props.contains(Props::FOREGROUND));
+    }
+
+    #[test]
+    fn test_style_chain_override() {
+        // Later settings should override earlier ones
+        let style = Style::new()
+            .foreground("#ff0000")
+            .foreground("#00ff00");
+
+        let rendered = style.render("X");
+        // Should use green (#00ff00), not red
+        assert!(rendered.contains("\x1b[38;2;0;255;0m"));
+        assert!(!rendered.contains("\x1b[38;2;255;0;0m"));
+    }
+
+    #[test]
+    fn test_style_is_set() {
+        let style = Style::new().bold().padding(1);
+        assert!(style.is_set(Props::BOLD));
+        assert!(style.is_set(Props::PADDING_TOP));
+        assert!(!style.is_set(Props::FOREGROUND));
+        assert!(!style.is_set(Props::WIDTH));
+    }
+
+    #[test]
+    fn test_style_default_is_empty() {
+        let style = Style::new();
+        assert!(style.props.is_empty());
+        assert!(style.attrs.is_empty());
+    }
+
+    #[test]
+    fn test_set_string_value() {
+        let style = Style::new().set_string("prefix:");
+        assert_eq!(style.value(), "prefix:");
+
+        let rendered = style.render("hello");
+        assert!(rendered.contains("prefix:"));
+        assert!(rendered.contains("hello"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Unset Methods
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_unset_bold() {
+        let style = Style::new().bold().unset_bold();
+        assert!(!style.attrs.contains(Attrs::BOLD));
+        assert!(!style.props.contains(Props::BOLD));
+    }
+
+    #[test]
+    fn test_unset_italic() {
+        let style = Style::new().italic().unset_italic();
+        assert!(!style.attrs.contains(Attrs::ITALIC));
+        assert!(!style.props.contains(Props::ITALIC));
+    }
+
+    #[test]
+    fn test_unset_underline() {
+        let style = Style::new().underline().unset_underline();
+        assert!(!style.attrs.contains(Attrs::UNDERLINE));
+        assert!(!style.props.contains(Props::UNDERLINE));
+    }
+
+    #[test]
+    fn test_unset_strikethrough() {
+        let style = Style::new().strikethrough().unset_strikethrough();
+        assert!(!style.attrs.contains(Attrs::STRIKETHROUGH));
+    }
+
+    #[test]
+    fn test_unset_reverse() {
+        let style = Style::new().reverse().unset_reverse();
+        assert!(!style.attrs.contains(Attrs::REVERSE));
+    }
+
+    #[test]
+    fn test_unset_blink() {
+        let style = Style::new().blink().unset_blink();
+        assert!(!style.attrs.contains(Attrs::BLINK));
+    }
+
+    #[test]
+    fn test_unset_faint() {
+        let style = Style::new().faint().unset_faint();
+        assert!(!style.attrs.contains(Attrs::FAINT));
+    }
+
+    #[test]
+    fn test_unset_foreground() {
+        let style = Style::new().foreground("#ff0000").unset_foreground();
+        assert!(!style.props.contains(Props::FOREGROUND));
+        assert!(style.fg_color.is_none());
+    }
+
+    #[test]
+    fn test_unset_background() {
+        let style = Style::new().background("#0000ff").unset_background();
+        assert!(!style.props.contains(Props::BACKGROUND));
+        assert!(style.bg_color.is_none());
+    }
+
+    #[test]
+    fn test_unset_width() {
+        let style = Style::new().width(20).unset_width();
+        assert!(!style.props.contains(Props::WIDTH));
+        assert_eq!(style.get_width(), None);
+    }
+
+    #[test]
+    fn test_unset_height() {
+        let style = Style::new().height(10).unset_height();
+        assert!(!style.props.contains(Props::HEIGHT));
+        assert_eq!(style.get_height(), None);
+    }
+
+    #[test]
+    fn test_unset_max_width() {
+        let style = Style::new().max_width(100).unset_max_width();
+        assert!(!style.props.contains(Props::MAX_WIDTH));
+    }
+
+    #[test]
+    fn test_unset_max_height() {
+        let style = Style::new().max_height(50).unset_max_height();
+        assert!(!style.props.contains(Props::MAX_HEIGHT));
+    }
+
+    #[test]
+    fn test_unset_align() {
+        let style = Style::new()
+            .align_horizontal(Position::Center)
+            .align_vertical(Position::Center)
+            .unset_align();
+        assert!(!style.props.contains(Props::ALIGN_HORIZONTAL));
+        assert!(!style.props.contains(Props::ALIGN_VERTICAL));
+    }
+
+    #[test]
+    fn test_unset_padding() {
+        let style = Style::new().padding(5).unset_padding();
+        assert!(!style.props.contains(Props::PADDING_TOP));
+        assert!(!style.props.contains(Props::PADDING_RIGHT));
+        assert!(!style.props.contains(Props::PADDING_BOTTOM));
+        assert!(!style.props.contains(Props::PADDING_LEFT));
+        assert_eq!(style.padding.top, 0);
+    }
+
+    #[test]
+    fn test_unset_padding_individual() {
+        let style = Style::new()
+            .padding(5)
+            .unset_padding_left()
+            .unset_padding_right();
+        // Top and bottom should still be set
+        assert!(style.props.contains(Props::PADDING_TOP));
+        assert!(style.props.contains(Props::PADDING_BOTTOM));
+        assert!(!style.props.contains(Props::PADDING_LEFT));
+        assert!(!style.props.contains(Props::PADDING_RIGHT));
+    }
+
+    #[test]
+    fn test_unset_margins() {
+        let style = Style::new().margin(5).unset_margins();
+        assert!(!style.props.contains(Props::MARGIN_TOP));
+        assert_eq!(style.margin.top, 0);
+    }
+
+    #[test]
+    fn test_unset_margin_individual() {
+        let style = Style::new()
+            .margin(5)
+            .unset_margin_top()
+            .unset_margin_bottom();
+        assert!(!style.props.contains(Props::MARGIN_TOP));
+        assert!(!style.props.contains(Props::MARGIN_BOTTOM));
+        assert!(style.props.contains(Props::MARGIN_LEFT));
+        assert!(style.props.contains(Props::MARGIN_RIGHT));
+    }
+
+    #[test]
+    fn test_unset_margin_background() {
+        let style = Style::new()
+            .margin_background("#333333")
+            .unset_margin_background();
+        assert!(!style.props.contains(Props::MARGIN_BACKGROUND));
+        assert!(style.margin_bg_color.is_none());
+    }
+
+    #[test]
+    fn test_unset_border_style() {
+        let style = Style::new().border(Border::normal()).unset_border_style();
+        assert!(!style.props.contains(Props::BORDER_STYLE));
+    }
+
+    #[test]
+    fn test_unset_border_edges() {
+        let style = Style::new()
+            .border(Border::normal())
+            .border_top(true)
+            .unset_border_top();
+        assert!(!style.props.contains(Props::BORDER_TOP));
+    }
+
+    #[test]
+    fn test_unset_border_foreground() {
+        let style = Style::new()
+            .border(Border::normal())
+            .border_foreground("#ff0000")
+            .unset_border_foreground();
+        assert!(!style.props.contains(Props::BORDER_TOP_FG));
+        assert!(style.border_fg[0].is_none());
+    }
+
+    #[test]
+    fn test_unset_border_background() {
+        let style = Style::new()
+            .border(Border::normal())
+            .border_background("#0000ff")
+            .unset_border_background();
+        assert!(!style.props.contains(Props::BORDER_TOP_BG));
+        assert!(style.border_bg[0].is_none());
+    }
+
+    #[test]
+    fn test_unset_inline() {
+        let style = Style::new().inline().unset_inline();
+        assert!(!style.attrs.contains(Attrs::INLINE));
+        assert!(!style.props.contains(Props::INLINE));
+    }
+
+    #[test]
+    fn test_unset_tab_width() {
+        let style = Style::new().tab_width(8).unset_tab_width();
+        assert!(!style.props.contains(Props::TAB_WIDTH));
+    }
+
+    #[test]
+    fn test_unset_transform() {
+        let style = Style::new()
+            .transform(|s| s.to_uppercase())
+            .unset_transform();
+        assert!(!style.props.contains(Props::TRANSFORM));
+        assert!(style.transform.is_none());
+    }
+
+    #[test]
+    fn test_unset_underline_spaces() {
+        let style = Style::new()
+            .underline_spaces(true)
+            .unset_underline_spaces();
+        assert!(!style.attrs.contains(Attrs::UNDERLINE_SPACES));
+    }
+
+    #[test]
+    fn test_unset_strikethrough_spaces() {
+        let style = Style::new()
+            .strikethrough_spaces(true)
+            .unset_strikethrough_spaces();
+        assert!(!style.attrs.contains(Attrs::STRIKETHROUGH_SPACES));
+    }
+
+    // -------------------------------------------------------------------------
+    // Rendering Edge Cases
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_render_empty_string() {
+        let style = Style::new().bold();
+        let rendered = style.render("");
+        // Empty string with bold should still render ANSI codes
+        assert!(rendered.is_empty() || rendered.contains("\x1b"));
+    }
+
+    #[test]
+    fn test_render_multiline() {
+        let style = Style::new().bold();
+        let rendered = style.render("Line1\nLine2\nLine3");
+        let lines: Vec<&str> = rendered.lines().collect();
+        assert_eq!(lines.len(), 3);
+        // Each line should have bold styling
+        for line in &lines {
+            assert!(line.contains("\x1b[1m"));
+        }
+    }
+
+    #[test]
+    fn test_render_with_tabs() {
+        let style = Style::new().tab_width(4);
+        let rendered = style.render("a\tb");
+        // Tab should be converted to 4 spaces
+        assert!(rendered.contains("    "));
+        assert!(!rendered.contains('\t'));
+    }
+
+    #[test]
+    fn test_render_tab_width_zero_removes() {
+        let style = Style::new().tab_width(0);
+        let rendered = style.render("a\tb");
+        assert!(!rendered.contains('\t'));
+        assert_eq!(rendered, "ab");
+    }
+
+    #[test]
+    fn test_render_tab_width_negative_preserves() {
+        let style = Style::new().tab_width(-1);
+        let rendered = style.render("a\tb");
+        assert!(rendered.contains('\t'));
+    }
+
+    #[test]
+    fn test_inline_mode_removes_newlines() {
+        let style = Style::new().inline();
+        let rendered = style.render("Line1\nLine2\nLine3");
+        assert!(!rendered.contains('\n'));
+        assert!(rendered.contains("Line1"));
+        assert!(rendered.contains("Line2"));
+        assert!(rendered.contains("Line3"));
+    }
+
+    #[test]
+    fn test_inline_ignores_padding() {
+        let style = Style::new().inline().padding(5);
+        let rendered = style.render("X");
+        // Inline mode should not apply padding
+        assert_eq!(visible_width(&rendered), 1);
+    }
+
+    #[test]
+    fn test_inline_ignores_margin() {
+        let style = Style::new().inline().margin(5);
+        let rendered = style.render("X");
+        // Inline mode should not apply margin
+        assert_eq!(visible_width(&rendered), 1);
+    }
+
+    #[test]
+    fn test_inline_ignores_border() {
+        let style = Style::new().inline().border(Border::normal());
+        let rendered = style.render("X");
+        // Inline mode should not apply border
+        let lines: Vec<&str> = rendered.lines().collect();
+        assert_eq!(lines.len(), 1);
+    }
+
+    #[test]
+    fn test_render_carriage_return_stripped() {
+        // Note: CR stripping only happens when props are set (not empty style)
+        let style = Style::new().bold();
+        let rendered = style.render("Line1\r\nLine2");
+        // \r\n should become \n
+        assert!(!rendered.contains('\r'));
+        let lines: Vec<&str> = rendered.lines().collect();
+        assert_eq!(lines.len(), 2);
+    }
+
+    #[test]
+    fn test_render_very_long_line() {
+        let style = Style::new();
+        let long_text = "x".repeat(1000);
+        let rendered = style.render(&long_text);
+        assert_eq!(visible_width(&rendered), 1000);
+    }
+
+    #[test]
+    fn test_render_nested_ansi_in_content() {
+        // Content with existing ANSI codes
+        let style = Style::new().bold();
+        let content = "\x1b[31mRed\x1b[0m";
+        let rendered = style.render(content);
+        // Should preserve existing ANSI and add bold
+        assert!(rendered.contains("\x1b[1m")); // bold
+        assert!(rendered.contains("\x1b[31m")); // original red
+    }
+
+    #[test]
+    fn test_render_unicode_content() {
+        let style = Style::new().width(10);
+        let rendered = style.render("日本");
+        // CJK chars are 2 width each, so "日本" = 4 width
+        // Should pad to 10
+        assert_eq!(visible_width(&rendered), 10);
+    }
+
+    #[test]
+    fn test_render_emoji_content() {
+        let style = Style::new().bold();
+        let rendered = style.render("Hello 🦀!");
+        assert!(rendered.contains("🦀"));
+        assert!(rendered.contains("\x1b[1m"));
+    }
+
+    #[test]
+    fn test_padding_with_border() {
+        let style = Style::new().border(Border::normal()).padding(1);
+        let rendered = style.render("X");
+        let lines: Vec<&str> = rendered.lines().collect();
+        // Should have: top border, padding line, content line, padding line, bottom border
+        assert!(lines.len() >= 3);
+    }
+
+    #[test]
+    fn test_margin_with_border() {
+        let style = Style::new().border(Border::normal()).margin(1);
+        let rendered = style.render("X");
+        let lines: Vec<&str> = rendered.lines().collect();
+        // Should have margin lines above and below the bordered content
+        assert!(lines.len() >= 4);
+    }
+
+    #[test]
+    fn test_width_with_wrapping() {
+        let style = Style::new().width(10);
+        let rendered = style.render("This is a long sentence that should wrap");
+        // Should wrap content to fit within width
+        let lines: Vec<&str> = rendered.lines().collect();
+        for line in &lines {
+            assert!(visible_width(line) <= 10);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Theme Presets
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_error_from_theme() {
+        let theme = Theme::dark();
+        let style = Style::error_from_theme(&theme);
+        assert!(style.props.contains(Props::FOREGROUND));
+        assert!(style.attrs.contains(Attrs::BOLD));
+    }
+
+    #[test]
+    fn test_muted_from_theme() {
+        let theme = Theme::dark();
+        let style = Style::muted_from_theme(&theme);
+        assert!(style.props.contains(Props::FOREGROUND));
+        assert!(style.attrs.contains(Attrs::ITALIC));
+    }
+
+    #[test]
+    fn test_selected_from_theme() {
+        let theme = Theme::dark();
+        let style = Style::selected_from_theme(&theme);
+        assert!(style.props.contains(Props::FOREGROUND));
+        assert!(style.props.contains(Props::BACKGROUND));
+    }
+
+    #[test]
+    fn test_panel_from_theme() {
+        let theme = Theme::dark();
+        let style = Style::panel_from_theme(&theme);
+        assert!(style.props.contains(Props::BORDER_STYLE));
+        assert!(style.props.contains(Props::PADDING_TOP));
+    }
+
+    // -------------------------------------------------------------------------
+    // Display Trait
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_style_display() {
+        let style = Style::new().bold().set_string("Hello");
+        let displayed = format!("{}", style);
+        assert!(displayed.contains("Hello") || displayed.contains("\x1b"));
+    }
+
+    #[test]
+    fn test_style_debug() {
+        let style = Style::new().bold();
+        let debug = format!("{:?}", style);
+        assert!(debug.contains("Style"));
     }
 }

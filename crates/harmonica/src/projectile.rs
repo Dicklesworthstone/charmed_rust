@@ -586,4 +586,214 @@ mod tests {
         assert_eq!(p.velocity(), Vector::new(4.0, 5.0, 6.0));
         assert_eq!(p.acceleration(), Vector::new(7.0, 8.0, 9.0));
     }
+
+    // =========================================================================
+    // bd-228s: Additional projectile and vector tests
+    // =========================================================================
+
+    #[test]
+    fn test_projectile_setters() {
+        let mut p = Projectile::new(
+            fps(60),
+            Point::origin(),
+            Vector::zero(),
+            Vector::zero(),
+        );
+
+        p.set_position(Point::new(10.0, 20.0, 30.0));
+        assert_eq!(p.position(), Point::new(10.0, 20.0, 30.0));
+
+        p.set_velocity(Vector::new(1.0, 2.0, 3.0));
+        assert_eq!(p.velocity(), Vector::new(1.0, 2.0, 3.0));
+
+        p.set_acceleration(Vector::new(0.0, -9.81, 0.0));
+        assert_eq!(p.acceleration(), Vector::new(0.0, -9.81, 0.0));
+    }
+
+    #[test]
+    fn test_vector_add() {
+        let v1 = Vector::new(1.0, 2.0, 3.0);
+        let v2 = Vector::new(4.0, 5.0, 6.0);
+        let result = v1 + v2;
+
+        assert!(approx_eq(result.x, 5.0));
+        assert!(approx_eq(result.y, 7.0));
+        assert!(approx_eq(result.z, 9.0));
+    }
+
+    #[test]
+    fn test_vector_sub() {
+        let v1 = Vector::new(5.0, 7.0, 9.0);
+        let v2 = Vector::new(1.0, 2.0, 3.0);
+        let result = v1 - v2;
+
+        assert!(approx_eq(result.x, 4.0));
+        assert!(approx_eq(result.y, 5.0));
+        assert!(approx_eq(result.z, 6.0));
+    }
+
+    #[test]
+    fn test_vector_zero() {
+        let v = Vector::zero();
+        assert!(approx_eq(v.x, 0.0));
+        assert!(approx_eq(v.y, 0.0));
+        assert!(approx_eq(v.z, 0.0));
+    }
+
+    #[test]
+    fn test_point_origin() {
+        let p = Point::origin();
+        assert!(approx_eq(p.x, 0.0));
+        assert!(approx_eq(p.y, 0.0));
+        assert!(approx_eq(p.z, 0.0));
+    }
+
+    #[test]
+    fn test_vector_add_assign() {
+        let mut v1 = Vector::new(1.0, 2.0, 3.0);
+        v1 += Vector::new(4.0, 5.0, 6.0);
+
+        assert!(approx_eq(v1.x, 5.0));
+        assert!(approx_eq(v1.y, 7.0));
+        assert!(approx_eq(v1.z, 9.0));
+    }
+
+    #[test]
+    fn test_point_add_assign() {
+        let mut p = Point::new(1.0, 2.0, 3.0);
+        p += Vector::new(4.0, 5.0, 6.0);
+
+        assert!(approx_eq(p.x, 5.0));
+        assert!(approx_eq(p.y, 7.0));
+        assert!(approx_eq(p.z, 9.0));
+    }
+
+    #[test]
+    fn test_vector_normalized_zero() {
+        // Normalizing zero vector should return zero vector
+        let v = Vector::zero();
+        let n = v.normalized();
+
+        assert!(approx_eq(n.x, 0.0));
+        assert!(approx_eq(n.y, 0.0));
+        assert!(approx_eq(n.z, 0.0));
+    }
+
+    #[test]
+    fn test_vector_2d() {
+        let v = Vector::new_2d(3.0, 4.0);
+        assert!(approx_eq(v.z, 0.0));
+        assert!(approx_eq(v.magnitude(), 5.0));
+    }
+
+    #[test]
+    fn test_point_default() {
+        let p = Point::default();
+        assert!(approx_eq(p.x, 0.0));
+        assert!(approx_eq(p.y, 0.0));
+        assert!(approx_eq(p.z, 0.0));
+    }
+
+    #[test]
+    fn test_vector_default() {
+        let v = Vector::default();
+        assert!(approx_eq(v.x, 0.0));
+        assert!(approx_eq(v.y, 0.0));
+        assert!(approx_eq(v.z, 0.0));
+    }
+
+    #[test]
+    fn test_projectile_3d_motion() {
+        // Test full 3D projectile motion
+        let dt = fps(60);
+        let mut p = Projectile::new(
+            dt,
+            Point::origin(),
+            Vector::new(10.0, 10.0, 10.0),
+            Vector::new(0.0, 0.0, 0.0),
+        );
+
+        // After 1 second, should move 10 units in each direction
+        for _ in 0..60 {
+            p.update();
+        }
+
+        let pos = p.position();
+        assert!((pos.x - 10.0).abs() < 0.2);
+        assert!((pos.y - 10.0).abs() < 0.2);
+        assert!((pos.z - 10.0).abs() < 0.2);
+    }
+
+    #[test]
+    fn test_projectile_zero_delta_time() {
+        // With zero delta time, nothing should change
+        let mut p = Projectile::new(
+            0.0,
+            Point::new(1.0, 2.0, 3.0),
+            Vector::new(100.0, 100.0, 100.0),
+            GRAVITY,
+        );
+
+        p.update();
+
+        // Position should not change
+        assert!(approx_eq(p.position().x, 1.0));
+        assert!(approx_eq(p.position().y, 2.0));
+        assert!(approx_eq(p.position().z, 3.0));
+    }
+
+    #[test]
+    fn test_projectile_is_copy() {
+        let p1 = Projectile::new(
+            fps(60),
+            Point::origin(),
+            Vector::new(1.0, 0.0, 0.0),
+            Vector::zero(),
+        );
+        let mut p2 = p1; // Copy
+
+        // Original should be unchanged after modifying copy
+        p2.update();
+        assert!(approx_eq(p1.position().x, 0.0));
+        assert!(p2.position().x > 0.0);
+    }
+
+    #[test]
+    fn test_gravity_acceleration() {
+        let dt = fps(60);
+        let mut p = Projectile::new(
+            dt,
+            Point::new(0.0, 100.0, 0.0),
+            Vector::zero(),
+            GRAVITY,
+        );
+
+        // After 1 second, velocity should be -9.81 m/s
+        for _ in 0..60 {
+            p.update();
+        }
+
+        // v = v0 + a*t = 0 + (-9.81)(1) = -9.81
+        assert!(
+            (p.velocity().y - GRAVITY.y).abs() < 0.2,
+            "Velocity should be ~-9.81, got {}",
+            p.velocity().y
+        );
+    }
+
+    #[test]
+    fn test_terminal_gravity_direction() {
+        // Terminal gravity points in positive y (down in terminal coords)
+        assert!(TERMINAL_GRAVITY.y > 0.0);
+        assert!(TERMINAL_GRAVITY.x == 0.0);
+        assert!(TERMINAL_GRAVITY.z == 0.0);
+    }
+
+    #[test]
+    fn test_standard_gravity_direction() {
+        // Standard gravity points in negative y (down in traditional coords)
+        assert!(GRAVITY.y < 0.0);
+        assert!(GRAVITY.x == 0.0);
+        assert!(GRAVITY.z == 0.0);
+    }
 }
