@@ -10,7 +10,7 @@ use lipgloss::{Position, Style};
 
 use crate::messages::{AppMsg, Page};
 use crate::pages::Pages;
-use crate::theme::{Theme, ThemePreset};
+use crate::theme::{Theme, ThemePreset, spacing};
 
 /// Application configuration.
 #[derive(Debug, Clone)]
@@ -128,7 +128,7 @@ impl App {
 
     /// Render the sidebar.
     fn render_sidebar(&self, height: usize) -> String {
-        let sidebar_width: u16 = 12;
+        let sidebar_width = spacing::SIDEBAR_WIDTH;
 
         let items: Vec<String> = Page::all()
             .iter()
@@ -167,13 +167,26 @@ impl App {
 
         let status = self.theme.success_style().render("Connected");
 
-        let header_content = format!("{title}  {status}");
+        // Add theme name indicator
+        let theme_name = self
+            .theme
+            .muted_style()
+            .render(&format!("[{}]", self.theme.preset.name()));
+
+        // Calculate spacing to right-align theme name
+        let left_content = format!("{title}  {status}");
+        let left_len = strip_ansi_len(&left_content);
+        let right_len = strip_ansi_len(&theme_name);
+        let gap = self.width.saturating_sub(left_len + right_len + 2);
+        let spacer = " ".repeat(gap);
+
+        let header_content = format!("{left_content}{spacer}{theme_name} ");
 
         #[expect(clippy::cast_possible_truncation)]
         let width_u16 = self.width as u16;
 
-        Style::new()
-            .background(self.theme.bg_subtle)
+        self.theme
+            .header_style()
             .width(width_u16)
             .render(&header_content)
     }
@@ -189,7 +202,10 @@ impl App {
         #[expect(clippy::cast_possible_truncation)]
         let width_u16 = self.width as u16;
 
-        self.theme.muted_style().width(width_u16).render(&hints)
+        self.theme
+            .footer_style()
+            .width(width_u16)
+            .render(&hints)
     }
 
     /// Render the help overlay.
@@ -228,12 +244,14 @@ impl App {
         #[expect(clippy::cast_possible_truncation)]
         let box_width_u16 = box_width as u16;
 
-        // Top border
+        // Use modal style for the help overlay
+        let modal_style = self.theme.modal_style();
+
+        // Top border with title
         lines.push(format!(
             "{}{}",
             " ".repeat(start_x),
-            self.theme
-                .box_focused_style()
+            modal_style
                 .width(box_width_u16)
                 .render(&format!("{}Help{}", " ".repeat(14), " ".repeat(14)))
         ));
@@ -246,11 +264,30 @@ impl App {
                 " ".repeat(start_x),
                 Style::new()
                     .foreground(self.theme.text)
+                    .background(self.theme.bg_highlight)
                     .render(&format!("  {padded}  "))
             ));
         }
 
         lines.join("\n")
+    }
+
+    /// Get the current content dimensions.
+    #[must_use]
+    #[allow(dead_code)] // Will be used by pages
+    pub fn content_dimensions(&self) -> (usize, usize) {
+        let header_height = usize::from(spacing::HEADER_HEIGHT);
+        let footer_height = usize::from(spacing::FOOTER_HEIGHT);
+        let content_height = self.height.saturating_sub(header_height + footer_height);
+
+        let content_width = if self.sidebar_visible {
+            self.width
+                .saturating_sub(usize::from(spacing::SIDEBAR_WIDTH))
+        } else {
+            self.width
+        };
+
+        (content_width, content_height)
     }
 }
 
@@ -326,14 +363,14 @@ impl Model for App {
         let header = self.render_header();
         let footer = self.render_footer();
 
-        // Calculate content area
-        let header_height = 1;
-        let footer_height = 1;
+        // Calculate content area using spacing constants
+        let header_height = usize::from(spacing::HEADER_HEIGHT);
+        let footer_height = usize::from(spacing::FOOTER_HEIGHT);
         let content_height = self.height.saturating_sub(header_height + footer_height);
 
         let (sidebar, content_width) = if self.sidebar_visible {
             let sidebar = self.render_sidebar(content_height);
-            let sidebar_width = 12;
+            let sidebar_width = usize::from(spacing::SIDEBAR_WIDTH);
             (Some(sidebar), self.width.saturating_sub(sidebar_width))
         } else {
             (None, self.width)
@@ -353,5 +390,84 @@ impl Model for App {
         };
 
         lipgloss::join_vertical(Position::Left, &[&header, &main_area, &footer])
+    }
+}
+
+/// Calculate the visible length of a string (excluding ANSI escape sequences).
+fn strip_ansi_len(s: &str) -> usize {
+    // Simple heuristic: count non-escape characters
+    // This is a rough approximation; a full ANSI parser would be more accurate
+    let mut len = 0;
+    let mut in_escape = false;
+    for c in s.chars() {
+        if c == '\x1b' {
+            in_escape = true;
+        } else if in_escape {
+            if c == 'm' {
+                in_escape = false;
+            }
+        } else {
+            len += 1;
+        }
+    }
+    len
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_default_config() {
+        let config = AppConfig::default();
+        assert_eq!(config.theme, ThemePreset::Dark);
+        assert!(config.animations);
+        assert!(!config.mouse);
+    }
+
+    #[test]
+    fn app_with_config_uses_theme() {
+        let config = AppConfig {
+            theme: ThemePreset::Dracula,
+            animations: false,
+            mouse: true,
+        };
+        let app = App::with_config(config);
+        assert_eq!(app.theme.preset, ThemePreset::Dracula);
+    }
+
+    #[test]
+    fn strip_ansi_len_basic() {
+        assert_eq!(strip_ansi_len("hello"), 5);
+        assert_eq!(strip_ansi_len("\x1b[31mred\x1b[0m"), 3);
+        assert_eq!(strip_ansi_len("no escapes here"), 15);
+    }
+
+    #[test]
+    fn content_dimensions_with_sidebar() {
+        let mut app = App::new();
+        app.width = 100;
+        app.height = 30;
+        app.sidebar_visible = true;
+        let (w, h) = app.content_dimensions();
+        assert_eq!(w, 100 - usize::from(spacing::SIDEBAR_WIDTH));
+        assert_eq!(
+            h,
+            30 - usize::from(spacing::HEADER_HEIGHT) - usize::from(spacing::FOOTER_HEIGHT)
+        );
+    }
+
+    #[test]
+    fn content_dimensions_without_sidebar() {
+        let mut app = App::new();
+        app.width = 100;
+        app.height = 30;
+        app.sidebar_visible = false;
+        let (w, h) = app.content_dimensions();
+        assert_eq!(w, 100);
+        assert_eq!(
+            h,
+            30 - usize::from(spacing::HEADER_HEIGHT) - usize::from(spacing::FOOTER_HEIGHT)
+        );
     }
 }
