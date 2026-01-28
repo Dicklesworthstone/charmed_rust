@@ -556,6 +556,165 @@ mod tests {
         assert!(cmd.is_none());
     }
 
+    // =========================================================================
+    // Batch and Sequence Comprehensive Tests (bd-1u1s)
+    // =========================================================================
+
+    #[test]
+    fn test_batch_multiple_commands() {
+        // Batch with multiple commands should return Some
+        let cmd = batch(vec![
+            Some(Cmd::new(|| Message::new(1i32))),
+            Some(Cmd::new(|| Message::new(2i32))),
+            Some(Cmd::new(|| Message::new(3i32))),
+        ]);
+        assert!(cmd.is_some());
+
+        // Execute returns a BatchMsg containing all commands
+        let msg = cmd.unwrap().execute().unwrap();
+        assert!(msg.is::<BatchMsg>());
+    }
+
+    #[test]
+    fn test_batch_filters_none_values() {
+        // Batch should filter out None values and still work
+        let cmd = batch(vec![
+            Some(Cmd::new(|| Message::new(1i32))),
+            None, // This should be filtered
+            Some(Cmd::new(|| Message::new(2i32))),
+            None, // This should be filtered
+        ]);
+        assert!(cmd.is_some());
+
+        // Verify it produces a BatchMsg
+        let msg = cmd.unwrap().execute().unwrap();
+        let batch_msg = msg.downcast::<BatchMsg>().unwrap();
+        // Should have 2 commands (the two Some values)
+        assert_eq!(batch_msg.0.len(), 2);
+    }
+
+    #[test]
+    fn test_batch_all_none_returns_none() {
+        // Batch with all None should return None
+        let cmd = batch(vec![None, None, None]);
+        assert!(cmd.is_none());
+    }
+
+    #[test]
+    fn test_batch_mixed_with_single_some() {
+        // Batch with only one Some among Nones
+        let cmd = batch(vec![
+            None,
+            Some(Cmd::new(|| Message::new(42i32))),
+            None,
+        ]);
+        assert!(cmd.is_some());
+    }
+
+    #[test]
+    fn test_sequence_single() {
+        // Sequence with a single command returns the command directly (optimization)
+        let cmd = sequence(vec![Some(Cmd::new(|| Message::new(42i32)))]);
+        assert!(cmd.is_some());
+
+        // Single command executes directly, not wrapped in SequenceMsg
+        let msg = cmd.unwrap().execute().unwrap();
+        assert!(msg.is::<i32>());
+        assert_eq!(msg.downcast::<i32>().unwrap(), 42);
+    }
+
+    #[test]
+    fn test_sequence_multiple_commands() {
+        // Sequence with multiple commands
+        let cmd = sequence(vec![
+            Some(Cmd::new(|| Message::new(1i32))),
+            Some(Cmd::new(|| Message::new(2i32))),
+            Some(Cmd::new(|| Message::new(3i32))),
+        ]);
+        assert!(cmd.is_some());
+
+        // Verify it produces a SequenceMsg
+        let msg = cmd.unwrap().execute().unwrap();
+        assert!(msg.is::<SequenceMsg>());
+    }
+
+    #[test]
+    fn test_sequence_filters_none_values() {
+        // Sequence should filter out None values
+        let cmd = sequence(vec![
+            Some(Cmd::new(|| Message::new(1i32))),
+            None,
+            Some(Cmd::new(|| Message::new(2i32))),
+        ]);
+        assert!(cmd.is_some());
+
+        // Verify the SequenceMsg has correct number of commands
+        let msg = cmd.unwrap().execute().unwrap();
+        let seq_msg = msg.downcast::<SequenceMsg>().unwrap();
+        assert_eq!(seq_msg.0.len(), 2);
+    }
+
+    #[test]
+    fn test_sequence_all_none_returns_none() {
+        // Sequence with all None should return None
+        let cmd = sequence(vec![None, None]);
+        assert!(cmd.is_none());
+    }
+
+    #[test]
+    fn test_cmd_new_with_closure() {
+        // Test Cmd::new with various closure types
+        let cmd = Cmd::new(|| Message::new("hello"));
+        let msg = cmd.execute().unwrap();
+        assert!(msg.is::<&str>());
+        assert_eq!(msg.downcast::<&str>().unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_cmd_new_with_captured_value() {
+        // Test Cmd::new with closure capturing values
+        let value = 42i32;
+        let cmd = Cmd::new(move || Message::new(value));
+        let msg = cmd.execute().unwrap();
+        assert_eq!(msg.downcast::<i32>().unwrap(), 42);
+    }
+
+    #[test]
+    fn test_cmd_new_optional_some() {
+        // Test Cmd::new_optional returning Some
+        let cmd = Cmd::new_optional(|| Some(Message::new(42i32)));
+        let msg = cmd.execute();
+        assert!(msg.is_some());
+        assert_eq!(msg.unwrap().downcast::<i32>().unwrap(), 42);
+    }
+
+    #[test]
+    fn test_cmd_new_optional_none() {
+        // Test Cmd::new_optional returning None
+        let cmd = Cmd::new_optional(|| None);
+        let msg = cmd.execute();
+        assert!(msg.is_none());
+    }
+
+    #[test]
+    fn test_blocking_executes() {
+        // Test Cmd::blocking actually executes
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let executed = Arc::new(AtomicBool::new(false));
+        let executed_clone = Arc::clone(&executed);
+
+        let cmd = Cmd::blocking(move || {
+            executed_clone.store(true, Ordering::SeqCst);
+            Message::new(())
+        });
+
+        let msg = cmd.execute();
+        assert!(msg.is_some());
+        assert!(executed.load(Ordering::SeqCst));
+    }
+
     #[test]
     fn test_quit() {
         let cmd = quit();

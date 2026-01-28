@@ -155,4 +155,175 @@ mod tests {
         assert_eq!(msg.width, 80);
         assert_eq!(msg.height, 24);
     }
+
+    // =========================================================================
+    // Comprehensive Message Tests (bd-1u1s)
+    // =========================================================================
+
+    #[test]
+    fn test_message_downcast_ref_success() {
+        struct TestMsg(i32);
+
+        let msg = Message::new(TestMsg(42));
+        // Use downcast_ref to borrow without consuming
+        let inner_ref = msg.downcast_ref::<TestMsg>().unwrap();
+        assert_eq!(inner_ref.0, 42);
+
+        // Can call downcast_ref multiple times
+        let inner_ref2 = msg.downcast_ref::<TestMsg>().unwrap();
+        assert_eq!(inner_ref2.0, 42);
+    }
+
+    #[test]
+    fn test_message_downcast_ref_wrong_type() {
+        struct TestMsg1(i32);
+        struct TestMsg2;
+
+        let msg = Message::new(TestMsg1(42));
+        // downcast_ref to wrong type returns None
+        assert!(msg.downcast_ref::<TestMsg2>().is_none());
+    }
+
+    #[test]
+    fn test_message_is_without_consuming() {
+        struct TestMsg(i32);
+
+        let msg = Message::new(TestMsg(42));
+        // is<T>() doesn't consume the message
+        assert!(msg.is::<TestMsg>());
+        // Can still use the message after is<T>()
+        assert!(msg.is::<TestMsg>());
+        // And downcast it
+        assert_eq!(msg.downcast::<TestMsg>().unwrap().0, 42);
+    }
+
+    #[test]
+    fn test_message_debug_format() {
+        struct TestMsg;
+
+        let msg = Message::new(TestMsg);
+        let debug_str = format!("{:?}", msg);
+        // Debug should output something reasonable
+        assert!(debug_str.contains("Message"));
+    }
+
+    #[test]
+    fn test_interrupt_msg() {
+        let msg = Message::new(InterruptMsg);
+        assert!(msg.is::<InterruptMsg>());
+        // Verify it can be downcast
+        assert!(msg.downcast::<InterruptMsg>().is_some());
+    }
+
+    #[test]
+    fn test_suspend_msg() {
+        let msg = Message::new(SuspendMsg);
+        assert!(msg.is::<SuspendMsg>());
+    }
+
+    #[test]
+    fn test_resume_msg() {
+        let msg = Message::new(ResumeMsg);
+        assert!(msg.is::<ResumeMsg>());
+    }
+
+    #[test]
+    fn test_focus_msg() {
+        let msg = Message::new(FocusMsg);
+        assert!(msg.is::<FocusMsg>());
+    }
+
+    #[test]
+    fn test_blur_msg() {
+        let msg = Message::new(BlurMsg);
+        assert!(msg.is::<BlurMsg>());
+    }
+
+    #[test]
+    fn test_window_size_msg_in_message() {
+        let size = WindowSizeMsg {
+            width: 120,
+            height: 40,
+        };
+        let msg = Message::new(size);
+
+        assert!(msg.is::<WindowSizeMsg>());
+
+        let size_ref = msg.downcast_ref::<WindowSizeMsg>().unwrap();
+        assert_eq!(size_ref.width, 120);
+        assert_eq!(size_ref.height, 40);
+    }
+
+    #[test]
+    fn test_message_with_string() {
+        let msg = Message::new(String::from("hello"));
+        assert!(msg.is::<String>());
+        assert_eq!(msg.downcast::<String>().unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_message_with_vec() {
+        let msg = Message::new(vec![1, 2, 3]);
+        assert!(msg.is::<Vec<i32>>());
+        assert_eq!(msg.downcast::<Vec<i32>>().unwrap(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_message_with_tuple() {
+        let msg = Message::new((1i32, "hello", 3.14f64));
+        assert!(msg.is::<(i32, &str, f64)>());
+
+        let (a, b, c) = msg.downcast::<(i32, &str, f64)>().unwrap();
+        assert_eq!(a, 1);
+        assert_eq!(b, "hello");
+        assert!((c - 3.14).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_message_with_unit() {
+        let msg = Message::new(());
+        assert!(msg.is::<()>());
+        assert!(msg.downcast::<()>().is_some());
+    }
+
+    #[test]
+    fn test_builtin_msg_equality() {
+        // Test PartialEq for built-in message types
+        assert_eq!(QuitMsg, QuitMsg);
+        assert_eq!(InterruptMsg, InterruptMsg);
+        assert_eq!(SuspendMsg, SuspendMsg);
+        assert_eq!(ResumeMsg, ResumeMsg);
+        assert_eq!(FocusMsg, FocusMsg);
+        assert_eq!(BlurMsg, BlurMsg);
+
+        let size1 = WindowSizeMsg { width: 80, height: 24 };
+        let size2 = WindowSizeMsg { width: 80, height: 24 };
+        let size3 = WindowSizeMsg { width: 120, height: 40 };
+        assert_eq!(size1, size2);
+        assert_ne!(size1, size3);
+    }
+
+    #[test]
+    fn test_builtin_msg_clone() {
+        // Test Clone for built-in message types
+        let quit = QuitMsg;
+        let quit_clone = quit.clone();
+        assert_eq!(quit, quit_clone);
+
+        let size = WindowSizeMsg { width: 80, height: 24 };
+        let size_clone = size.clone();
+        assert_eq!(size, size_clone);
+    }
+
+    #[test]
+    fn test_builtin_msg_copy() {
+        // Test Copy for built-in message types
+        let quit = QuitMsg;
+        let quit_copy = quit; // Copy, not move
+        assert_eq!(quit, quit_copy);
+
+        let size = WindowSizeMsg { width: 80, height: 24 };
+        let size_copy = size; // Copy, not move
+        assert_eq!(size, size_copy);
+    }
 }
