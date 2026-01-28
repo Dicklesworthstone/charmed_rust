@@ -1203,6 +1203,14 @@ impl E2ERunner {
         let mut sim = ProgramSimulator::new(app);
         let _init_cmd = sim.init();
 
+        // Send window size to make app ready (otherwise it shows "Loading...")
+        let size_msg = Message::new(bubbletea::WindowSizeMsg {
+            width: 120,
+            height: 40,
+        });
+        sim.send(size_msg);
+        sim.step(); // Process the WindowSizeMsg
+
         Self {
             sim,
             recorder,
