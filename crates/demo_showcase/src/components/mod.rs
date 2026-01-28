@@ -10,6 +10,10 @@
 
 #![allow(dead_code)] // Components will be used by pages as they're implemented
 
+mod sidebar;
+
+pub use sidebar::{Sidebar, SidebarFocus};
+
 use crate::theme::{Theme, spacing};
 use lipgloss::Style;
 

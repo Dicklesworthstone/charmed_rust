@@ -10,7 +10,7 @@ use bubbletea::{
 };
 use lipgloss::{Position, Style};
 
-use crate::components::{StatusLevel, banner, key_hint};
+use crate::components::{Sidebar, SidebarFocus, StatusLevel, banner, key_hint};
 use crate::keymap::{HELP_SECTIONS, help_total_lines};
 use crate::messages::{AppMsg, Notification, NotificationMsg, Page};
 use crate::pages::Pages;
@@ -73,6 +73,8 @@ pub struct App {
     help_scroll_offset: usize,
     /// Whether sidebar is visible.
     sidebar_visible: bool,
+    /// Sidebar component with navigation and filtering.
+    sidebar: Sidebar,
     /// Active notifications (newest at end).
     notifications: Vec<Notification>,
     /// Counter for generating unique notification IDs.
@@ -101,6 +103,7 @@ impl App {
             show_help: false,
             help_scroll_offset: 0,
             sidebar_visible: true,
+            sidebar: Sidebar::new(),
             notifications: Vec::new(),
             next_notification_id: 1,
         }
@@ -249,6 +252,7 @@ impl App {
 
         // Enter new page
         self.current_page = page;
+        self.sidebar.set_current_page(page);
         let enter_cmd = self.pages.get_mut(page).on_enter();
 
         // Combine commands
@@ -262,8 +266,30 @@ impl App {
             return self.handle_help_key(key);
         }
 
+        // Ctrl+C always quits
+        if key.key_type == KeyType::CtrlC {
+            return Some(quit());
+        }
+
+        // Handle sidebar focus toggle with Tab
+        if key.key_type == KeyType::Tab && self.sidebar_visible {
+            self.sidebar.toggle_focus();
+            return None;
+        }
+
+        // When sidebar is focused, pass keys to it (except global shortcuts)
+        if self.sidebar.is_focused() && self.sidebar_visible {
+            // Allow Escape to unfocus sidebar
+            if key.key_type == KeyType::Esc {
+                self.sidebar.set_focus(SidebarFocus::Inactive);
+                return None;
+            }
+            // Pass to sidebar
+            return self.sidebar.update(&Message::new(key.clone()));
+        }
+
         match key.key_type {
-            KeyType::CtrlC | KeyType::Esc => return Some(quit()),
+            KeyType::Esc => return Some(quit()),
             KeyType::Runes => match key.runes.as_slice() {
                 ['q'] => return Some(quit()),
                 ['?'] => {
@@ -376,37 +402,7 @@ impl App {
 
     /// Render the sidebar.
     fn render_sidebar(&self, height: usize) -> String {
-        let sidebar_width = spacing::SIDEBAR_WIDTH;
-
-        let items: Vec<String> = Page::all()
-            .iter()
-            .map(|&page| {
-                let prefix = if page == self.current_page { ">" } else { " " };
-                let style = if page == self.current_page {
-                    self.theme.sidebar_selected_style()
-                } else {
-                    self.theme.sidebar_style()
-                };
-                let label = format!("{} {} {}", prefix, page.icon(), page.name());
-                style.width(sidebar_width).render(&label)
-            })
-            .collect();
-
-        let nav = items.join("\n");
-
-        // Pad to fill height
-        let nav_lines = items.len();
-        let padding = height.saturating_sub(nav_lines);
-        let padding_str = "\n".repeat(padding);
-
-        #[expect(clippy::cast_possible_truncation)]
-        let height_u16 = height as u16;
-
-        self.theme
-            .sidebar_style()
-            .height(height_u16)
-            .width(sidebar_width)
-            .render(&format!("{nav}{padding_str}"))
+        self.sidebar.view(height, &self.theme)
     }
 
     /// Render the header.

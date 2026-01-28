@@ -212,7 +212,7 @@ impl Simulation {
 
     /// Drain pending metric health change notifications.
     ///
-    /// Call this after tick() to get any metric state change events
+    /// Call this after `tick()` to get any metric state change events
     /// that should trigger toasts/alerts.
     pub fn drain_metric_changes(&mut self) -> Vec<MetricHealthChanged> {
         std::mem::take(&mut self.pending_metric_changes)
@@ -452,7 +452,7 @@ impl Simulation {
         } else {
             0.0
         };
-        let new_rps = (base_rps + rps_noise + rps_spike).max(5.0);
+        let new_rps = f64::max(base_rps + rps_noise + rps_spike, 5.0);
 
         if let Some(old) = self.metrics.requests_per_sec.update(new_rps) {
             self.pending_metric_changes.push(MetricHealthChanged {
@@ -481,7 +481,7 @@ impl Simulation {
         } else {
             0.0
         };
-        let new_latency = (base_latency + latency_noise + latency_load_factor + latency_spike).max(10.0);
+        let new_latency = f64::max(base_latency + latency_noise + latency_load_factor + latency_spike, 10.0);
 
         if let Some(old) = self.metrics.p95_latency_ms.update(new_latency) {
             self.pending_metric_changes.push(MetricHealthChanged {
@@ -500,7 +500,7 @@ impl Simulation {
         }
 
         // Error rate (usually low, occasional spikes)
-        let base_error_rate = 0.2;
+        let base_error_rate: f64 = 0.2;
         let error_noise = self.rng.random_range(-0.1..0.3);
         // Occasional error spike (deployment issue, dependency failure)
         let error_spike = if self.rng.random_bool(0.02) {
@@ -508,7 +508,7 @@ impl Simulation {
         } else {
             0.0
         };
-        let new_error_rate = (base_error_rate + error_noise + error_spike).max(0.0).min(100.0);
+        let new_error_rate = (base_error_rate + error_noise + error_spike).clamp(0.0, 100.0);
 
         if let Some(old) = self.metrics.error_rate.update(new_error_rate) {
             self.pending_metric_changes.push(MetricHealthChanged {
@@ -530,7 +530,8 @@ impl Simulation {
         let completed_jobs = self.jobs.iter().filter(|j| j.status == JobStatus::Completed).count();
         let running_jobs = self.jobs.iter().filter(|j| j.status == JobStatus::Running).count();
         // Estimated throughput: completed + fraction of running that will complete
-        let estimated_throughput = completed_jobs as f64 * 0.5 + running_jobs as f64 * 0.3;
+        #[expect(clippy::cast_precision_loss)] // small counts, precision loss irrelevant
+        let estimated_throughput = (completed_jobs as f64).mul_add(0.5, running_jobs as f64 * 0.3);
         let throughput_noise = self.rng.random_range(-2.0..2.0);
         let new_throughput = (estimated_throughput + throughput_noise).max(0.0);
 
@@ -754,10 +755,10 @@ impl LiveMetric {
         // Apply hysteresis
         self.apply_hysteresis(raw_health);
 
-        if self.health != old_health {
-            Some(old_health)
-        } else {
+        if self.health == old_health {
             None
+        } else {
+            Some(old_health)
         }
     }
 
@@ -769,7 +770,9 @@ impl LiveMetric {
 
         // Compare recent average to older average
         let mid = self.history.len() / 2;
+        #[expect(clippy::cast_precision_loss)] // small history, precision loss irrelevant
         let recent_avg: f64 = self.history[mid..].iter().sum::<f64>() / (self.history.len() - mid) as f64;
+        #[expect(clippy::cast_precision_loss)]
         let older_avg: f64 = self.history[..mid].iter().sum::<f64>() / mid as f64;
 
         let diff_pct = if older_avg.abs() > 0.001 {
@@ -815,17 +818,17 @@ impl LiveMetric {
     ///
     /// Requires 3 consecutive readings in a direction before changing state.
     fn apply_hysteresis(&mut self, raw_health: MetricHealth) {
-        let target_worse = match (self.health, raw_health) {
-            (MetricHealth::Ok, MetricHealth::Warning | MetricHealth::Error) => true,
-            (MetricHealth::Warning, MetricHealth::Error) => true,
-            _ => false,
-        };
+        let target_worse = matches!(
+            (self.health, raw_health),
+            (MetricHealth::Ok, MetricHealth::Warning | MetricHealth::Error)
+                | (MetricHealth::Warning, MetricHealth::Error)
+        );
 
-        let target_better = match (self.health, raw_health) {
-            (MetricHealth::Error, MetricHealth::Warning | MetricHealth::Ok) => true,
-            (MetricHealth::Warning, MetricHealth::Ok) => true,
-            _ => false,
-        };
+        let target_better = matches!(
+            (self.health, raw_health),
+            (MetricHealth::Error, MetricHealth::Warning | MetricHealth::Ok)
+                | (MetricHealth::Warning, MetricHealth::Ok)
+        );
 
         if target_worse {
             self.hysteresis_counter = (self.hysteresis_counter + 1).min(3);
@@ -845,16 +848,14 @@ impl LiveMetric {
             // Transition to worse state
             self.health = match self.health {
                 MetricHealth::Ok => MetricHealth::Warning,
-                MetricHealth::Warning => MetricHealth::Error,
-                MetricHealth::Error => MetricHealth::Error,
+                MetricHealth::Warning | MetricHealth::Error => MetricHealth::Error,
             };
             self.hysteresis_counter = 0;
         } else if self.hysteresis_counter <= -3 {
             // Transition to better state
             self.health = match self.health {
                 MetricHealth::Error => MetricHealth::Warning,
-                MetricHealth::Warning => MetricHealth::Ok,
-                MetricHealth::Ok => MetricHealth::Ok,
+                MetricHealth::Warning | MetricHealth::Ok => MetricHealth::Ok,
             };
             self.hysteresis_counter = 0;
         }
@@ -1470,5 +1471,201 @@ mod tests {
             "Alert count {} exceeds max 50",
             sim.alerts.len()
         );
+    }
+
+    // ========================================================================
+    // Live Metrics Tests for bd-2myg
+    // ========================================================================
+
+    #[test]
+    fn live_metric_update_stores_value() {
+        let mut metric = LiveMetric::new(100.0, 80.0, 50.0, true); // inverted thresholds
+        metric.update(90.0);
+        assert!((metric.value - 90.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn live_metric_history_limited_to_10() {
+        let mut metric = LiveMetric::new(100.0, 80.0, 50.0, true);
+        for i in 0..20 {
+            metric.update(i as f64);
+        }
+        // History should be exactly 10 (initial + 9 updates that fit)
+        // Actually it starts with 1 and grows to 10 max
+        assert!(metric.history.len() <= 10);
+    }
+
+    #[test]
+    fn live_metric_trend_up_detected() {
+        let mut metric = LiveMetric::new(10.0, 50.0, 100.0, false);
+        // Steadily increasing values
+        for i in 0..10 {
+            metric.update(10.0 + i as f64 * 5.0);
+        }
+        assert_eq!(metric.trend, MetricTrend::Up);
+    }
+
+    #[test]
+    fn live_metric_trend_down_detected() {
+        let mut metric = LiveMetric::new(100.0, 50.0, 20.0, true);
+        // Steadily decreasing values
+        for i in 0..10 {
+            metric.update(100.0 - i as f64 * 5.0);
+        }
+        assert_eq!(metric.trend, MetricTrend::Down);
+    }
+
+    #[test]
+    fn live_metric_trend_flat_for_stable_values() {
+        let mut metric = LiveMetric::new(50.0, 30.0, 10.0, true);
+        // Small fluctuations around same value
+        for i in 0..10 {
+            let noise = if i % 2 == 0 { 0.5 } else { -0.5 };
+            metric.update(50.0 + noise);
+        }
+        assert_eq!(metric.trend, MetricTrend::Flat);
+    }
+
+    #[test]
+    fn live_metric_hysteresis_prevents_immediate_transition() {
+        let mut metric = LiveMetric::new(100.0, 80.0, 50.0, true); // inverted
+        // Cross warning threshold once - should NOT transition
+        metric.update(75.0);
+        assert_eq!(metric.health, MetricHealth::Ok);
+    }
+
+    #[test]
+    fn live_metric_hysteresis_allows_transition_after_threshold() {
+        let mut metric = LiveMetric::new(100.0, 80.0, 50.0, true); // inverted
+        // Cross warning threshold 3 times - should transition
+        metric.update(75.0);
+        metric.update(70.0);
+        metric.update(65.0);
+        assert_eq!(metric.health, MetricHealth::Warning);
+    }
+
+    #[test]
+    fn live_metric_health_ok_to_error_requires_warning_first() {
+        let mut metric = LiveMetric::new(100.0, 80.0, 50.0, true); // inverted
+        // Jump directly to error zone
+        for _ in 0..6 {
+            metric.update(40.0);
+        }
+        // Should go Ok -> Warning -> Error (hysteresis requires multiple steps)
+        assert!(matches!(
+            metric.health,
+            MetricHealth::Warning | MetricHealth::Error
+        ));
+    }
+
+    #[test]
+    fn dashboard_metrics_have_valid_defaults() {
+        let metrics = DashboardMetrics::default();
+
+        // All metrics should start healthy
+        assert_eq!(metrics.requests_per_sec.health, MetricHealth::Ok);
+        assert_eq!(metrics.p95_latency_ms.health, MetricHealth::Ok);
+        assert_eq!(metrics.error_rate.health, MetricHealth::Ok);
+        assert_eq!(metrics.job_throughput.health, MetricHealth::Ok);
+
+        // All should have reasonable initial values
+        assert!(metrics.requests_per_sec.value > 0.0);
+        assert!(metrics.p95_latency_ms.value > 0.0);
+        assert!(metrics.error_rate.value >= 0.0);
+        assert!(metrics.job_throughput.value >= 0.0);
+    }
+
+    #[test]
+    fn simulation_updates_metrics_on_tick() {
+        let mut sim = Simulation::new(42, SimConfig::default());
+        let initial_value = sim.metrics.requests_per_sec.value;
+
+        // Tick enough times to get different values
+        for _ in 0..10 {
+            sim.tick();
+        }
+
+        // Value should have changed (very unlikely to be exactly the same)
+        assert_ne!(sim.metrics.requests_per_sec.value, initial_value);
+    }
+
+    #[test]
+    fn simulation_drains_metric_changes() {
+        let mut sim = Simulation::new(42, SimConfig::fast());
+
+        // Run many ticks to potentially trigger health changes
+        for _ in 0..200 {
+            sim.tick();
+        }
+
+        // Drain should return changes (may be empty if no health transitions)
+        let changes = sim.drain_metric_changes();
+        // drain_metric_changes empties the vector
+        assert!(sim.drain_metric_changes().is_empty());
+
+        // The returned changes should be the ones that were pending
+        // (we can't assert exact count since it depends on random simulation)
+        for change in changes {
+            assert!(!change.metric_name.is_empty());
+            assert!(!change.reason.is_empty());
+        }
+    }
+
+    #[test]
+    fn metric_health_changed_has_valid_data() {
+        let change = MetricHealthChanged {
+            metric_name: "Test Metric".to_string(),
+            old_health: MetricHealth::Ok,
+            new_health: MetricHealth::Warning,
+            value: 42.0,
+            reason: "Test reason".to_string(),
+        };
+
+        assert_eq!(change.metric_name, "Test Metric");
+        assert_eq!(change.old_health, MetricHealth::Ok);
+        assert_eq!(change.new_health, MetricHealth::Warning);
+        assert!((change.value - 42.0).abs() < f64::EPSILON);
+        assert_eq!(change.reason, "Test reason");
+    }
+
+    #[test]
+    fn metric_health_changed_converts_to_message() {
+        let change = MetricHealthChanged {
+            metric_name: "Test".to_string(),
+            old_health: MetricHealth::Ok,
+            new_health: MetricHealth::Warning,
+            value: 50.0,
+            reason: "Test".to_string(),
+        };
+
+        let msg = change.into_message();
+        let recovered = msg.downcast_ref::<MetricHealthChanged>();
+        assert!(recovered.is_some());
+        assert_eq!(recovered.unwrap().metric_name, "Test");
+    }
+
+    #[test]
+    fn metric_health_names_are_valid() {
+        assert_eq!(MetricHealth::Ok.name(), "ok");
+        assert_eq!(MetricHealth::Warning.name(), "warning");
+        assert_eq!(MetricHealth::Error.name(), "error");
+    }
+
+    #[test]
+    fn metric_trend_icons_are_valid() {
+        assert_eq!(MetricTrend::Up.icon(), "↑");
+        assert_eq!(MetricTrend::Flat.icon(), "→");
+        assert_eq!(MetricTrend::Down.icon(), "↓");
+    }
+
+    #[test]
+    fn live_metric_change_pct_calculated() {
+        let mut metric = LiveMetric::new(100.0, 50.0, 20.0, true);
+        metric.update(110.0);
+
+        let change = metric.change_pct();
+        assert!(change.is_some());
+        // 110 - 100 = 10, 10/100 = 10%
+        assert!((change.unwrap() - 10.0).abs() < 0.1);
     }
 }

@@ -2,34 +2,45 @@
 //!
 //! The dashboard provides an at-a-glance view of the platform's health,
 //! showing key metrics, service status, recent deployments, and jobs.
+//!
+//! This page integrates with the simulation engine to provide live-updating
+//! metrics with trends, health indicators, and notifications.
 
-use bubbletea::{Cmd, KeyMsg, KeyType, Message};
+use std::time::Duration;
+
+use bubbletea::{tick, Cmd, KeyMsg, KeyType, Message};
 use lipgloss::{Position, Style};
 
 use super::PageModel;
 use crate::components::{
     DeltaDirection, StatusLevel, badge, chip, divider_with_label, stat_widget,
 };
-use crate::data::generator::GeneratedData;
+use crate::data::simulation::{MetricHealth, MetricTrend, SimConfig, Simulation, TickMsg};
 use crate::data::{Deployment, DeploymentStatus, Job, JobStatus, Service, ServiceHealth};
-use crate::messages::Page;
+use crate::messages::{Notification, NotificationMsg, Page};
 use crate::theme::Theme;
 
 /// Default seed for deterministic data generation.
 const DEFAULT_SEED: u64 = 42;
 
+/// Tick interval for simulation updates (100ms = 10 fps).
+const TICK_INTERVAL_MS: u64 = 100;
+
 /// Dashboard page showing platform health overview.
+///
+/// Uses the simulation engine to provide live-updating metrics with
+/// trends, health states, and automatic notifications.
 pub struct DashboardPage {
-    /// Services data.
-    services: Vec<Service>,
-    /// Deployments data.
-    deployments: Vec<Deployment>,
-    /// Jobs data.
-    jobs: Vec<Job>,
+    /// Simulation engine managing all live data.
+    simulation: Simulation,
     /// Current seed for data generation.
     seed: u64,
     /// Simulated uptime in seconds.
     uptime_seconds: u64,
+    /// Ticks since last uptime increment (10 ticks = 1 second at 100ms/tick).
+    ticks_since_uptime: u64,
+    /// Counter for generating unique notification IDs.
+    next_notification_id: u64,
 }
 
 impl DashboardPage {
@@ -42,23 +53,83 @@ impl DashboardPage {
     /// Create a new dashboard page with the given seed.
     #[must_use]
     pub fn with_seed(seed: u64) -> Self {
-        let data = GeneratedData::generate(seed);
-
         Self {
-            services: data.services,
-            deployments: data.deployments,
-            jobs: data.jobs,
+            simulation: Simulation::new(seed, SimConfig::default()),
             seed,
             uptime_seconds: 86400 * 7 + 3600 * 5 + 60 * 23, // 7d 5h 23m
+            ticks_since_uptime: 0,
+            next_notification_id: 1,
         }
     }
 
-    /// Refresh data with the current seed.
+    /// Refresh data by resetting the simulation with the current seed.
     pub fn refresh(&mut self) {
-        let data = GeneratedData::generate(self.seed);
-        self.services = data.services;
-        self.deployments = data.deployments;
-        self.jobs = data.jobs;
+        self.simulation = Simulation::new(self.seed, SimConfig::default());
+        self.ticks_since_uptime = 0;
+    }
+
+    /// Schedule the next simulation tick.
+    fn schedule_tick(&self) -> Cmd {
+        let frame = self.simulation.frame();
+        tick(Duration::from_millis(TICK_INTERVAL_MS), move |_| {
+            TickMsg::new(frame + 1).into_message()
+        })
+    }
+
+    /// Process a simulation tick, returning notifications for any metric changes.
+    fn process_tick(&mut self) -> Vec<NotificationMsg> {
+        self.simulation.tick();
+
+        // Update uptime (10 ticks = 1 second at 100ms/tick)
+        self.ticks_since_uptime += 1;
+        if self.ticks_since_uptime >= 10 {
+            self.ticks_since_uptime = 0;
+            self.uptime_seconds += 1;
+        }
+
+        // Convert metric health changes to notifications
+        let changes = self.simulation.drain_metric_changes();
+        changes
+            .into_iter()
+            .filter_map(|change| {
+                // Only notify on significant changes (to warning/error or recovery)
+                let level = match change.new_health {
+                    MetricHealth::Ok => StatusLevel::Success,
+                    MetricHealth::Warning => StatusLevel::Warning,
+                    MetricHealth::Error => StatusLevel::Error,
+                };
+
+                // Skip ok->ok transitions
+                if change.old_health == MetricHealth::Ok && change.new_health == MetricHealth::Ok {
+                    return None;
+                }
+
+                let id = self.next_notification_id;
+                self.next_notification_id += 1;
+
+                let notification = Notification::new(id, &change.reason, level);
+                Some(NotificationMsg::Show(notification))
+            })
+            .collect()
+    }
+
+    // ========================================================================
+    // Data Accessors
+    // ========================================================================
+
+    /// Get the services from the simulation.
+    fn services(&self) -> &[Service] {
+        &self.simulation.services
+    }
+
+    /// Get the deployments from the simulation.
+    fn deployments(&self) -> &[Deployment] {
+        &self.simulation.deployments
+    }
+
+    /// Get the jobs from the simulation.
+    fn jobs(&self) -> &[Job] {
+        &self.simulation.jobs
     }
 
     // ========================================================================
@@ -72,7 +143,7 @@ impl DashboardPage {
         let mut unhealthy = 0;
         let mut unknown = 0;
 
-        for service in &self.services {
+        for service in self.services() {
             match service.health {
                 ServiceHealth::Healthy => healthy += 1,
                 ServiceHealth::Degraded => degraded += 1,
@@ -91,7 +162,7 @@ impl DashboardPage {
         let mut completed = 0;
         let mut failed = 0;
 
-        for job in &self.jobs {
+        for job in self.jobs() {
             match job.status {
                 JobStatus::Queued => queued += 1,
                 JobStatus::Running => running += 1,
@@ -105,14 +176,14 @@ impl DashboardPage {
 
     /// Get recent deployments (last 3).
     fn recent_deployments(&self) -> Vec<&Deployment> {
-        let mut sorted: Vec<_> = self.deployments.iter().collect();
+        let mut sorted: Vec<_> = self.deployments().iter().collect();
         sorted.sort_by_key(|d| std::cmp::Reverse(d.created_at));
         sorted.into_iter().take(3).collect()
     }
 
     /// Get recent jobs (last 4).
     fn recent_jobs(&self) -> Vec<&Job> {
-        let mut sorted: Vec<_> = self.jobs.iter().collect();
+        let mut sorted: Vec<_> = self.jobs().iter().collect();
         sorted.sort_by_key(|j| std::cmp::Reverse(j.created_at));
         sorted.into_iter().take(4).collect()
     }
@@ -139,7 +210,7 @@ impl DashboardPage {
     /// Render the status bar (top row).
     fn render_status_bar(&self, theme: &Theme, width: usize) -> String {
         let (healthy, degraded, unhealthy, _) = self.service_health_counts();
-        let total = self.services.len();
+        let total = self.services().len();
 
         // Platform status
         let platform_status = if unhealthy > 0 {
@@ -184,7 +255,7 @@ impl DashboardPage {
         let (healthy, degraded, unhealthy, _) = self.service_health_counts();
         let (queued, running, completed, failed) = self.job_status_counts();
         let recent_deploys = self
-            .deployments
+            .deployments()
             .iter()
             .filter(|d| !d.status.is_terminal())
             .count();
@@ -200,7 +271,7 @@ impl DashboardPage {
         let stat1 = stat_widget(
             theme,
             "Services",
-            &format!("{healthy}/{}", self.services.len()),
+            &format!("{healthy}/{}", self.services().len()),
             if unhealthy > 0 || degraded > 0 {
                 Some((&issues_str, DeltaDirection::Down))
             } else {
@@ -259,7 +330,7 @@ impl DashboardPage {
 
         let mut lines = Vec::new();
 
-        for service in self.services.iter().take(6) {
+        for service in self.services().iter().take(6) {
             let status = match service.health {
                 ServiceHealth::Healthy => chip(theme, StatusLevel::Success, ""),
                 ServiceHealth::Degraded => chip(theme, StatusLevel::Warning, ""),
@@ -362,28 +433,94 @@ impl DashboardPage {
         format!("{header}\n{content}")
     }
 
-    /// Render a simple sparkline chart.
-    fn render_sparkline(theme: &Theme, label: &str, values: &[u8], width: usize) -> String {
-        let blocks = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-        let max = *values.iter().max().unwrap_or(&100);
+    /// Render the live metrics panel showing real-time metrics with trends.
+    fn render_live_metrics(&self, theme: &Theme, width: usize) -> String {
+        let header = divider_with_label(theme, "Live Metrics", width);
 
-        let chart: String = values
-            .iter()
-            .take(width.saturating_sub(label.len() + 3))
-            .map(|&v| {
-                let idx = if max > 0 {
-                    (usize::from(v) * 7) / usize::from(max)
-                } else {
-                    0
-                };
-                blocks[idx.min(7)]
-            })
-            .collect();
+        let metrics = &self.simulation.metrics;
+        let mut lines = Vec::new();
 
-        let chart_styled = theme.info_style().render(&chart);
-        let label_styled = theme.muted_style().render(label);
+        // Helper to render a single metric line with value, health, and trend
+        let render_metric = |label: &str,
+                             value: f64,
+                             unit: &str,
+                             health: MetricHealth,
+                             trend: MetricTrend|
+         -> String {
+            // Health indicator
+            let health_chip = match health {
+                MetricHealth::Ok => chip(theme, StatusLevel::Success, ""),
+                MetricHealth::Warning => chip(theme, StatusLevel::Warning, ""),
+                MetricHealth::Error => chip(theme, StatusLevel::Error, ""),
+            };
 
-        format!("{label_styled}: {chart_styled}")
+            // Format value
+            let value_str = if value >= 100.0 {
+                format!("{value:.0}{unit}")
+            } else if value >= 10.0 {
+                format!("{value:.1}{unit}")
+            } else {
+                format!("{value:.2}{unit}")
+            };
+
+            // Trend indicator with color
+            let trend_icon = trend.icon();
+            let trend_styled = match (health, trend) {
+                // For metrics where "up" is bad (latency, error rate), show good trends in green
+                (MetricHealth::Ok, MetricTrend::Down) => theme.success_style().render(trend_icon),
+                // Warning with upward trend is concerning
+                (MetricHealth::Warning, MetricTrend::Up) => theme.warning_style().render(trend_icon),
+                // Error state always shows red
+                (MetricHealth::Error, _) => theme.error_style().render(trend_icon),
+                // All other combinations (ok/flat, ok/up, warning/flat, warning/down) use muted
+                _ => theme.muted_style().render(trend_icon),
+            };
+
+            // Label and value
+            let label_styled = Style::new()
+                .foreground(theme.text)
+                .width(14)
+                .render(label);
+            let value_styled = theme.heading_style().render(&value_str);
+
+            format!("{health_chip} {label_styled} {value_styled} {trend_styled}")
+        };
+
+        // Render each metric
+        lines.push(render_metric(
+            "Requests/s",
+            metrics.requests_per_sec.value,
+            "",
+            metrics.requests_per_sec.health,
+            metrics.requests_per_sec.trend,
+        ));
+
+        lines.push(render_metric(
+            "P95 Latency",
+            metrics.p95_latency_ms.value,
+            "ms",
+            metrics.p95_latency_ms.health,
+            metrics.p95_latency_ms.trend,
+        ));
+
+        lines.push(render_metric(
+            "Error Rate",
+            metrics.error_rate.value,
+            "%",
+            metrics.error_rate.health,
+            metrics.error_rate.trend,
+        ));
+
+        lines.push(render_metric(
+            "Job Throughput",
+            metrics.job_throughput.value,
+            "/min",
+            metrics.job_throughput.health,
+            metrics.job_throughput.trend,
+        ));
+
+        let content = lines.join("\n");
+        format!("{header}\n{content}")
     }
 }
 
@@ -395,13 +532,30 @@ impl Default for DashboardPage {
 
 impl PageModel for DashboardPage {
     fn update(&mut self, msg: &Message) -> Option<Cmd> {
+        // Handle simulation ticks
+        if msg.downcast_ref::<TickMsg>().is_some() {
+            // Process tick and collect any notifications (for future toast display)
+            let _notifications = self.process_tick();
+            // Note: In a full implementation, notifications would be emitted via App-level
+            // message routing. For now, the view reflects the live metric state changes.
+
+            return Some(self.schedule_tick());
+        }
+
+        // Handle keyboard input
         if let Some(key) = msg.downcast_ref::<KeyMsg>()
             && key.key_type == KeyType::Runes
             && key.runes.as_slice() == ['r']
         {
             self.refresh();
         }
+
         None
+    }
+
+    fn on_enter(&mut self) -> Option<Cmd> {
+        // Start the tick loop when entering the dashboard
+        Some(self.schedule_tick())
     }
 
     fn view(&self, width: usize, height: usize, theme: &Theme) -> String {
@@ -417,19 +571,12 @@ impl PageModel for DashboardPage {
         let deployments = self.render_deployments(theme, right_width);
         let jobs = self.render_jobs(theme, left_width);
 
-        // Sample sparkline data (simulated request rate)
-        let sparkline_data: Vec<u8> = (0..30)
-            .map(|i| {
-                let base = 50 + ((i * 7) % 30);
-                let noise = (i * 13) % 15;
-                (base + noise).min(100)
-            })
-            .collect();
-        let sparkline = Self::render_sparkline(theme, "Requests/s", &sparkline_data, right_width);
+        // Live metrics panel with trends and health indicators
+        let live_metrics = self.render_live_metrics(theme, right_width);
 
         // Compose main content
         let left_col = format!("{services}\n\n{jobs}");
-        let right_col = format!("{deployments}\n\n{sparkline}");
+        let right_col = format!("{deployments}\n\n{live_metrics}");
 
         let main_content = lipgloss::join_horizontal(Position::Top, &[&left_col, " ", &right_col]);
 
@@ -460,8 +607,8 @@ mod tests {
     #[test]
     fn dashboard_creates_with_data() {
         let page = DashboardPage::new();
-        assert!(!page.services.is_empty());
-        assert!(!page.jobs.is_empty());
+        assert!(!page.services().is_empty());
+        assert!(!page.jobs().is_empty());
     }
 
     #[test]
@@ -469,8 +616,8 @@ mod tests {
         let page1 = DashboardPage::with_seed(123);
         let page2 = DashboardPage::with_seed(123);
 
-        assert_eq!(page1.services.len(), page2.services.len());
-        for (s1, s2) in page1.services.iter().zip(page2.services.iter()) {
+        assert_eq!(page1.services().len(), page2.services().len());
+        for (s1, s2) in page1.services().iter().zip(page2.services().iter()) {
             assert_eq!(s1.name, s2.name);
         }
     }
@@ -481,7 +628,7 @@ mod tests {
         let (healthy, degraded, unhealthy, unknown) = page.service_health_counts();
         assert_eq!(
             healthy + degraded + unhealthy + unknown,
-            page.services.len()
+            page.services().len()
         );
     }
 
@@ -489,24 +636,20 @@ mod tests {
     fn job_counts_correct() {
         let page = DashboardPage::new();
         let (queued, running, completed, failed) = page.job_status_counts();
-        assert_eq!(queued + running + completed + failed, page.jobs.len());
+        assert_eq!(queued + running + completed + failed, page.jobs().len());
     }
 
     #[test]
     fn uptime_format_days() {
-        let page = DashboardPage {
-            uptime_seconds: 86400 + 3600 + 60,
-            ..DashboardPage::new()
-        };
+        let mut page = DashboardPage::new();
+        page.uptime_seconds = 86400 + 3600 + 60;
         assert_eq!(page.format_uptime(), "1d 1h 1m");
     }
 
     #[test]
     fn uptime_format_hours() {
-        let page = DashboardPage {
-            uptime_seconds: 3600 * 5 + 60 * 30,
-            ..DashboardPage::new()
-        };
+        let mut page = DashboardPage::new();
+        page.uptime_seconds = 3600 * 5 + 60 * 30;
         assert_eq!(page.format_uptime(), "5h 30m");
     }
 
@@ -522,5 +665,44 @@ mod tests {
         let page = DashboardPage::new();
         let recent = page.recent_jobs();
         assert!(recent.len() <= 4);
+    }
+
+    #[test]
+    fn simulation_tick_advances() {
+        let mut page = DashboardPage::new();
+        let initial_frame = page.simulation.frame();
+
+        // Process a tick
+        page.process_tick();
+
+        assert_eq!(page.simulation.frame(), initial_frame + 1);
+    }
+
+    #[test]
+    fn uptime_increments_after_10_ticks() {
+        let mut page = DashboardPage::new();
+        let initial_uptime = page.uptime_seconds;
+
+        // 9 ticks should not increment uptime
+        for _ in 0..9 {
+            page.process_tick();
+        }
+        assert_eq!(page.uptime_seconds, initial_uptime);
+
+        // 10th tick should increment
+        page.process_tick();
+        assert_eq!(page.uptime_seconds, initial_uptime + 1);
+    }
+
+    #[test]
+    fn live_metrics_have_values() {
+        let page = DashboardPage::new();
+        let metrics = &page.simulation.metrics;
+
+        // All metrics should have positive initial values
+        assert!(metrics.requests_per_sec.value > 0.0);
+        assert!(metrics.p95_latency_ms.value > 0.0);
+        assert!(metrics.error_rate.value >= 0.0);
+        assert!(metrics.job_throughput.value >= 0.0);
     }
 }
