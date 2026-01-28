@@ -499,10 +499,12 @@ mod tests {
 
     #[test]
     fn spacing_constants_are_ordered() {
-        assert!(spacing::XS < spacing::SM);
-        assert!(spacing::SM < spacing::MD);
-        assert!(spacing::MD < spacing::LG);
-        assert!(spacing::LG < spacing::XL);
+        const {
+            assert!(spacing::XS < spacing::SM);
+            assert!(spacing::SM < spacing::MD);
+            assert!(spacing::MD < spacing::LG);
+            assert!(spacing::LG < spacing::XL);
+        }
     }
 
     #[test]

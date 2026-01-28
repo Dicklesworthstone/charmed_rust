@@ -44,8 +44,8 @@ use clap::{Parser, Subcommand, ValueEnum};
 pub struct Cli {
     /// Theme to use for styling
     ///
-    /// Available themes: catppuccin, nord, github-dark, auto (detect from terminal)
-    #[arg(long, short = 't', default_value = "auto", env = "DEMO_THEME")]
+    /// Available themes: dark (default), light, dracula
+    #[arg(long, short = 't', default_value = "dark", env = "DEMO_THEME")]
     pub theme: String,
 
     /// Path to a custom theme JSON file
@@ -273,7 +273,7 @@ mod tests {
     fn cli_parses_defaults() {
         let cli = Cli::try_parse_from(["demo_showcase"]).unwrap();
 
-        assert_eq!(cli.theme, "auto");
+        assert_eq!(cli.theme, "dark");
         assert!(cli.seed.is_none());
         assert!(!cli.no_animations);
         assert!(!cli.no_mouse);

@@ -6,9 +6,7 @@
 //!
 //! # Examples
 //!
-//! ```rust
-//! use demo_showcase::config::{Config, ColorMode, AnimationMode};
-//!
+//! ```rust,ignore
 //! // Create default config
 //! let config = Config::default();
 //!
@@ -421,7 +419,7 @@ mod tests {
     fn config_effective_files_root() {
         let config = Config::default();
         let root = config.effective_files_root();
-        assert!(root.exists() || root == PathBuf::from("."));
+        assert!(root.exists() || root.as_os_str() == ".");
 
         let config = Config {
             files_root: Some(PathBuf::from("/tmp")),

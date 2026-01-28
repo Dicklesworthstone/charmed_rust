@@ -716,18 +716,35 @@ pub fn truncate_content(content: &str, max_width: usize) -> String {
     let target_width = max_width.saturating_sub(1);
     let mut result = String::new();
     let mut current_width = 0;
+    let mut in_escape = false;
+    let mut has_style = false;
 
-    // TODO: This loop needs to be ANSI-aware too if we want to truncate ANSI strings correctly
-    // For now, we assume truncation happens on plain text or simplistic ANSI handling
+    // ANSI-aware truncation: skip escape sequences when counting width
     for c in content.chars() {
-        let char_width = c.width().unwrap_or(0);
-        if current_width + char_width > target_width {
-            break;
+        if in_escape {
+            result.push(c);
+            // CSI sequences end with a letter in 0x40-0x7E range
+            if ('@'..='~').contains(&c) {
+                in_escape = false;
+            }
+        } else if c == '\x1b' {
+            in_escape = true;
+            has_style = true;
+            result.push(c);
+        } else {
+            let char_width = c.width().unwrap_or(0);
+            if current_width + char_width > target_width {
+                break;
+            }
+            result.push(c);
+            current_width += char_width;
         }
-        result.push(c);
-        current_width += char_width;
     }
 
+    // Reset styles before ellipsis if we had any styling
+    if has_style {
+        result.push_str("\x1b[0m");
+    }
     result.push('…');
     result
 }

@@ -448,7 +448,7 @@ mod tests {
         let result = key_hints(&theme, hints);
         assert!(result.contains("Enter"));
         assert!(result.contains("select"));
-        assert!(result.contains("q"));
+        assert!(result.contains('q'));
         assert!(result.contains("quit"));
     }
 }

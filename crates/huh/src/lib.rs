@@ -1850,6 +1850,7 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for Select<T>
             output.push_str(&inline_output);
         } else {
             // Vertical list mode
+            let has_visible = !visible.is_empty();
             for (idx, opt) in visible {
                 if *idx == self.selected {
                     output.push_str(&styles.select_selector.render(""));
@@ -1861,7 +1862,9 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for Select<T>
                 output.push('\n');
             }
             // Remove trailing newline
-            output.pop();
+            if has_visible {
+                output.pop();
+            }
         }
 
         // Error indicator
