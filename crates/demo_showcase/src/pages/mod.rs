@@ -5,10 +5,12 @@
 
 mod dashboard;
 mod jobs;
+mod logs;
 mod placeholder;
 
 pub use dashboard::DashboardPage;
 pub use jobs::JobsPage;
+pub use logs::LogsPage;
 pub use placeholder::PlaceholderPage;
 
 use bubbletea::{Cmd, Message};
@@ -57,7 +59,7 @@ pub struct Pages {
     pub dashboard: DashboardPage,
     pub services: PlaceholderPage,
     pub jobs: JobsPage,
-    pub logs: PlaceholderPage,
+    pub logs: LogsPage,
     pub docs: PlaceholderPage,
     pub wizard: PlaceholderPage,
     pub settings: PlaceholderPage,
@@ -69,7 +71,7 @@ impl Default for Pages {
             dashboard: DashboardPage::new(),
             services: PlaceholderPage::new(Page::Services),
             jobs: JobsPage::new(),
-            logs: PlaceholderPage::new(Page::Logs),
+            logs: LogsPage::new(),
             docs: PlaceholderPage::new(Page::Docs),
             wizard: PlaceholderPage::new(Page::Wizard),
             settings: PlaceholderPage::new(Page::Settings),

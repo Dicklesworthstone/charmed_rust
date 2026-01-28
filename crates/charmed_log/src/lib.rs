@@ -321,6 +321,14 @@ impl CallerInfo {
     ///
     /// The `skip` parameter indicates how many frames to skip from the
     /// logging infrastructure to find the actual caller.
+    ///
+    /// # Performance Warning
+    ///
+    /// This method captures a full stack backtrace and performs symbol
+    /// resolution, which is a very expensive operation (~100μs or more).
+    /// Avoid calling this in hot paths or production code.
+    ///
+    /// Typical overhead: **100-1000x** slower than a normal log call.
     #[must_use]
     pub fn capture(skip: usize) -> Option<Self> {
         let bt = Backtrace::new();
@@ -377,6 +385,12 @@ pub struct Options {
     /// Whether to report timestamps.
     pub report_timestamp: bool,
     /// Whether to report caller location.
+    ///
+    /// # Performance Warning
+    ///
+    /// When enabled, captures a full stack backtrace on **every** log call,
+    /// which is approximately **100-1000x slower** than normal logging.
+    /// Only enable during active debugging sessions. Do NOT enable in production.
     pub report_caller: bool,
     /// Caller formatter function.
     pub caller_formatter: CallerFormatter,
@@ -423,6 +437,10 @@ struct LoggerInner {
     error_handler: Option<ErrorHandler>,
     /// Whether we've already warned about I/O failures (to prevent infinite loops).
     has_warned_io_failure: bool,
+    /// Whether we've already warned about caller reporting overhead.
+    warned_caller_overhead: bool,
+    /// Whether to suppress the caller overhead warning.
+    suppress_caller_warning: bool,
 }
 
 /// A structured logger instance.
@@ -483,6 +501,8 @@ impl Logger {
                 styles: Styles::new(),
                 error_handler: None,
                 has_warned_io_failure: false,
+                warned_caller_overhead: false,
+                suppress_caller_warning: false,
             })),
         }
     }
@@ -520,9 +540,52 @@ impl Logger {
     }
 
     /// Sets whether to report caller location.
+    ///
+    /// # Performance Warning
+    ///
+    /// When enabled, this captures a full stack backtrace on **every** log call,
+    /// which is approximately **100-1000x slower** than normal logging.
+    ///
+    /// | Configuration        | Typical Latency | Use Case       |
+    /// |---------------------|-----------------|----------------|
+    /// | Default (no caller) | ~100 ns         | Production     |
+    /// | With caller         | ~100 μs         | Debug only     |
+    ///
+    /// **Only enable during active debugging sessions.**
+    /// **Do NOT enable in production.**
+    ///
+    /// A runtime warning will be emitted on the first log call with caller
+    /// reporting enabled (unless suppressed via [`suppress_caller_warning`]).
+    ///
+    /// [`suppress_caller_warning`]: Logger::suppress_caller_warning
     pub fn set_report_caller(&self, report: bool) {
         let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         inner.report_caller = report;
+    }
+
+    /// Suppresses the runtime performance warning for caller reporting.
+    ///
+    /// By default, when caller reporting is enabled, a warning is emitted to
+    /// stderr on the first log call to alert developers about the significant
+    /// performance overhead (~100-1000x slower).
+    ///
+    /// Call this method to suppress the warning when you have intentionally
+    /// enabled caller reporting and understand the performance implications.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use charmed_log::Logger;
+    ///
+    /// let logger = Logger::new();
+    /// logger.set_report_caller(true);
+    /// logger.suppress_caller_warning();
+    /// // No warning will be emitted on first log call
+    /// logger.info("debug message", &[]);
+    /// ```
+    pub fn suppress_caller_warning(&self) {
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        inner.suppress_caller_warning = true;
     }
 
     /// Sets the time format.
@@ -569,6 +632,8 @@ impl Logger {
                 styles: inner.styles.clone(),
                 error_handler: inner.error_handler.clone(),
                 has_warned_io_failure: false, // Reset warning state for new logger
+                warned_caller_overhead: false, // Reset for new logger
+                suppress_caller_warning: inner.suppress_caller_warning, // Inherit suppression
             })),
         }
     }
@@ -640,6 +705,21 @@ impl Logger {
 
     /// Logs a message at the specified level.
     pub fn log(&self, level: Level, msg: &str, keyvals: &[(&str, &str)]) {
+        // Check if we need to emit caller overhead warning (before acquiring read lock)
+        {
+            let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+            if inner.report_caller
+                && !inner.warned_caller_overhead
+                && !inner.suppress_caller_warning
+            {
+                inner.warned_caller_overhead = true;
+                // Emit warning to stderr (separate from the log output)
+                let _ = io::stderr().write_all(
+                    b"[charmed_log] PERF WARNING: caller reporting enabled - expect 100-1000x slowdown\n",
+                );
+            }
+        }
+
         let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
 
         // Check level
@@ -1342,5 +1422,97 @@ mod tests {
         // The error handler should be set
         let inner = logger.inner.read().unwrap();
         assert!(inner.error_handler.is_some());
+    }
+
+    #[test]
+    fn test_caller_warning_flag_set_on_first_log() {
+        let logger = Logger::new();
+        logger.set_report_caller(true);
+
+        // Verify warning flag is not set initially
+        {
+            let inner = logger.inner.read().unwrap();
+            assert!(!inner.warned_caller_overhead);
+        }
+
+        // Log a message (this should set the warning flag)
+        logger.info("test message", &[]);
+
+        // Verify warning flag is now set
+        {
+            let inner = logger.inner.read().unwrap();
+            assert!(inner.warned_caller_overhead);
+        }
+    }
+
+    #[test]
+    fn test_caller_warning_suppressed() {
+        let logger = Logger::new();
+        logger.set_report_caller(true);
+        logger.suppress_caller_warning();
+
+        // Verify suppression flag is set
+        {
+            let inner = logger.inner.read().unwrap();
+            assert!(inner.suppress_caller_warning);
+        }
+
+        // Log a message (warning flag should still be false since suppressed)
+        logger.info("test message", &[]);
+
+        // Verify warning flag remains false when suppressed
+        {
+            let inner = logger.inner.read().unwrap();
+            assert!(!inner.warned_caller_overhead);
+        }
+    }
+
+    #[test]
+    fn test_caller_warning_not_triggered_when_caller_disabled() {
+        let logger = Logger::new();
+        // report_caller is false by default
+
+        // Log a message
+        logger.info("test message", &[]);
+
+        // Verify warning flag is not set when caller reporting is disabled
+        {
+            let inner = logger.inner.read().unwrap();
+            assert!(!inner.warned_caller_overhead);
+        }
+    }
+
+    #[test]
+    fn test_caller_warning_inherits_suppression_via_with_fields() {
+        let logger = Logger::new();
+        logger.set_report_caller(true);
+        logger.suppress_caller_warning();
+
+        // Create child logger
+        let child = logger.with_fields(&[("key", "value")]);
+
+        // Verify child inherits suppression setting
+        {
+            let inner = child.inner.read().unwrap();
+            assert!(inner.suppress_caller_warning);
+        }
+    }
+
+    #[test]
+    fn test_caller_warning_resets_for_child_logger() {
+        let logger = Logger::new();
+        logger.set_report_caller(true);
+
+        // Trigger warning on parent
+        logger.info("parent message", &[]);
+
+        // Create child logger
+        let child = logger.with_fields(&[("key", "value")]);
+
+        // Verify child has fresh warning state
+        {
+            let inner = child.inner.read().unwrap();
+            assert!(!inner.warned_caller_overhead);
+        }
     }
 }
