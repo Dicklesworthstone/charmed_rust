@@ -139,6 +139,10 @@ pub struct Simulation {
     pub log_entries: Vec<LogEntry>,
     /// Maximum log entries to keep.
     max_logs: usize,
+    /// Live dashboard metrics.
+    pub metrics: DashboardMetrics,
+    /// Pending metric health change notifications.
+    pending_metric_changes: Vec<MetricHealthChanged>,
 }
 
 impl Simulation {
@@ -170,6 +174,8 @@ impl Simulation {
             alerts: data.alerts,
             log_entries: data.log_entries,
             max_logs: 200,
+            metrics: DashboardMetrics::default(),
+            pending_metric_changes: Vec::new(),
         }
     }
 
@@ -199,8 +205,17 @@ impl Simulation {
         changed |= self.update_services();
         changed |= self.generate_logs();
         changed |= self.generate_alerts();
+        changed |= self.update_metrics();
 
         changed
+    }
+
+    /// Drain pending metric health change notifications.
+    ///
+    /// Call this after tick() to get any metric state change events
+    /// that should trigger toasts/alerts.
+    pub fn drain_metric_changes(&mut self) -> Vec<MetricHealthChanged> {
+        std::mem::take(&mut self.pending_metric_changes)
     }
 
     /// Advance the simulation by N frames.
@@ -424,6 +439,120 @@ impl Simulation {
         true
     }
 
+    /// Update live metrics with simulated values.
+    fn update_metrics(&mut self) -> bool {
+        let mut changed = false;
+
+        // Generate realistic metric values with some noise and occasional spikes
+        let base_rps = 150.0;
+        let rps_noise = self.rng.random_range(-20.0..20.0);
+        // Occasional traffic spike or drop
+        let rps_spike = if self.rng.random_bool(0.02) {
+            self.rng.random_range(-80.0..50.0)
+        } else {
+            0.0
+        };
+        let new_rps = (base_rps + rps_noise + rps_spike).max(5.0);
+
+        if let Some(old) = self.metrics.requests_per_sec.update(new_rps) {
+            self.pending_metric_changes.push(MetricHealthChanged {
+                metric_name: "Requests/sec".to_string(),
+                old_health: old,
+                new_health: self.metrics.requests_per_sec.health,
+                value: new_rps,
+                reason: format!(
+                    "Request rate {} from {:.0} to {:.0} req/s",
+                    if self.metrics.requests_per_sec.health == MetricHealth::Ok { "recovered" } else { "dropped" },
+                    self.metrics.requests_per_sec.history.first().unwrap_or(&new_rps),
+                    new_rps
+                ),
+            });
+            changed = true;
+        }
+
+        // P95 latency (inversely correlated with RPS somewhat, plus random variation)
+        let base_latency = 45.0;
+        let latency_noise = self.rng.random_range(-10.0..15.0);
+        // High load can cause latency spikes
+        let latency_load_factor = if new_rps < 100.0 { 0.0 } else { (new_rps - 100.0) * 0.5 };
+        // Occasional latency spike (simulating GC pause, network issue, etc.)
+        let latency_spike = if self.rng.random_bool(0.03) {
+            self.rng.random_range(50.0..300.0)
+        } else {
+            0.0
+        };
+        let new_latency = (base_latency + latency_noise + latency_load_factor + latency_spike).max(10.0);
+
+        if let Some(old) = self.metrics.p95_latency_ms.update(new_latency) {
+            self.pending_metric_changes.push(MetricHealthChanged {
+                metric_name: "P95 Latency".to_string(),
+                old_health: old,
+                new_health: self.metrics.p95_latency_ms.health,
+                value: new_latency,
+                reason: format!(
+                    "Latency {} to {:.0}ms (threshold: {}ms)",
+                    if self.metrics.p95_latency_ms.health == MetricHealth::Ok { "improved" } else { "increased" },
+                    new_latency,
+                    if self.metrics.p95_latency_ms.health == MetricHealth::Error { 500 } else { 200 }
+                ),
+            });
+            changed = true;
+        }
+
+        // Error rate (usually low, occasional spikes)
+        let base_error_rate = 0.2;
+        let error_noise = self.rng.random_range(-0.1..0.3);
+        // Occasional error spike (deployment issue, dependency failure)
+        let error_spike = if self.rng.random_bool(0.02) {
+            self.rng.random_range(1.0..8.0)
+        } else {
+            0.0
+        };
+        let new_error_rate = (base_error_rate + error_noise + error_spike).max(0.0).min(100.0);
+
+        if let Some(old) = self.metrics.error_rate.update(new_error_rate) {
+            self.pending_metric_changes.push(MetricHealthChanged {
+                metric_name: "Error Rate".to_string(),
+                old_health: old,
+                new_health: self.metrics.error_rate.health,
+                value: new_error_rate,
+                reason: format!(
+                    "Error rate {} to {:.1}% (threshold: {}%)",
+                    if self.metrics.error_rate.health == MetricHealth::Ok { "dropped" } else { "increased" },
+                    new_error_rate,
+                    if self.metrics.error_rate.health == MetricHealth::Error { 5 } else { 1 }
+                ),
+            });
+            changed = true;
+        }
+
+        // Job throughput (based on actual job completions, with some smoothing)
+        let completed_jobs = self.jobs.iter().filter(|j| j.status == JobStatus::Completed).count();
+        let running_jobs = self.jobs.iter().filter(|j| j.status == JobStatus::Running).count();
+        // Estimated throughput: completed + fraction of running that will complete
+        let estimated_throughput = completed_jobs as f64 * 0.5 + running_jobs as f64 * 0.3;
+        let throughput_noise = self.rng.random_range(-2.0..2.0);
+        let new_throughput = (estimated_throughput + throughput_noise).max(0.0);
+
+        if let Some(old) = self.metrics.job_throughput.update(new_throughput) {
+            self.pending_metric_changes.push(MetricHealthChanged {
+                metric_name: "Job Throughput".to_string(),
+                old_health: old,
+                new_health: self.metrics.job_throughput.health,
+                value: new_throughput,
+                reason: format!(
+                    "Throughput {} to {:.0} jobs/min (threshold: {} jobs/min)",
+                    if self.metrics.job_throughput.health == MetricHealth::Ok { "recovered" } else { "dropped" },
+                    new_throughput,
+                    if self.metrics.job_throughput.health == MetricHealth::Error { 2 } else { 5 }
+                ),
+            });
+            changed = true;
+        }
+
+        changed
+    }
+
     /// Choose an item based on weights.
     fn weighted_choice<T: Copy>(&mut self, items: &[(T, u32)]) -> T {
         let total: u32 = items.iter().map(|(_, w)| w).sum();
@@ -507,6 +636,293 @@ impl ServiceStats {
     #[must_use]
     pub const fn total(&self) -> usize {
         self.healthy + self.degraded + self.unhealthy + self.unknown
+    }
+}
+
+// ============================================================================
+// Live Metrics System
+// ============================================================================
+
+/// Health state for a metric.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MetricHealth {
+    /// Metric is within normal thresholds.
+    #[default]
+    Ok,
+    /// Metric is approaching problematic levels.
+    Warning,
+    /// Metric has crossed critical thresholds.
+    Error,
+}
+
+impl MetricHealth {
+    /// Get a human-readable name for this health state.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::Warning => "warning",
+            Self::Error => "error",
+        }
+    }
+}
+
+/// Trend direction for a metric.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MetricTrend {
+    /// Metric is increasing.
+    Up,
+    /// Metric is stable.
+    #[default]
+    Flat,
+    /// Metric is decreasing.
+    Down,
+}
+
+impl MetricTrend {
+    /// Get the arrow icon for this trend.
+    #[must_use]
+    pub const fn icon(self) -> &'static str {
+        match self {
+            Self::Up => "↑",
+            Self::Flat => "→",
+            Self::Down => "↓",
+        }
+    }
+}
+
+/// A single metric with current value, health, and trend.
+#[derive(Debug, Clone)]
+pub struct LiveMetric {
+    /// Current value.
+    pub value: f64,
+    /// Health state (with hysteresis applied).
+    pub health: MetricHealth,
+    /// Trend direction based on recent history.
+    pub trend: MetricTrend,
+    /// Recent values for trend calculation (sliding window).
+    history: Vec<f64>,
+    /// Hysteresis counter (positive = trending toward error, negative = trending toward ok).
+    hysteresis_counter: i8,
+    /// Warning threshold (value above this triggers warning).
+    warn_threshold: f64,
+    /// Error threshold (value above this triggers error).
+    error_threshold: f64,
+    /// If true, lower values are worse (e.g., uptime). If false, higher values are worse (e.g., latency).
+    invert: bool,
+}
+
+impl LiveMetric {
+    /// Create a new metric with thresholds.
+    ///
+    /// `invert` controls threshold direction:
+    /// - `false`: higher values are worse (latency, error rate)
+    /// - `true`: lower values are worse (throughput, uptime)
+    #[must_use]
+    pub fn new(initial_value: f64, warn_threshold: f64, error_threshold: f64, invert: bool) -> Self {
+        Self {
+            value: initial_value,
+            health: MetricHealth::Ok,
+            trend: MetricTrend::Flat,
+            history: vec![initial_value],
+            hysteresis_counter: 0,
+            warn_threshold,
+            error_threshold,
+            invert,
+        }
+    }
+
+    /// Update the metric with a new value.
+    ///
+    /// Returns `Some(old_health)` if the health state changed.
+    pub fn update(&mut self, new_value: f64) -> Option<MetricHealth> {
+        let old_health = self.health;
+        self.value = new_value;
+
+        // Update history (keep last 10 values)
+        self.history.push(new_value);
+        if self.history.len() > 10 {
+            self.history.remove(0);
+        }
+
+        // Calculate trend
+        self.trend = self.calculate_trend();
+
+        // Calculate raw health state from thresholds
+        let raw_health = self.calculate_raw_health(new_value);
+
+        // Apply hysteresis
+        self.apply_hysteresis(raw_health);
+
+        if self.health != old_health {
+            Some(old_health)
+        } else {
+            None
+        }
+    }
+
+    /// Calculate trend from history.
+    fn calculate_trend(&self) -> MetricTrend {
+        if self.history.len() < 3 {
+            return MetricTrend::Flat;
+        }
+
+        // Compare recent average to older average
+        let mid = self.history.len() / 2;
+        let recent_avg: f64 = self.history[mid..].iter().sum::<f64>() / (self.history.len() - mid) as f64;
+        let older_avg: f64 = self.history[..mid].iter().sum::<f64>() / mid as f64;
+
+        let diff_pct = if older_avg.abs() > 0.001 {
+            (recent_avg - older_avg) / older_avg * 100.0
+        } else {
+            0.0
+        };
+
+        // Require at least 5% change to show trend
+        if diff_pct > 5.0 {
+            MetricTrend::Up
+        } else if diff_pct < -5.0 {
+            MetricTrend::Down
+        } else {
+            MetricTrend::Flat
+        }
+    }
+
+    /// Calculate raw health state from value and thresholds.
+    fn calculate_raw_health(&self, value: f64) -> MetricHealth {
+        if self.invert {
+            // Lower is worse (e.g., throughput)
+            if value <= self.error_threshold {
+                MetricHealth::Error
+            } else if value <= self.warn_threshold {
+                MetricHealth::Warning
+            } else {
+                MetricHealth::Ok
+            }
+        } else {
+            // Higher is worse (e.g., latency, error rate)
+            if value >= self.error_threshold {
+                MetricHealth::Error
+            } else if value >= self.warn_threshold {
+                MetricHealth::Warning
+            } else {
+                MetricHealth::Ok
+            }
+        }
+    }
+
+    /// Apply hysteresis to prevent flapping between states.
+    ///
+    /// Requires 3 consecutive readings in a direction before changing state.
+    fn apply_hysteresis(&mut self, raw_health: MetricHealth) {
+        let target_worse = match (self.health, raw_health) {
+            (MetricHealth::Ok, MetricHealth::Warning | MetricHealth::Error) => true,
+            (MetricHealth::Warning, MetricHealth::Error) => true,
+            _ => false,
+        };
+
+        let target_better = match (self.health, raw_health) {
+            (MetricHealth::Error, MetricHealth::Warning | MetricHealth::Ok) => true,
+            (MetricHealth::Warning, MetricHealth::Ok) => true,
+            _ => false,
+        };
+
+        if target_worse {
+            self.hysteresis_counter = (self.hysteresis_counter + 1).min(3);
+        } else if target_better {
+            self.hysteresis_counter = (self.hysteresis_counter - 1).max(-3);
+        } else {
+            // Same state, decay toward zero
+            if self.hysteresis_counter > 0 {
+                self.hysteresis_counter -= 1;
+            } else if self.hysteresis_counter < 0 {
+                self.hysteresis_counter += 1;
+            }
+        }
+
+        // Transition when hysteresis threshold reached
+        if self.hysteresis_counter >= 3 {
+            // Transition to worse state
+            self.health = match self.health {
+                MetricHealth::Ok => MetricHealth::Warning,
+                MetricHealth::Warning => MetricHealth::Error,
+                MetricHealth::Error => MetricHealth::Error,
+            };
+            self.hysteresis_counter = 0;
+        } else if self.hysteresis_counter <= -3 {
+            // Transition to better state
+            self.health = match self.health {
+                MetricHealth::Error => MetricHealth::Warning,
+                MetricHealth::Warning => MetricHealth::Ok,
+                MetricHealth::Ok => MetricHealth::Ok,
+            };
+            self.hysteresis_counter = 0;
+        }
+    }
+
+    /// Get the most recent change percentage (if history available).
+    #[must_use]
+    pub fn change_pct(&self) -> Option<f64> {
+        if self.history.len() < 2 {
+            return None;
+        }
+        let prev = self.history[self.history.len() - 2];
+        if prev.abs() > 0.001 {
+            Some((self.value - prev) / prev * 100.0)
+        } else {
+            None
+        }
+    }
+}
+
+/// Live metrics for the dashboard.
+#[derive(Debug, Clone)]
+pub struct DashboardMetrics {
+    /// Requests per second.
+    pub requests_per_sec: LiveMetric,
+    /// P95 latency in milliseconds.
+    pub p95_latency_ms: LiveMetric,
+    /// Error rate (0.0-100.0 percentage).
+    pub error_rate: LiveMetric,
+    /// Job throughput (jobs completed per minute).
+    pub job_throughput: LiveMetric,
+}
+
+impl Default for DashboardMetrics {
+    fn default() -> Self {
+        Self {
+            // Requests/sec: warn at 50, error at 20 (inverted - lower is worse)
+            requests_per_sec: LiveMetric::new(150.0, 50.0, 20.0, true),
+            // P95 latency: warn at 200ms, error at 500ms
+            p95_latency_ms: LiveMetric::new(45.0, 200.0, 500.0, false),
+            // Error rate: warn at 1%, error at 5%
+            error_rate: LiveMetric::new(0.2, 1.0, 5.0, false),
+            // Job throughput: warn at 5, error at 2 (inverted)
+            job_throughput: LiveMetric::new(12.0, 5.0, 2.0, true),
+        }
+    }
+}
+
+/// Message indicating a metric health state changed.
+#[derive(Debug, Clone)]
+pub struct MetricHealthChanged {
+    /// Name of the metric that changed.
+    pub metric_name: String,
+    /// Previous health state.
+    pub old_health: MetricHealth,
+    /// New health state.
+    pub new_health: MetricHealth,
+    /// Current value of the metric.
+    pub value: f64,
+    /// Explanation of why the state changed.
+    pub reason: String,
+}
+
+impl MetricHealthChanged {
+    /// Convert to a bubbletea Message.
+    #[must_use]
+    pub fn into_message(self) -> Message {
+        Message::new(self)
     }
 }
 
