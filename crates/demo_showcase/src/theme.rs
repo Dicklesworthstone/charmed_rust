@@ -6,6 +6,7 @@
 #![allow(dead_code)] // Style helpers will be used as pages are implemented
 
 use lipgloss::{Border, Style};
+use serde::{Deserialize, Serialize};
 
 // ============================================================================
 // Spacing Constants
@@ -40,7 +41,7 @@ pub mod spacing {
 // ============================================================================
 
 /// Theme preset identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum ThemePreset {
     #[default]
     Dark,

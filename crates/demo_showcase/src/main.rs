@@ -33,6 +33,7 @@
 mod app;
 pub mod cli;
 mod components;
+pub mod config;
 mod data;
 mod keymap;
 mod messages;
@@ -44,7 +45,7 @@ use clap::Parser;
 
 use app::{App, AppConfig};
 use cli::{Cli, Command};
-use theme::ThemePreset;
+use config::Config;
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
@@ -55,44 +56,42 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // Build runtime config from CLI
+    let config = Config::from_cli(&cli);
+
+    // Validate config
+    config.validate()?;
+
     // Handle self-check mode
-    if cli.self_check {
-        return run_self_check(&cli);
+    if config.is_headless() {
+        return run_self_check(&config);
     }
 
-    // Build config from CLI args
-    let config = build_config(&cli);
-    let app = App::with_config(config);
+    // Build app config from runtime config
+    let app_config = build_app_config(&config);
+    let app = App::with_config(app_config);
 
     // Build program with appropriate options
     let mut program = Program::new(app);
 
-    if !cli.no_alt_screen {
+    if config.alt_screen {
         program = program.with_alt_screen();
     }
 
     // Note: mouse support is handled by the Program defaults
-    // The no_mouse flag will be used by the App to ignore mouse events
+    // The mouse flag will be used by the App to handle mouse events
 
     program.run()?;
 
     Ok(())
 }
 
-/// Build application config from CLI arguments.
-fn build_config(cli: &Cli) -> AppConfig {
-    // Determine theme preset
-    let theme = match cli.theme.as_str() {
-        "light" => ThemePreset::Light,
-        "dracula" => ThemePreset::Dracula,
-        // dark, auto, or any unknown value -> Dark
-        _ => ThemePreset::Dark,
-    };
-
+/// Build application config from runtime config.
+const fn build_app_config(config: &Config) -> AppConfig {
     AppConfig {
-        theme,
-        animations: cli.use_animations(),
-        mouse: !cli.no_mouse,
+        theme: config.theme_preset,
+        animations: config.use_animations(),
+        mouse: config.mouse,
     }
 }
 
@@ -120,11 +119,15 @@ fn handle_subcommand(cmd: &Command, cli: &Cli) {
 }
 
 /// Run headless self-check mode.
-fn run_self_check(cli: &Cli) -> anyhow::Result<()> {
+fn run_self_check(config: &Config) -> anyhow::Result<()> {
     eprintln!("Running self-check...");
+    eprintln!(
+        "Config: {}",
+        config.to_diagnostic_string().replace('\n', ", ")
+    );
 
-    let config = build_config(cli);
-    let app = App::with_config(config);
+    let app_config = build_app_config(config);
+    let app = App::with_config(app_config);
 
     // Just verify we can create and view the app
     let view = app.view();
@@ -141,28 +144,18 @@ fn run_self_check(cli: &Cli) -> anyhow::Result<()> {
 
 /// Print diagnostic information.
 fn print_diagnostics(cli: &Cli) {
+    let config = Config::from_cli(cli);
+
     println!("Charmed Control Center - Diagnostics");
     println!("=====================================");
     println!();
     println!("Version: {}", env!("CARGO_PKG_VERSION"));
     println!("Rust: {}", env!("CARGO_PKG_RUST_VERSION"));
     println!();
-    println!("Configuration:");
-    println!("  Theme: {}", cli.theme);
-    if let Some(ref file) = cli.theme_file {
-        println!("  Theme file: {}", file.display());
+    println!("Configuration (resolved):");
+    for line in config.to_diagnostic_string().lines() {
+        println!("  {line}");
     }
-    println!("  Seed: {:?}", cli.seed);
-    println!(
-        "  Animations: {}",
-        if cli.use_animations() { "on" } else { "off" }
-    );
-    println!("  Mouse: {}", if cli.no_mouse { "off" } else { "on" });
-    println!("  Color: {}", if cli.use_color() { "on" } else { "off" });
-    println!(
-        "  Alt screen: {}",
-        if cli.no_alt_screen { "off" } else { "on" }
-    );
     println!();
     println!("Features:");
     println!(
