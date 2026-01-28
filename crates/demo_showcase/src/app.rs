@@ -2000,8 +2000,8 @@ mod tests {
 
         assert_eq!(sim.model().theme_preset(), ThemePreset::Dark);
 
-        // Navigate to Settings page with '7' key
-        sim.send(Message::new(KeyMsg::from_char('7')));
+        // Navigate to Settings page with '8' key
+        sim.send(Message::new(KeyMsg::from_char('8')));
         let nav_processed = sim.run_until_empty();
         eprintln!("After nav to Settings: processed {} messages", nav_processed);
         assert_eq!(sim.model().current_page(), Page::Settings);

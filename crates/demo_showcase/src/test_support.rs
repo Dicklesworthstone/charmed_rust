@@ -1219,7 +1219,7 @@ mod e2e_settings_tests {
 
         // Step 1: Navigate to Settings page
         runner.step("Navigate to Settings page");
-        runner.press_key('7'); // Settings page shortcut
+        runner.press_key('8'); // Settings page shortcut
         runner.assert_page(Page::Settings);
         runner.assert_contains("Settings");
         runner.assert_contains("Toggles");
@@ -1385,7 +1385,7 @@ mod e2e_settings_tests {
 
         // Navigate to Settings
         runner.step("Navigate to Settings");
-        runner.press_key('7');
+        runner.press_key('8');
         runner.assert_page(Page::Settings);
 
         // Toggle ASCII mode
@@ -1502,13 +1502,18 @@ mod e2e_smoke_tour_tests {
         runner.assert_view_not_empty();
         runner.assert_contains("Documents"); // Docs page has split view with list
 
-        runner.step("Navigate to Wizard page");
+        runner.step("Navigate to Files page");
         runner.press_key('6');
+        runner.assert_page(Page::Files);
+        runner.assert_view_not_empty();
+
+        runner.step("Navigate to Wizard page");
+        runner.press_key('7');
         runner.assert_page(Page::Wizard);
         runner.assert_view_not_empty();
 
         runner.step("Navigate to Settings page");
-        runner.press_key('7');
+        runner.press_key('8');
         runner.assert_page(Page::Settings);
         runner.assert_view_not_empty();
         runner.assert_contains("Settings");
@@ -1645,8 +1650,9 @@ mod e2e_smoke_tour_tests {
             ('3', Page::Jobs, "Jobs"),
             ('4', Page::Logs, "Logs"),
             ('5', Page::Docs, "Docs"),
-            ('6', Page::Wizard, "Wizard"),
-            ('7', Page::Settings, "Settings"),
+            ('6', Page::Files, "Files"),
+            ('7', Page::Wizard, "Wizard"),
+            ('8', Page::Settings, "Settings"),
         ];
 
         for (key, expected_page, name) in pages {
@@ -1681,7 +1687,7 @@ mod e2e_smoke_tour_tests {
         // Step 1: Navigate to Wizard page
         // =========================================================================
         runner.step("Navigate to Wizard page");
-        runner.press_key('6');
+        runner.press_key('7');
         runner.assert_page(Page::Wizard);
         runner.assert_view_not_empty();
 
@@ -1767,7 +1773,7 @@ mod e2e_smoke_tour_tests {
             ('1', Page::Dashboard),
             ('3', Page::Jobs),
             ('4', Page::Logs),
-            ('6', Page::Wizard),
+            ('7', Page::Wizard),
             ('1', Page::Dashboard),
         ];
 
