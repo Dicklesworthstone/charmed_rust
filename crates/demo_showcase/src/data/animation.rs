@@ -266,6 +266,17 @@ impl Animator {
         self.enabled
     }
 
+    /// Set a value instantly, bypassing animation.
+    ///
+    /// Use this to initialize values without animation, or to snap to a value
+    /// regardless of whether animations are enabled.
+    pub fn set(&mut self, key: &str, value: f64) {
+        self.values
+            .entry(key.to_string())
+            .or_insert_with(|| AnimatedValue::new(value))
+            .set(value);
+    }
+
     /// Animate a value toward a target.
     ///
     /// If the key doesn't exist, creates a new `AnimatedValue` starting at 0.0.

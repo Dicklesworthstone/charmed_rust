@@ -15,6 +15,7 @@ use super::PageModel;
 use crate::components::{
     DeltaDirection, StatusLevel, badge, chip, divider_with_label, stat_widget,
 };
+use crate::data::animation::Animator;
 use crate::data::simulation::{MetricHealth, MetricTrend, SimConfig, Simulation, TickMsg};
 use crate::data::{Deployment, DeploymentStatus, Job, JobStatus, Service, ServiceHealth};
 use crate::messages::{Notification, NotificationMsg, Page};
@@ -30,6 +31,12 @@ const TICK_INTERVAL_MS: u64 = 100;
 ///
 /// Uses the simulation engine to provide live-updating metrics with
 /// trends, health states, and automatic notifications.
+///
+/// # Animations
+///
+/// Metric values are animated using spring physics for smooth transitions.
+/// Pass `animations_enabled: false` to the constructor to disable animations
+/// (values will snap instantly instead).
 pub struct DashboardPage {
     /// Simulation engine managing all live data.
     simulation: Simulation,
@@ -41,31 +48,73 @@ pub struct DashboardPage {
     ticks_since_uptime: u64,
     /// Counter for generating unique notification IDs.
     next_notification_id: u64,
+    /// Animator for smooth metric value transitions.
+    animator: Animator,
 }
 
 impl DashboardPage {
-    /// Create a new dashboard page.
+    /// Create a new dashboard page with animations enabled.
     #[must_use]
     pub fn new() -> Self {
-        Self::with_seed(DEFAULT_SEED)
+        Self::with_options(DEFAULT_SEED, true)
     }
 
-    /// Create a new dashboard page with the given seed.
+    /// Create a new dashboard page with the given seed and animations enabled.
     #[must_use]
+    #[allow(dead_code)] // Used by Pages struct and tests
     pub fn with_seed(seed: u64) -> Self {
+        Self::with_options(seed, true)
+    }
+
+    /// Create a new dashboard page with full control over options.
+    #[must_use]
+    pub fn with_options(seed: u64, animations_enabled: bool) -> Self {
+        let simulation = Simulation::new(seed, SimConfig::default());
+
+        // Initialize animator with current metric values (snap, don't animate from 0)
+        let mut animator = Animator::new(animations_enabled);
+        animator.set("requests_per_sec", simulation.metrics.requests_per_sec.value);
+        animator.set("p95_latency_ms", simulation.metrics.p95_latency_ms.value);
+        animator.set("error_rate", simulation.metrics.error_rate.value);
+        animator.set("job_throughput", simulation.metrics.job_throughput.value);
+
         Self {
-            simulation: Simulation::new(seed, SimConfig::default()),
+            simulation,
             seed,
             uptime_seconds: 86400 * 7 + 3600 * 5 + 60 * 23, // 7d 5h 23m
             ticks_since_uptime: 0,
             next_notification_id: 1,
+            animator,
         }
+    }
+
+    /// Set whether animations are enabled.
+    ///
+    /// When disabled, metric values snap instantly to their targets.
+    #[allow(dead_code)] // API for config integration
+    pub const fn set_animations(&mut self, enabled: bool) {
+        self.animator.set_enabled(enabled);
+    }
+
+    /// Check if animations are enabled.
+    #[must_use]
+    #[allow(dead_code)] // API for config integration
+    pub const fn animations_enabled(&self) -> bool {
+        self.animator.is_enabled()
     }
 
     /// Refresh data by resetting the simulation with the current seed.
     pub fn refresh(&mut self) {
         self.simulation = Simulation::new(self.seed, SimConfig::default());
         self.ticks_since_uptime = 0;
+
+        // Re-initialize animator with fresh metric values (snap, don't animate)
+        let animations_enabled = self.animator.is_enabled();
+        self.animator = Animator::new(animations_enabled);
+        self.animator.set("requests_per_sec", self.simulation.metrics.requests_per_sec.value);
+        self.animator.set("p95_latency_ms", self.simulation.metrics.p95_latency_ms.value);
+        self.animator.set("error_rate", self.simulation.metrics.error_rate.value);
+        self.animator.set("job_throughput", self.simulation.metrics.job_throughput.value);
     }
 
     /// Schedule the next simulation tick.
@@ -79,6 +128,15 @@ impl DashboardPage {
     /// Process a simulation tick, returning notifications for any metric changes.
     fn process_tick(&mut self) -> Vec<NotificationMsg> {
         self.simulation.tick();
+
+        // Update animator targets with new metric values (animator handles smoothing)
+        self.animator.animate("requests_per_sec", self.simulation.metrics.requests_per_sec.value);
+        self.animator.animate("p95_latency_ms", self.simulation.metrics.p95_latency_ms.value);
+        self.animator.animate("error_rate", self.simulation.metrics.error_rate.value);
+        self.animator.animate("job_throughput", self.simulation.metrics.job_throughput.value);
+
+        // Advance animations
+        self.animator.tick();
 
         // Update uptime (10 ticks = 1 second at 100ms/tick)
         self.ticks_since_uptime += 1;
@@ -486,10 +544,11 @@ impl DashboardPage {
             format!("{health_chip} {label_styled} {value_styled} {trend_styled}")
         };
 
-        // Render each metric
+        // Render each metric using animated values for smooth transitions
+        // Health and trend indicators use raw simulation data (categorical, not animated)
         lines.push(render_metric(
             "Requests/s",
-            metrics.requests_per_sec.value,
+            self.animator.get_or("requests_per_sec", metrics.requests_per_sec.value),
             "",
             metrics.requests_per_sec.health,
             metrics.requests_per_sec.trend,
@@ -497,7 +556,7 @@ impl DashboardPage {
 
         lines.push(render_metric(
             "P95 Latency",
-            metrics.p95_latency_ms.value,
+            self.animator.get_or("p95_latency_ms", metrics.p95_latency_ms.value),
             "ms",
             metrics.p95_latency_ms.health,
             metrics.p95_latency_ms.trend,
@@ -505,7 +564,7 @@ impl DashboardPage {
 
         lines.push(render_metric(
             "Error Rate",
-            metrics.error_rate.value,
+            self.animator.get_or("error_rate", metrics.error_rate.value),
             "%",
             metrics.error_rate.health,
             metrics.error_rate.trend,
@@ -513,7 +572,7 @@ impl DashboardPage {
 
         lines.push(render_metric(
             "Job Throughput",
-            metrics.job_throughput.value,
+            self.animator.get_or("job_throughput", metrics.job_throughput.value),
             "/min",
             metrics.job_throughput.health,
             metrics.job_throughput.trend,
@@ -704,5 +763,67 @@ mod tests {
         assert!(metrics.p95_latency_ms.value > 0.0);
         assert!(metrics.error_rate.value >= 0.0);
         assert!(metrics.job_throughput.value >= 0.0);
+    }
+
+    #[test]
+    fn animator_initialized_with_metric_values() {
+        let page = DashboardPage::new();
+        let metrics = &page.simulation.metrics;
+
+        // Animator should start with the same values as the simulation
+        let animated_rps = page.animator.get("requests_per_sec").unwrap();
+        assert!((animated_rps - metrics.requests_per_sec.value).abs() < 0.001);
+
+        let animated_latency = page.animator.get("p95_latency_ms").unwrap();
+        assert!((animated_latency - metrics.p95_latency_ms.value).abs() < 0.001);
+    }
+
+    #[test]
+    fn animations_disabled_snaps_values() {
+        let mut page = DashboardPage::with_options(42, false); // animations disabled
+
+        // Process multiple ticks to change metric values
+        for _ in 0..20 {
+            page.process_tick();
+        }
+
+        // With animations disabled, animated value should match simulation exactly
+        let sim_rps = page.simulation.metrics.requests_per_sec.value;
+        let animated_rps = page.animator.get("requests_per_sec").unwrap();
+        assert!((animated_rps - sim_rps).abs() < 0.001);
+    }
+
+    #[test]
+    fn animations_enabled_tracks_metrics() {
+        let mut page = DashboardPage::with_options(42, true); // animations enabled
+
+        // Process a few ticks to change the simulation value
+        for _ in 0..5 {
+            page.process_tick();
+        }
+
+        // All metrics should have animated values tracked
+        assert!(page.animator.get("requests_per_sec").is_some());
+        assert!(page.animator.get("p95_latency_ms").is_some());
+        assert!(page.animator.get("error_rate").is_some());
+        assert!(page.animator.get("job_throughput").is_some());
+    }
+
+    #[test]
+    fn refresh_reinitializes_animator() {
+        let mut page = DashboardPage::new();
+
+        // Process some ticks
+        for _ in 0..10 {
+            page.process_tick();
+        }
+
+        // Refresh should re-initialize the animator
+        page.refresh();
+
+        // After refresh, animated values should match simulation
+        let sim_rps = page.simulation.metrics.requests_per_sec.value;
+        let animated_rps = page.animator.get("requests_per_sec").unwrap();
+        assert!((animated_rps - sim_rps).abs() < 0.001);
     }
 }
