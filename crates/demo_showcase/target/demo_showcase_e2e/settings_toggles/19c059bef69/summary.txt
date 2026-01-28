@@ -1,0 +1,49 @@
+=== E2E Test Summary ===
+Scenario: settings_toggles
+Run ID: 19c059bef69
+Status: FAILED
+
+Configuration:
+- Seed: 42
+- Theme: Dark
+- Animations: false
+- Color Mode: Auto
+
+Failed Assertions:
+  Step 1: view contains "Settings"
+    Expected: contains "Settings"
+    Actual:   not found in: Loading...
+  Step 1: view contains "Toggles"
+    Expected: contains "Toggles"
+    Actual:   not found in: Loading...
+  Step 2: view contains "Mouse Input"
+    Expected: contains "Mouse Input"
+    Actual:   not found in: Loading...
+  Step 2: view contains "Animations"
+    Expected: contains "Animations"
+    Actual:   not found in: Loading...
+  Step 2: view contains "ASCII Mode"
+    Expected: contains "ASCII Mode"
+    Actual:   not found in: Loading...
+  Step 2: view contains "Syntax Highlighting"
+    Expected: contains "Syntax Highlighting"
+    Actual:   not found in: Loading...
+  Step 3: mouse toggle changed state
+    Expected: changed from true
+    Actual:   now true
+  Step 4: animations toggle changed state
+    Expected: changed from false
+    Actual:   now false
+  Step 5: ASCII mode toggle changed state
+    Expected: changed from false
+    Actual:   now false
+
+Step Timeline:
+  [2026-01-28T17:17:11.403Z] Step 1: Navigate to Settings page
+  [2026-01-28T17:17:11.403Z] Step 2: Verify toggle labels
+  [2026-01-28T17:17:11.403Z] Step 3: Toggle mouse input with 'm' key
+  [2026-01-28T17:17:11.403Z] Step 4: Toggle animations with 'a' key
+  [2026-01-28T17:17:11.403Z] Step 5: Navigate to ASCII Mode and toggle with Enter
+  [2026-01-28T17:17:11.403Z] Step 6: Return to Dashboard and verify toggles persist
+
+Artifacts: target/demo_showcase_e2e/settings_toggles/19c059bef69

@@ -521,6 +521,27 @@ impl App {
         self.theme.preset
     }
 
+    /// Get whether mouse input is enabled.
+    #[must_use]
+    #[allow(dead_code)] // Used by E2E tests
+    pub const fn mouse_enabled(&self) -> bool {
+        self.config.mouse
+    }
+
+    /// Get whether ASCII mode is forced.
+    #[must_use]
+    #[allow(dead_code)] // Used by E2E tests
+    pub const fn is_force_ascii(&self) -> bool {
+        self.force_ascii
+    }
+
+    /// Get whether syntax highlighting is enabled.
+    #[must_use]
+    #[allow(dead_code)] // Used by E2E tests
+    pub const fn is_syntax_enabled(&self) -> bool {
+        self.syntax_enabled
+    }
+
     /// Set the application theme.
     ///
     /// This instantly updates the theme across the entire application.
@@ -555,6 +576,17 @@ impl App {
 
         // Leave current page
         let leave_cmd = self.pages.get_mut(self.current_page).on_leave();
+
+        // Sync settings page state before entering
+        if page == Page::Settings {
+            self.pages.settings.sync_states(
+                self.config.mouse,
+                self.config.animations,
+                self.force_ascii,
+                self.syntax_enabled,
+                self.theme.preset,
+            );
+        }
 
         // Enter new page
         self.current_page = page;

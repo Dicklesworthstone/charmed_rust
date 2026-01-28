@@ -20,6 +20,12 @@ pub enum AppMsg {
     ToggleSidebar,
     /// Toggle animations on/off.
     ToggleAnimations,
+    /// Toggle mouse input on/off.
+    ToggleMouse,
+    /// Toggle syntax highlighting on/off.
+    ToggleSyntax,
+    /// Force ASCII mode (no colors, ASCII borders).
+    ForceAscii(bool),
     /// Change the application theme.
     SetTheme(ThemePreset),
     /// Cycle to the next theme preset.

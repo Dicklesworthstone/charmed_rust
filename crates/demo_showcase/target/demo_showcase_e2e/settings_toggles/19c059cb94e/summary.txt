@@ -1,0 +1,32 @@
+=== E2E Test Summary ===
+Scenario: settings_toggles
+Run ID: 19c059cb94e
+Status: FAILED
+
+Configuration:
+- Seed: 42
+- Theme: Dark
+- Animations: false
+- Color Mode: Auto
+
+Failed Assertions:
+  Step 4: mouse toggle changed state
+    Expected: changed from true
+    Actual:   now true
+  Step 5: animations toggle changed state
+    Expected: changed from false
+    Actual:   now false
+  Step 6: ASCII mode toggle changed state
+    Expected: changed from false
+    Actual:   now false
+
+Step Timeline:
+  [2026-01-28T17:18:03.087Z] Step 1: Initialize app
+  [2026-01-28T17:18:03.088Z] Step 2: Navigate to Settings page
+  [2026-01-28T17:18:03.088Z] Step 3: Verify toggle labels
+  [2026-01-28T17:18:03.088Z] Step 4: Toggle mouse input with 'm' key
+  [2026-01-28T17:18:03.088Z] Step 5: Toggle animations with 'a' key
+  [2026-01-28T17:18:03.089Z] Step 6: Navigate to ASCII Mode and toggle with Enter
+  [2026-01-28T17:18:03.090Z] Step 7: Return to Dashboard and verify toggles persist
+
+Artifacts: target/demo_showcase_e2e/settings_toggles/19c059cb94e

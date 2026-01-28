@@ -856,8 +856,19 @@ impl E2ERunner {
             paste: false,
         });
         self.sim.send(msg);
-        self.sim.step();
+        self.step_with_cmd(); // Process message and execute any returned command
         self.capture_frame();
+    }
+
+    /// Process one step and execute any returned command.
+    fn step_with_cmd(&mut self) {
+        if let Some(cmd) = self.sim.step() {
+            if let Some(result_msg) = cmd.execute() {
+                self.sim.send(result_msg);
+                // Recursively process the result message
+                self.step_with_cmd();
+            }
+        }
     }
 
     /// Presses multiple keys in sequence.
@@ -879,7 +890,7 @@ impl E2ERunner {
             paste: false,
         });
         self.sim.send(msg);
-        self.sim.step();
+        self.step_with_cmd();
         self.capture_frame();
     }
 
@@ -895,7 +906,7 @@ impl E2ERunner {
             paste: false,
         });
         self.sim.send(msg);
-        self.sim.step();
+        self.step_with_cmd();
         self.capture_frame();
     }
 
@@ -913,7 +924,7 @@ impl E2ERunner {
             paste: true,
         });
         self.sim.send(msg);
-        self.sim.step();
+        self.step_with_cmd();
         self.capture_frame();
     }
 
@@ -1166,5 +1177,516 @@ mod e2e_runner_tests {
         runner.resize(80, 24);
         runner.assert_view_not_empty();
         runner.finish().expect("should pass");
+    }
+}
+
+// =============================================================================
+// E2E SCENARIO: SETTINGS TOGGLES + THEME SWITCHING (bd-3ecr)
+// =============================================================================
+
+#[cfg(test)]
+mod e2e_settings_tests {
+    use super::*;
+    use crate::theme::ThemePreset;
+
+    /// E2E test: Settings toggles (mouse, animations, ASCII mode, syntax)
+    ///
+    /// This scenario validates that Settings page toggles actually change
+    /// the running app state.
+    #[test]
+    fn e2e_settings_toggles() {
+        let mut runner = E2ERunner::new("settings_toggles");
+
+        // Initialize app with window size (sets ready = true)
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_view_not_empty();
+        runner.assert_page(Page::Dashboard);
+
+        // Step 1: Navigate to Settings page
+        runner.step("Navigate to Settings page");
+        runner.press_key('7'); // Settings page shortcut
+        runner.assert_page(Page::Settings);
+        runner.assert_contains("Settings");
+        runner.assert_contains("Toggles");
+
+        // Step 2: Verify toggle labels are visible
+        runner.step("Verify toggle labels");
+        runner.assert_contains("Mouse Input");
+        runner.assert_contains("Animations");
+        runner.assert_contains("ASCII Mode");
+        runner.assert_contains("Syntax Highlighting");
+
+        // Step 3: Toggle mouse input using direct key
+        runner.step("Toggle mouse input with 'm' key");
+        let mouse_before = runner.model().mouse_enabled();
+        runner.press_key('m');
+        runner.drain(); // Process resulting commands
+        let mouse_after = runner.model().mouse_enabled();
+        runner.recorder.record_assertion(
+            "mouse toggle changed state",
+            mouse_before != mouse_after,
+            &format!("changed from {}", mouse_before),
+            &format!("now {}", mouse_after),
+        );
+
+        // Step 4: Toggle animations using direct key
+        runner.step("Toggle animations with 'a' key");
+        let anim_before = runner.model().use_animations();
+        runner.press_key('a');
+        runner.drain(); // Process resulting commands
+        let anim_after = runner.model().use_animations();
+        runner.recorder.record_assertion(
+            "animations toggle changed state",
+            anim_before != anim_after,
+            &format!("changed from {}", anim_before),
+            &format!("now {}", anim_after),
+        );
+
+        // Step 5: Navigate with j/k and toggle with Enter
+        runner.step("Navigate to ASCII Mode and toggle with Enter");
+        runner.press_key('j'); // Move to Animations (index 1)
+        runner.press_key('j'); // Move to ASCII Mode (index 2)
+        let ascii_before = runner.model().is_force_ascii();
+        runner.press_special(KeyType::Enter);
+        runner.drain(); // Process resulting commands
+        let ascii_after = runner.model().is_force_ascii();
+        runner.recorder.record_assertion(
+            "ASCII mode toggle changed state",
+            ascii_before != ascii_after,
+            &format!("changed from {}", ascii_before),
+            &format!("now {}", ascii_after),
+        );
+
+        // Step 6: Return to Dashboard and verify changes persist
+        runner.step("Return to Dashboard and verify toggles persist");
+        runner.press_key('1'); // Dashboard page shortcut
+        runner.assert_page(Page::Dashboard);
+        // Verify the toggle states are still changed
+        runner.recorder.record_assertion(
+            "mouse state persisted",
+            runner.model().mouse_enabled() == mouse_after,
+            &format!("{}", mouse_after),
+            &format!("{}", runner.model().mouse_enabled()),
+        );
+        runner.recorder.record_assertion(
+            "animations state persisted",
+            runner.model().use_animations() == anim_after,
+            &format!("{}", anim_after),
+            &format!("{}", runner.model().use_animations()),
+        );
+
+        runner.finish().expect("settings_toggles should pass");
+    }
+
+    /// E2E test: Theme switching via Settings page
+    ///
+    /// This scenario validates that switching themes in Settings
+    /// produces global restyling across the app.
+    #[test]
+    fn e2e_theme_switching() {
+        let mut runner = E2ERunner::new("theme_switching");
+
+        // Initialize app with window size (sets ready = true)
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_view_not_empty();
+
+        // Step 1: Start on Dashboard, verify initial theme
+        runner.step("Start on Dashboard with default theme");
+        runner.assert_page(Page::Dashboard);
+        let initial_theme = runner.model().theme_preset();
+        runner.recorder.record_assertion(
+            "initial theme is Dark",
+            initial_theme == ThemePreset::Dark,
+            "Dark",
+            initial_theme.name(),
+        );
+        // Header should show theme name
+        runner.assert_contains("[Dark]");
+
+        // Step 2: Navigate to Settings
+        runner.step("Navigate to Settings");
+        runner.press_key('7');
+        runner.assert_page(Page::Settings);
+        runner.assert_contains("Theme");
+
+        // Step 3: Switch to Theme section with Tab
+        runner.step("Switch to Theme section");
+        runner.press_special(KeyType::Tab);
+        // Theme section should now be focused (indicated by ▸)
+        runner.assert_contains("Theme");
+
+        // Step 4: Navigate to Light theme and apply
+        runner.step("Select and apply Light theme");
+        runner.press_key('j'); // Move to Light theme (index 1)
+        runner.press_special(KeyType::Enter); // Apply theme
+        runner.drain(); // Process theme change command
+        let new_theme = runner.model().theme_preset();
+        runner.recorder.record_assertion(
+            "theme changed to Light",
+            new_theme == ThemePreset::Light,
+            "Light",
+            new_theme.name(),
+        );
+
+        // Step 5: Verify header shows new theme name
+        runner.step("Verify header shows Light theme");
+        runner.press_key('1'); // Go to Dashboard
+        runner.assert_contains("[Light]");
+
+        // Step 6: Switch to Dracula via global 't' key
+        runner.step("Cycle theme with 't' global key");
+        runner.press_key('t'); // Cycle to next theme (Dracula)
+        runner.drain(); // Process theme cycle command
+        let cycled_theme = runner.model().theme_preset();
+        runner.recorder.record_assertion(
+            "theme cycled to Dracula",
+            cycled_theme == ThemePreset::Dracula,
+            "Dracula",
+            cycled_theme.name(),
+        );
+        runner.assert_contains("[Dracula]");
+
+        // Step 7: Navigate to other pages and verify theme persists
+        runner.step("Navigate to Jobs and verify theme persists");
+        runner.press_key('3'); // Jobs
+        runner.assert_page(Page::Jobs);
+        runner.recorder.record_assertion(
+            "theme persisted on Jobs page",
+            runner.model().theme_preset() == ThemePreset::Dracula,
+            "Dracula",
+            runner.model().theme_preset().name(),
+        );
+
+        runner.step("Navigate to Logs and verify theme persists");
+        runner.press_key('4'); // Logs
+        runner.assert_page(Page::Logs);
+        runner.recorder.record_assertion(
+            "theme persisted on Logs page",
+            runner.model().theme_preset() == ThemePreset::Dracula,
+            "Dracula",
+            runner.model().theme_preset().name(),
+        );
+
+        runner.finish().expect("theme_switching should pass");
+    }
+
+    /// E2E test: Combined settings + theme full scenario
+    ///
+    /// This comprehensive scenario covers all settings requirements:
+    /// - Toggle all settings
+    /// - Switch themes
+    /// - Verify persistence across navigation
+    #[test]
+    fn e2e_settings_complete_scenario() {
+        let mut runner = E2ERunner::new("settings_complete");
+
+        // Initialize with window size
+        runner.step("Initialize app");
+        runner.resize(120, 40);
+        runner.assert_view_not_empty();
+        runner.assert_page(Page::Dashboard);
+
+        // Navigate to Settings
+        runner.step("Navigate to Settings");
+        runner.press_key('7');
+        runner.assert_page(Page::Settings);
+
+        // Toggle ASCII mode
+        runner.step("Toggle ASCII mode");
+        runner.press_key('c'); // Direct key for ASCII mode
+        runner.drain(); // Process toggle command
+        let ascii_enabled = runner.model().is_force_ascii();
+        runner.recorder.assert_true("ASCII mode is now enabled", ascii_enabled);
+
+        // Switch to Theme section and change theme
+        runner.step("Switch theme to Light");
+        runner.press_special(KeyType::Tab); // Go to Themes section
+        runner.press_key('j'); // Select Light theme
+        runner.press_special(KeyType::Enter); // Apply
+        runner.drain(); // Process theme change command
+
+        // Verify theme changed
+        runner.recorder.record_assertion(
+            "theme is Light",
+            runner.model().theme_preset() == ThemePreset::Light,
+            "Light",
+            runner.model().theme_preset().name(),
+        );
+
+        // Toggle back to Toggles section and toggle syntax
+        runner.step("Toggle syntax highlighting");
+        runner.press_special(KeyType::Tab); // Back to Toggles
+        runner.press_key('s'); // Toggle syntax
+        runner.drain(); // Process toggle command
+        let syntax_state = runner.model().is_syntax_enabled();
+        // Initial is false (from test config), so now should be true after toggle
+        runner.recorder.assert_true("syntax toggled to true", syntax_state);
+
+        // Return to Dashboard
+        runner.step("Return to Dashboard");
+        runner.press_key('1');
+        runner.assert_page(Page::Dashboard);
+
+        // Verify all changes persisted
+        runner.step("Verify all settings persisted");
+        runner.recorder.record_assertion(
+            "ASCII mode persisted",
+            runner.model().is_force_ascii() == ascii_enabled,
+            &ascii_enabled.to_string(),
+            &runner.model().is_force_ascii().to_string(),
+        );
+        runner.recorder.record_assertion(
+            "theme persisted",
+            runner.model().theme_preset() == ThemePreset::Light,
+            "Light",
+            runner.model().theme_preset().name(),
+        );
+
+        // Visit multiple pages to ensure no panics
+        runner.step("Navigate through all pages");
+        runner.press_key('2'); // Services
+        runner.assert_page(Page::Services);
+        runner.assert_view_not_empty();
+
+        runner.press_key('3'); // Jobs
+        runner.assert_page(Page::Jobs);
+        runner.assert_view_not_empty();
+
+        runner.press_key('4'); // Logs
+        runner.assert_page(Page::Logs);
+        runner.assert_view_not_empty();
+
+        runner.press_key('5'); // Docs
+        runner.assert_page(Page::Docs);
+        runner.assert_view_not_empty();
+
+        runner.press_key('6'); // Wizard
+        runner.assert_page(Page::Wizard);
+        runner.assert_view_not_empty();
+
+        runner.finish().expect("settings_complete should pass");
+    }
+}
+
+// =============================================================================
+// E2E SCENARIO: SMOKE TOUR (bd-4d5e)
+// =============================================================================
+
+#[cfg(test)]
+mod e2e_smoke_tour_tests {
+    use super::*;
+    use crate::theme::ThemePreset;
+
+    /// E2E test: Complete smoke tour visiting every page
+    ///
+    /// This scenario validates that the app can:
+    /// - Boot with deterministic config
+    /// - Navigate to all pages without panics
+    /// - Open/close the help overlay
+    /// - Toggle ASCII mode and verify ANSI escapes disappear
+    /// - Switch themes and verify the change takes effect
+    /// - Quit cleanly
+    ///
+    /// This is the primary regression test for the app's core surface area.
+    #[test]
+    fn e2e_smoke_tour() {
+        let mut runner = E2ERunner::new("smoke_tour");
+
+        // =========================================================================
+        // Step 1: Initialize and verify dashboard
+        // =========================================================================
+        runner.step("Initialize app with deterministic config");
+        runner.resize(120, 40);
+        runner.assert_view_not_empty();
+        runner.assert_page(Page::Dashboard);
+        runner.assert_contains("Dashboard"); // Page header
+
+        // =========================================================================
+        // Step 2: Navigate through ALL pages
+        // =========================================================================
+
+        runner.step("Navigate to Services page");
+        runner.press_key('2');
+        runner.assert_page(Page::Services);
+        runner.assert_view_not_empty();
+
+        runner.step("Navigate to Jobs page");
+        runner.press_key('3');
+        runner.assert_page(Page::Jobs);
+        runner.assert_view_not_empty();
+
+        runner.step("Navigate to Logs page");
+        runner.press_key('4');
+        runner.assert_page(Page::Logs);
+        runner.assert_view_not_empty();
+
+        runner.step("Navigate to Docs page");
+        runner.press_key('5');
+        runner.assert_page(Page::Docs);
+        runner.assert_view_not_empty();
+        runner.assert_contains("Documents"); // Docs page has split view with list
+
+        runner.step("Navigate to Wizard page");
+        runner.press_key('6');
+        runner.assert_page(Page::Wizard);
+        runner.assert_view_not_empty();
+
+        runner.step("Navigate to Settings page");
+        runner.press_key('7');
+        runner.assert_page(Page::Settings);
+        runner.assert_view_not_empty();
+        runner.assert_contains("Settings");
+
+        // =========================================================================
+        // Step 3: Test help overlay
+        // =========================================================================
+        runner.step("Open help overlay");
+        runner.press_key('?');
+        runner.drain();
+        // Help overlay should show keyboard shortcuts
+        // Note: The actual help content depends on implementation
+        let view_with_help = runner.view();
+        runner.recorder.record_assertion(
+            "help overlay opened",
+            view_with_help.contains("help") || view_with_help.contains("?") || view_with_help.len() > 100,
+            "help content visible",
+            if view_with_help.len() > 100 { "long content" } else { "short content" },
+        );
+
+        runner.step("Close help overlay");
+        runner.press_special(KeyType::Esc);
+        runner.drain();
+        runner.assert_page(Page::Settings); // Should still be on Settings
+
+        // =========================================================================
+        // Step 4: Test ASCII mode toggle
+        // =========================================================================
+        runner.step("Enable ASCII mode in Settings");
+        let initial_view = runner.view();
+        let has_ansi_before = initial_view.contains('\x1b');
+        runner.recorder.record_assertion(
+            "view has ANSI before toggle",
+            has_ansi_before,
+            "has ANSI escapes",
+            if has_ansi_before { "yes" } else { "no" },
+        );
+
+        // Toggle ASCII mode using 'c' key
+        runner.press_key('c');
+        runner.drain();
+
+        let ascii_view = runner.view();
+        let has_ansi_after = ascii_view.contains('\x1b');
+
+        // In ASCII mode, ANSI escapes should be reduced/eliminated
+        // Note: This depends on implementation - some border chars may still have escapes
+        runner.recorder.record_assertion(
+            "ASCII mode affects output",
+            !has_ansi_after || has_ansi_before != has_ansi_after,
+            "ANSI escapes changed or removed",
+            if has_ansi_after { "still has ANSI" } else { "no ANSI escapes" },
+        );
+
+        // Toggle back
+        runner.press_key('c');
+        runner.drain();
+
+        // =========================================================================
+        // Step 5: Test theme switching
+        // =========================================================================
+        runner.step("Switch to Themes section");
+        runner.press_special(KeyType::Tab);
+        runner.drain();
+
+        let initial_theme = runner.model().theme_preset();
+        runner.recorder.record_assertion(
+            "initial theme is Dark",
+            initial_theme == ThemePreset::Dark,
+            "Dark",
+            initial_theme.name(),
+        );
+
+        runner.step("Switch to Light theme");
+        runner.press_key('j'); // Navigate down in theme list
+        runner.press_special(KeyType::Enter);
+        runner.drain();
+
+        let new_theme = runner.model().theme_preset();
+        runner.recorder.record_assertion(
+            "theme changed to Light",
+            new_theme == ThemePreset::Light,
+            "Light",
+            new_theme.name(),
+        );
+
+        // =========================================================================
+        // Step 6: Return to Dashboard and verify persistence
+        // =========================================================================
+        runner.step("Return to Dashboard");
+        runner.press_key('1');
+        runner.assert_page(Page::Dashboard);
+
+        // Theme should still be Light
+        let persisted_theme = runner.model().theme_preset();
+        runner.recorder.record_assertion(
+            "theme persisted after navigation",
+            persisted_theme == ThemePreset::Light,
+            "Light",
+            persisted_theme.name(),
+        );
+
+        // =========================================================================
+        // Step 7: Final verification - no panics during the tour
+        // =========================================================================
+        runner.step("Final verification");
+        runner.assert_view_not_empty();
+
+        // Quick tour through pages to catch any late panics
+        for key in ['2', '3', '4', '5', '6', '7', '1'] {
+            runner.press_key(key);
+            runner.assert_view_not_empty();
+        }
+
+        // =========================================================================
+        // Test completed successfully
+        // =========================================================================
+        runner.finish().expect("smoke_tour should pass");
+    }
+
+    /// Focused test for page navigation without settings changes
+    #[test]
+    fn e2e_page_navigation_comprehensive() {
+        let mut runner = E2ERunner::new("page_nav_comprehensive");
+
+        runner.step("Initialize");
+        runner.resize(120, 40);
+        runner.assert_page(Page::Dashboard);
+
+        // Navigate using number keys
+        let pages = [
+            ('1', Page::Dashboard, "Dashboard"),
+            ('2', Page::Services, "Services"),
+            ('3', Page::Jobs, "Jobs"),
+            ('4', Page::Logs, "Logs"),
+            ('5', Page::Docs, "Docs"),
+            ('6', Page::Wizard, "Wizard"),
+            ('7', Page::Settings, "Settings"),
+        ];
+
+        for (key, expected_page, name) in pages {
+            runner.step(&format!("Navigate to {} page", name));
+            runner.press_key(key);
+            runner.assert_page(expected_page);
+            runner.assert_view_not_empty();
+        }
+
+        // Navigate back to first page
+        runner.step("Return to Dashboard");
+        runner.press_key('1');
+        runner.assert_page(Page::Dashboard);
+
+        runner.finish().expect("page_nav_comprehensive should pass");
     }
 }

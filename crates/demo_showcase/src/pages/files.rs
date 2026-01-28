@@ -483,6 +483,37 @@ impl PageModel for FilesPage {
 
         // Handle key messages
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+            // Tab toggles focus between file list and preview
+            if key.key_type == KeyType::Tab {
+                self.toggle_preview_focus();
+                return None;
+            }
+
+            // When preview is focused, delegate scroll keys to viewport
+            if self.preview_focused {
+                match key.key_type {
+                    KeyType::Up => self.preview_viewport.scroll_up(1),
+                    KeyType::Down => self.preview_viewport.scroll_down(1),
+                    KeyType::PgUp => self.preview_viewport.page_up(),
+                    KeyType::PgDown => self.preview_viewport.page_down(),
+                    KeyType::Home => self.preview_viewport.goto_top(),
+                    KeyType::End => self.preview_viewport.goto_bottom(),
+                    KeyType::Esc => self.preview_focused = false,
+                    KeyType::Runes => match key.runes.as_slice() {
+                        ['j'] => self.preview_viewport.scroll_down(1),
+                        ['k'] => self.preview_viewport.scroll_up(1),
+                        ['g'] => self.preview_viewport.goto_top(),
+                        ['G'] => self.preview_viewport.goto_bottom(),
+                        ['d'] => self.preview_viewport.half_page_down(),
+                        ['u'] => self.preview_viewport.half_page_up(),
+                        _ => {}
+                    },
+                    _ => {}
+                }
+                return None;
+            }
+
+            // File list navigation when not focused on preview
             match key.key_type {
                 KeyType::Up => {
                     self.move_up();
@@ -560,7 +591,11 @@ impl PageModel for FilesPage {
     }
 
     fn hints(&self) -> &'static str {
-        "j/k nav  l/Enter open  h back  H hidden  g/G top/bottom"
+        if self.preview_focused {
+            "j/k scroll  g/G top/bottom  Tab list  Esc back"
+        } else {
+            "j/k nav  l/Enter open  h back  H hidden  Tab preview"
+        }
     }
 
     fn on_enter(&mut self) -> Option<Cmd> {
@@ -655,6 +690,60 @@ mod tests {
             // Now go back
             page.go_back();
             assert!(page.virtual_path.is_empty());
+        }
+    }
+
+    #[test]
+    fn files_page_preview_focus_toggle() {
+        let mut page = FilesPage::new();
+        assert!(!page.preview_focused);
+
+        page.toggle_preview_focus();
+        assert!(page.preview_focused);
+
+        page.toggle_preview_focus();
+        assert!(!page.preview_focused);
+    }
+
+    #[test]
+    fn files_page_hints_change_with_focus() {
+        let mut page = FilesPage::new();
+
+        // Not focused - should show file list hints
+        let hints = page.hints();
+        assert!(hints.contains("nav"));
+        assert!(hints.contains("Tab preview"));
+
+        // Focused on preview - should show scroll hints
+        page.toggle_preview_focus();
+        let hints = page.hints();
+        assert!(hints.contains("scroll"));
+        assert!(hints.contains("Tab list"));
+    }
+
+    #[test]
+    fn files_page_viewport_initialized() {
+        let page = FilesPage::new();
+        assert_eq!(page.preview_viewport.total_line_count(), 0);
+        assert!(!page.preview_truncated);
+    }
+
+    #[test]
+    fn files_page_preview_viewport_scrolling() {
+        let mut page = FilesPage::new();
+
+        // Find and select a file with content
+        let entries = page.visible_entries();
+        let file_idx = entries
+            .iter()
+            .position(|e| !e.is_dir() && e.content().is_some());
+
+        if let Some(idx) = file_idx {
+            page.selected = idx;
+            page.update_preview();
+
+            // Verify content was loaded into viewport
+            assert!(page.preview_viewport.total_line_count() > 0 || page.preview_name.is_some());
         }
     }
 }

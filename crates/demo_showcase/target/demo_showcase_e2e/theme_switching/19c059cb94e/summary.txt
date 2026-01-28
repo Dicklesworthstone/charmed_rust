@@ -1,0 +1,49 @@
+=== E2E Test Summary ===
+Scenario: theme_switching
+Run ID: 19c059cb94e
+Status: FAILED
+
+Configuration:
+- Seed: 42
+- Theme: Dark
+- Animations: false
+- Color Mode: Auto
+
+Failed Assertions:
+  Step 5: theme changed to Light
+    Expected: Light
+    Actual:   Dark
+  Step 6: view contains "[Light]"
+    Expected: contains "[Light]"
+    Actual:   not found in: [48;2;26;26;26m[0m[38;2;255;255;255m[48;2;26;26;26m[1m[38;2;125;86;244m Charmed Control Center [0m  [38;2;0;255;0mConnected[0m                                                                 ...
+  Step 7: theme cycled to Dracula
+    Expected: Dracula
+    Actual:   Dark
+  Step 7: view contains "[Dracula]"
+    Expected: contains "[Dracula]"
+    Actual:   not found in: [48;2;26;26;26m[0m[38;2;255;255;255m[48;2;26;26;26m[1m[38;2;125;86;244m Charmed Control Center [0m  [38;2;0;255;0mConnected[0m                                                                 ...
+  Step 8: current page is Jobs
+    Expected: Jobs
+    Actual:   Settings
+  Step 8: theme persisted on Jobs page
+    Expected: Dracula
+    Actual:   Dark
+  Step 9: current page is Logs
+    Expected: Logs
+    Actual:   Settings
+  Step 9: theme persisted on Logs page
+    Expected: Dracula
+    Actual:   Dark
+
+Step Timeline:
+  [2026-01-28T17:18:03.087Z] Step 1: Initialize app
+  [2026-01-28T17:18:03.088Z] Step 2: Start on Dashboard with default theme
+  [2026-01-28T17:18:03.088Z] Step 3: Navigate to Settings
+  [2026-01-28T17:18:03.088Z] Step 4: Switch to Theme section
+  [2026-01-28T17:18:03.088Z] Step 5: Select and apply Light theme
+  [2026-01-28T17:18:03.089Z] Step 6: Verify header shows Light theme
+  [2026-01-28T17:18:03.089Z] Step 7: Cycle theme with 't' global key
+  [2026-01-28T17:18:03.090Z] Step 8: Navigate to Jobs and verify theme persists
+  [2026-01-28T17:18:03.090Z] Step 9: Navigate to Logs and verify theme persists
+
+Artifacts: target/demo_showcase_e2e/theme_switching/19c059cb94e
