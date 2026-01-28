@@ -92,6 +92,9 @@ pub struct Config {
     // ========================================================================
     /// Whether syntax highlighting is enabled (when available).
     pub syntax_highlighting: bool,
+
+    /// Whether to show line numbers in code blocks.
+    pub line_numbers: bool,
 }
 
 impl Default for Config {
@@ -108,6 +111,7 @@ impl Default for Config {
             self_check: false,
             verbosity: 0,
             syntax_highlighting: true,
+            line_numbers: false, // Off by default for cleaner look
         }
     }
 }
@@ -162,6 +166,7 @@ impl Config {
             self_check: cli.self_check,
             verbosity: cli.verbose,
             syntax_highlighting: true, // Depends on compile-time feature
+            line_numbers: false,       // Off by default
         }
     }
 
@@ -283,6 +288,7 @@ impl Config {
         lines.push(format!("Self-check: {}", self.self_check));
         lines.push(format!("Verbosity: {}", self.verbosity));
         lines.push(format!("Syntax highlighting: {}", self.syntax_highlighting));
+        lines.push(format!("Line numbers: {}", self.line_numbers));
 
         lines.join("\n")
     }

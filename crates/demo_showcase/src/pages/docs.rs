@@ -100,6 +100,10 @@ pub struct DocsPage {
     current_match: usize,
     /// Previous focus state (to restore when exiting search).
     prev_focus: DocsFocus,
+    /// Whether syntax highlighting is enabled.
+    syntax_highlighting: bool,
+    /// Whether to show line numbers in code blocks.
+    line_numbers: bool,
 }
 
 impl DocsPage {
@@ -131,7 +135,33 @@ impl DocsPage {
             search_matches: Vec::new(),
             current_match: 0,
             prev_focus: DocsFocus::List,
+            syntax_highlighting: true, // Enabled by default (respects compile-time feature)
+            line_numbers: false,       // Disabled by default for cleaner look
         }
+    }
+
+    /// Toggle syntax highlighting on/off.
+    pub fn toggle_syntax_highlighting(&mut self) {
+        self.syntax_highlighting = !self.syntax_highlighting;
+        *self.needs_render.write().unwrap() = true;
+    }
+
+    /// Toggle line numbers on/off.
+    pub fn toggle_line_numbers(&mut self) {
+        self.line_numbers = !self.line_numbers;
+        *self.needs_render.write().unwrap() = true;
+    }
+
+    /// Check if syntax highlighting is enabled.
+    #[must_use]
+    pub const fn syntax_highlighting_enabled(&self) -> bool {
+        self.syntax_highlighting
+    }
+
+    /// Check if line numbers are enabled.
+    #[must_use]
+    pub const fn line_numbers_enabled(&self) -> bool {
+        self.line_numbers
     }
 
     /// Get the current document entry.
@@ -302,17 +332,26 @@ impl DocsPage {
             return String::from("No documentation available.");
         };
 
-        // Choose glamour style based on theme
-        let glamour_style = if theme.preset.name() == "Light" {
+        // Choose glamour style based on theme and syntax highlighting setting
+        let glamour_style = if !self.syntax_highlighting {
+            // When syntax highlighting is disabled, use Ascii style
+            GlamourStyle::Ascii
+        } else if theme.preset.name() == "Light" {
             GlamourStyle::Light
         } else {
             GlamourStyle::Dark
         };
 
         // Create renderer with appropriate settings
-        let renderer = TermRenderer::new()
+        let mut renderer = TermRenderer::new()
             .with_style(glamour_style)
             .with_word_wrap(width.saturating_sub(4)); // Leave margin for borders
+
+        // Add line numbers if enabled (only available with syntax-highlighting feature)
+        #[cfg(feature = "syntax-highlighting")]
+        if self.line_numbers {
+            renderer.set_line_numbers(true);
+        }
 
         renderer.render(entry.content)
     }
@@ -422,12 +461,17 @@ impl DocsPage {
             .unwrap_or("Documentation");
         let scroll_info = format!("{}%", percent);
 
+        // Build toggle status indicators
+        let syntax_indicator = if self.syntax_highlighting { "S" } else { "·" };
+        let lines_indicator = if self.line_numbers { "#" } else { "·" };
+        let toggles = format!("[{}{}]", syntax_indicator, lines_indicator);
+
         // Add search status if we have a search query
         let search_status = self.search_status();
         let right_info = if search_status.is_empty() {
-            scroll_info
+            format!("{} {}", toggles, scroll_info)
         } else {
-            format!("{} | {}", search_status, scroll_info)
+            format!("{} | {} {}", search_status, toggles, scroll_info)
         };
 
         let title_width = width.saturating_sub(right_info.len() + 4);
@@ -630,6 +674,16 @@ impl PageModel for DocsPage {
                             self.toggle_focus();
                             return None;
                         }
+                        // Toggle syntax highlighting with 's'
+                        ['s'] if self.focus == DocsFocus::Content => {
+                            self.toggle_syntax_highlighting();
+                            return None;
+                        }
+                        // Toggle line numbers with '#'
+                        ['#'] if self.focus == DocsFocus::Content => {
+                            self.toggle_line_numbers();
+                            return None;
+                        }
                         _ => {}
                     }
                 }
@@ -751,9 +805,9 @@ impl PageModel for DocsPage {
             DocsFocus::List => "j/k nav  Tab focus  Enter select",
             DocsFocus::Content => {
                 if !self.search_matches.is_empty() {
-                    "j/k scroll  / search  n/N prev/next  g/G top/btm"
+                    "j/k scroll  / search  n/N match  s syntax  # lines"
                 } else {
-                    "j/k scroll  / search  g/G top/btm  Tab list"
+                    "j/k scroll  / search  s syntax  # lines  Tab list"
                 }
             }
             DocsFocus::Search => "type to search  Enter confirm  Esc cancel",
@@ -1197,5 +1251,51 @@ mod tests {
         page.search_query = "foo/bar".to_string();
         page.update_search_matches();
         // Should not panic
+    }
+
+    // =========================================================================
+    // Syntax Highlighting & Line Numbers Toggle Tests (for bd-3d87)
+    // =========================================================================
+
+    #[test]
+    fn syntax_highlighting_default() {
+        let page = DocsPage::new();
+        assert!(page.syntax_highlighting_enabled(), "Syntax highlighting should be on by default");
+    }
+
+    #[test]
+    fn line_numbers_default() {
+        let page = DocsPage::new();
+        assert!(!page.line_numbers_enabled(), "Line numbers should be off by default");
+    }
+
+    #[test]
+    fn toggle_syntax_highlighting() {
+        let mut page = DocsPage::new();
+        assert!(page.syntax_highlighting);
+
+        page.toggle_syntax_highlighting();
+        assert!(!page.syntax_highlighting);
+        assert!(*page.needs_render.read().unwrap(), "Should need re-render after toggle");
+
+        *page.needs_render.write().unwrap() = false;
+        page.toggle_syntax_highlighting();
+        assert!(page.syntax_highlighting);
+        assert!(*page.needs_render.read().unwrap(), "Should need re-render after toggle");
+    }
+
+    #[test]
+    fn toggle_line_numbers() {
+        let mut page = DocsPage::new();
+        assert!(!page.line_numbers);
+
+        page.toggle_line_numbers();
+        assert!(page.line_numbers);
+        assert!(*page.needs_render.read().unwrap(), "Should need re-render after toggle");
+
+        *page.needs_render.write().unwrap() = false;
+        page.toggle_line_numbers();
+        assert!(!page.line_numbers);
+        assert!(*page.needs_render.read().unwrap(), "Should need re-render after toggle");
     }
 }
