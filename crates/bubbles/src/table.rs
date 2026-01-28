@@ -462,10 +462,10 @@ impl Table {
         }
     }
 
-    /// Updates the table based on messages.
-    pub fn update(&mut self, msg: Message) -> Option<Cmd> {
+    /// Updates the table based on key/mouse input.
+    pub fn update(&mut self, msg: &Message) {
         if !self.focus {
-            return None;
+            return;
         }
 
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
@@ -494,7 +494,7 @@ impl Table {
         if let Some(mouse) = msg.downcast_ref::<MouseMsg>() {
             // Only respond to press events
             if mouse.action != MouseAction::Press {
-                return None;
+                return;
             }
 
             match mouse.button {
@@ -528,8 +528,6 @@ impl Table {
                 _ => {}
             }
         }
-
-        None
     }
 
     /// Renders the table.
@@ -590,7 +588,8 @@ impl Model for Table {
 
     /// Update the table state based on incoming messages.
     fn update(&mut self, msg: Message) -> Option<Cmd> {
-        Table::update(self, msg)
+        self.update(&msg);
+        None
     }
 
     /// Render the table.
