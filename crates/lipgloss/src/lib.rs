@@ -413,6 +413,8 @@ pub fn visible_width(s: &str) -> usize {
         Esc,
         Csi,
         Osc,
+        /// Seen ESC while inside an OSC sequence — expecting `\` to complete ST.
+        OscEsc,
     }
 
     let mut state = State::Normal;
@@ -447,8 +449,26 @@ pub fn visible_width(s: &str) -> usize {
                 if c == '\x07' {
                     state = State::Normal;
                 } else if c == '\x1b' {
-                    // Start of ST sequence
-                    state = State::Esc;
+                    // Possible start of ST (String Terminator = ESC \).
+                    // Use dedicated state to validate the backslash.
+                    state = State::OscEsc;
+                }
+                // All other characters are part of the OSC payload, ignored for width
+            }
+            State::OscEsc => {
+                // We saw ESC while inside an OSC sequence.
+                if c == '\\' {
+                    // Valid ST terminator (ESC \) — OSC is properly closed.
+                    state = State::Normal;
+                } else if c == '[' {
+                    // Malformed OSC (no terminator) followed by a new CSI sequence.
+                    state = State::Csi;
+                } else if c == ']' {
+                    // Malformed OSC followed by a new OSC sequence.
+                    state = State::Osc;
+                } else {
+                    // Unknown escape after ESC in OSC context; recover to Normal.
+                    state = State::Normal;
                 }
             }
         }
@@ -544,6 +564,49 @@ mod tests {
 
         // OSC with no visible content
         assert_eq!(visible_width("\x1b]0;title\x07"), 0);
+    }
+
+    #[test]
+    fn test_visible_width_osc_st_termination() {
+        // Valid ST terminator (ESC \) after OSC
+        assert_eq!(visible_width("\x1b]0;title\x1b\\text"), 4);
+
+        // BEL terminator
+        assert_eq!(visible_width("\x1b]0;title\x07text"), 4);
+
+        // OSC 8 hyperlink (BEL terminated)
+        assert_eq!(
+            visible_width("\x1b]8;;https://example.com\x07link\x1b]8;;\x07"),
+            4
+        );
+
+        // OSC 8 hyperlink (ST terminated)
+        assert_eq!(
+            visible_width("\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\"),
+            4
+        );
+
+        // Malformed: OSC followed immediately by CSI (no proper terminator)
+        assert_eq!(visible_width("\x1b]0;title\x1b[31mred\x1b[0m"), 3);
+
+        // Malformed: OSC followed by another OSC
+        assert_eq!(visible_width("\x1b]0;first\x1b]0;second\x07text"), 4);
+
+        // Truncated OSC at end of string (no terminator)
+        assert_eq!(visible_width("\x1b]0;title"), 0);
+
+        // Empty OSC with BEL
+        assert_eq!(visible_width("\x1b]\x07text"), 4);
+
+        // Empty OSC with ST
+        assert_eq!(visible_width("\x1b]\x1b\\text"), 4);
+
+        // OSC with ESC at end of string (incomplete ST)
+        assert_eq!(visible_width("\x1b]0;title\x1b"), 0);
+
+        // OSC then ESC followed by non-backslash, non-bracket char
+        // (malformed — ESC consumes one char, then back to Normal)
+        assert_eq!(visible_width("\x1b]0;title\x1bXvisible"), 7);
     }
 
     #[test]
