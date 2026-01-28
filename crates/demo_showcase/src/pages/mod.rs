@@ -4,9 +4,11 @@
 //! interface for the router to delegate update and view calls.
 
 mod dashboard;
+mod jobs;
 mod placeholder;
 
 pub use dashboard::DashboardPage;
+pub use jobs::JobsPage;
 pub use placeholder::PlaceholderPage;
 
 use bubbletea::{Cmd, Message};
@@ -54,7 +56,7 @@ pub trait PageModel {
 pub struct Pages {
     pub dashboard: DashboardPage,
     pub services: PlaceholderPage,
-    pub jobs: PlaceholderPage,
+    pub jobs: JobsPage,
     pub logs: PlaceholderPage,
     pub docs: PlaceholderPage,
     pub wizard: PlaceholderPage,
@@ -66,7 +68,7 @@ impl Default for Pages {
         Self {
             dashboard: DashboardPage::new(),
             services: PlaceholderPage::new(Page::Services),
-            jobs: PlaceholderPage::new(Page::Jobs),
+            jobs: JobsPage::new(),
             logs: PlaceholderPage::new(Page::Logs),
             docs: PlaceholderPage::new(Page::Docs),
             wizard: PlaceholderPage::new(Page::Wizard),
