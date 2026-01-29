@@ -1038,8 +1038,42 @@ impl<M: Model> Program<M> {
             execute!(writer, event::EnableBracketedPaste)?;
         }
 
+        // Install panic hook to restore terminal on panic (mirrors sync path)
+        let prev_hook = if !options.without_catch_panics {
+            let cleanup_opts = options.clone();
+            let prev = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |info| {
+                let mut stderr = io::stderr();
+                if cleanup_opts.bracketed_paste {
+                    let _ = execute!(stderr, event::DisableBracketedPaste);
+                }
+                if cleanup_opts.report_focus {
+                    let _ = execute!(stderr, event::DisableFocusChange);
+                }
+                if cleanup_opts.mouse_all_motion || cleanup_opts.mouse_cell_motion {
+                    let _ = execute!(stderr, DisableMouseCapture);
+                }
+                let _ = execute!(stderr, Show);
+                if cleanup_opts.alt_screen {
+                    let _ = execute!(stderr, LeaveAlternateScreen);
+                }
+                if !cleanup_opts.custom_io {
+                    let _ = disable_raw_mode();
+                }
+                prev(info);
+            }));
+            true
+        } else {
+            false
+        };
+
         // Run the async event loop
         let result = self.event_loop_async(&mut writer).await;
+
+        // Restore panic hook
+        if prev_hook {
+            let _ = std::panic::take_hook();
+        }
 
         // Cleanup terminal
         if options.bracketed_paste {

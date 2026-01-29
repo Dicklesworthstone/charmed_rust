@@ -582,7 +582,7 @@ impl Generator {
             "weighted_choice requires non-empty items"
         );
         let total: u32 = items.iter().map(|(_, w)| w).sum();
-        let mut roll = self.rng.random_range(0..total);
+        let mut roll = self.rng.random_range(0..total.max(1));
 
         for (item, weight) in items {
             if roll < *weight {

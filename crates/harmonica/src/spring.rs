@@ -35,8 +35,14 @@
 //! Ported to Rust by Charmed Rust in 2026.
 //! ```
 
-/// Machine epsilon for floating point comparisons.
-const EPSILON: f64 = f64::EPSILON;
+/// Tolerance for damping-ratio boundary comparisons.
+///
+/// Using `f64::EPSILON` (~2.2e-16) is too tight — floating-point arithmetic
+/// in the over-damped and under-damped paths computes `sqrt(x)` where `x`
+/// is near zero at the boundary, then divides by that result. A wider band
+/// routes near-critical values to the numerically stable critically-damped
+/// path, avoiding division by near-zero.
+const EPSILON: f64 = 1e-6;
 
 /// Returns a time delta for a given number of frames per second.
 ///

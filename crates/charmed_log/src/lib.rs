@@ -1136,7 +1136,16 @@ fn escape_json(s: &str) -> String {
             '\r' => result.push_str("\\r"),
             '\t' => result.push_str("\\t"),
             c if c.is_control() => {
-                result.push_str(&format!("\\u{:04x}", c as u32));
+                let cp = c as u32;
+                if cp <= 0xFFFF {
+                    result.push_str(&format!("\\u{cp:04x}"));
+                } else {
+                    // Encode as UTF-16 surrogate pair for JSON compatibility
+                    let s = cp - 0x10000;
+                    let hi = 0xD800 + (s >> 10);
+                    let lo = 0xDC00 + (s & 0x3FF);
+                    result.push_str(&format!("\\u{hi:04x}\\u{lo:04x}"));
+                }
             }
             c => result.push(c),
         }

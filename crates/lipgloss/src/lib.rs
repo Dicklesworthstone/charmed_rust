@@ -412,9 +412,10 @@ pub fn visible_width(s: &str) -> usize {
         Normal,
         Esc,
         Csi,
-        Osc,
-        /// Seen ESC while inside an OSC sequence — expecting `\` to complete ST.
-        OscEsc,
+        /// String-type sequence (OSC, DCS, SOS, PM, APC) — runs until BEL or ST.
+        Str,
+        /// Seen ESC while inside a string sequence — expecting `\` to complete ST.
+        StrEsc,
     }
 
     let mut state = State::Normal;
@@ -429,13 +430,15 @@ pub fn visible_width(s: &str) -> usize {
                 }
             }
             State::Esc => {
-                if c == '[' {
-                    state = State::Csi;
-                } else if c == ']' {
-                    state = State::Osc;
-                } else {
-                    // Simple escapes: single char after ESC (e.g., \x1b7 save cursor)
-                    state = State::Normal;
+                match c {
+                    '[' => state = State::Csi,
+                    // OSC (]), DCS (P), SOS (X), PM (^), APC (_) are all
+                    // string-type sequences terminated by BEL or ST (ESC \).
+                    ']' | 'P' | 'X' | '^' | '_' => state = State::Str,
+                    _ => {
+                        // Simple escapes: single char after ESC (e.g., \x1b7 save cursor)
+                        state = State::Normal;
+                    }
                 }
             }
             State::Csi => {
@@ -444,30 +447,28 @@ pub fn visible_width(s: &str) -> usize {
                     state = State::Normal;
                 }
             }
-            State::Osc => {
-                // OSC ends with BEL (\x07) or ST (ESC \)
+            State::Str => {
+                // String sequence ends with BEL (\x07) or ST (ESC \)
                 if c == '\x07' {
                     state = State::Normal;
                 } else if c == '\x1b' {
-                    // Possible start of ST (String Terminator = ESC \).
-                    // Use dedicated state to validate the backslash.
-                    state = State::OscEsc;
+                    state = State::StrEsc;
                 }
-                // All other characters are part of the OSC payload, ignored for width
+                // All other characters are part of the payload, ignored for width
             }
-            State::OscEsc => {
-                // We saw ESC while inside an OSC sequence.
+            State::StrEsc => {
+                // We saw ESC while inside a string sequence.
                 if c == '\\' {
-                    // Valid ST terminator (ESC \) — OSC is properly closed.
+                    // Valid ST terminator (ESC \) — sequence is properly closed.
                     state = State::Normal;
                 } else if c == '[' {
-                    // Malformed OSC (no terminator) followed by a new CSI sequence.
+                    // Malformed sequence followed by a new CSI.
                     state = State::Csi;
-                } else if c == ']' {
-                    // Malformed OSC followed by a new OSC sequence.
-                    state = State::Osc;
+                } else if c == ']' || c == 'P' || c == 'X' || c == '^' || c == '_' {
+                    // Malformed sequence followed by another string-type sequence.
+                    state = State::Str;
                 } else {
-                    // Unknown escape after ESC in OSC context; recover to Normal.
+                    // Unknown escape; recover to Normal.
                     state = State::Normal;
                 }
             }
@@ -604,9 +605,12 @@ mod tests {
         // OSC with ESC at end of string (incomplete ST)
         assert_eq!(visible_width("\x1b]0;title\x1b"), 0);
 
-        // OSC then ESC followed by non-backslash, non-bracket char
-        // (malformed — ESC consumes one char, then back to Normal)
-        assert_eq!(visible_width("\x1b]0;title\x1bXvisible"), 7);
+        // OSC then ESC followed by 'X' (SOS introducer) — enters a new
+        // string-type sequence per ECMA-48, so "visible" is payload, not visible.
+        assert_eq!(visible_width("\x1b]0;title\x1bXvisible"), 0);
+
+        // OSC then ESC followed by a non-sequence char — simple escape, back to Normal
+        assert_eq!(visible_width("\x1b]0;title\x1b7visible"), 7);
     }
 
     #[test]
