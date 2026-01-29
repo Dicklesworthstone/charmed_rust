@@ -7,6 +7,8 @@
 #![allow(dead_code)] // Style helpers will be used as pages are implemented
 
 use std::env;
+use std::fs;
+use std::path::Path;
 
 use lipgloss::{Border, Style};
 use serde::{Deserialize, Serialize};
@@ -474,6 +476,306 @@ impl Theme {
             self.info_style()
         }
     }
+}
+
+// ============================================================================
+// Custom Theme Loading
+// ============================================================================
+
+/// A custom theme loaded from a JSON file.
+///
+/// All color fields are required and must be valid hex colors (#RGB or #RRGGBB).
+/// The theme will be validated for:
+/// - Required fields present
+/// - Valid hex color format
+/// - Sufficient contrast between key color pairs
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomTheme {
+    /// Optional name for the theme.
+    #[serde(default)]
+    pub name: Option<String>,
+
+    // Primary colors
+    /// Brand color, accent, interactive elements.
+    pub primary: String,
+    /// Secondary accent, less prominent.
+    pub secondary: String,
+
+    // Semantic colors
+    /// Healthy, complete, positive states.
+    pub success: String,
+    /// Needs attention, degraded states.
+    pub warning: String,
+    /// Failed, critical, action needed.
+    pub error: String,
+    /// Informational, neutral highlight.
+    pub info: String,
+
+    // Text colors
+    /// Primary text, high contrast.
+    pub text: String,
+    /// Secondary text, hints, timestamps.
+    pub text_muted: String,
+    /// Text on colored backgrounds.
+    pub text_inverse: String,
+
+    // Background colors
+    /// Main background.
+    pub bg: String,
+    /// Sidebar, header, card backgrounds.
+    pub bg_subtle: String,
+    /// Hover, selection, active states.
+    pub bg_highlight: String,
+
+    // Border colors
+    /// Subtle borders, dividers.
+    pub border: String,
+    /// Focused element borders.
+    pub border_focus: String,
+}
+
+/// Result of loading a custom theme.
+#[derive(Debug, Clone)]
+pub struct ThemeLoadResult {
+    /// The loaded theme (or fallback if loading failed).
+    pub theme: Theme,
+    /// Warnings about the theme (e.g., low contrast).
+    pub warnings: Vec<ThemeWarning>,
+    /// Error that caused fallback, if any.
+    pub error: Option<ThemeLoadError>,
+}
+
+/// Warning about a loaded theme.
+#[derive(Debug, Clone)]
+pub struct ThemeWarning {
+    /// The type of warning.
+    pub kind: ThemeWarningKind,
+    /// Human-readable description.
+    pub message: String,
+}
+
+/// Types of theme warnings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThemeWarningKind {
+    /// Low contrast between foreground and background colors.
+    LowContrast,
+    /// Invalid color format (not a valid hex color).
+    InvalidColor,
+}
+
+/// Error that can occur when loading a custom theme.
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum ThemeLoadError {
+    /// File not found.
+    #[error("Theme file not found: {0}")]
+    FileNotFound(String),
+
+    /// File read error.
+    #[error("Failed to read theme file: {0}")]
+    ReadError(String),
+
+    /// JSON parse error.
+    #[error("Invalid JSON in theme file: {0}")]
+    ParseError(String),
+
+    /// Missing required field.
+    #[error("Missing required field in theme: {0}")]
+    MissingField(String),
+
+    /// Invalid color format.
+    #[error("Invalid color format: {field} = {value}")]
+    InvalidColorFormat { field: String, value: String },
+}
+
+impl CustomTheme {
+    /// Load a custom theme from a JSON file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read or parsed.
+    pub fn load_from_file(path: &Path) -> Result<Self, ThemeLoadError> {
+        if !path.exists() {
+            return Err(ThemeLoadError::FileNotFound(path.display().to_string()));
+        }
+
+        let content = fs::read_to_string(path)
+            .map_err(|e| ThemeLoadError::ReadError(e.to_string()))?;
+
+        serde_json::from_str(&content)
+            .map_err(|e| ThemeLoadError::ParseError(e.to_string()))
+    }
+
+    /// Validate the custom theme and convert to a Theme.
+    ///
+    /// Returns the theme along with any validation warnings.
+    #[must_use]
+    pub fn validate_and_convert(&self) -> (Theme, Vec<ThemeWarning>) {
+        let mut warnings = Vec::new();
+
+        // Validate all color fields
+        let fields = [
+            ("primary", &self.primary),
+            ("secondary", &self.secondary),
+            ("success", &self.success),
+            ("warning", &self.warning),
+            ("error", &self.error),
+            ("info", &self.info),
+            ("text", &self.text),
+            ("text_muted", &self.text_muted),
+            ("text_inverse", &self.text_inverse),
+            ("bg", &self.bg),
+            ("bg_subtle", &self.bg_subtle),
+            ("bg_highlight", &self.bg_highlight),
+            ("border", &self.border),
+            ("border_focus", &self.border_focus),
+        ];
+
+        for (name, value) in &fields {
+            if !is_valid_hex_color(value) {
+                warnings.push(ThemeWarning {
+                    kind: ThemeWarningKind::InvalidColor,
+                    message: format!("{name} is not a valid hex color: {value}"),
+                });
+            }
+        }
+
+        // Check contrast ratios for key pairs
+        let contrast_pairs = [
+            ("text", &self.text, "bg", &self.bg, 4.5),
+            ("text_muted", &self.text_muted, "bg", &self.bg, 3.0),
+            ("text", &self.text, "bg_subtle", &self.bg_subtle, 4.5),
+            ("text", &self.text, "bg_highlight", &self.bg_highlight, 4.5),
+            ("text_inverse", &self.text_inverse, "primary", &self.primary, 4.5),
+        ];
+
+        for (fg_name, fg, bg_name, bg, min_ratio) in &contrast_pairs {
+            if let (Some(fg_rgb), Some(bg_rgb)) = (parse_hex_color(fg), parse_hex_color(bg)) {
+                let ratio = contrast_ratio(fg_rgb, bg_rgb);
+                if ratio < *min_ratio {
+                    warnings.push(ThemeWarning {
+                        kind: ThemeWarningKind::LowContrast,
+                        message: format!(
+                            "Low contrast between {fg_name} and {bg_name}: {ratio:.2} (minimum {min_ratio})"
+                        ),
+                    });
+                }
+            }
+        }
+
+        // Convert to Theme using leaked static strings
+        // (This is acceptable for a theme that lives for the program lifetime)
+        let theme = Theme {
+            preset: ThemePreset::Dark, // Custom themes show as Dark in preset field
+            primary: leak_string(&self.primary),
+            secondary: leak_string(&self.secondary),
+            success: leak_string(&self.success),
+            warning: leak_string(&self.warning),
+            error: leak_string(&self.error),
+            info: leak_string(&self.info),
+            text: leak_string(&self.text),
+            text_muted: leak_string(&self.text_muted),
+            text_inverse: leak_string(&self.text_inverse),
+            bg: leak_string(&self.bg),
+            bg_subtle: leak_string(&self.bg_subtle),
+            bg_highlight: leak_string(&self.bg_highlight),
+            border: leak_string(&self.border),
+            border_focus: leak_string(&self.border_focus),
+        };
+
+        (theme, warnings)
+    }
+}
+
+/// Load a theme from a file path, with fallback to a preset on error.
+///
+/// Returns the loaded theme along with any warnings or errors.
+/// If loading fails, falls back to the specified preset.
+#[must_use]
+pub fn load_theme_from_file(path: &Path, fallback: ThemePreset) -> ThemeLoadResult {
+    match CustomTheme::load_from_file(path) {
+        Ok(custom) => {
+            let (theme, warnings) = custom.validate_and_convert();
+            ThemeLoadResult {
+                theme,
+                warnings,
+                error: None,
+            }
+        }
+        Err(e) => ThemeLoadResult {
+            theme: Theme::from_preset(fallback),
+            warnings: vec![],
+            error: Some(e),
+        },
+    }
+}
+
+/// Check if a string is a valid hex color (#RGB or #RRGGBB).
+#[must_use]
+pub fn is_valid_hex_color(s: &str) -> bool {
+    if !s.starts_with('#') {
+        return false;
+    }
+    let hex = &s[1..];
+    if hex.len() != 3 && hex.len() != 6 {
+        return false;
+    }
+    hex.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Parse a hex color to RGB values.
+#[must_use]
+pub fn parse_hex_color(s: &str) -> Option<(u8, u8, u8)> {
+    if !s.starts_with('#') {
+        return None;
+    }
+    let hex = &s[1..];
+    match hex.len() {
+        3 => {
+            let r = u8::from_str_radix(&hex[0..1], 16).ok()? * 17;
+            let g = u8::from_str_radix(&hex[1..2], 16).ok()? * 17;
+            let b = u8::from_str_radix(&hex[2..3], 16).ok()? * 17;
+            Some((r, g, b))
+        }
+        6 => {
+            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+            Some((r, g, b))
+        }
+        _ => None,
+    }
+}
+
+/// Calculate relative luminance for a color.
+/// See: https://www.w3.org/TR/WCAG20/#relativeluminancedef
+#[must_use]
+pub fn relative_luminance(r: u8, g: u8, b: u8) -> f64 {
+    fn channel(c: u8) -> f64 {
+        let c = f64::from(c) / 255.0;
+        if c <= 0.03928 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    }
+    0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+}
+
+/// Calculate WCAG contrast ratio between two colors.
+/// See: https://www.w3.org/TR/WCAG20/#contrast-ratiodef
+#[must_use]
+pub fn contrast_ratio(fg: (u8, u8, u8), bg: (u8, u8, u8)) -> f64 {
+    let l1 = relative_luminance(fg.0, fg.1, fg.2);
+    let l2 = relative_luminance(bg.0, bg.1, bg.2);
+    let lighter = l1.max(l2);
+    let darker = l1.min(l2);
+    (lighter + 0.05) / (darker + 0.05)
+}
+
+/// Leak a string to get a static reference.
+/// This is acceptable for themes that live for the program lifetime.
+fn leak_string(s: &str) -> &'static str {
+    Box::leak(s.to_string().into_boxed_str())
 }
 
 // ============================================================================
@@ -1469,5 +1771,313 @@ mod tests {
                 preset
             );
         }
+    }
+
+    // =========================================================================
+    // bd-2xlv: Custom theme loading + contrast checks
+    // =========================================================================
+
+    // --- Hex color validation ---
+
+    #[test]
+    fn is_valid_hex_color_accepts_valid_colors() {
+        assert!(is_valid_hex_color("#FFF"));
+        assert!(is_valid_hex_color("#fff"));
+        assert!(is_valid_hex_color("#FFFFFF"));
+        assert!(is_valid_hex_color("#ffffff"));
+        assert!(is_valid_hex_color("#7D56F4"));
+        assert!(is_valid_hex_color("#123"));
+        assert!(is_valid_hex_color("#abc"));
+        assert!(is_valid_hex_color("#ABC"));
+        assert!(is_valid_hex_color("#123456"));
+    }
+
+    #[test]
+    fn is_valid_hex_color_rejects_invalid_colors() {
+        assert!(!is_valid_hex_color("FFF"));
+        assert!(!is_valid_hex_color("#"));
+        assert!(!is_valid_hex_color("#GGG"));
+        assert!(!is_valid_hex_color("#12345"));
+        assert!(!is_valid_hex_color("#1234567"));
+        assert!(!is_valid_hex_color("rgb(255,255,255)"));
+        assert!(!is_valid_hex_color(""));
+        assert!(!is_valid_hex_color("#12"));
+        assert!(!is_valid_hex_color("#1234"));
+    }
+
+    // --- Hex color parsing ---
+
+    #[test]
+    fn parse_hex_color_parses_short_form() {
+        assert_eq!(parse_hex_color("#FFF"), Some((255, 255, 255)));
+        assert_eq!(parse_hex_color("#000"), Some((0, 0, 0)));
+        assert_eq!(parse_hex_color("#F00"), Some((255, 0, 0)));
+        assert_eq!(parse_hex_color("#0F0"), Some((0, 255, 0)));
+        assert_eq!(parse_hex_color("#00F"), Some((0, 0, 255)));
+        // #ABC = #AABBCC
+        assert_eq!(parse_hex_color("#ABC"), Some((170, 187, 204)));
+    }
+
+    #[test]
+    fn parse_hex_color_parses_long_form() {
+        assert_eq!(parse_hex_color("#FFFFFF"), Some((255, 255, 255)));
+        assert_eq!(parse_hex_color("#000000"), Some((0, 0, 0)));
+        assert_eq!(parse_hex_color("#FF0000"), Some((255, 0, 0)));
+        assert_eq!(parse_hex_color("#00FF00"), Some((0, 255, 0)));
+        assert_eq!(parse_hex_color("#0000FF"), Some((0, 0, 255)));
+        assert_eq!(parse_hex_color("#7D56F4"), Some((125, 86, 244)));
+    }
+
+    #[test]
+    fn parse_hex_color_rejects_invalid() {
+        assert_eq!(parse_hex_color("FFF"), None);
+        assert_eq!(parse_hex_color("#GGG"), None);
+        assert_eq!(parse_hex_color("#12345"), None);
+        assert_eq!(parse_hex_color(""), None);
+    }
+
+    // --- Luminance and contrast ---
+
+    #[test]
+    fn relative_luminance_black_is_zero() {
+        let lum = relative_luminance(0, 0, 0);
+        assert!(lum < 0.001, "black should have ~0 luminance");
+    }
+
+    #[test]
+    fn relative_luminance_white_is_one() {
+        let lum = relative_luminance(255, 255, 255);
+        assert!(lum > 0.999, "white should have ~1 luminance");
+    }
+
+    #[test]
+    fn contrast_ratio_black_white() {
+        let ratio = contrast_ratio((0, 0, 0), (255, 255, 255));
+        assert!((ratio - 21.0).abs() < 0.1, "black/white contrast should be ~21:1");
+    }
+
+    #[test]
+    fn contrast_ratio_same_color() {
+        let ratio = contrast_ratio((128, 128, 128), (128, 128, 128));
+        assert!((ratio - 1.0).abs() < 0.001, "same color contrast should be 1:1");
+    }
+
+    #[test]
+    fn contrast_ratio_order_independent() {
+        let ratio1 = contrast_ratio((0, 0, 0), (255, 255, 255));
+        let ratio2 = contrast_ratio((255, 255, 255), (0, 0, 0));
+        assert!((ratio1 - ratio2).abs() < 0.001, "contrast ratio should be order-independent");
+    }
+
+    // --- CustomTheme validation ---
+
+    #[test]
+    fn custom_theme_validates_colors() {
+        let theme = CustomTheme {
+            name: Some("Test".to_string()),
+            primary: "#INVALID".to_string(),
+            secondary: "#FF79C6".to_string(),
+            success: "#50FA7B".to_string(),
+            warning: "#F1FA8C".to_string(),
+            error: "#FF5555".to_string(),
+            info: "#8BE9FD".to_string(),
+            text: "#F8F8F2".to_string(),
+            text_muted: "#6272A4".to_string(),
+            text_inverse: "#282A36".to_string(),
+            bg: "#282A36".to_string(),
+            bg_subtle: "#343746".to_string(),
+            bg_highlight: "#44475A".to_string(),
+            border: "#44475A".to_string(),
+            border_focus: "#BD93F9".to_string(),
+        };
+
+        let (_, warnings) = theme.validate_and_convert();
+        assert!(
+            warnings.iter().any(|w| w.kind == ThemeWarningKind::InvalidColor),
+            "should warn about invalid color"
+        );
+    }
+
+    #[test]
+    fn custom_theme_detects_low_contrast() {
+        let theme = CustomTheme {
+            name: Some("Low Contrast".to_string()),
+            primary: "#333333".to_string(),
+            secondary: "#444444".to_string(),
+            success: "#50FA7B".to_string(),
+            warning: "#F1FA8C".to_string(),
+            error: "#FF5555".to_string(),
+            info: "#8BE9FD".to_string(),
+            text: "#444444".to_string(), // Very low contrast with bg
+            text_muted: "#333333".to_string(),
+            text_inverse: "#FFFFFF".to_string(),
+            bg: "#333333".to_string(), // Same as text!
+            bg_subtle: "#343746".to_string(),
+            bg_highlight: "#44475A".to_string(),
+            border: "#44475A".to_string(),
+            border_focus: "#333333".to_string(),
+        };
+
+        let (_, warnings) = theme.validate_and_convert();
+        assert!(
+            warnings.iter().any(|w| w.kind == ThemeWarningKind::LowContrast),
+            "should warn about low contrast"
+        );
+    }
+
+    #[test]
+    fn custom_theme_good_contrast_no_warnings() {
+        // Dracula theme has good contrast
+        let theme = CustomTheme {
+            name: Some("Dracula".to_string()),
+            primary: "#BD93F9".to_string(),
+            secondary: "#FF79C6".to_string(),
+            success: "#50FA7B".to_string(),
+            warning: "#F1FA8C".to_string(),
+            error: "#FF5555".to_string(),
+            info: "#8BE9FD".to_string(),
+            text: "#F8F8F2".to_string(),
+            text_muted: "#6272A4".to_string(),
+            text_inverse: "#282A36".to_string(),
+            bg: "#282A36".to_string(),
+            bg_subtle: "#343746".to_string(),
+            bg_highlight: "#44475A".to_string(),
+            border: "#44475A".to_string(),
+            border_focus: "#BD93F9".to_string(),
+        };
+
+        let (_, warnings) = theme.validate_and_convert();
+        // Filter to only contrast warnings (color format is fine)
+        let contrast_warnings: Vec<_> = warnings
+            .iter()
+            .filter(|w| w.kind == ThemeWarningKind::LowContrast)
+            .collect();
+        assert!(
+            contrast_warnings.is_empty(),
+            "Dracula theme should have good contrast, got: {:?}",
+            contrast_warnings
+        );
+    }
+
+    #[test]
+    fn custom_theme_converts_to_theme() {
+        let custom = CustomTheme {
+            name: Some("Custom".to_string()),
+            primary: "#7D56F4".to_string(),
+            secondary: "#FF69B4".to_string(),
+            success: "#00FF00".to_string(),
+            warning: "#FFCC00".to_string(),
+            error: "#FF0000".to_string(),
+            info: "#00BFFF".to_string(),
+            text: "#FFFFFF".to_string(),
+            text_muted: "#626262".to_string(),
+            text_inverse: "#000000".to_string(),
+            bg: "#000000".to_string(),
+            bg_subtle: "#1a1a1a".to_string(),
+            bg_highlight: "#333333".to_string(),
+            border: "#444444".to_string(),
+            border_focus: "#7D56F4".to_string(),
+        };
+
+        let (theme, _) = custom.validate_and_convert();
+        assert_eq!(theme.primary, "#7D56F4");
+        assert_eq!(theme.bg, "#000000");
+        assert_eq!(theme.text, "#FFFFFF");
+    }
+
+    #[test]
+    fn custom_theme_json_roundtrip() {
+        let original = CustomTheme {
+            name: Some("Test".to_string()),
+            primary: "#7D56F4".to_string(),
+            secondary: "#FF69B4".to_string(),
+            success: "#00FF00".to_string(),
+            warning: "#FFCC00".to_string(),
+            error: "#FF0000".to_string(),
+            info: "#00BFFF".to_string(),
+            text: "#FFFFFF".to_string(),
+            text_muted: "#626262".to_string(),
+            text_inverse: "#000000".to_string(),
+            bg: "#000000".to_string(),
+            bg_subtle: "#1a1a1a".to_string(),
+            bg_highlight: "#333333".to_string(),
+            border: "#444444".to_string(),
+            border_focus: "#7D56F4".to_string(),
+        };
+
+        let json = serde_json::to_string_pretty(&original).unwrap();
+        let parsed: CustomTheme = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.name, original.name);
+        assert_eq!(parsed.primary, original.primary);
+        assert_eq!(parsed.bg, original.bg);
+    }
+
+    // --- Theme file loading ---
+
+    #[test]
+    fn load_theme_from_file_returns_fallback_on_missing_file() {
+        let result = load_theme_from_file(
+            std::path::Path::new("/nonexistent/theme.json"),
+            ThemePreset::Light,
+        );
+
+        assert!(result.error.is_some());
+        assert!(matches!(
+            result.error,
+            Some(ThemeLoadError::FileNotFound(_))
+        ));
+        // Should fall back to Light theme
+        assert_eq!(result.theme.preset, ThemePreset::Light);
+    }
+
+    #[test]
+    fn theme_load_error_display() {
+        let err = ThemeLoadError::FileNotFound("test.json".to_string());
+        assert!(err.to_string().contains("test.json"));
+
+        let err = ThemeLoadError::ParseError("unexpected token".to_string());
+        assert!(err.to_string().contains("unexpected token"));
+
+        let err = ThemeLoadError::MissingField("primary".to_string());
+        assert!(err.to_string().contains("primary"));
+
+        let err = ThemeLoadError::InvalidColorFormat {
+            field: "bg".to_string(),
+            value: "not-a-color".to_string(),
+        };
+        assert!(err.to_string().contains("bg"));
+        assert!(err.to_string().contains("not-a-color"));
+    }
+
+    #[test]
+    fn theme_warning_kinds() {
+        let warning1 = ThemeWarning {
+            kind: ThemeWarningKind::LowContrast,
+            message: "test".to_string(),
+        };
+        let warning2 = ThemeWarning {
+            kind: ThemeWarningKind::InvalidColor,
+            message: "test".to_string(),
+        };
+
+        assert_eq!(warning1.kind, ThemeWarningKind::LowContrast);
+        assert_eq!(warning2.kind, ThemeWarningKind::InvalidColor);
+        assert_ne!(warning1.kind, warning2.kind);
+    }
+
+    #[test]
+    fn theme_load_result_fields() {
+        let result = ThemeLoadResult {
+            theme: Theme::dark(),
+            warnings: vec![ThemeWarning {
+                kind: ThemeWarningKind::LowContrast,
+                message: "test".to_string(),
+            }],
+            error: None,
+        };
+
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.error.is_none());
     }
 }

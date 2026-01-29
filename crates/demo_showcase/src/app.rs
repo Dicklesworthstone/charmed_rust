@@ -938,15 +938,18 @@ impl App {
             title,
             " ".repeat(box_width.saturating_sub(title_padding + title.len()))
         );
-        lines.push(format!(
-            "{}{}",
-            " ".repeat(start_x),
-            self.theme
-                .modal_style()
-                .bold()
-                .width(box_width_u16)
-                .render(&title_line)
-        ));
+        // Modal style renders with a border, which creates multiple lines.
+        // We need to indent EACH line, not just prepend to the entire string.
+        let title_rendered = self
+            .theme
+            .modal_style()
+            .bold()
+            .width(box_width_u16)
+            .render(&title_line);
+        let indent = " ".repeat(start_x);
+        for title_line in title_rendered.lines() {
+            lines.push(format!("{indent}{title_line}"));
+        }
 
         // Content area styling
         let content_style = Style::new()
@@ -1610,7 +1613,7 @@ mod tests {
 
     #[test]
     fn app_from_config_uses_theme_preset() {
-        use crate::config::{AnimationMode, Config};
+        use crate::config::Config;
 
         let config = Config {
             theme_preset: ThemePreset::Light,
@@ -1951,7 +1954,7 @@ mod tests {
     fn batch_set_theme_works_via_simulator() {
         use crate::messages::AppMsg;
         use crate::theme::ThemePreset;
-        use bubbletea::{Cmd, Message, Model, batch, simulator::ProgramSimulator};
+        use bubbletea::{Cmd, Message, batch, simulator::ProgramSimulator};
 
         let app = App::new();
         let mut sim = ProgramSimulator::new(app);
@@ -1987,7 +1990,7 @@ mod tests {
     fn batch_two_commands_works_via_simulator() {
         use crate::messages::{AppMsg, Notification, NotificationMsg};
         use crate::theme::ThemePreset;
-        use bubbletea::{Cmd, Message, Model, batch, simulator::ProgramSimulator};
+        use bubbletea::{Cmd, Message, batch, simulator::ProgramSimulator};
 
         let app = App::new();
         let mut sim = ProgramSimulator::new(app);
@@ -2041,7 +2044,7 @@ mod tests {
     #[test]
     fn settings_theme_change_via_keys() {
         use crate::theme::ThemePreset;
-        use bubbletea::{KeyMsg, KeyType, Message, Model, simulator::ProgramSimulator};
+        use bubbletea::{KeyMsg, KeyType, Message, simulator::ProgramSimulator};
 
         let app = App::new();
         let mut sim = ProgramSimulator::new(app);

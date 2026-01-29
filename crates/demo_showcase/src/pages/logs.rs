@@ -96,6 +96,7 @@ impl LevelFilter {
 
     /// Count how many levels are enabled.
     #[must_use]
+    #[allow(dead_code)]
     pub const fn enabled_count(&self) -> usize {
         let mut count = 0;
         if self.error {

@@ -61,12 +61,14 @@ impl StatusFilter {
 
     /// Check if all filters are enabled.
     #[must_use]
+    #[allow(dead_code)]
     pub const fn all_enabled(&self) -> bool {
         self.running && self.completed && self.failed && self.queued
     }
 
     /// Check if no filters are enabled.
     #[must_use]
+    #[allow(dead_code)]
     pub const fn none_enabled(&self) -> bool {
         !self.running && !self.completed && !self.failed && !self.queued
     }
@@ -441,7 +443,10 @@ impl JobsPage {
         let id_str = format!("#{}", job.id);
         let kind_str = job.kind.name().to_string();
         let status_str = format!("{} {}", job.status.icon(), job.status.name());
-        let progress_str = format!("{}%", job.progress);
+
+        // Enhanced progress display based on status
+        let progress_str = Self::format_progress_cell(job);
+
         let started_str = job
             .started_at
             .map_or_else(|| "—".to_string(), |t| t.format("%H:%M:%S").to_string());
@@ -454,6 +459,88 @@ impl JobsPage {
             progress_str,
             started_str,
         ]
+    }
+
+    /// Format the progress cell based on job status.
+    /// Uses spinners for indeterminate states and progress bars for determinate.
+    fn format_progress_cell(job: &Job) -> String {
+        match job.status {
+            JobStatus::Queued => {
+                // Indeterminate: show spinner-like indicator
+                "◌ queued".to_string()
+            }
+            JobStatus::Running => {
+                // Determinate with progress and ETA hint
+                let eta = Self::estimate_eta(job);
+                if let Some(eta_str) = eta {
+                    format!("{}% {}", job.progress, eta_str)
+                } else {
+                    format!("{}%", job.progress)
+                }
+            }
+            JobStatus::Completed => {
+                "✓ done".to_string()
+            }
+            JobStatus::Failed => {
+                "✕ error".to_string()
+            }
+            JobStatus::Cancelled => {
+                "⊘ cancel".to_string()
+            }
+        }
+    }
+
+    /// Estimate remaining time for a running job.
+    /// Returns a short string like "~2m" or None if can't estimate.
+    fn estimate_eta(job: &Job) -> Option<String> {
+        if job.status != JobStatus::Running || job.progress == 0 {
+            return None;
+        }
+
+        let started = job.started_at?;
+        let elapsed = chrono::Utc::now().signed_duration_since(started);
+        let elapsed_secs = elapsed.num_seconds();
+
+        if elapsed_secs <= 0 {
+            return None;
+        }
+
+        // Estimate total time based on progress rate
+        #[allow(clippy::cast_precision_loss)]
+        let rate = job.progress as f64 / elapsed_secs as f64; // percent per second
+
+        if rate <= 0.0 {
+            return None;
+        }
+
+        #[allow(clippy::cast_precision_loss)]
+        let remaining_percent = (100 - job.progress) as f64;
+        let eta_secs = (remaining_percent / rate) as i64;
+
+        if eta_secs < 60 {
+            Some(format!("~{}s", eta_secs))
+        } else if eta_secs < 3600 {
+            Some(format!("~{}m", eta_secs / 60))
+        } else {
+            Some(format!("~{}h", eta_secs / 3600))
+        }
+    }
+
+    /// Check if a running job appears to be slow/stuck.
+    /// Returns true if progress is < 10% after 30+ seconds.
+    fn is_job_slow(job: &Job) -> bool {
+        if job.status != JobStatus::Running {
+            return false;
+        }
+
+        let Some(started) = job.started_at else {
+            return false;
+        };
+
+        let elapsed = chrono::Utc::now().signed_duration_since(started);
+
+        // Job is "slow" if running for 30+ seconds with <10% progress
+        elapsed.num_seconds() >= 30 && job.progress < 10
     }
 
     /// Get the currently selected job (using filtered indices).
@@ -729,16 +816,25 @@ impl JobsPage {
         // === SUMMARY ===
         lines.push(theme.heading_style().render("Summary"));
         let duration = Self::calculate_duration(job);
-        let progress_bar = Self::render_progress_bar(job.progress, 20, theme);
+        let inline_progress = Self::render_inline_progress(job, theme);
         lines.push(format!(
             "  Kind:     {}",
             theme.muted_style().render(job.kind.name())
         ));
-        lines.push(format!("  Progress: {progress_bar}"));
+        lines.push(format!("  Progress: {inline_progress}"));
         lines.push(format!(
             "  Duration: {}",
             theme.muted_style().render(&duration)
         ));
+
+        // Show slow warning for running jobs
+        if Self::is_job_slow(job) {
+            lines.push(format!(
+                "  Status:   {}",
+                theme.warning_style().render("⚠ Job may be stuck or experiencing delays")
+            ));
+        }
+
         if let Some(ref error) = job.error {
             lines.push(format!("  Error:    {}", theme.error_style().render(error)));
         }
@@ -805,23 +901,102 @@ impl JobsPage {
             .join("\n")
     }
 
-    /// Render a simple progress bar.
+    /// Render a polished progress bar with Unicode characters.
     fn render_progress_bar(percent: u8, width: usize, theme: &Theme) -> String {
         let clamped = percent.min(100);
-        let fill_width = (usize::from(clamped) * width) / 100;
-        let empty_width = width.saturating_sub(fill_width);
+        let bar_width = width.saturating_sub(5); // Reserve space for percentage
 
-        let fill = "#".repeat(fill_width);
-        let empty = "-".repeat(empty_width);
+        if bar_width == 0 {
+            return format!("{clamped}%");
+        }
 
-        let bar = format!("[{fill}{empty}] {clamped}%");
+        let fill_width = (usize::from(clamped) * bar_width) / 100;
+        let empty_width = bar_width.saturating_sub(fill_width);
+
+        // Use Unicode block characters for a modern look
+        let fill = "█".repeat(fill_width);
+        let empty = "░".repeat(empty_width);
+
+        let percent_str = format!("{clamped:>3}%");
 
         if clamped >= 100 {
-            theme.success_style().render(&bar)
+            let bar = theme.success_style().render(&fill);
+            format!("{bar} {}", theme.success_style().render(&percent_str))
+        } else if clamped >= 75 {
+            // Near complete - success tint
+            let bar = format!(
+                "{}{}",
+                theme.success_style().render(&fill),
+                theme.muted_style().render(&empty)
+            );
+            format!("{bar} {}", theme.info_style().render(&percent_str))
         } else if clamped > 0 {
-            theme.info_style().render(&bar)
+            // In progress - info color
+            let bar = format!(
+                "{}{}",
+                theme.info_style().render(&fill),
+                theme.muted_style().render(&empty)
+            );
+            format!("{bar} {}", theme.muted_style().render(&percent_str))
         } else {
-            theme.muted_style().render(&bar)
+            // Not started - all empty
+            let bar = theme.muted_style().render(&empty);
+            format!("{bar} {}", theme.muted_style().render(&percent_str))
+        }
+    }
+
+    /// Render a compact inline progress indicator for the details pane.
+    fn render_inline_progress(job: &Job, theme: &Theme) -> String {
+        match job.status {
+            JobStatus::Queued => {
+                format!(
+                    "{} {}",
+                    theme.muted_style().render("◌"),
+                    theme.muted_style().render("Waiting in queue...")
+                )
+            }
+            JobStatus::Running => {
+                let is_slow = Self::is_job_slow(job);
+                let progress_bar = Self::render_progress_bar(job.progress, 20, theme);
+
+                if is_slow {
+                    format!(
+                        "{} {}",
+                        progress_bar,
+                        theme.warning_style().render("⚠ slow")
+                    )
+                } else if let Some(eta) = Self::estimate_eta(job) {
+                    format!(
+                        "{} {}",
+                        progress_bar,
+                        theme.muted_style().render(&eta)
+                    )
+                } else {
+                    progress_bar
+                }
+            }
+            JobStatus::Completed => {
+                format!(
+                    "{} {}",
+                    theme.success_style().render("✓"),
+                    theme.success_style().render("Completed successfully")
+                )
+            }
+            JobStatus::Failed => {
+                let error_hint = job.error.as_deref().unwrap_or("Unknown error");
+                format!(
+                    "{} {}",
+                    theme.error_style().render("✕"),
+                    theme.error_style().render(error_hint)
+                )
+            }
+            JobStatus::Cancelled => {
+                format!(
+                    "{} {}",
+                    theme.warning_style().render("⊘"),
+                    theme.warning_style().render("Cancelled by user")
+                )
+            }
         }
     }
 
@@ -1258,7 +1433,13 @@ mod tests {
         assert!(row[0].starts_with('#')); // ID
         assert!(!row[1].is_empty()); // Name
         assert!(!row[3].is_empty()); // Status with icon
-        assert!(row[4].ends_with('%')); // Progress
+        // Progress column now shows status-aware format:
+        // - Running: "50%" or "50% ~2m"
+        // - Queued: "◌ queued"
+        // - Completed: "✓ done"
+        // - Failed: "✕ error"
+        // - Cancelled: "⊘ cancel"
+        assert!(!row[4].is_empty()); // Progress cell is not empty
     }
 
     // =========================================================================
@@ -1750,5 +1931,321 @@ mod tests {
         assert!(result.is_some());
         assert_eq!(job.status, JobStatus::Running);
         assert_eq!(job.id, original_id);
+    }
+
+    // =========================================================================
+    // Progress Visualization Tests (bd-3mxk)
+    // =========================================================================
+
+    #[test]
+    fn format_progress_cell_queued() {
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Queued,
+            progress: 0,
+            created_at: chrono::Utc::now(),
+            started_at: None,
+            ended_at: None,
+            error: None,
+        };
+
+        let cell = JobsPage::format_progress_cell(&job);
+        assert!(cell.contains("queued"), "Queued job should show 'queued': {}", cell);
+    }
+
+    #[test]
+    fn format_progress_cell_running() {
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Running,
+            progress: 50,
+            created_at: chrono::Utc::now(),
+            started_at: Some(chrono::Utc::now() - chrono::Duration::seconds(30)),
+            ended_at: None,
+            error: None,
+        };
+
+        let cell = JobsPage::format_progress_cell(&job);
+        assert!(cell.contains("50%"), "Running job should show percentage: {}", cell);
+    }
+
+    #[test]
+    fn format_progress_cell_completed() {
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Completed,
+            progress: 100,
+            created_at: chrono::Utc::now(),
+            started_at: Some(chrono::Utc::now()),
+            ended_at: Some(chrono::Utc::now()),
+            error: None,
+        };
+
+        let cell = JobsPage::format_progress_cell(&job);
+        assert!(cell.contains("done"), "Completed job should show 'done': {}", cell);
+    }
+
+    #[test]
+    fn format_progress_cell_failed() {
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Failed,
+            progress: 30,
+            created_at: chrono::Utc::now(),
+            started_at: Some(chrono::Utc::now()),
+            ended_at: Some(chrono::Utc::now()),
+            error: Some("Something went wrong".to_string()),
+        };
+
+        let cell = JobsPage::format_progress_cell(&job);
+        assert!(cell.contains("error"), "Failed job should show 'error': {}", cell);
+    }
+
+    #[test]
+    fn format_progress_cell_cancelled() {
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Cancelled,
+            progress: 20,
+            created_at: chrono::Utc::now(),
+            started_at: Some(chrono::Utc::now()),
+            ended_at: Some(chrono::Utc::now()),
+            error: None,
+        };
+
+        let cell = JobsPage::format_progress_cell(&job);
+        assert!(cell.contains("cancel"), "Cancelled job should show 'cancel': {}", cell);
+    }
+
+    #[test]
+    fn estimate_eta_zero_progress() {
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Running,
+            progress: 0,
+            created_at: chrono::Utc::now(),
+            started_at: Some(chrono::Utc::now()),
+            ended_at: None,
+            error: None,
+        };
+
+        let eta = JobsPage::estimate_eta(&job);
+        assert!(eta.is_none(), "Zero progress should have no ETA");
+    }
+
+    #[test]
+    fn estimate_eta_with_progress() {
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Running,
+            progress: 50,
+            created_at: chrono::Utc::now(),
+            started_at: Some(chrono::Utc::now() - chrono::Duration::seconds(60)),
+            ended_at: None,
+            error: None,
+        };
+
+        let eta = JobsPage::estimate_eta(&job);
+        assert!(eta.is_some(), "Running job with progress should have ETA");
+        let eta_str = eta.unwrap();
+        assert!(eta_str.starts_with('~'), "ETA should start with ~: {}", eta_str);
+    }
+
+    #[test]
+    fn estimate_eta_not_running() {
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Completed,
+            progress: 100,
+            created_at: chrono::Utc::now(),
+            started_at: Some(chrono::Utc::now()),
+            ended_at: Some(chrono::Utc::now()),
+            error: None,
+        };
+
+        let eta = JobsPage::estimate_eta(&job);
+        assert!(eta.is_none(), "Completed job should have no ETA");
+    }
+
+    #[test]
+    fn is_job_slow_not_running() {
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Queued,
+            progress: 0,
+            created_at: chrono::Utc::now(),
+            started_at: None,
+            ended_at: None,
+            error: None,
+        };
+
+        assert!(!JobsPage::is_job_slow(&job), "Queued job should not be slow");
+    }
+
+    #[test]
+    fn is_job_slow_fast_progress() {
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Running,
+            progress: 50,
+            created_at: chrono::Utc::now(),
+            started_at: Some(chrono::Utc::now() - chrono::Duration::seconds(60)),
+            ended_at: None,
+            error: None,
+        };
+
+        assert!(!JobsPage::is_job_slow(&job), "Job with good progress should not be slow");
+    }
+
+    #[test]
+    fn is_job_slow_stuck() {
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Running,
+            progress: 5,
+            created_at: chrono::Utc::now(),
+            started_at: Some(chrono::Utc::now() - chrono::Duration::seconds(60)),
+            ended_at: None,
+            error: None,
+        };
+
+        assert!(JobsPage::is_job_slow(&job), "Job with <10% progress after 30s should be slow");
+    }
+
+    #[test]
+    fn render_progress_bar_zero() {
+        let theme = Theme::dark();
+        let bar = JobsPage::render_progress_bar(0, 25, &theme);
+        assert!(bar.contains("0%"), "Zero progress bar should show 0%: {}", bar);
+    }
+
+    #[test]
+    fn render_progress_bar_fifty() {
+        let theme = Theme::dark();
+        let bar = JobsPage::render_progress_bar(50, 25, &theme);
+        assert!(bar.contains("50%"), "50% progress bar should show 50%: {}", bar);
+    }
+
+    #[test]
+    fn render_progress_bar_hundred() {
+        let theme = Theme::dark();
+        let bar = JobsPage::render_progress_bar(100, 25, &theme);
+        assert!(bar.contains("100%"), "100% progress bar should show 100%: {}", bar);
+    }
+
+    #[test]
+    fn render_progress_bar_over_hundred() {
+        let theme = Theme::dark();
+        let bar = JobsPage::render_progress_bar(150, 25, &theme);
+        assert!(bar.contains("100%"), "Over 100% should clamp to 100%: {}", bar);
+    }
+
+    #[test]
+    fn render_progress_bar_narrow_width() {
+        let theme = Theme::dark();
+        let bar = JobsPage::render_progress_bar(50, 5, &theme);
+        // Very narrow bar should still show percentage
+        assert!(bar.contains("50"), "Narrow bar should show percentage: {}", bar);
+    }
+
+    #[test]
+    fn render_inline_progress_queued() {
+        let theme = Theme::dark();
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Queued,
+            progress: 0,
+            created_at: chrono::Utc::now(),
+            started_at: None,
+            ended_at: None,
+            error: None,
+        };
+
+        let inline = JobsPage::render_inline_progress(&job, &theme);
+        assert!(inline.contains("queue") || inline.contains("◌"), "Queued should show queue indicator: {}", inline);
+    }
+
+    #[test]
+    fn render_inline_progress_running() {
+        let theme = Theme::dark();
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Running,
+            progress: 50,
+            created_at: chrono::Utc::now(),
+            started_at: Some(chrono::Utc::now() - chrono::Duration::seconds(30)),
+            ended_at: None,
+            error: None,
+        };
+
+        let inline = JobsPage::render_inline_progress(&job, &theme);
+        assert!(inline.contains("50%") || inline.contains("█") || inline.contains("░"),
+            "Running should show progress bar: {}", inline);
+    }
+
+    #[test]
+    fn render_inline_progress_completed() {
+        let theme = Theme::dark();
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Completed,
+            progress: 100,
+            created_at: chrono::Utc::now(),
+            started_at: Some(chrono::Utc::now()),
+            ended_at: Some(chrono::Utc::now()),
+            error: None,
+        };
+
+        let inline = JobsPage::render_inline_progress(&job, &theme);
+        assert!(inline.contains("✓") || inline.contains("Completed"),
+            "Completed should show success: {}", inline);
+    }
+
+    #[test]
+    fn render_inline_progress_failed() {
+        let theme = Theme::dark();
+        let job = Job {
+            id: 1,
+            name: "Test".to_string(),
+            kind: JobKind::Build,
+            status: JobStatus::Failed,
+            progress: 30,
+            created_at: chrono::Utc::now(),
+            started_at: Some(chrono::Utc::now()),
+            ended_at: Some(chrono::Utc::now()),
+            error: Some("Database error".to_string()),
+        };
+
+        let inline = JobsPage::render_inline_progress(&job, &theme);
+        assert!(inline.contains("✕") || inline.contains("Database error"),
+            "Failed should show error: {}", inline);
     }
 }

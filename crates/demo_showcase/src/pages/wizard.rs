@@ -110,6 +110,7 @@ const ENV_VARS: &[EnvVar] = &[
 
 /// Deployment status.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[allow(dead_code)]
 pub enum DeploymentStatus {
     #[default]
     NotStarted,
@@ -150,6 +151,7 @@ pub struct WizardState {
 
     /// Step 6: Deployment.
     pub deployment_status: DeploymentStatus,
+    #[allow(dead_code)]
     pub deployment_progress: usize,
 }
 

@@ -58,7 +58,7 @@ fn e2e_mouse_scroll_docs_viewport() {
     runner.assert_page(Page::Docs);
 
     runner.step("Capture initial view");
-    let initial_view = runner.view();
+    let _initial_view = runner.view();
 
     runner.step("Scroll down with mouse wheel");
     // Send multiple scroll events to ensure visible change
@@ -66,13 +66,11 @@ fn e2e_mouse_scroll_docs_viewport() {
         runner.scroll(60, 20, MouseButton::WheelDown);
     }
 
-    runner.step("Verify view changed after scroll");
-    let scrolled_view = runner.view();
-    // Docs page should scroll, changing the view
-    assert!(
-        initial_view != scrolled_view || initial_view.contains("Documentation"),
-        "view should change after scroll or be on docs page"
-    );
+    runner.step("Verify view is still valid after scroll");
+    let _scrolled_view = runner.view();
+    // The view may or may not change depending on content length and viewport size.
+    // The main goal is verifying scroll doesn't cause panics.
+    runner.assert_view_not_empty();
 
     runner.step("Scroll back up");
     for _ in 0..5 {
@@ -96,7 +94,7 @@ fn e2e_mouse_scroll_logs_viewport() {
     runner.assert_page(Page::Logs);
 
     runner.step("Capture initial view");
-    let initial_view = runner.view();
+    let _initial_view = runner.view();
 
     runner.step("Scroll down with mouse wheel");
     for _ in 0..3 {
@@ -104,7 +102,7 @@ fn e2e_mouse_scroll_logs_viewport() {
     }
 
     runner.step("Verify view changed after scroll");
-    let scrolled_view = runner.view();
+    let _scrolled_view = runner.view();
     // Logs may or may not change depending on content, so we just verify no panic
     runner.assert_view_not_empty();
 
@@ -218,12 +216,7 @@ fn e2e_mouse_toggle_disables_input() {
 
     runner.step("Verify initial mouse state");
     let initial_mouse = runner.model().mouse_enabled();
-    runner.recorder.record_assertion(
-        "mouse initially enabled",
-        initial_mouse,
-        "true",
-        &initial_mouse.to_string(),
-    );
+    assert!(initial_mouse, "mouse should be initially enabled");
 
     runner.step("Navigate to Settings and disable mouse");
     runner.press_key('8');
@@ -232,21 +225,17 @@ fn e2e_mouse_toggle_disables_input() {
     runner.drain();
 
     let mouse_after_toggle = runner.model().mouse_enabled();
-    runner.recorder.record_assertion(
-        "mouse toggled off",
-        !mouse_after_toggle,
-        "false",
-        &mouse_after_toggle.to_string(),
-    );
+    assert!(!mouse_after_toggle, "mouse should be toggled off");
 
     runner.step("Return to Dashboard");
     runner.press_key('1');
     runner.assert_page(Page::Dashboard);
 
     runner.step("Try scrolling (should be ignored when mouse disabled)");
-    let view_before = runner.view();
+    // Capture views to verify scroll is ignored - mainly verify no panic
+    let _view_before = runner.view();
     runner.scroll(60, 20, MouseButton::WheelDown);
-    let view_after = runner.view();
+    let _view_after = runner.view();
 
     // When mouse is disabled, scroll should not change the view
     // (though this depends on implementation - we mainly verify no panic)
@@ -273,19 +262,8 @@ fn e2e_mouse_toggle_reenables_input() {
     runner.drain();
     let mouse_on = runner.model().mouse_enabled();
 
-    runner.recorder.record_assertion(
-        "mouse was toggled off",
-        !mouse_off,
-        "false",
-        &mouse_off.to_string(),
-    );
-
-    runner.recorder.record_assertion(
-        "mouse is now back on",
-        mouse_on,
-        "true",
-        &mouse_on.to_string(),
-    );
+    assert!(!mouse_off, "mouse should be toggled off");
+    assert!(mouse_on, "mouse should be back on");
 
     runner.step("Navigate to Docs and test scroll");
     runner.press_key('5');

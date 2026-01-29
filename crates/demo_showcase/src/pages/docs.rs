@@ -185,6 +185,7 @@ impl DocsPage {
     }
 
     /// Select a document by index.
+    #[allow(dead_code)]
     fn select_doc(&mut self, index: usize) {
         if index < self.entries.len() && index != self.current_index {
             // Save current scroll position
