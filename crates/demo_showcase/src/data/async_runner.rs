@@ -287,8 +287,15 @@ impl AsyncRunner {
     /// Start an async operation.
     ///
     /// Returns a `Cmd` that will complete with an `AsyncOperationMsg`.
+    /// Start an async operation using `AsyncCmd`.
+    ///
+    /// Returns an `AsyncCmd` that will complete with an `AsyncOperationMsg`.
+    /// Use `start_sync` for sync-compatible operations that work with `batch`.
     #[cfg(feature = "async")]
-    pub fn start(&mut self, operation: AsyncOperation) -> Cmd {
+    pub fn start_async(
+        &mut self,
+        operation: AsyncOperation,
+    ) -> bubbletea::AsyncCmd {
         use bubbletea::AsyncCmd;
 
         let id = self.next_id;
@@ -306,7 +313,7 @@ impl AsyncRunner {
         );
 
         let op = operation.clone();
-        Cmd::from(AsyncCmd::new(move || async move {
+        AsyncCmd::new(move || async move {
             // Simulate async delay
             tokio::time::sleep(duration).await;
 
@@ -319,7 +326,46 @@ impl AsyncRunner {
                 result,
             }
             .into_message()
-        }))
+        })
+    }
+
+    /// Start an async operation (sync version compatible with `batch`).
+    ///
+    /// When async feature is enabled, this uses tokio to spawn the async work.
+    /// The result will be delivered as an `AsyncOperationMsg`.
+    #[cfg(feature = "async")]
+    pub fn start(&mut self, operation: AsyncOperation) -> Cmd {
+        let id = self.next_id;
+        self.next_id = self.next_id.wrapping_add(1);
+        let generation = self.generation;
+        let duration = operation.base_duration(self.profile);
+        let seed = self.seed.wrapping_add(id);
+
+        self.pending.insert(
+            id,
+            PendingOperation {
+                operation: operation.clone(),
+                generation,
+            },
+        );
+
+        let op = operation.clone();
+        Cmd::new(move || {
+            // Use tokio's current runtime to run async work
+            let rt = tokio::runtime::Handle::current();
+            rt.block_on(async move {
+                tokio::time::sleep(duration).await;
+
+                let result = generate_result(&op, seed);
+
+                AsyncOperationMsg {
+                    generation,
+                    operation: op,
+                    result,
+                }
+                .into_message()
+            })
+        })
     }
 
     /// Start an async operation (sync fallback when async feature is disabled).
@@ -641,7 +687,7 @@ mod tests {
 
     #[test]
     fn handle_result_accepts_current_generation() {
-        let mut runner = AsyncRunner::new(false);
+        let runner = AsyncRunner::new(false);
         let msg = AsyncOperationMsg {
             generation: 0,
             operation: AsyncOperation::LoadDocsIndex,
