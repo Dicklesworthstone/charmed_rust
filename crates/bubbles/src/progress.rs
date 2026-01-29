@@ -209,7 +209,7 @@ impl Progress {
 
     /// Sets the percentage and returns a command to start animation.
     pub fn set_percent(&mut self, p: f64) -> Option<Cmd> {
-        self.target_percent = p.clamp(0.0, 1.0);
+        self.target_percent = if p.is_finite() { p.clamp(0.0, 1.0) } else { 0.0 };
         self.tag = self.tag.wrapping_add(1);
         self.next_frame()
     }

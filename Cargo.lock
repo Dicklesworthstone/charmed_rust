@@ -1599,6 +1599,7 @@ dependencies = [
  "bubbles",
  "bubbletea",
  "lipgloss",
+ "proptest",
  "thiserror 2.0.18",
 ]
 

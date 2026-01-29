@@ -1,7 +1,15 @@
 use bubbles::paginator::Paginator;
 use bubbles::progress::Progress;
 use bubbles::textinput::TextInput;
+use bubbles::viewport::Viewport;
 use proptest::prelude::*;
+
+fn make_content(line_count: usize) -> String {
+    (0..line_count)
+        .map(|i| format!("Line {i}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
 
 proptest! {
     #[test]
@@ -90,5 +98,169 @@ proptest! {
 
         input.cursor_end();
         prop_assert_eq!(input.position(), char_count);
+    }
+
+    // =========================================================================
+    // Viewport invariants
+    // =========================================================================
+
+    #[test]
+    fn test_viewport_scroll_bounds(
+        width in 1usize..200,
+        height in 1usize..50,
+        line_count in 0usize..200,
+        scroll_amount in 0usize..300,
+    ) {
+        let content = make_content(line_count);
+        let mut vp = Viewport::new(width, height);
+        vp.set_content(&content);
+
+        // Scroll down arbitrary amount
+        vp.scroll_down(scroll_amount);
+
+        // Invariant: y_offset never exceeds max scroll
+        let max_scroll = line_count.saturating_sub(height);
+        prop_assert!(vp.y_offset() <= max_scroll,
+            "y_offset {} > max_scroll {} (lines={}, height={})",
+            vp.y_offset(), max_scroll, line_count, height);
+
+        // Scroll up arbitrary amount
+        vp.scroll_up(scroll_amount);
+        prop_assert!(vp.y_offset() <= max_scroll);
+    }
+
+    #[test]
+    fn test_viewport_at_top_bottom_consistency(
+        width in 1usize..100,
+        height in 1usize..30,
+        line_count in 0usize..100,
+    ) {
+        let content = make_content(line_count);
+        let mut vp = Viewport::new(width, height);
+        vp.set_content(&content);
+
+        // At top initially
+        prop_assert!(vp.at_top());
+
+        vp.goto_bottom();
+        if line_count > height {
+            prop_assert!(vp.at_bottom());
+            prop_assert!(!vp.at_top());
+        }
+
+        vp.goto_top();
+        prop_assert!(vp.at_top());
+        prop_assert_eq!(vp.y_offset(), 0);
+    }
+
+    #[test]
+    fn test_viewport_scroll_percent_range(
+        width in 1usize..100,
+        height in 1usize..30,
+        line_count in 0usize..100,
+        scroll in 0usize..200,
+    ) {
+        let content = make_content(line_count);
+        let mut vp = Viewport::new(width, height);
+        vp.set_content(&content);
+        vp.scroll_down(scroll);
+
+        let pct = vp.scroll_percent();
+        prop_assert!((0.0..=1.0).contains(&pct),
+            "scroll_percent {} out of range", pct);
+    }
+
+    #[test]
+    fn test_viewport_page_down_up_roundtrip(
+        width in 1usize..100,
+        height in 1usize..30,
+        line_count in 0usize..200,
+    ) {
+        let content = make_content(line_count);
+        let mut vp = Viewport::new(width, height);
+        vp.set_content(&content);
+
+        // Page down then page up should return to same or close position
+        let initial = vp.y_offset();
+        vp.page_down();
+        vp.page_up();
+
+        // Should be back at initial (or 0 if content fits in viewport)
+        if line_count <= height {
+            prop_assert_eq!(vp.y_offset(), 0);
+        } else {
+            prop_assert_eq!(vp.y_offset(), initial);
+        }
+    }
+
+    #[test]
+    fn test_viewport_view_never_panics(
+        width in 1usize..100,
+        height in 1usize..30,
+        line_count in 0usize..100,
+        scroll in 0usize..200,
+    ) {
+        let content = make_content(line_count);
+        let mut vp = Viewport::new(width, height);
+        vp.set_content(&content);
+        vp.scroll_down(scroll);
+        let _view = vp.view();
+    }
+
+    #[test]
+    fn test_viewport_visible_lines_bounded(
+        width in 1usize..100,
+        height in 1usize..30,
+        line_count in 0usize..100,
+    ) {
+        let content = make_content(line_count);
+        let mut vp = Viewport::new(width, height);
+        vp.set_content(&content);
+
+        prop_assert!(vp.visible_line_count() <= height);
+        prop_assert!(vp.visible_line_count() <= vp.total_line_count());
+    }
+
+    // =========================================================================
+    // Progress: extreme values
+    // =========================================================================
+
+    #[test]
+    fn test_progress_extreme_values(
+        percent in prop::num::f64::ANY,
+        width in 1usize..200,
+    ) {
+        let mut p = Progress::new().width(width);
+        p.set_percent(percent);
+
+        // Should always clamp to [0, 1] even for NaN/Inf
+        prop_assert!(p.percent() >= 0.0);
+        prop_assert!(p.percent() <= 1.0);
+        prop_assert!(p.percent().is_finite());
+
+        // View should never panic
+        let _view = p.view();
+    }
+
+    // =========================================================================
+    // Paginator: navigation sequence
+    // =========================================================================
+
+    #[test]
+    fn test_paginator_next_prev_bounded(
+        total in 1usize..100,
+        steps in 0usize..200,
+    ) {
+        let mut p = Paginator::new().total_pages(total);
+
+        for _ in 0..steps {
+            p.next_page();
+        }
+        prop_assert!(p.page() < total);
+
+        for _ in 0..steps {
+            p.prev_page();
+        }
+        prop_assert_eq!(p.page(), 0);
     }
 }

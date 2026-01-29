@@ -13,5 +13,8 @@ lipgloss = { path = "../lipgloss" }
 bubbles = { path = "../bubbles" }
 thiserror.workspace = true
 
+[dev-dependencies]
+proptest.workspace = true
+
 [lints]
 workspace = true
