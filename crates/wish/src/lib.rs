@@ -253,12 +253,15 @@ impl PublicKey {
     }
 
     /// Returns a fingerprint of the key.
+    ///
+    /// Note: uses `DefaultHasher` (SipHash), not a cryptographic hash.
+    /// The prefix is for display convention only.
     pub fn fingerprint(&self) -> String {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
         let mut hasher = DefaultHasher::new();
         self.data.hash(&mut hasher);
-        format!("SHA256:{:016x}", hasher.finish())
+        format!("HASH:{:016x}", hasher.finish())
     }
 }
 
@@ -768,6 +771,13 @@ pub struct ServerOptions {
     pub max_auth_attempts: u32,
     /// Authentication rejection delay in milliseconds (timing attack mitigation).
     pub auth_rejection_delay_ms: u64,
+    /// Allow unauthenticated access when no auth handlers are configured.
+    ///
+    /// When `false` (the default), connections are rejected if no auth
+    /// handlers (public key, password, keyboard-interactive, or trait-based)
+    /// are registered. Set to `true` only for development/demo servers
+    /// that intentionally allow anonymous access.
+    pub allow_no_auth: bool,
 }
 
 impl Default for ServerOptions {
@@ -790,6 +800,7 @@ impl Default for ServerOptions {
             subsystem_handlers: HashMap::new(),
             max_auth_attempts: auth::DEFAULT_MAX_AUTH_ATTEMPTS,
             auth_rejection_delay_ms: auth::DEFAULT_AUTH_REJECTION_DELAY_MS,
+            allow_no_auth: false,
         }
     }
 }
@@ -1247,6 +1258,16 @@ impl ServerBuilder {
     /// Sets the authentication rejection delay in milliseconds.
     pub fn auth_rejection_delay(mut self, delay_ms: u64) -> Self {
         self.options.auth_rejection_delay_ms = delay_ms;
+        self
+    }
+
+    /// Allow unauthenticated access when no auth handlers are configured.
+    ///
+    /// By default, `auth_none` is rejected unless at least one auth handler
+    /// is registered. Call this to explicitly opt in to anonymous access
+    /// (e.g., for demo/development servers).
+    pub fn allow_no_auth(mut self) -> Self {
+        self.options.allow_no_auth = true;
         self
     }
 
@@ -2143,7 +2164,7 @@ mod tests {
     fn test_public_key_fingerprint() {
         let key = PublicKey::new("ssh-ed25519", vec![1, 2, 3, 4]);
         let fp = key.fingerprint();
-        assert!(fp.starts_with("SHA256:"));
+        assert!(fp.starts_with("HASH:"));
     }
 
     #[test]

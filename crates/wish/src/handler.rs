@@ -337,7 +337,9 @@ impl RusshHandler for WishHandler {
             return Ok(Self::map_auth_result(result));
         }
 
-        // Accept if no auth handlers are configured
+        // Reject auth_none unless explicitly opted in via allow_no_auth.
+        // Previously this accepted any connection when no auth handlers were
+        // configured, which is a security risk in misconfigured deployments.
         let has_auth = self.server_state.options.public_key_handler.is_some()
             || self.server_state.options.password_handler.is_some()
             || self
@@ -346,14 +348,23 @@ impl RusshHandler for WishHandler {
                 .keyboard_interactive_handler
                 .is_some();
 
-        if !has_auth {
+        if !has_auth && self.server_state.options.allow_no_auth {
             info!(
                 connection_id = self.connection_id,
                 user = user,
-                "No auth configured, accepting connection"
+                "No auth configured and allow_no_auth is set, accepting connection"
             );
             self.user = Some(user.to_string());
             return Ok(Auth::Accept);
+        }
+
+        if !has_auth {
+            warn!(
+                connection_id = self.connection_id,
+                user = user,
+                "No auth handlers configured — rejecting auth_none. \
+                 Set allow_no_auth=true to allow unauthenticated access."
+            );
         }
 
         Ok(Auth::Reject {
@@ -806,7 +817,19 @@ impl RusshHandler for WishHandler {
                 );
             }
 
-            // Append data to buffer
+            // Append data to buffer, capping at 64KB to prevent
+            // memory exhaustion from malicious or misbehaving clients
+            const MAX_INPUT_BUFFER: usize = 64 * 1024;
+            if state.input_buffer.len() + data.len() > MAX_INPUT_BUFFER {
+                warn!(
+                    connection_id = self.connection_id,
+                    channel = ?channel,
+                    buffer_len = state.input_buffer.len(),
+                    data_len = data.len(),
+                    "Input buffer exceeded 64KB limit, draining buffer"
+                );
+                state.input_buffer.clear();
+            }
             state.input_buffer.extend_from_slice(data);
 
             // Process buffer

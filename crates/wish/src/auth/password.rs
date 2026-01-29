@@ -226,18 +226,19 @@ impl AuthHandler for PasswordAuth {
     }
 }
 
-/// Constant-time string comparison.
+/// Fixed-time string comparison.
 ///
-/// Returns true if strings are equal, false otherwise.
-/// Does not short-circuit on inequality to prevent timing attacks.
+/// Always iterates over the longer of the two inputs to avoid leaking
+/// length information through timing. XORs each byte pair and accumulates
+/// differences; also marks unequal if lengths differ.
 fn constant_time_eq(a: &str, b: &str) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
     let a_bytes = a.as_bytes();
     let b_bytes = b.as_bytes();
-    let mut result = 0u8;
-    for (x, y) in a_bytes.iter().zip(b_bytes.iter()) {
+    let len = a_bytes.len().max(b_bytes.len());
+    let mut result = (a_bytes.len() ^ b_bytes.len()) as u8;
+    for i in 0..len {
+        let x = a_bytes.get(i).copied().unwrap_or(0);
+        let y = b_bytes.get(i).copied().unwrap_or(0);
         result |= x ^ y;
     }
     result == 0

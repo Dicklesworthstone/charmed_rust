@@ -383,8 +383,9 @@ impl DocsPage {
 
             // Truncate title if needed
             let max_title_len = LIST_WIDTH - 5; // Space for " > " prefix and padding
-            let title = if entry.title.len() > max_title_len {
-                format!("{}…", &entry.title[..max_title_len - 1])
+            let title = if entry.title.chars().count() > max_title_len {
+                let truncated: String = entry.title.chars().take(max_title_len - 1).collect();
+                format!("{truncated}…")
             } else {
                 entry.title.to_string()
             };

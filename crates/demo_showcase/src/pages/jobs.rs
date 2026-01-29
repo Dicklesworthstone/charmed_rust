@@ -1012,8 +1012,10 @@ impl JobsPage {
                 };
                 let level_str = level_style.render(entry.level.abbrev());
                 let time_str = entry.timestamp.format("%H:%M:%S");
-                let msg = if entry.message.len() > content_width.saturating_sub(20) {
-                    format!("{}...", &entry.message[..content_width.saturating_sub(23)])
+                let max_msg = content_width.saturating_sub(20);
+                let msg = if entry.message.chars().count() > max_msg {
+                    let truncated: String = entry.message.chars().take(max_msg.saturating_sub(3)).collect();
+                    format!("{truncated}...")
                 } else {
                     entry.message.clone()
                 };

@@ -530,8 +530,50 @@ impl<M: Model> Program<M> {
             execute!(writer, event::EnableBracketedPaste)?;
         }
 
+        // Install a panic hook that restores the terminal before printing the
+        // panic message. Without this, a panic in update()/view() leaves the
+        // terminal in raw mode with hidden cursor and alternate screen active.
+        let prev_hook = if !options.without_catch_panics {
+            let cleanup_opts = options.clone();
+            let prev = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |info| {
+                // Best-effort terminal restoration — ignore errors since we're
+                // already in a panic context.
+                let mut stderr = io::stderr();
+                if cleanup_opts.bracketed_paste {
+                    let _ = execute!(stderr, event::DisableBracketedPaste);
+                }
+                if cleanup_opts.report_focus {
+                    let _ = execute!(stderr, event::DisableFocusChange);
+                }
+                if cleanup_opts.mouse_all_motion || cleanup_opts.mouse_cell_motion {
+                    let _ = execute!(stderr, DisableMouseCapture);
+                }
+                let _ = execute!(stderr, Show);
+                if cleanup_opts.alt_screen {
+                    let _ = execute!(stderr, LeaveAlternateScreen);
+                }
+                if !cleanup_opts.custom_io {
+                    let _ = disable_raw_mode();
+                }
+                // Call the previous hook so the user still sees the panic message
+                prev(info);
+            }));
+            true
+        } else {
+            false
+        };
+
         // Run the event loop
         let result = self.event_loop(&mut writer);
+
+        // Restore the previous panic hook before cleanup so a late panic in the
+        // cleanup code itself doesn't recurse.
+        if prev_hook {
+            let _ = std::panic::take_hook();
+            // Note: we can't easily restore the *original* hook since set_hook
+            // moved it into the closure. The default hook is fine for post-run.
+        }
 
         // Cleanup terminal
         if options.bracketed_paste {
@@ -1474,8 +1516,19 @@ impl InputParser {
         Self { buffer: Vec::new() }
     }
 
+    /// Maximum input buffer size (1 MB). Prevents memory exhaustion from
+    /// malformed escape sequences or malicious input streams.
+    const MAX_BUFFER: usize = 1024 * 1024;
+
     fn push_bytes(&mut self, bytes: &[u8], can_have_more_data: bool) -> Vec<Message> {
         if !bytes.is_empty() {
+            if self.buffer.len() + bytes.len() > Self::MAX_BUFFER {
+                debug!(
+                    target: "bubbletea::input",
+                    "Input buffer exceeded 1MB limit, draining"
+                );
+                self.buffer.clear();
+            }
             self.buffer.extend_from_slice(bytes);
         }
 

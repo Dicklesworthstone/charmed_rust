@@ -340,6 +340,7 @@ async fn run_server_with_auth<H: wish::auth::AuthHandler + 'static>(
                 theme,
                 animations,
                 mouse: true, // Enable mouse for SSH sessions
+                max_width: None,
             };
 
             App::with_config(app_config)

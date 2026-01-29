@@ -187,13 +187,12 @@ impl Viewport {
     /// Returns the horizontal scroll percentage (0.0 to 1.0).
     #[must_use]
     pub fn horizontal_scroll_percent(&self) -> f64 {
-        if self.x_offset >= self.longest_line_width.saturating_sub(self.width) {
+        if self.longest_line_width <= self.width {
             return 1.0;
         }
         let x = self.x_offset as f64;
-        let w = self.width as f64;
-        let t = self.longest_line_width as f64;
-        let v = x / (t - w);
+        let scrollable = (self.longest_line_width - self.width) as f64;
+        let v = x / scrollable;
         v.clamp(0.0, 1.0)
     }
 

@@ -98,9 +98,15 @@ impl RepoRef {
 
     /// Returns the cache key for this repository.
     pub fn cache_key(&self) -> String {
+        // Sanitize components to prevent path traversal in cache filenames
+        let sanitize = |s: &str| -> String {
+            s.chars()
+                .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+                .collect()
+        };
         match &self.branch {
-            Some(branch) => format!("{}_{}_{}", self.owner, self.name, branch),
-            None => format!("{}_{}", self.owner, self.name),
+            Some(branch) => format!("{}_{}_{}", sanitize(&self.owner), sanitize(&self.name), sanitize(branch)),
+            None => format!("{}_{}", sanitize(&self.owner), sanitize(&self.name)),
         }
     }
 }

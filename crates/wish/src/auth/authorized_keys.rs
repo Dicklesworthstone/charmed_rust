@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use parking_lot::RwLock;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use super::handler::{AuthContext, AuthHandler, AuthMethod, AuthResult};
 use crate::PublicKey;
@@ -386,6 +386,20 @@ impl AuthorizedKeysAuth {
     /// Gets the keys for a user, loading from file if needed.
     fn get_keys_for_user(&self, username: &str) -> Vec<AuthorizedKey> {
         if self.per_user {
+            // Reject usernames with path traversal characters to prevent
+            // directory traversal attacks (e.g., "../../../etc/shadow")
+            if username.contains('/')
+                || username.contains('\\')
+                || username.contains("..")
+                || username.contains('\0')
+            {
+                warn!(
+                    username = %username,
+                    "Rejected username with path traversal characters"
+                );
+                return Vec::new();
+            }
+
             // Check cache first
             if let Some(keys) = self.cache.read().get(username) {
                 return keys.clone();

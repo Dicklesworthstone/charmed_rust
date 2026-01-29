@@ -701,11 +701,19 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
                 self.paginator.next_page();
                 // Move cursor to first item of new page
                 let start = self.paginator.page() * self.paginator.get_per_page();
-                self.cursor = start.min(self.filtered_indices.len().saturating_sub(1));
+                self.cursor = if self.filtered_indices.is_empty() {
+                    0
+                } else {
+                    start.min(self.filtered_indices.len() - 1)
+                };
             } else if matches(&key_str, &[&self.key_map.prev_page]) {
                 self.paginator.prev_page();
                 let start = self.paginator.page() * self.paginator.get_per_page();
-                self.cursor = start.min(self.filtered_indices.len().saturating_sub(1));
+                self.cursor = if self.filtered_indices.is_empty() {
+                    0
+                } else {
+                    start.min(self.filtered_indices.len() - 1)
+                };
             } else if matches(&key_str, &[&self.key_map.goto_start]) {
                 self.cursor = 0;
                 self.paginator.set_page(0);

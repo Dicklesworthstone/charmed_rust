@@ -134,8 +134,8 @@ fn detect_dark_background() -> bool {
         let parts: Vec<&str> = colorfgbg.split(';').collect();
         if parts.len() >= 2 {
             if let Ok(bg) = parts[1].parse::<u8>() {
-                // ANSI colors 0-7 (plus 8) are considered dark
-                return bg <= 8 || bg == 0;
+                // ANSI colors 0-8 are dark (0-7 standard + 8 bright black)
+                return bg <= 8;
             }
         }
     }

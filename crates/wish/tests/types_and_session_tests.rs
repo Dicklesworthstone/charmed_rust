@@ -94,8 +94,8 @@ fn public_key_with_comment() {
 fn public_key_fingerprint() {
     let pk = PublicKey::new("ssh-ed25519", vec![1, 2, 3]);
     let fp = pk.fingerprint();
-    assert!(fp.starts_with("SHA256:"));
-    assert_eq!(fp.len(), "SHA256:".len() + 16);
+    assert!(fp.starts_with("HASH:"));
+    assert_eq!(fp.len(), "HASH:".len() + 16);
 }
 
 #[test]

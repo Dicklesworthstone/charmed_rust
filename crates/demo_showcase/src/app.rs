@@ -1026,9 +1026,11 @@ impl App {
             .bold();
 
         for line in &visible_content {
-            // Truncate long lines gracefully
-            let truncated = if line.len() > content_width {
-                format!("{}...", &line[..content_width.saturating_sub(3)])
+            // Truncate long lines gracefully (char-aware to avoid mid-codepoint panic)
+            let truncated = if lipgloss::width(line) > content_width {
+                let max_chars = content_width.saturating_sub(3);
+                let prefix: String = line.chars().take(max_chars).collect();
+                format!("{prefix}...")
             } else {
                 (*line).clone()
             };
@@ -1361,8 +1363,9 @@ impl Model for App {
                     // Emit log entry + toast notification
                     let id = self.next_notification_id;
                     self.next_notification_id += 1;
-                    let preview = if content.len() > 30 {
-                        format!("{}...", &content[..30])
+                    let preview = if content.chars().count() > 30 {
+                        let truncated: String = content.chars().take(30).collect();
+                        format!("{truncated}...")
                     } else {
                         content.clone()
                     };

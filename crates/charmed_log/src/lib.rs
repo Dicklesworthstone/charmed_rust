@@ -1077,13 +1077,27 @@ impl Logger {
 }
 
 /// Simple format string replacement.
+///
+/// Replaces each `{}` placeholder in order with the corresponding argument.
+/// Extra args beyond the number of placeholders are ignored.
 fn format_args_simple(format: &str, args: &[&dyn fmt::Display]) -> String {
-    let mut result = format.to_string();
-    for arg in args {
-        if let Some(pos) = result.find("{}") {
-            result = format!("{}{}{}", &result[..pos], arg, &result[pos + 2..]);
+    use fmt::Write;
+
+    let mut result = String::with_capacity(format.len());
+    let mut arg_idx = 0;
+    let mut rest = format;
+
+    while let Some(pos) = rest.find("{}") {
+        result.push_str(&rest[..pos]);
+        if arg_idx < args.len() {
+            let _ = write!(result, "{}", args[arg_idx]);
+            arg_idx += 1;
+        } else {
+            result.push_str("{}");
         }
+        rest = &rest[pos + 2..];
     }
+    result.push_str(rest);
     result
 }
 
