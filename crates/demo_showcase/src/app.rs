@@ -12,6 +12,7 @@ use bubbletea::{
 use lipgloss::{Position, Style};
 
 use crate::components::{CommandPalette, GuidedTour, NotesModal, NotesModalMsg, Sidebar, SidebarFocus, StatusLevel, banner, key_hint};
+use crate::data::animation::Animator;
 use crate::config::Config;
 use crate::keymap::{HELP_SECTIONS, help_total_lines};
 use crate::messages::{
@@ -328,6 +329,8 @@ pub struct App {
     notes_modal: NotesModal,
     /// Guided tour walkthrough (bd-2eky).
     guided_tour: GuidedTour,
+    /// Animation coordinator for UI transitions (bd-30md).
+    animator: Animator,
 }
 
 impl App {
@@ -353,6 +356,7 @@ impl App {
     #[must_use]
     fn with_config_seed_and_headless(config: AppConfig, seed: u64, is_headless: bool) -> Self {
         let theme = Theme::from_preset(config.theme);
+        let animations = config.animations;
         Self {
             config,
             theme,
@@ -375,6 +379,7 @@ impl App {
             command_palette: CommandPalette::new(),
             notes_modal: NotesModal::new(),
             guided_tour: GuidedTour::new(),
+            animator: Animator::new(animations),
         }
     }
 
@@ -658,10 +663,14 @@ impl App {
             if self.sidebar.is_focused() {
                 // Unfocus sidebar
                 self.sidebar.toggle_focus();
+                // Animate focus indicator out (bd-30md)
+                self.animator.animate("sidebar_focus", 0.0);
                 return None;
             } else if self.current_page != Page::Settings {
                 // Focus sidebar (but NOT on Settings page where Tab switches sections)
                 self.sidebar.toggle_focus();
+                // Animate focus indicator in (bd-30md)
+                self.animator.animate("sidebar_focus", 1.0);
                 return None;
             }
             // On Settings page with sidebar not focused: Tab falls through to page
@@ -672,6 +681,8 @@ impl App {
             // Allow Escape to unfocus sidebar
             if key.key_type == KeyType::Esc {
                 self.sidebar.set_focus(SidebarFocus::Inactive);
+                // Animate focus indicator out (bd-30md)
+                self.animator.animate("sidebar_focus", 0.0);
                 return None;
             }
             // Pass to sidebar
@@ -833,7 +844,9 @@ impl App {
 
     /// Render the sidebar.
     fn render_sidebar(&self, height: usize) -> String {
-        self.sidebar.view(height, &self.theme)
+        // Get animated focus intensity for smooth transitions (bd-30md)
+        let focus_intensity = self.animator.get_or("sidebar_focus", 0.0);
+        self.sidebar.view(height, &self.theme, focus_intensity)
     }
 
     /// Render the header.
