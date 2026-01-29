@@ -140,11 +140,13 @@ impl InteractionCounter {
     // ------------------------------------------------------------------------
 
     /// Initialize the counter (no-op for this simple widget).
-    fn init(&self) -> Option<Cmd> {
+    #[expect(clippy::unused_self)] // Required by Model trait
+    const fn init(&self) -> Option<Cmd> {
         None
     }
 
     /// Handle messages to update the counter state.
+    #[expect(clippy::needless_pass_by_value)] // Required by Model trait signature
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         // Handle CounterMsg
         if let Some(counter_msg) = msg.downcast_ref::<CounterMsg>() {
@@ -165,22 +167,21 @@ impl InteractionCounter {
         }
 
         // Handle keyboard shortcuts
-        if let Some(key) = msg.downcast_ref::<KeyMsg>() {
-            match key.key_type {
-                KeyType::Runes => match key.runes.as_slice() {
-                    ['+'] | ['='] => {
-                        if self.count < self.max_value {
-                            self.count += 1;
-                        }
+        if let Some(key) = msg.downcast_ref::<KeyMsg>()
+            && key.key_type == KeyType::Runes
+        {
+            match key.runes.as_slice() {
+                ['+' | '='] => {
+                    if self.count < self.max_value {
+                        self.count += 1;
                     }
-                    ['-'] | ['_'] => {
-                        self.count = self.count.saturating_sub(1);
-                    }
-                    ['0'] => {
-                        self.count = 0;
-                    }
-                    _ => {}
-                },
+                }
+                ['-' | '_'] => {
+                    self.count = self.count.saturating_sub(1);
+                }
+                ['0'] => {
+                    self.count = 0;
+                }
                 _ => {}
             }
         }
@@ -238,7 +239,11 @@ impl InteractionCounter {
         };
 
         let bar_width = width.saturating_sub(20);
-        #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            clippy::cast_precision_loss
+        )]
         let filled = (ratio * bar_width as f64) as usize;
         let empty = bar_width.saturating_sub(filled);
 

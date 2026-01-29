@@ -397,23 +397,6 @@ impl JobsPage {
         }
     }
 
-    /// Get the index of the selected job within the current page.
-    fn page_cursor(&self) -> usize {
-        self.table.cursor()
-    }
-
-    /// Get the global index in filtered_indices from page cursor.
-    fn global_filtered_index(&self) -> Option<usize> {
-        let (start, _) = self.paginator.get_slice_bounds(self.filtered_indices.len());
-        let local = self.table.cursor();
-        let global = start + local;
-        if global < self.filtered_indices.len() {
-            Some(global)
-        } else {
-            None
-        }
-    }
-
     /// Convert filtered indices to table rows.
     fn indices_to_rows(jobs: &[Job], indices: &[usize]) -> Vec<Row> {
         indices
