@@ -50,6 +50,7 @@ crossterm.workspace = true
 
 # Utilities
 unicode-width.workspace = true
+parking_lot = "0.12"
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.9"
 rand_pcg = "0.9"
