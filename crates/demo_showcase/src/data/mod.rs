@@ -972,6 +972,8 @@ pub struct LogColumnWidths {
     pub level: usize,
     /// Width of the target/component column.
     pub target: usize,
+    /// Max width of the message column. `None` means unlimited.
+    pub message: Option<usize>,
 }
 
 impl Default for LogColumnWidths {
@@ -980,6 +982,7 @@ impl Default for LogColumnWidths {
             timestamp: 8, // "15:04:05"
             level: 5,     // "ERROR" (longest)
             target: 20,
+            message: None,
         }
     }
 }
@@ -1147,12 +1150,33 @@ impl LogFormatter {
         }
     }
 
-    /// Format just the message portion.
+    /// Format just the message portion, truncating to fit available width.
     fn format_message(&self, message: &str) -> String {
-        if self.use_color {
-            self.message_style.render(message)
+        let text = if let Some(max_w) = self.widths.message {
+            let visible_w = unicode_width::UnicodeWidthStr::width(message);
+            if visible_w > max_w && max_w > 1 {
+                // Truncate by display width, leaving room for the ellipsis
+                let limit = max_w.saturating_sub(1);
+                let mut w = 0;
+                let end = message
+                    .char_indices()
+                    .take_while(|(_, c)| {
+                        w += unicode_width::UnicodeWidthChar::width(*c).unwrap_or(0);
+                        w <= limit
+                    })
+                    .last()
+                    .map_or(0, |(i, c)| i + c.len_utf8());
+                format!("{}…", &message[..end])
+            } else {
+                message.to_string()
+            }
         } else {
             message.to_string()
+        };
+        if self.use_color {
+            self.message_style.render(&text)
+        } else {
+            text
         }
     }
 
@@ -1543,6 +1567,7 @@ mod tests {
             timestamp: 10,
             level: 6,
             target: 15,
+            message: None,
         };
         let theme = Theme::dark();
         let formatter = LogFormatter::new(&theme)
@@ -1559,5 +1584,6 @@ mod tests {
         assert_eq!(widths.timestamp, 8);
         assert_eq!(widths.level, 5);
         assert_eq!(widths.target, 20);
+        assert_eq!(widths.message, None);
     }
 }

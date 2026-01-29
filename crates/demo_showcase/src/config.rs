@@ -789,6 +789,7 @@ mod tests {
             animations: AnimationMode::Reduced,
             mouse: true,
             alt_screen: false,
+            max_width: None,
             seed: Some(12345),
             files_root: Some(PathBuf::from("/data")),
             self_check: true,

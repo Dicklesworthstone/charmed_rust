@@ -45,6 +45,9 @@ serde_json.workspace = true
 # Async runtime
 tokio = { version = "1.40", features = ["full"] }
 
+# Terminal handling
+crossterm.workspace = true
+
 # Utilities
 unicode-width.workspace = true
 chrono = { version = "0.4", features = ["serde"] }

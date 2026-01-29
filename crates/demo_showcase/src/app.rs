@@ -294,10 +294,8 @@ pub struct App {
     current_page: Page,
     /// Page models.
     pages: Pages,
-    /// Layout width (may be capped by max_width config).
+    /// Layout width (capped by max_width / auto-cap when terminal is very wide).
     width: usize,
-    /// Actual terminal width (for padding output).
-    terminal_width: usize,
     height: usize,
     /// Whether the app is ready (received window size).
     ready: bool,
@@ -1114,6 +1112,34 @@ impl App {
     pub const fn focused(&self) -> bool {
         self.focused
     }
+
+    /// Pad each line to the actual terminal width when max_width is active.
+    ///
+    /// When max_width caps the layout width, the rendered content is narrower
+    /// than the terminal. Without padding, the remaining terminal area appears
+    /// blank or shows artifacts. This fills the rest with spaces.
+    fn pad_to_terminal_width(&self, content: &str) -> String {
+        // No padding needed if terminal width matches layout width
+        if self.terminal_width <= self.width {
+            return content.to_string();
+        }
+
+        // Pad with plain spaces - the terminal's default background will show
+        // This is simpler and more compatible than styled padding
+        content
+            .lines()
+            .map(|line| {
+                let visible_len = lipgloss::width(line);
+                if visible_len < self.terminal_width {
+                    let padding = self.terminal_width - visible_len;
+                    format!("{}{}", line, " ".repeat(padding))
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
 }
 
 impl Default for App {
@@ -1134,14 +1160,27 @@ impl Model for App {
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         // Handle window resize
         // Apply max_width cap if configured (helps with very wide terminals)
-        // Store both actual terminal width (for padding) and layout width (for rendering)
+        // When using max_width (auto or explicit), we set terminal_width = width
+        // so that padding fills the entire layout rather than the actual terminal.
+        // This prevents rendering artifacts when layout width differs from terminal width.
         if let Some(size) = msg.downcast_ref::<WindowSizeMsg>() {
             let actual_width = size.width as usize;
-            self.terminal_width = actual_width;
-            self.width = match self.config.max_width {
+
+            // Sensible default: cap very wide terminals at 200 columns
+            // This prevents layout issues on ultra-wide monitors while still
+            // allowing reasonable flexibility. Users can override with --max-width.
+            const AUTO_MAX_WIDTH: usize = 200;
+            let capped_width = match self.config.max_width {
                 Some(max) => actual_width.min(max as usize),
+                None if actual_width > AUTO_MAX_WIDTH => AUTO_MAX_WIDTH,
                 None => actual_width,
             };
+
+            self.width = capped_width;
+            // Set terminal_width to match layout width when capping is active
+            // This prevents the mismatch between layout and terminal that causes
+            // rendering issues. The tradeoff is that the app won't fill ultra-wide screens.
+            self.terminal_width = capped_width;
             self.height = size.height as usize;
             self.ready = true;
             return None;
@@ -1497,39 +1536,32 @@ impl Model for App {
         let safe_width = self.width.saturating_sub(1).max(1);
         let truncated = truncate_to_width(&base_view, safe_width);
 
+        // Pad every line to uniform width so the background fills evenly
+        // (prevents the "slanted" ragged-right look)
+        let padded = pad_lines_to_width(&truncated, safe_width);
+
         // Pad lines to actual terminal width when max_width caps the layout
         // This prevents blank areas when terminal is wider than layout
-        self.pad_to_terminal_width(&truncated)
+        self.pad_to_terminal_width(&padded)
     }
+}
 
-    /// Pad each line to the actual terminal width when max_width is active.
-    ///
-    /// When max_width caps the layout width, the rendered content is narrower
-    /// than the terminal. Without padding, the remaining terminal area appears
-    /// blank or shows artifacts. This fills the rest with background.
-    fn pad_to_terminal_width(&self, content: &str) -> String {
-        // No padding needed if terminal width matches layout width
-        if self.terminal_width <= self.width {
-            return content.to_string();
-        }
-
-        let bg_style = Style::new().background(self.theme.background);
-
-        content
-            .lines()
-            .map(|line| {
-                let visible_len = lipgloss::width(line);
-                if visible_len < self.terminal_width {
-                    let padding = self.terminal_width - visible_len;
-                    let pad_str = " ".repeat(padding);
-                    format!("{}{}", line, bg_style.render(&pad_str))
-                } else {
-                    line.to_string()
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
+/// Pad each line with spaces so every line has the same visible width.
+///
+/// This prevents the "slanted" ragged-right appearance where shorter lines
+/// leave the terminal background visible at different offsets per row.
+fn pad_lines_to_width(s: &str, target_width: usize) -> String {
+    s.lines()
+        .map(|line| {
+            let visible_len = lipgloss::width(line);
+            if visible_len < target_width {
+                format!("{}{}", line, " ".repeat(target_width - visible_len))
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Truncate each line of a string to max_width, handling ANSI escape sequences.
@@ -1657,6 +1689,7 @@ mod tests {
             theme: ThemePreset::Dracula,
             animations: false,
             mouse: true,
+            max_width: None,
         };
         let app = App::with_config(config);
         assert_eq!(app.theme.preset, ThemePreset::Dracula);

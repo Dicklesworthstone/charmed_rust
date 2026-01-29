@@ -581,14 +581,18 @@ impl LogsPage {
 
     /// Format filtered log entries for display.
     fn format_logs(&self, theme: &Theme, target_width: usize) -> String {
-        // Calculate optimal target width based on available space
-        // timestamp (8) + level (5) + spacing (4) = 17
-        let target_col_width = target_width.saturating_sub(17).clamp(10, 25);
+        // Calculate optimal column widths based on available space
+        // Layout: "{timestamp} {level} {target} {message}"
+        // Fixed: timestamp(8) + level(5) + 3 spaces = 16
+        // Remaining for target + message = target_width - 16
+        let target_col_width = target_width.saturating_sub(16).clamp(10, 25);
+        let message_width = target_width.saturating_sub(16 + target_col_width);
 
         let formatter = LogFormatter::new(theme).with_widths(LogColumnWidths {
             timestamp: 8,
             level: 5,
             target: target_col_width,
+            message: if message_width > 0 { Some(message_width) } else { None },
         });
 
         let entries = self.logs.entries();

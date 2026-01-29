@@ -61,6 +61,12 @@ fn main() -> anyhow::Result<()> {
         return run_self_check(&config);
     }
 
+    // Apply max_width to PTY size if terminal is very wide
+    // This works around rendering issues with ultra-wide terminals by telling
+    // the PTY driver to use a narrower width for line wrapping calculations.
+    // The explicit max_width CLI flag or the auto-cap at 200 columns triggers this.
+    apply_pty_width_cap(&config);
+
     // Bootstrap app from config (canonical entrypoint)
     let app = App::from_config(&config);
 
@@ -244,6 +250,28 @@ fn run_self_check(config: &Config) -> anyhow::Result<()> {
         }
         Err(summary) => {
             anyhow::bail!("Self-check failed:\n{summary}");
+        }
+    }
+}
+
+/// Apply PTY width cap for ultra-wide terminals.
+///
+/// When a terminal is very wide (> 200 columns), rendering can have issues
+/// because the PTY driver's line wrapping calculations differ from the app's.
+/// This function uses `stty cols` to set a narrower PTY width, which makes
+/// the terminal driver handle line wrapping at the capped width.
+fn apply_pty_width_cap(config: &Config) {
+    // Get effective max_width from config (explicit or auto-cap at 200)
+    let max_width = config.max_width.unwrap_or(200);
+
+    // Try to get current terminal size
+    if let Ok((cols, _rows)) = crossterm::terminal::size() {
+        if cols > max_width as u16 {
+            // Terminal is wider than max_width - apply stty cap
+            let _ = std::process::Command::new("stty")
+                .arg("cols")
+                .arg(max_width.to_string())
+                .status();
         }
     }
 }

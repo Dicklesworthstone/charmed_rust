@@ -904,6 +904,7 @@ dependencies = [
  "charmed_log",
  "chrono",
  "clap",
+ "crossterm",
  "glamour",
  "harmonica",
  "huh",
