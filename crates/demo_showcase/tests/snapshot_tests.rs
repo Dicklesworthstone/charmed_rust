@@ -63,9 +63,22 @@ fn create_snapshot_runner(name: &str, width: u16, height: u16) -> E2ERunner {
     runner
 }
 
+/// Redact dynamic time-based values that would cause snapshot flakiness.
+/// Replaces Duration patterns like "19371h 34m" with "[DURATION]".
+fn redact_dynamic_times(input: &str) -> String {
+    // Pattern: Duration field shows elapsed time like "19371h 34m" or "2m 30s"
+    // We redact the hours+minutes or minutes+seconds pattern after "Duration:"
+    let re = regex::Regex::new(r"Duration:\s*\d+h\s*\d+m").unwrap();
+    let result = re.replace_all(input, "Duration: [REDACTED]");
+
+    // Also handle shorter durations (minutes only)
+    let re2 = regex::Regex::new(r"Duration:\s*\d+m\s*\d*s?").unwrap();
+    re2.replace_all(&result, "Duration: [REDACTED]").to_string()
+}
+
 /// Get a clean snapshot-ready view from the runner.
 fn snapshot_view(runner: &E2ERunner) -> String {
-    strip_ansi(&runner.view())
+    redact_dynamic_times(&strip_ansi(&runner.view()))
 }
 
 // =============================================================================

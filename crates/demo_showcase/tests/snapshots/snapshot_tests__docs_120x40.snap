@@ -2,45 +2,45 @@
 source: crates/demo_showcase/tests/snapshot_tests.rs
 expression: view
 ---
- Charmed Control Center   Connected                                                                             [Dark]      
-  [] Dashboard╭────────────────────────╮ ╭─────────────────────────────────────────────────────────────────────────────────╮
-  >_ Services │      Documents         │ │Welcome [S·] 0%                                                                  │
-  >> Jobs     │──────────────────────  │ │───────────────────────────────────────────────────────────────────────────────  │
-   # Logs     │ › Welcome              │ │                                                                                 │
->  ? Docs     │   Architecture         │ │                                                                                 │
-  <> Files    │                        │ │   Welcome to Charmed Control Center                                             │
-   * Wizard   │                        │ │  Your unified platform for infrastructure observability and operations.         │
-   @ Settings │                        │ │                                                                                 │
-              │                        │ │                                                                                 │
-              │                        │ │  │ Note: This showcase demonstrates the charmed_rust                            │
-              │                        │ │  │ https://github.com/charmed-rust TUI framework capabilities. All data is      │
-              │                        │ │  │ simulated for demonstration purposes.                                        │
-              │                        │ │                                                                                 │
-              │                        │ │  ## Getting Started                                                             │
-              │                        │ │  Navigate using keyboard shortcuts or the sidebar:                              │
-              │                        │ │                                                                                 │
-              │                        │ │                                                                                 │
-              │                        │ │   Key     │ Action         │ Context                                            │
-              │                        │ │  ─────────┼────────────────┼──────────────                                      │
-              │                        │ │    1-7    │ Switch pages   │ Global                                             │
-              │                        │ │    [      │ Toggle sidebar │ Global                                             │
-              │                        │ │    j/k    │ Navigate lists │ Lists/Tables                                       │
-              │                        │ │    Enter  │ Select/confirm │ Interactive                                        │
-              │                        │ │    Esc    │ Back/unfocus   │ All pages                                          │
-              │                        │ │    ?      │ Help overlay   │ Global                                             │
-              │                        │ │    t      │ Cycle theme    │ Global                                             │
-              │                        │ │    q      │ Quit           │ Global                                             │
-              │                        │ │                                                                                 │
-              │                        │ │                                                                                 │
-              │                        │ │  ### Quick Actions                                                              │
-              │                        │ │  Use these shortcuts for common operations:                                     │
-              │                        │ │                                                                                 │
-              │                        │ │                                                                                 │
-              │                        │ │  • Filter: Press  /  to open the filter bar                                     │
-              │                        │ │  • Sort: Press  s  to cycle sort columns,  S  for reverse                       │
-              │                        │ │  • Refresh: Press  r  to refresh data                                           │
-              │                        │ │  • Export: Press  e  for text,  E  for HTML export                              │
-              │                        │ │                                                                                 │
-              │                        │ │                                                                                 │
-              ╰────────────────────────╯ ╰─────────────────────────────────────────────────────────────────────────────────╯
+ Charmed Control Center   Connected                                                                            [Dark]  
+  [] Dashboard╭────────────────────────╮ ╭─────────────────────────────────────────────────────────────────────────────
+  >_ Services │      Documents         │ │Welcome [S·] 0%                                                              
+  >> Jobs     │──────────────────────  │ │─────────────────────────────────────────────────────────────────────────────
+   # Logs     │ › Welcome              │ │                                                                             
+>  ? Docs     │   Architecture         │ │                                                                             
+  <> Files    │                        │ │   Welcome to Charmed Control Center                                         
+   * Wizard   │                        │ │  Your unified platform for infrastructure observability and operations.     
+   @ Settings │                        │ │                                                                             
+              │                        │ │                                                                             
+              │                        │ │  │ Note: This showcase demonstrates the charmed_rust                        
+              │                        │ │  │ https://github.com/charmed-rust TUI framework capabilities. All data is  
+              │                        │ │  │ simulated for demonstration purposes.                                    
+              │                        │ │                                                                             
+              │                        │ │  ## Getting Started                                                         
+              │                        │ │  Navigate using keyboard shortcuts or the sidebar:                          
+              │                        │ │                                                                             
+              │                        │ │                                                                             
+              │                        │ │   Key     │ Action         │ Context                                        
+              │                        │ │  ─────────┼────────────────┼──────────────                                  
+              │                        │ │    1-7    │ Switch pages   │ Global                                         
+              │                        │ │    [      │ Toggle sidebar │ Global                                         
+              │                        │ │    j/k    │ Navigate lists │ Lists/Tables                                   
+              │                        │ │    Enter  │ Select/confirm │ Interactive                                    
+              │                        │ │    Esc    │ Back/unfocus   │ All pages                                      
+              │                        │ │    ?      │ Help overlay   │ Global                                         
+              │                        │ │    t      │ Cycle theme    │ Global                                         
+              │                        │ │    q      │ Quit           │ Global                                         
+              │                        │ │                                                                             
+              │                        │ │                                                                             
+              │                        │ │  ### Quick Actions                                                          
+              │                        │ │  Use these shortcuts for common operations:                                 
+              │                        │ │                                                                             
+              │                        │ │                                                                             
+              │                        │ │  • Filter: Press  /  to open the filter bar                                 
+              │                        │ │  • Sort: Press  s  to cycle sort columns,  S  for reverse                   
+              │                        │ │  • Refresh: Press  r  to refresh data                                       
+              │                        │ │  • Export: Press  e  for text,  E  for HTML export                          
+              │                        │ │                                                                             
+              │                        │ │                                                                             
+              ╰────────────────────────╯ ╰─────────────────────────────────────────────────────────────────────────────
   j/k nav  Tab focus  Enter select  |  1-7 pages  [ sidebar  ? help  q quit

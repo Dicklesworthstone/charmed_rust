@@ -2,27 +2,27 @@
 source: crates/demo_showcase/tests/snapshot_tests.rs
 expression: view
 ---
- Charmed Control Center   Connected                                     [Dark]  
-  [] Dashboard                                                                  
-> >_ Services                                                                   
-  >> Jobs                                                                       
-   # Logs                                                                       
-   ? Docs                                                                       
-  <> Files                                                                      
-   * Wizard         ╭───────────────────────────────────────────────────╮       
-   @ Settings       │                                                   │       
-                                         │ Services │                           
-                                             │  │                               
-                    │ Service catalog with filtering and quick actions. │       
-                                             │  │                               
-                                      │ Coming soon... │                        
-                    │                                                   │       
-                    ╰───────────────────────────────────────────────────╯       
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
+ Charmed Control Center   Connected                                    [Dark]  
+  [] Dashboard                                                                 
+> >_ Services                                                                  
+  >> Jobs                                                                      
+   # Logs                                                                      
+   ? Docs                                                                      
+  <> Files                                                                     
+   * Wizard         ╭───────────────────────────────────────────────────╮      
+   @ Settings       │                                                   │      
+                                         │ Services │                          
+                                             │  │                              
+                    │ Service catalog with filtering and quick actions. │      
+                                             │  │                              
+                                      │ Coming soon... │                       
+                    │                                                   │      
+                    ╰───────────────────────────────────────────────────╯      
+                                                                               
+                                                                               
+                                                                               
+                                                                               
+                                                                               
+                                                                               
+                                                                               
   j/k navigate  Enter select  |  1-7 pages  [ sidebar  ? help  q quit

@@ -1927,31 +1927,29 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for Select<T>
                 .iter()
                 .position(|&idx| idx == self.selected);
 
-            if binding_matches(&self.keymap.up, key_msg) {
-                if let Some(pos) = current_pos {
-                    if pos > 0 {
-                        self.selected = filtered_indices[pos - 1];
-                        self.adjust_offset_from_indices(&filtered_indices);
-                    }
-                }
-            } else if binding_matches(&self.keymap.down, key_msg) {
-                if let Some(pos) = current_pos {
-                    if pos < filtered_indices.len().saturating_sub(1) {
-                        self.selected = filtered_indices[pos + 1];
-                        self.adjust_offset_from_indices(&filtered_indices);
-                    }
-                }
-            } else if binding_matches(&self.keymap.goto_top, key_msg) {
-                if let Some(&idx) = filtered_indices.first() {
-                    self.selected = idx;
-                    self.offset = 0;
-                }
-            } else if binding_matches(&self.keymap.goto_bottom, key_msg) {
-                if let Some(&idx) = filtered_indices.last() {
-                    self.selected = idx;
-                    let last_pos = filtered_indices.len().saturating_sub(1);
-                    self.offset = last_pos.saturating_sub(self.height - 1);
-                }
+            if binding_matches(&self.keymap.up, key_msg)
+                && let Some(pos) = current_pos
+                && pos > 0
+            {
+                self.selected = filtered_indices[pos - 1];
+                self.adjust_offset_from_indices(&filtered_indices);
+            } else if binding_matches(&self.keymap.down, key_msg)
+                && let Some(pos) = current_pos
+                && pos < filtered_indices.len().saturating_sub(1)
+            {
+                self.selected = filtered_indices[pos + 1];
+                self.adjust_offset_from_indices(&filtered_indices);
+            } else if binding_matches(&self.keymap.goto_top, key_msg)
+                && let Some(&idx) = filtered_indices.first()
+            {
+                self.selected = idx;
+                self.offset = 0;
+            } else if binding_matches(&self.keymap.goto_bottom, key_msg)
+                && let Some(&idx) = filtered_indices.last()
+            {
+                self.selected = idx;
+                let last_pos = filtered_indices.len().saturating_sub(1);
+                self.offset = last_pos.saturating_sub(self.height - 1);
             }
         }
 

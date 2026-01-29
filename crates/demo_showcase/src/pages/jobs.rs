@@ -1334,7 +1334,7 @@ impl PageModel for JobsPage {
                         self.query_input.focus();
                         return None;
                     }
-                    ['n'] | ['N'] => {
+                    ['n' | 'N'] => {
                         // Create a new job
                         return self.action_create_job();
                     }
@@ -1401,7 +1401,7 @@ impl PageModel for JobsPage {
                         self.clear_filters();
                         return None;
                     }
-                    ['['] | ['h'] => {
+                    ['[' | 'h'] => {
                         // Previous page
                         if !self.paginator.on_first_page() {
                             self.paginator.prev_page();
@@ -1409,7 +1409,7 @@ impl PageModel for JobsPage {
                         }
                         return None;
                     }
-                    [']'] | ['l'] => {
+                    [']' | 'l'] => {
                         // Next page
                         if !self.paginator.on_last_page() {
                             self.paginator.next_page();

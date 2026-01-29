@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc 1275798763aaae735e7f355c1348d59524c8972377f3cb58be722303fa772a45 # shrinks to w = 1, h = 0, pad = 1
 cc ff777452f75810ac9e741cb15e2e8c416d1f14957f9507507e099d8360f38252 # shrinks to content = "", w = 1, h = 0, pad = 1, margin = 0, use_border = false, use_bold = false
+cc b0d54df1f1b7f4ba01bf0debd25e305945eb31fd2bcb9c782ebf7a1ec673ca24 # shrinks to content = "aaaAAA", target_width = 1

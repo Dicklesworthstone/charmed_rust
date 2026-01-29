@@ -622,6 +622,11 @@ impl App {
             );
         }
 
+        // Trigger page transition animation (bd-30md)
+        // Start from 0 and animate to 1 for a fade-in effect
+        self.animator.set("page_transition", 0.0);
+        self.animator.animate("page_transition", 1.0);
+
         // Enter new page
         self.current_page = page;
         self.sidebar.set_current_page(page);
@@ -869,16 +874,18 @@ impl App {
             .render(&format!("[{}]", self.theme.preset.name()));
 
         // Calculate spacing to right-align theme name
+        // Use width-1 to prevent edge-case terminal wrapping (bd-pty1)
+        let safe_width = self.width.saturating_sub(1).max(1);
         let left_content = format!("{title}  {status}{focus_indicator}");
         let left_len = strip_ansi_len(&left_content);
         let right_len = strip_ansi_len(&theme_name);
-        let gap = self.width.saturating_sub(left_len + right_len + 2);
+        let gap = safe_width.saturating_sub(left_len + right_len + 2);
         let spacer = " ".repeat(gap);
 
         let header_content = format!("{left_content}{spacer}{theme_name} ");
 
         #[expect(clippy::cast_possible_truncation)]
-        let width_u16 = self.width as u16;
+        let width_u16 = safe_width as u16;
 
         self.theme
             .header_style()
@@ -894,8 +901,10 @@ impl App {
 
         let hints = format!("  {page_hints}  |  {global_hints}");
 
+        // Use width-1 to prevent edge-case terminal wrapping (bd-pty1)
+        let safe_width = self.width.saturating_sub(1).max(1);
         #[expect(clippy::cast_possible_truncation)]
-        let width_u16 = self.width as u16;
+        let width_u16 = safe_width as u16;
 
         self.theme.footer_style().width(width_u16).render(&hints)
     }
@@ -1427,10 +1436,13 @@ impl Model for App {
                 .view(content_width, content_height, &self.theme);
 
         // Compose layout
+        // Truncate main_area to prevent exceeding terminal width (bd-pty1)
+        let safe_width = self.width.saturating_sub(1).max(1);
         let main_area = if let Some(sb) = sidebar {
-            lipgloss::join_horizontal(Position::Top, &[&sb, &page_content])
+            let joined = lipgloss::join_horizontal(Position::Top, &[&sb, &page_content]);
+            truncate_to_width(&joined, safe_width)
         } else {
-            page_content
+            truncate_to_width(&page_content, safe_width)
         };
 
         // Build final layout: header, content, notifications (if any), footer
@@ -1465,8 +1477,98 @@ impl Model for App {
             return modal_view;
         }
 
-        base_view
+        // Truncate all lines to terminal width to prevent wrapping/scrolling (bd-pty1)
+        // Use width-1 to avoid edge cases where exactly-width lines trigger autowrap
+        let safe_width = self.width.saturating_sub(1).max(1);
+        truncate_to_width(&base_view, safe_width)
     }
+}
+
+/// Truncate each line of a string to max_width, handling ANSI escape sequences.
+///
+/// This ensures the output fits within the terminal width and prevents unwanted
+/// line wrapping that can cause scrolling artifacts.
+fn truncate_to_width(s: &str, max_width: usize) -> String {
+    if max_width == 0 {
+        return String::new();
+    }
+
+    s.lines()
+        .map(|line| {
+            let visible_len = lipgloss::width(line);
+            if visible_len <= max_width {
+                line.to_string()
+            } else {
+                truncate_line_ansi_aware(line, max_width)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Truncate a single line to max_width, preserving ANSI escape sequences.
+fn truncate_line_ansi_aware(line: &str, max_width: usize) -> String {
+    let mut result = String::new();
+    let mut visible_count = 0;
+    let mut chars = line.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Start of escape sequence - include the whole sequence
+            result.push(c);
+
+            if let Some(&next) = chars.peek() {
+                match next {
+                    '[' => {
+                        // CSI sequence: ESC [ params final_byte
+                        result.push(chars.next().unwrap());
+                        while let Some(&ch) = chars.peek() {
+                            result.push(chars.next().unwrap());
+                            // CSI ends with a letter (0x40-0x7E)
+                            if (0x40..=0x7E).contains(&(ch as u8)) {
+                                break;
+                            }
+                        }
+                    }
+                    ']' => {
+                        // OSC sequence: ESC ] ... BEL or ESC \
+                        result.push(chars.next().unwrap());
+                        while let Some(ch) = chars.next() {
+                            result.push(ch);
+                            if ch == '\x07' {
+                                break;
+                            }
+                            if ch == '\x1b' {
+                                if let Some(&'\\') = chars.peek() {
+                                    result.push(chars.next().unwrap());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        // Other escape sequences
+                        result.push(chars.next().unwrap());
+                    }
+                }
+            }
+        } else {
+            // Regular character - count its width
+            let char_width = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+            if visible_count + char_width > max_width {
+                break;
+            }
+            result.push(c);
+            visible_count += char_width;
+        }
+    }
+
+    // Add reset if we truncated mid-style
+    if visible_count > 0 && visible_count < lipgloss::width(line) {
+        result.push_str("\x1b[0m");
+    }
+
+    result
 }
 
 /// Calculate the visible length of a string (excluding ANSI escape sequences).
@@ -1885,6 +1987,52 @@ mod tests {
         assert_eq!(app.current_page(), Page::Logs);
     }
 
+    #[test]
+    fn navigate_triggers_page_transition_animation() {
+        // bd-30md: Page transitions trigger animation
+        let mut app = App::new();
+        assert_eq!(app.current_page(), Page::Dashboard);
+
+        // Navigate to a different page
+        app.navigate(Page::Jobs);
+
+        // Page transition animation should be triggered (starts at 0, animates to 1)
+        let transition = app.animator.get("page_transition");
+        assert!(transition.is_some(), "page_transition should be tracked");
+
+        // If animations enabled, value starts near 0 and animates toward 1
+        if app.use_animations() {
+            assert!(
+                app.animator.is_animating(),
+                "animator should be animating after navigation"
+            );
+        }
+    }
+
+    #[test]
+    fn navigate_transition_respects_reduce_motion() {
+        // bd-30md: Reduce motion disables page transition animation
+        let config = AppConfig {
+            animations: false,
+            ..Default::default()
+        };
+        let mut app = App::with_config(config);
+
+        // Navigate to a different page
+        app.navigate(Page::Jobs);
+
+        // When animations disabled, value snaps to target immediately
+        let transition = app.animator.get_or("page_transition", 0.0);
+        assert!(
+            (transition - 1.0).abs() < f64::EPSILON,
+            "page_transition should snap to 1.0 when animations disabled"
+        );
+        assert!(
+            !app.animator.is_animating(),
+            "animator should not be animating when reduce motion"
+        );
+    }
+
     // =========================================================================
     // Global Toggle tests (bd-247o)
     // =========================================================================
@@ -2037,6 +2185,35 @@ mod tests {
         // View should show loading message
         let view = app.view();
         assert!(view.contains("Loading"));
+    }
+
+    #[test]
+    fn debug_view_output() {
+        use bubbletea::{Message, Model};
+        use bubbletea::message::WindowSizeMsg;
+
+        let mut app = App::new();
+        assert!(!app.ready);
+
+        // Simulate receiving window size
+        let size_msg = Message::new(WindowSizeMsg { width: 120, height: 40 });
+        app.update(size_msg);
+        assert!(app.ready);
+
+        // Get the full view
+        let view = app.view();
+
+        // Print for debugging
+        eprintln!("=== View Output ({} chars) ===", view.len());
+        for (i, line) in view.lines().enumerate() {
+            eprintln!("{:3}: {}", i + 1, line);
+        }
+        eprintln!("=== End View ===");
+
+        // Basic assertions
+        assert!(view.len() > 100, "View should have substantial content");
+        assert!(view.contains("Charmed") || view.contains("Dashboard"),
+            "View should contain expected UI elements");
     }
 
     #[test]
@@ -2300,5 +2477,151 @@ mod tests {
             !refocused_header.contains("unfocused"),
             "refocused header should not show unfocused indicator"
         );
+    }
+
+    /// Diagnostic test: Check that view output fits within terminal bounds (bd-pty1)
+    #[test]
+    fn view_output_fits_terminal_width() {
+        // Create app with specific terminal size
+        let mut app = App::new();
+        app.width = 120;
+        app.height = 40;
+        app.ready = true; // Mark as ready so we get the full view
+        app.sidebar_visible = true;
+
+        // Get the view output
+        let view = app.view();
+
+        println!("=== VIEW OUTPUT ANALYSIS (120x40) ===\n");
+
+        // Check each line
+        let mut max_visible_width = 0;
+        let mut problematic_lines = Vec::new();
+
+        for (line_num, line) in view.lines().enumerate() {
+            let visible_width = lipgloss::width(line);
+            max_visible_width = max_visible_width.max(visible_width);
+
+            // Width-1 is the truncation target (119)
+            if visible_width > 119 {
+                problematic_lines.push((line_num, visible_width, line.to_string()));
+            }
+        }
+
+        let total_lines = view.lines().count();
+        println!("Total lines: {}", total_lines);
+        println!("Max visible width: {}", max_visible_width);
+
+        if !problematic_lines.is_empty() {
+            println!("\n!!! LINES EXCEEDING 119 COLUMNS !!!\n");
+            for (line_num, width, line) in &problematic_lines {
+                println!("Line {} (width {}): {:?}",
+                    line_num, width,
+                    line.chars().take(80).collect::<String>().replace('\x1b', "ESC"));
+            }
+            panic!("Found {} lines exceeding safe width (119)", problematic_lines.len());
+        }
+
+        // Also verify the view has the expected structure
+        assert!(view.contains("Charmed Control Center"), "Header should be visible");
+        assert!(view.contains("Dashboard"), "Sidebar should be visible");
+
+        println!("✓ All {} lines fit within 119 columns (max: {})", total_lines, max_visible_width);
+
+        // Check for trailing newline
+        let has_trailing_newline = view.ends_with('\n');
+        println!("Has trailing newline: {}", has_trailing_newline);
+
+        // Count actual newlines in the view
+        let newline_count = view.chars().filter(|&c| c == '\n').count();
+        println!("Newline count in view: {} (should be {} for {} lines)",
+            newline_count, total_lines - 1, total_lines);
+
+        // If there's a trailing newline, that's an extra newline that could cause scroll
+        if has_trailing_newline {
+            println!("WARNING: Trailing newline may cause extra row in terminal");
+        }
+    }
+
+    /// Debug test: Analyze the internal components of view() (bd-pty1)
+    #[test]
+    fn debug_view_component_widths() {
+        let mut app = App::new();
+        app.width = 120;
+        app.height = 40;
+        app.ready = true;
+        app.sidebar_visible = true;
+
+        // Manually call the component rendering to check their dimensions
+        let header = app.render_header();
+        let footer = app.render_footer();
+
+        let header_height = usize::from(spacing::HEADER_HEIGHT);
+        let footer_height = usize::from(spacing::FOOTER_HEIGHT);
+        let content_height = app.height.saturating_sub(header_height + footer_height);
+
+        let sidebar_width = usize::from(spacing::SIDEBAR_WIDTH);
+        let content_width = app.width.saturating_sub(sidebar_width);
+        let sidebar = app.render_sidebar(content_height);
+
+        let page_content = app.pages.get(app.current_page).view(content_width, content_height, &app.theme);
+
+        // Check each component
+        println!("=== COMPONENT WIDTH ANALYSIS ===\n");
+
+        // Header
+        let header_max_width = header.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
+        println!("Header: {} lines, max width = {} (expected ~{})",
+            header.lines().count(), header_max_width, app.width - 1);
+
+        // Footer
+        let footer_max_width = footer.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
+        println!("Footer: {} lines, max width = {} (expected ~{})",
+            footer.lines().count(), footer_max_width, app.width);
+
+        // Sidebar
+        let sidebar_max_width = sidebar.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
+        println!("Sidebar: {} lines, max width = {} (expected {})",
+            sidebar.lines().count(), sidebar_max_width, sidebar_width);
+
+        // Page content
+        let page_max_width = page_content.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
+        println!("Page content: {} lines, max width = {} (expected {})",
+            page_content.lines().count(), page_max_width, content_width);
+
+        // Join horizontal: sidebar + page_content
+        let main_area = lipgloss::join_horizontal(Position::Top, &[&sidebar, &page_content]);
+        let main_area_max_width = main_area.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
+        println!("Main area (sidebar + content): {} lines, max width = {} (expected {})",
+            main_area.lines().count(), main_area_max_width, app.width);
+
+        // Check for overflow
+        let safe_width = app.width.saturating_sub(1);
+        if main_area_max_width > safe_width {
+            println!("\n!!! MAIN AREA EXCEEDS SAFE WIDTH ({} > {}) !!!", main_area_max_width, safe_width);
+
+            // Find offending lines
+            for (i, line) in main_area.lines().enumerate() {
+                let w = lipgloss::width(line);
+                if w > safe_width {
+                    println!("  Line {}: width {} (excess {})", i, w, w - safe_width);
+                }
+            }
+        }
+
+        // Final join
+        let base_view = lipgloss::join_vertical(Position::Left, &[&header, &main_area, &footer]);
+        let base_max_width = base_view.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
+        println!("\nBefore truncation: {} lines, max width = {}",
+            base_view.lines().count(), base_max_width);
+
+        // After truncation
+        let final_view = truncate_to_width(&base_view, safe_width);
+        let final_max_width = final_view.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
+        println!("After truncation to {}: max width = {}", safe_width, final_max_width);
+
+        // Assertions
+        assert!(final_max_width <= safe_width,
+            "Final view width {} exceeds safe width {}", final_max_width, safe_width);
     }
 }

@@ -56,6 +56,9 @@ tempfile.workspace = true
 assert_cmd.workspace = true
 predicates.workspace = true
 insta.workspace = true
+portable-pty = "0.8"
+vt100 = "0.15"
+regex = "1"
 
 [[bin]]
 name = "run_e2e"

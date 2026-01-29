@@ -176,6 +176,7 @@ impl SimulatedError {
 
 /// Deployment status.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[allow(dead_code)]
 pub enum DeploymentStatus {
     #[default]
     NotStarted,
@@ -336,6 +337,7 @@ impl WizardPage {
     }
 
     /// Clear field-level error for the current field.
+    #[allow(dead_code)]
     fn clear_field_error(&mut self) {
         if self.field_index < self.field_errors.len() {
             self.field_errors[self.field_index] = None;
@@ -343,6 +345,7 @@ impl WizardPage {
     }
 
     /// Set field-level error for a specific field.
+    #[allow(dead_code)]
     fn set_field_error(&mut self, field_index: usize, message: String) {
         if field_index >= self.field_errors.len() {
             self.field_errors.resize(field_index + 1, None);
@@ -351,6 +354,7 @@ impl WizardPage {
     }
 
     /// Get field-level error for a specific field.
+    #[allow(dead_code)]
     fn get_field_error(&self, field_index: usize) -> Option<&String> {
         self.field_errors.get(field_index).and_then(|e| e.as_ref())
     }
@@ -1274,7 +1278,15 @@ impl WizardPage {
     fn render_step_deploy(&self, theme: &Theme, _width: usize) -> String {
         let mut lines = Vec::new();
 
-        lines.push(theme.heading_style().render("Deploying..."));
+        // Dynamic title based on deployment status
+        let title = match &self.state.deployment_status {
+            DeploymentStatus::Failed(_) | DeploymentStatus::FailedGeneric(_) => {
+                theme.error_style().render("Deployment Failed")
+            }
+            DeploymentStatus::Complete => theme.success_style().render("Deployment Complete"),
+            _ => theme.heading_style().render("Deploying..."),
+        };
+        lines.push(title.to_string());
         lines.push(String::new());
 
         let steps = [
@@ -1293,6 +1305,16 @@ impl WizardPage {
                         .render("Press Enter to begin deployment")
                         .to_string(),
                 );
+                // Show retry attempt number if retrying
+                if self.retry_count > 0 {
+                    lines.push(String::new());
+                    lines.push(
+                        theme
+                            .info_style()
+                            .render(&format!("(Retry attempt #{} ready)", self.retry_count + 1))
+                            .to_string(),
+                    );
+                }
             }
             DeploymentStatus::InProgress(current) => {
                 for (i, step) in steps.iter().enumerate() {
@@ -1338,7 +1360,8 @@ impl WizardPage {
                         .to_string(),
                 );
             }
-            DeploymentStatus::Failed(err) => {
+            DeploymentStatus::Failed(sim_error) => {
+                // Show progress steps with failure marker at step 2 (Provisioning)
                 for (i, step) in steps.iter().enumerate() {
                     let icon = if i < 2 {
                         theme.success_style().render("*")
@@ -1350,8 +1373,52 @@ impl WizardPage {
                     lines.push(format!("  {icon} {step}"));
                 }
                 lines.push(String::new());
-                lines.push(theme.error_style().render("Deployment failed!").to_string());
-                lines.push(format!("Error: {err}"));
+
+                // Error box with border
+                let error_border = theme.error_style().render(&"─".repeat(50));
+                lines.push(error_border.to_string());
+                lines.push(String::new());
+
+                // Error type indicator
+                let error_type = match sim_error {
+                    SimulatedError::PermissionDenied => "PERMISSION DENIED",
+                    SimulatedError::NetworkTimeout => "NETWORK TIMEOUT",
+                    SimulatedError::Conflict(_) => "CONFLICT",
+                };
+                lines.push(
+                    theme
+                        .error_style()
+                        .render(&format!("  Error Type: {error_type}"))
+                        .to_string(),
+                );
+
+                // Error message
+                lines.push(String::new());
+                lines.push(format!("  {}", sim_error.message()));
+                lines.push(String::new());
+
+                // Recovery hint with appropriate styling
+                let hint = sim_error.recovery_hint();
+                let hint_style = if sim_error.is_retryable() {
+                    theme.info_style()
+                } else {
+                    theme.warning_style()
+                };
+                lines.push(format!("  {} {hint}", hint_style.render(">")));
+
+                lines.push(String::new());
+                lines.push(error_border.to_string());
+
+                // Show retry count if there were attempts
+                if self.retry_count > 0 {
+                    lines.push(String::new());
+                    lines.push(
+                        theme
+                            .muted_style()
+                            .render(&format!("  Failed after {} attempt(s)", self.retry_count + 1))
+                            .to_string(),
+                    );
+                }
             }
             DeploymentStatus::FailedGeneric(msg) => {
                 for (i, step) in steps.iter().enumerate() {
@@ -1542,13 +1609,13 @@ impl PageModel for WizardPage {
             1 | 2 => "j/k fields  Enter continue  b back",
             3 => "j/k navigate  Space toggle  Enter continue  b back",
             4 => "Space confirm  Enter deploy  b back",
-            5 => match self.state.deployment_status {
+            5 => match &self.state.deployment_status {
                 DeploymentStatus::NotStarted => "Enter start",
                 DeploymentStatus::InProgress(_) => "deploying...",
                 DeploymentStatus::Complete => "Enter new wizard",
-                DeploymentStatus::Failed(_) | DeploymentStatus::FailedGeneric(_) => {
-                    "Enter retry  b back"
-                }
+                DeploymentStatus::Failed(err) if err.is_retryable() => "Enter retry  b back",
+                DeploymentStatus::Failed(_) => "b back to fix",
+                DeploymentStatus::FailedGeneric(_) => "b back",
             },
             _ => "j/k navigate  Enter select",
         }
@@ -1705,5 +1772,129 @@ mod tests {
         assert_eq!(config.env_vars.len(), 2);
         assert!(config.env_vars.contains(&"DATABASE_URL".to_string()));
         assert!(config.env_vars.contains(&"API_KEY".to_string()));
+    }
+
+    // =========================================================================
+    // Error Simulation Tests (bd-2fty)
+    // =========================================================================
+
+    #[test]
+    fn simulated_error_messages() {
+        let perm = SimulatedError::PermissionDenied;
+        assert!(perm.message().contains("Permission denied"));
+        assert!(!perm.is_retryable());
+
+        let timeout = SimulatedError::NetworkTimeout;
+        assert!(timeout.message().contains("timeout"));
+        assert!(timeout.is_retryable());
+
+        let conflict = SimulatedError::Conflict("my-service".to_string());
+        assert!(conflict.message().contains("my-service"));
+        assert!(conflict.message().contains("already exists"));
+        assert!(!conflict.is_retryable());
+    }
+
+    #[test]
+    fn simulated_error_recovery_hints() {
+        let perm = SimulatedError::PermissionDenied;
+        assert!(perm.recovery_hint().contains("environment"));
+
+        let timeout = SimulatedError::NetworkTimeout;
+        assert!(timeout.recovery_hint().contains("retry"));
+
+        let conflict = SimulatedError::Conflict("svc".to_string());
+        assert!(conflict.recovery_hint().contains("name"));
+    }
+
+    #[test]
+    fn conflict_error_for_api_prefix() {
+        let mut page = WizardPage::new();
+        page.state.name = "api-gateway".to_string();
+        page.compute_error_seed();
+
+        let error = page.check_simulated_error();
+        assert!(matches!(error, Some(SimulatedError::Conflict(_))));
+    }
+
+    #[test]
+    fn no_conflict_for_normal_names() {
+        let mut page = WizardPage::new();
+        page.state.name = "my-service".to_string();
+        page.state.environment = Environment::Staging;
+        page.compute_error_seed();
+
+        // Most normal names should succeed (no conflict)
+        // Note: there's still a chance of network timeout, but not conflict
+        let error = page.check_simulated_error();
+        assert!(!matches!(error, Some(SimulatedError::Conflict(_))));
+    }
+
+    #[test]
+    fn retry_count_increments() {
+        let mut page = WizardPage::new();
+        page.state.name = "test-svc".to_string();
+        page.state.step = 5;
+        page.state.deployment_status = DeploymentStatus::Failed(SimulatedError::NetworkTimeout);
+
+        assert_eq!(page.retry_count, 0);
+
+        page.retry_deployment();
+        assert_eq!(page.retry_count, 1);
+        assert_eq!(page.state.deployment_status, DeploymentStatus::InProgress(0));
+    }
+
+    #[test]
+    fn go_back_from_permission_denied() {
+        let mut page = WizardPage::new();
+        page.state.name = "test-svc".to_string();
+        page.state.step = 5;
+        page.state.environment = Environment::Production;
+        page.state.deployment_status = DeploymentStatus::Failed(SimulatedError::PermissionDenied);
+
+        page.go_back_from_failure();
+
+        // Should go to step 1 (config) with field_index 2 (environment)
+        assert_eq!(page.state.step, 1);
+        assert_eq!(page.field_index, 2);
+        assert_eq!(page.state.deployment_status, DeploymentStatus::NotStarted);
+    }
+
+    #[test]
+    fn go_back_from_conflict() {
+        let mut page = WizardPage::new();
+        page.state.name = "api-test".to_string();
+        page.state.step = 5;
+        page.state.deployment_status =
+            DeploymentStatus::Failed(SimulatedError::Conflict("api-test".to_string()));
+
+        page.go_back_from_failure();
+
+        // Should go to step 1 (config) with field_index 0 (name)
+        assert_eq!(page.state.step, 1);
+        assert_eq!(page.field_index, 0);
+    }
+
+    #[test]
+    fn go_back_from_timeout() {
+        let mut page = WizardPage::new();
+        page.state.name = "test-svc".to_string();
+        page.state.step = 5;
+        page.state.deployment_status = DeploymentStatus::Failed(SimulatedError::NetworkTimeout);
+
+        page.go_back_from_failure();
+
+        // Should go to step 4 (review) for retry
+        assert_eq!(page.state.step, 4);
+    }
+
+    #[test]
+    fn failed_generic_backwards_compat() {
+        let mut page = WizardPage::new();
+        page.state.deployment_status = DeploymentStatus::FailedGeneric("Legacy error".to_string());
+
+        // FailedGeneric should still render without panic
+        let theme = crate::theme::Theme::default();
+        let view = page.render_step_deploy(&theme, 80);
+        assert!(view.contains("Legacy error"));
     }
 }

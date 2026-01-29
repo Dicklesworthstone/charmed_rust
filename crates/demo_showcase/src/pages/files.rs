@@ -30,6 +30,105 @@ use crate::assets::fixtures::{FIXTURE_TREE, VirtualEntry};
 use crate::messages::Page;
 use crate::theme::Theme;
 
+// ============================================================================
+// File Preview Error Handling (bd-2id5)
+// ============================================================================
+
+/// Error types for file preview operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FilePreviewError {
+    /// Permission denied - cannot read file or directory.
+    PermissionDenied(String),
+    /// File disappeared between listing and reading (race condition).
+    FileDisappeared(String),
+    /// Broken symlink - target does not exist.
+    BrokenSymlink(String),
+    /// Binary file - non-UTF8 or mostly non-printable content.
+    BinaryFile(String),
+    /// Generic I/O error.
+    IoError(String),
+}
+
+impl FilePreviewError {
+    /// Get a user-friendly error message.
+    #[must_use]
+    pub fn message(&self) -> String {
+        match self {
+            Self::PermissionDenied(path) => format!("Permission denied: cannot read '{path}'"),
+            Self::FileDisappeared(path) => format!("File no longer exists: '{path}'"),
+            Self::BrokenSymlink(path) => format!("Broken symlink: target of '{path}' not found"),
+            Self::BinaryFile(path) => format!("Binary file: '{path}'"),
+            Self::IoError(msg) => format!("I/O error: {msg}"),
+        }
+    }
+
+    /// Get an icon for the error type.
+    #[must_use]
+    pub const fn icon(&self) -> &'static str {
+        match self {
+            Self::PermissionDenied(_) => "⊘",
+            Self::FileDisappeared(_) => "?",
+            Self::BrokenSymlink(_) => "↯",
+            Self::BinaryFile(_) => "□",
+            Self::IoError(_) => "!",
+        }
+    }
+
+    /// Get a recovery hint for the user.
+    #[must_use]
+    pub const fn recovery_hint(&self) -> &'static str {
+        match self {
+            Self::PermissionDenied(_) => "Navigate away or check file permissions",
+            Self::FileDisappeared(_) => "Press h to go back and refresh the listing",
+            Self::BrokenSymlink(_) => "Navigate away; the symlink target is missing",
+            Self::BinaryFile(_) => "Binary preview not supported; navigate to view source",
+            Self::IoError(_) => "Press h to go back and try again",
+        }
+    }
+
+    /// Check if this is an error that allows partial content display.
+    #[must_use]
+    #[allow(dead_code)]
+    pub const fn has_partial_content(&self) -> bool {
+        matches!(self, Self::BinaryFile(_))
+    }
+}
+
+/// Check if content appears to be binary (non-UTF8 or mostly non-printable).
+///
+/// Returns `true` if the content is likely binary and should not be displayed as text.
+fn is_binary_content(content: &[u8]) -> bool {
+    // Check first 8KB for binary detection
+    let check_len = content.len().min(8192);
+    let sample = &content[..check_len];
+
+    // If it's not valid UTF-8, treat as binary
+    if std::str::from_utf8(sample).is_err() {
+        return true;
+    }
+
+    // Any null byte is a strong binary indicator (never valid in text files)
+    if sample.contains(&0) {
+        return true;
+    }
+
+    // Count non-printable characters (excluding common whitespace)
+    let non_printable = sample
+        .iter()
+        .filter(|&&b| {
+            // Allow common whitespace
+            if b == b'\n' || b == b'\r' || b == b'\t' || b == 0x0C {
+                return false;
+            }
+            // Control characters are non-printable
+            b < 0x20
+        })
+        .count();
+
+    // If more than 10% of sampled bytes are non-printable, treat as binary
+    non_printable > check_len / 10
+}
+
 /// Maximum bytes to load for preview (64 KB).
 const PREVIEW_MAX_BYTES: usize = 64 * 1024;
 
@@ -71,6 +170,10 @@ pub struct FilesPage {
     last_width: RwLock<usize>,
     /// Last known theme name for detecting theme changes (`RwLock` for interior mutability during view).
     last_theme: RwLock<String>,
+    /// Current preview error state (bd-2id5).
+    preview_error: Option<FilePreviewError>,
+    /// Partial content to show for binary files (first few bytes as hex).
+    binary_preview: Option<String>,
 }
 
 impl FilesPage {
@@ -98,6 +201,8 @@ impl FilesPage {
             line_numbers: false,
             last_width: RwLock::new(0),
             last_theme: RwLock::new(String::new()),
+            preview_error: None,
+            binary_preview: None,
         }
     }
 
@@ -132,6 +237,8 @@ impl FilesPage {
             line_numbers: false,
             last_width: RwLock::new(0),
             last_theme: RwLock::new(String::new()),
+            preview_error: None,
+            binary_preview: None,
         }
     }
 
@@ -287,6 +394,44 @@ impl FilesPage {
         }
     }
 
+    /// Set a preview error and clear content (bd-2id5).
+    #[allow(dead_code)]
+    fn set_preview_error(&mut self, error: FilePreviewError) {
+        self.preview_viewport.write().unwrap().set_content("");
+        self.raw_content = None;
+        self.is_markdown = false;
+        self.preview_truncated = false;
+        self.binary_preview = None;
+        self.preview_error = Some(error);
+    }
+
+    /// Clear any preview error.
+    fn clear_preview_error(&mut self) {
+        self.preview_error = None;
+        self.binary_preview = None;
+    }
+
+    /// Create a hex dump preview for binary content (first 64 bytes).
+    fn create_binary_preview(&mut self, content: &[u8]) {
+        let preview_bytes = content.len().min(64);
+        let mut lines = Vec::new();
+
+        for chunk in content[..preview_bytes].chunks(16) {
+            let hex: Vec<String> = chunk.iter().map(|b| format!("{b:02x}")).collect();
+            let ascii: String = chunk
+                .iter()
+                .map(|&b| if (0x20..0x7f).contains(&b) { b as char } else { '.' })
+                .collect();
+            lines.push(format!("{:<48} {}", hex.join(" "), ascii));
+        }
+
+        if content.len() > preview_bytes {
+            lines.push(format!("... ({} more bytes)", content.len() - preview_bytes));
+        }
+
+        self.binary_preview = Some(lines.join("\n"));
+    }
+
     /// Count visible entries.
     fn visible_entry_count(&self) -> usize {
         self.virtual_entries
@@ -297,6 +442,9 @@ impl FilesPage {
 
     /// Update preview based on current selection.
     fn update_preview(&mut self) {
+        // Clear any previous error state
+        self.clear_preview_error();
+
         // Extract data first to avoid borrow conflicts
         let (content, name, is_dir) = {
             let entries: Vec<_> = self
@@ -468,6 +616,42 @@ impl FilesPage {
         lines.push(header);
         lines.push(theme.muted_style().render(&"─".repeat(width.min(40))));
 
+        // Check for error state first (bd-2id5)
+        if let Some(ref error) = self.preview_error {
+            lines.push(String::new());
+
+            // Error icon and type
+            let icon = error.icon();
+            let error_msg = error.message();
+            lines.push(
+                theme
+                    .error_style()
+                    .render(&format!("  {icon}  {error_msg}"))
+                    .to_string(),
+            );
+
+            lines.push(String::new());
+
+            // Recovery hint
+            let hint = error.recovery_hint();
+            lines.push(theme.muted_style().render(&format!("  {hint}")).to_string());
+
+            // For binary files, show partial content preview
+            if let Some(ref binary) = self.binary_preview {
+                lines.push(String::new());
+                lines.push(theme.muted_style().render("  Hex preview:").to_string());
+                for line in binary.lines().take(5) {
+                    lines.push(theme.muted_style().render(&format!("  {line}")).to_string());
+                }
+            }
+
+            // Pad to height
+            while lines.len() < height {
+                lines.push(String::new());
+            }
+            return lines.join("\n");
+        }
+
         // For markdown files, check if we need to re-render
         let theme_name = theme.preset.name().to_string();
         if self.is_markdown {
@@ -596,6 +780,86 @@ impl FilesPage {
         }
 
         renderer.render(content)
+    }
+
+    /// Read a file from the real filesystem with error handling (bd-2id5).
+    ///
+    /// This method handles common filesystem errors and sets appropriate
+    /// preview error states for user feedback.
+    #[allow(dead_code)] // Will be used when real mode is fully implemented
+    fn read_real_file(&mut self, path: &std::path::Path) -> Result<(), FilePreviewError> {
+        use std::fs;
+        use std::io::ErrorKind;
+
+        let path_str = path.display().to_string();
+
+        // Check if path exists
+        if !path.exists() {
+            // Could be a broken symlink
+            if path.symlink_metadata().is_ok() {
+                return Err(FilePreviewError::BrokenSymlink(path_str));
+            }
+            return Err(FilePreviewError::FileDisappeared(path_str));
+        }
+
+        // Try to read the file
+        let content = match fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                return Err(match e.kind() {
+                    ErrorKind::PermissionDenied => FilePreviewError::PermissionDenied(path_str),
+                    ErrorKind::NotFound => FilePreviewError::FileDisappeared(path_str),
+                    _ => FilePreviewError::IoError(e.to_string()),
+                });
+            }
+        };
+
+        // Check for binary content
+        if is_binary_content(&content) {
+            self.create_binary_preview(&content);
+            return Err(FilePreviewError::BinaryFile(path_str));
+        }
+
+        // Convert to string (already validated as UTF-8 by is_binary_content)
+        let text = String::from_utf8_lossy(&content);
+
+        // Handle truncation for large files
+        let (truncated_content, was_truncated) = if text.len() > PREVIEW_MAX_BYTES {
+            let truncated = text
+                .char_indices()
+                .take_while(|(i, _)| *i < PREVIEW_MAX_BYTES)
+                .map(|(_, c)| c)
+                .collect::<String>();
+            (truncated, true)
+        } else {
+            (text.into_owned(), false)
+        };
+
+        // Get filename for markdown detection
+        let filename = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+
+        self.is_markdown = Self::is_markdown_file(filename);
+
+        if self.is_markdown {
+            self.raw_content = Some(truncated_content);
+            self.preview_viewport.write().unwrap().set_content("");
+            *self.last_width.write().unwrap() = 0;
+            self.last_theme.write().unwrap().clear();
+        } else {
+            self.raw_content = None;
+            self.preview_viewport
+                .write()
+                .unwrap()
+                .set_content(&truncated_content);
+        }
+
+        self.preview_truncated = was_truncated;
+        self.preview_viewport.write().unwrap().goto_top();
+
+        Ok(())
     }
 }
 
@@ -934,5 +1198,108 @@ mod tests {
 
         page.toggle_line_numbers();
         assert!(!page.line_numbers);
+    }
+
+    // ========================================================================
+    // Error Handling Tests (bd-2id5)
+    // ========================================================================
+
+    #[test]
+    fn file_preview_error_messages() {
+        let err = FilePreviewError::PermissionDenied("test.txt".to_string());
+        assert!(err.message().contains("Permission denied"));
+        assert_eq!(err.icon(), "⊘");
+        assert!(err.recovery_hint().contains("permission"));
+
+        let err = FilePreviewError::FileDisappeared("gone.txt".to_string());
+        assert!(err.message().contains("no longer exists"));
+        assert_eq!(err.icon(), "?");
+
+        let err = FilePreviewError::BrokenSymlink("link.txt".to_string());
+        assert!(err.message().contains("Broken symlink"));
+        assert_eq!(err.icon(), "↯");
+
+        let err = FilePreviewError::BinaryFile("image.png".to_string());
+        assert!(err.message().contains("Binary file"));
+        assert_eq!(err.icon(), "□");
+        assert!(err.has_partial_content());
+
+        let err = FilePreviewError::IoError("disk failure".to_string());
+        assert!(err.message().contains("I/O error"));
+        assert_eq!(err.icon(), "!");
+    }
+
+    #[test]
+    fn binary_content_detection() {
+        // Text content should not be binary
+        assert!(!is_binary_content(b"Hello, world!\n"));
+        assert!(!is_binary_content(b"fn main() {\n    println!(\"test\");\n}\n"));
+        assert!(!is_binary_content(b"Line1\r\nLine2\r\n")); // Windows line endings
+        assert!(!is_binary_content(b"Tab\there\nNewline\n"));
+
+        // Null bytes indicate binary
+        assert!(is_binary_content(b"Hello\x00World"));
+        assert!(is_binary_content(b"\x00\x00\x00\x00"));
+
+        // Non-UTF8 sequences are binary
+        assert!(is_binary_content(&[0x89, 0x50, 0x4E, 0x47])); // PNG header
+        assert!(is_binary_content(&[0xFF, 0xD8, 0xFF])); // JPEG header
+
+        // Many control characters indicate binary
+        let mostly_control: Vec<u8> = (0..100).map(|i| if i % 5 == 0 { 0x01 } else { 0x20 }).collect();
+        assert!(is_binary_content(&mostly_control));
+    }
+
+    #[test]
+    fn files_page_error_state_management() {
+        let mut page = FilesPage::new();
+        assert!(page.preview_error.is_none());
+
+        // Set an error
+        page.set_preview_error(FilePreviewError::PermissionDenied("test".to_string()));
+        assert!(page.preview_error.is_some());
+        assert!(page.raw_content.is_none());
+        assert!(!page.is_markdown);
+
+        // Clear the error
+        page.clear_preview_error();
+        assert!(page.preview_error.is_none());
+    }
+
+    #[test]
+    fn files_page_binary_preview_creation() {
+        let mut page = FilesPage::new();
+
+        // Create binary preview from some bytes
+        let bytes: Vec<u8> = (0..32).collect();
+        page.create_binary_preview(&bytes);
+
+        assert!(page.binary_preview.is_some());
+        let preview = page.binary_preview.as_ref().unwrap();
+        assert!(preview.contains("00 01 02")); // Hex values
+        assert!(preview.contains("10 11 12")); // More hex
+    }
+
+    #[test]
+    fn files_page_update_preview_clears_errors() {
+        let mut page = FilesPage::new();
+
+        // Set an error first
+        page.set_preview_error(FilePreviewError::IoError("test".to_string()));
+        assert!(page.preview_error.is_some());
+
+        // Update preview should clear the error
+        page.update_preview();
+        assert!(page.preview_error.is_none());
+    }
+
+    #[test]
+    fn file_preview_error_partial_content() {
+        // Only BinaryFile should have partial content
+        assert!(FilePreviewError::BinaryFile("x".to_string()).has_partial_content());
+        assert!(!FilePreviewError::PermissionDenied("x".to_string()).has_partial_content());
+        assert!(!FilePreviewError::FileDisappeared("x".to_string()).has_partial_content());
+        assert!(!FilePreviewError::BrokenSymlink("x".to_string()).has_partial_content());
+        assert!(!FilePreviewError::IoError("x".to_string()).has_partial_content());
     }
 }

@@ -933,3 +933,33 @@ pub fn style_runes(s: &str, indices: &[usize], matched: Style, unmatched: Style)
 
     result
 }
+
+#[cfg(test)]
+mod escape_sequence_tests {
+    use super::*;
+
+    #[test]
+    fn test_width_with_terminal_escape_sequences() {
+        // CSI DEC private modes (like hide cursor)
+        assert_eq!(visible_width("\x1b[?25l"), 0, "Hide cursor CSI should have 0 width");
+        assert_eq!(visible_width("\x1b[?1000h"), 0, "Mouse mode CSI should have 0 width");
+
+        // MoveTo and Clear
+        assert_eq!(visible_width("\x1b[1;1H"), 0, "MoveTo CSI should have 0 width");
+        assert_eq!(visible_width("\x1b[2J"), 0, "Clear CSI should have 0 width");
+
+        // OSC title
+        assert_eq!(visible_width("\x1b]0;Title\x07"), 0, "OSC title should have 0 width");
+        assert_eq!(visible_width("\x1b]0;Title\x1b\\"), 0, "OSC title with ST should have 0 width");
+
+        // Combined sequence like in PTY output
+        let setup = "\x1b[?25l\x1b[?1000h\x1b[1;1H\x1b[2JLoading...";
+        assert_eq!(visible_width(setup), 10, "Setup + Loading... should be 10 chars");
+
+        // With OSC title
+        let with_title = "\x1b[?25l\x1b[1;1H\x1b[2JLoading...\x1b]0;Charmed\x07More";
+        assert_eq!(visible_width(with_title), 14, "With OSC should count Loading + More = 14");
+
+        println!("All escape sequence width tests passed!");
+    }
+}

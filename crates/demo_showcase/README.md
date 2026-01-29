@@ -34,6 +34,109 @@ cargo run -p demo_showcase -- --self-check
 | `--files-root <PATH>` | `DEMO_FILES_ROOT` | Root directory for file browser |
 | `-v, --verbose` | — | Enable verbose logging (repeat for more) |
 
+## SSH Mode
+
+Run the showcase as an SSH server, allowing remote connections to your TUI application. This demonstrates the `wish` crate's SSH server capabilities.
+
+### Quick Start (SSH)
+
+```bash
+# 1. Generate a host key (one-time setup)
+ssh-keygen -t ed25519 -f ./demo_host_key -N ""
+
+# 2. Start the SSH server with password authentication
+cargo run -p demo_showcase --features ssh -- ssh \
+  --host-key ./demo_host_key \
+  --password demo123
+
+# 3. Connect from another terminal
+ssh -p 2222 -o StrictHostKeyChecking=no localhost
+# Enter password: demo123
+```
+
+### SSH CLI Options
+
+| Flag | Environment Variable | Description |
+|------|---------------------|-------------|
+| `--host-key <PATH>` | — | Path to SSH host key file (required) |
+| `--addr <ADDR>` | — | Listen address (default: `:2222`) |
+| `--max-sessions <N>` | — | Max concurrent sessions (default: `10`) |
+| `--password <PASS>` | `DEMO_SSH_PASSWORD` | Require password authentication |
+| `--username <USER>` | `DEMO_SSH_USERNAME` | Require specific username (with password) |
+| `--no-auth` | — | Accept all connections (dev only!) |
+
+### Authentication Modes
+
+**Password Authentication** (recommended for demos):
+```bash
+# Any username, specific password
+cargo run -p demo_showcase --features ssh -- ssh \
+  --host-key ./demo_host_key \
+  --password secret123
+
+# Specific username + password
+cargo run -p demo_showcase --features ssh -- ssh \
+  --host-key ./demo_host_key \
+  --username demo \
+  --password secret123
+```
+
+**Environment Variables** (for deployment):
+```bash
+export DEMO_SSH_PASSWORD=secret123
+export DEMO_SSH_USERNAME=demo  # optional
+cargo run -p demo_showcase --features ssh -- ssh --host-key ./demo_host_key
+```
+
+**No Authentication** (development only):
+```bash
+# WARNING: Accepts ALL connections!
+cargo run -p demo_showcase --features ssh -- ssh \
+  --host-key ./demo_host_key \
+  --no-auth
+```
+
+### Host Key Setup
+
+SSH requires a host key to identify the server. Generate one with:
+
+```bash
+# Generate ED25519 key (recommended)
+ssh-keygen -t ed25519 -f ./demo_host_key -N ""
+
+# Or RSA key (wider compatibility)
+ssh-keygen -t rsa -b 4096 -f ./demo_host_key -N ""
+```
+
+**Required permissions**: The host key file must be readable by the server:
+```bash
+chmod 600 ./demo_host_key      # Private key
+chmod 644 ./demo_host_key.pub  # Public key (optional)
+```
+
+### Troubleshooting SSH
+
+| Problem | Solution |
+|---------|----------|
+| `Host key file not found` | Check path; generate key with `ssh-keygen` |
+| `Address already in use` | Another server on port 2222; use `--addr :2223` |
+| `Permission denied` | Ports < 1024 require root; use `--addr :2222` |
+| `Connection refused` | Server not running or firewall blocking |
+| `Terminal garbled after exit` | Run `reset` to restore terminal |
+| `PTY/window size issues` | Resize terminal or use `ssh -t` |
+
+### Session Tracking
+
+The SSH server logs session information:
+- Session start: username, session number, active count
+- Session end: username, duration, remaining active sessions
+
+Example log output:
+```
+INFO  Session started user="demo" session_num=1 active_sessions=1
+INFO  Session ended user="demo" duration_secs=45.2 active_sessions=0
+```
+
 ## Pages
 
 The showcase includes 7 interactive pages:
@@ -225,7 +328,7 @@ This table shows which charmed_rust features are demonstrated and tested:
 Some features require manual testing:
 
 - **Mouse drag** — Table column resize, viewport scroll
-- **SSH mode** — `cargo run -p demo_showcase -- ssh` (requires setup)
+- **SSH mode** — See [SSH Mode](#ssh-mode) section for setup
 - **Terminal resize** — Responsive layout reflow
 - **Theme file loading** — Custom TOML/JSON/YAML themes
 - **High-DPI rendering** — Visual inspection on HiDPI displays
@@ -243,6 +346,7 @@ demo_showcase/
 │   ├── keymap.rs       # Keybinding definitions
 │   ├── messages.rs     # Message types for routing
 │   ├── config.rs       # CLI config and env mapping
+│   ├── ssh.rs          # SSH server mode (feature: ssh)
 │   └── test_support.rs # E2E testing harness
 └── assets/
     ├── docs/           # Embedded markdown documentation

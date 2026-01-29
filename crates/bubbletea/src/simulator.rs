@@ -733,10 +733,11 @@ mod tests {
                 None
             }
             fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
-                if let Some(mouse) = msg.downcast_ref::<MouseMsg>() {
-                    if mouse.button == MouseButton::Left && mouse.action == MouseAction::Press {
-                        self.clicks.push((mouse.x, mouse.y));
-                    }
+                if let Some(mouse) = msg.downcast_ref::<MouseMsg>()
+                    && mouse.button == MouseButton::Left
+                    && mouse.action == MouseAction::Press
+                {
+                    self.clicks.push((mouse.x, mouse.y));
                 }
                 None
             }
@@ -804,10 +805,10 @@ mod tests {
                 None
             }
             fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
-                if let Some(key) = msg.downcast_ref::<KeyMsg>() {
-                    if key.paste {
-                        self.pasted = key.runes.iter().collect();
-                    }
+                if let Some(key) = msg.downcast_ref::<KeyMsg>()
+                    && key.paste
+                {
+                    self.pasted = key.runes.iter().collect();
                 }
                 None
             }
@@ -967,8 +968,8 @@ mod tests {
         sim.init();
 
         // Queue many messages
-        for i in 0..500 {
-            sim.send(Message::new(i as i32));
+        for i in 0_i32..500 {
+            sim.send(Message::new(i));
         }
 
         let processed = sim.run_until_empty();

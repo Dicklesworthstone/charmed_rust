@@ -2,27 +2,27 @@
 source: crates/demo_showcase/tests/snapshot_tests.rs
 expression: view
 ---
- Charmed Control Center   Connected                                     [Dark]           
-  [] DashboardDeploy Service  Step 1/6                                                   
-  >_ Services                                                                            
-  >> Jobs     @ Type  >  o Config  >  o Options  >  o Variables  >  o Review  >  o Deploy
-   # Logs     ------------------------------------------------------------               
-   ? Docs                                                                                
-  <> Files    What type of service?                                                      
->  * Wizard                                                                              
-   @ Settings  > (*) Web Service                                                         
-                     HTTP server with port binding                                       
-                                                                                         
-                 ( ) Background Worker                                                   
-                     Queue processor, no external ports                                  
-                                                                                         
-                 ( ) Scheduled Job                                                       
-                     Cron-style recurring task                                           
-                                                                                         
-                                                                                         
-                                                                                         
-                                                                                         
-                                                                                         
-                                                                                         
-                                                                                         
+ Charmed Control Center   Connected                                    [Dark]  
+  [] DashboardDeploy Service  Step 1/6                                         
+  >_ Services                                                                  
+  >> Jobs     @ Type  >  o Config  >  o Options  >  o Variables  >  o Review  >
+   # Logs     ------------------------------------------------------------     
+   ? Docs                                                                      
+  <> Files    What type of service?                                            
+>  * Wizard                                                                    
+   @ Settings  > (*) Web Service                                               
+                     HTTP server with port binding                             
+                                                                               
+                 ( ) Background Worker                                         
+                     Queue processor, no external ports                        
+                                                                               
+                 ( ) Scheduled Job                                             
+                     Cron-style recurring task                                 
+                                                                               
+                                                                               
+                                                                               
+                                                                               
+                                                                               
+                                                                               
+                                                                               
   j/k select  Enter continue  Esc back  |  1-7 pages  [ sidebar  ? help  q quit

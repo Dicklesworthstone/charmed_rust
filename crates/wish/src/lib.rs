@@ -2398,7 +2398,7 @@ mod tests {
         assert!(session.recv().await.is_none());
 
         let (tx, rx) = tokio::sync::mpsc::channel(1);
-        session.set_input_receiver(rx);
+        session.set_input_receiver(rx).await;
         tx.send(b"ping".to_vec()).await.unwrap();
 
         let received = session.recv().await;

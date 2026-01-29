@@ -681,7 +681,7 @@ impl PageModel for DocsPage {
                             self.viewport.write().unwrap().goto_bottom();
                             return None;
                         }
-                        ['l'] | ['h'] if self.focus == DocsFocus::List => {
+                        ['l' | 'h'] if self.focus == DocsFocus::List => {
                             // l/h to switch focus in list mode
                             self.toggle_focus();
                             return None;

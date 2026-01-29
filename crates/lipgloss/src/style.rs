@@ -1316,6 +1316,8 @@ impl Style {
 
             let line_width = visible_width(line);
             if line_width >= target_width {
+                // Line already meets or exceeds target width; include as-is
+                // (truncation should be handled at a higher level if needed)
                 result.push_str(line);
             } else {
                 let extra = target_width - line_width;
@@ -2004,6 +2006,80 @@ fn wrap_text(s: &str, width: usize) -> String {
     }
 
     result.join("\n")
+}
+
+/// Truncate a single line to max_width, preserving ANSI escape sequences.
+///
+/// This function handles:
+/// - CSI sequences (e.g., `\x1b[31m`)
+/// - OSC sequences (e.g., `\x1b]0;title\x07`)
+/// - Simple escape sequences (e.g., `\x1b(B`)
+///
+/// Any open style is closed with a reset sequence if truncation occurs.
+#[allow(dead_code)]
+fn truncate_line_ansi(line: &str, max_width: usize) -> String {
+    let mut result = String::new();
+    let mut visible_count = 0;
+    let mut chars = line.chars().peekable();
+    let mut in_style = false;
+
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Start of escape sequence - include the whole sequence
+            result.push(c);
+            in_style = true;
+
+            if let Some(&next) = chars.peek() {
+                match next {
+                    '[' => {
+                        // CSI sequence: ESC [ params final_byte
+                        result.push(chars.next().unwrap());
+                        while let Some(&ch) = chars.peek() {
+                            result.push(chars.next().unwrap());
+                            // CSI ends with a letter A-Z or a-z (0x40-0x7E)
+                            if (0x40..=0x7E).contains(&(ch as u8)) {
+                                break;
+                            }
+                        }
+                    }
+                    ']' => {
+                        // OSC sequence: ESC ] ... BEL or ESC \
+                        result.push(chars.next().unwrap());
+                        while let Some(ch) = chars.next() {
+                            result.push(ch);
+                            if ch == '\x07' {
+                                break;
+                            }
+                            if ch == '\x1b' && chars.peek() == Some(&'\\') {
+                                result.push(chars.next().unwrap());
+                                break;
+                            }
+                        }
+                    }
+                    _ => {
+                        // Other escape sequences (e.g., ESC ( B)
+                        result.push(chars.next().unwrap());
+                    }
+                }
+            }
+        } else {
+            // Regular character - count its width
+            let char_width = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+            if visible_count + char_width > max_width {
+                // Would exceed max_width - stop here
+                break;
+            }
+            result.push(c);
+            visible_count += char_width;
+        }
+    }
+
+    // If we had styles and truncated, add a reset to close them
+    if in_style && visible_count < visible_width(line) {
+        result.push_str("\x1b[0m");
+    }
+
+    result
 }
 
 /// Truncate each line to max width.
@@ -3165,8 +3241,7 @@ mod tests {
         let rendered = style.render("Line1\r\nLine2");
         // \r\n should become \n
         assert!(!rendered.contains('\r'));
-        let lines: Vec<&str> = rendered.lines().collect();
-        assert_eq!(lines.len(), 2);
+        assert_eq!(rendered.lines().count(), 2);
     }
 
     #[test]
@@ -3209,18 +3284,16 @@ mod tests {
     fn test_padding_with_border() {
         let style = Style::new().border(Border::normal()).padding(1);
         let rendered = style.render("X");
-        let lines: Vec<&str> = rendered.lines().collect();
         // Should have: top border, padding line, content line, padding line, bottom border
-        assert!(lines.len() >= 3);
+        assert!(rendered.lines().count() >= 3);
     }
 
     #[test]
     fn test_margin_with_border() {
         let style = Style::new().border(Border::normal()).margin(1);
         let rendered = style.render("X");
-        let lines: Vec<&str> = rendered.lines().collect();
         // Should have margin lines above and below the bordered content
-        assert!(lines.len() >= 4);
+        assert!(rendered.lines().count() >= 4);
     }
 
     #[test]
@@ -3278,7 +3351,7 @@ mod tests {
     fn test_style_display() {
         let style = Style::new().bold().set_string("Hello");
         let displayed = format!("{}", style);
-        assert!(displayed.contains("Hello") || displayed.contains("\x1b"));
+        assert!(displayed.contains("Hello") || displayed.contains('\x1b'));
     }
 
     #[test]

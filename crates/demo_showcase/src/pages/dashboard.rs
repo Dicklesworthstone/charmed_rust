@@ -57,6 +57,7 @@ pub struct DetailsPanel {
 
 /// SLA urgency level based on remaining time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum SlaUrgency {
     /// Plenty of time remaining (> 1 hour).
     Normal,
@@ -379,21 +380,6 @@ impl DashboardPage {
         sorted.into_iter().take(4).collect()
     }
 
-    /// Format uptime as human-readable string.
-    fn format_uptime(&self) -> String {
-        let days = self.uptime_seconds / 86400;
-        let hours = (self.uptime_seconds % 86400) / 3600;
-        let minutes = (self.uptime_seconds % 3600) / 60;
-
-        if days > 0 {
-            format!("{days}d {hours}h {minutes}m")
-        } else if hours > 0 {
-            format!("{hours}h {minutes}m")
-        } else {
-            format!("{minutes}m")
-        }
-    }
-
     /// Format uptime as DD:HH:MM:SS stopwatch format (bd-39hl).
     fn format_uptime_stopwatch(&self) -> String {
         let days = self.uptime_seconds / 86400;
@@ -418,6 +404,7 @@ impl DashboardPage {
     }
 
     /// Determine SLA urgency level based on remaining time (bd-39hl).
+    #[allow(dead_code)]
     fn sla_urgency(sla_seconds: u64) -> SlaUrgency {
         if sla_seconds == 0 {
             SlaUrgency::Breached
@@ -629,12 +616,30 @@ impl DashboardPage {
             theme.success_style().render(&service_summary)
         };
 
-        // Uptime
-        let uptime = format!("Uptime: {}", self.format_uptime());
+        // Uptime stopwatch (bd-39hl)
+        let uptime = format!("⏱ {}", self.format_uptime_stopwatch());
         let uptime_styled = theme.muted_style().render(&uptime);
 
+        // SLA countdown with visual emphasis (bd-39hl)
+        let sla_styled = if let Some(sla_secs) = self.incident_sla_seconds {
+            let sla_text = format!("SLA: {}", Self::format_sla_countdown(sla_secs));
+            let urgency = Self::sla_urgency(sla_secs);
+            match urgency {
+                SlaUrgency::Breached => theme.error_style().bold().render(&format!("⚠ {sla_text}")),
+                SlaUrgency::Critical => theme.error_style().render(&format!("⚠ {sla_text}")),
+                SlaUrgency::Warning => theme.warning_style().render(&sla_text),
+                SlaUrgency::Normal => theme.muted_style().render(&sla_text),
+            }
+        } else {
+            String::new()
+        };
+
         // Compose status bar
-        let content = format!("{platform_status}  {service_styled}  {uptime_styled}");
+        let content = if sla_styled.is_empty() {
+            format!("{platform_status}  {service_styled}  {uptime_styled}")
+        } else {
+            format!("{platform_status}  {service_styled}  {uptime_styled}  {sla_styled}")
+        };
 
         // Truncate if needed
         if content.len() > width {
@@ -1314,8 +1319,8 @@ impl PageModel for DashboardPage {
                         return None;
                     }
                     KeyType::Runes => match key.runes.as_slice() {
-                        ['j'] | ['n'] => self.details_next(),
-                        ['k'] | ['p'] => self.details_prev(),
+                        ['j' | 'n'] => self.details_next(),
+                        ['k' | 'p'] => self.details_prev(),
                         _ => {}
                     },
                     KeyType::Down => self.details_next(),
@@ -1414,9 +1419,9 @@ impl PageModel for DashboardPage {
 
         // Calculate card bounds for mouse hit testing
         // Layout: status_bar (1) + blank (1) + stats_row + blank (1) + main_content
-        let status_lines = 1;
-        let stats_lines = stats_row.lines().count();
-        let header_lines = status_lines + 1 + stats_lines + 1; // +1 for each blank line
+        let status_bar_height = 1;
+        let stats_row_height = stats_row.lines().count();
+        let header_lines = status_bar_height + 1 + stats_row_height + 1; // +1 for each blank line
 
         let services_lines = services.lines().count();
         let jobs_lines = jobs.lines().count();
@@ -1522,16 +1527,14 @@ mod tests {
 
     #[test]
     fn uptime_format_days() {
-        let mut page = DashboardPage::new();
-        page.uptime_seconds = 86400 + 3600 + 60;
-        assert_eq!(page.format_uptime(), "1d 1h 1m");
+        use crate::content::format_uptime;
+        assert_eq!(format_uptime(86400 + 3600 + 60), "1d 1h 1m");
     }
 
     #[test]
     fn uptime_format_hours() {
-        let mut page = DashboardPage::new();
-        page.uptime_seconds = 3600 * 5 + 60 * 30;
-        assert_eq!(page.format_uptime(), "5h 30m");
+        use crate::content::format_uptime;
+        assert_eq!(format_uptime(3600 * 5 + 60 * 30), "5h 30m");
     }
 
     #[test]

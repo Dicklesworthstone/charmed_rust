@@ -34,6 +34,43 @@ const DEFAULT_SEED: u64 = 42;
 const MAX_LOG_ENTRIES: usize = 1000;
 
 // =============================================================================
+// Performance Helpers (bd-3kvw)
+// =============================================================================
+
+/// Case-insensitive substring search without allocating lowercase copies.
+///
+/// This is O(n*m) but avoids the allocation overhead of `to_lowercase()`.
+/// For log filtering with ~1000 entries, this is faster than allocating
+/// 2000 strings per keystroke.
+#[inline]
+fn contains_ignore_case(haystack: &str, needle: &str) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    if needle.len() > haystack.len() {
+        return false;
+    }
+
+    // Fast path for ASCII-only (most common for log messages)
+    let needle_bytes = needle.as_bytes();
+    let haystack_bytes = haystack.as_bytes();
+
+    'outer: for i in 0..=(haystack_bytes.len() - needle_bytes.len()) {
+        for j in 0..needle_bytes.len() {
+            let h = haystack_bytes[i + j];
+            let n = needle_bytes[j];
+
+            // Case-insensitive ASCII comparison
+            if h != n && h.to_ascii_lowercase() != n.to_ascii_lowercase() {
+                continue 'outer;
+            }
+        }
+        return true;
+    }
+    false
+}
+
+// =============================================================================
 // Filtering
 // =============================================================================
 
@@ -207,8 +244,11 @@ impl LogsPage {
     // =========================================================================
 
     /// Apply current filters, updating filtered_indices.
+    ///
+    /// Performance: Uses `contains_ignore_case()` to avoid allocating lowercase
+    /// copies of message/target for every entry (bd-3kvw optimization).
     fn apply_filters(&mut self) {
-        let query_lower = self.query.to_lowercase();
+        let query = &self.query;
         let entries = self.logs.entries();
 
         self.filtered_indices = entries
@@ -220,10 +260,10 @@ impl LogsPage {
                     return false;
                 }
 
-                // Query filter (match message or target)
-                if !query_lower.is_empty() {
-                    let msg_match = entry.message.to_lowercase().contains(&query_lower);
-                    let target_match = entry.target.to_lowercase().contains(&query_lower);
+                // Query filter (match message or target) - no allocations
+                if !query.is_empty() {
+                    let msg_match = contains_ignore_case(&entry.message, query);
+                    let target_match = contains_ignore_case(&entry.target, query);
                     if !msg_match && !target_match {
                         return false;
                     }
@@ -1224,5 +1264,55 @@ mod tests {
 
         // Should return a command for file export
         assert!(cmd.is_some(), "action_export should return a command");
+    }
+
+    // =========================================================================
+    // Performance Optimization Tests (bd-3kvw)
+    // =========================================================================
+
+    #[test]
+    fn contains_ignore_case_basic() {
+        // Basic ASCII matching
+        assert!(contains_ignore_case("Hello World", "hello"));
+        assert!(contains_ignore_case("Hello World", "WORLD"));
+        assert!(contains_ignore_case("Hello World", "lo Wo"));
+        assert!(!contains_ignore_case("Hello World", "xyz"));
+    }
+
+    #[test]
+    fn contains_ignore_case_empty() {
+        // Empty needle always matches
+        assert!(contains_ignore_case("anything", ""));
+        assert!(contains_ignore_case("", ""));
+    }
+
+    #[test]
+    fn contains_ignore_case_needle_longer() {
+        // Needle longer than haystack never matches
+        assert!(!contains_ignore_case("hi", "hello"));
+    }
+
+    #[test]
+    fn contains_ignore_case_exact_match() {
+        assert!(contains_ignore_case("test", "test"));
+        assert!(contains_ignore_case("test", "TEST"));
+        assert!(contains_ignore_case("TEST", "test"));
+    }
+
+    #[test]
+    fn contains_ignore_case_start_middle_end() {
+        let haystack = "The quick brown fox";
+        assert!(contains_ignore_case(haystack, "The")); // Start
+        assert!(contains_ignore_case(haystack, "quick")); // Middle
+        assert!(contains_ignore_case(haystack, "fox")); // End
+        assert!(contains_ignore_case(haystack, "THE QUICK")); // Case mismatch
+    }
+
+    #[test]
+    fn contains_ignore_case_special_chars() {
+        // Should handle non-letter ASCII characters
+        assert!(contains_ignore_case("[ERROR] failed", "[error]"));
+        assert!(contains_ignore_case("2024-01-01", "01-01"));
+        assert!(contains_ignore_case("user@example.com", "@EXAMPLE"));
     }
 }

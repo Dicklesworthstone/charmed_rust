@@ -140,6 +140,26 @@ pub struct SshArgs {
     /// Maximum concurrent sessions
     #[arg(long, default_value = "10")]
     pub max_sessions: usize,
+
+    /// Password for SSH authentication
+    ///
+    /// If set, clients must provide this password to connect.
+    /// Can also be set via DEMO_SSH_PASSWORD environment variable.
+    #[arg(long, env = "DEMO_SSH_PASSWORD")]
+    pub password: Option<String>,
+
+    /// Username for SSH authentication
+    ///
+    /// If set along with password, only this username is accepted.
+    /// If not set, any username is accepted with the correct password.
+    #[arg(long, env = "DEMO_SSH_USERNAME")]
+    pub username: Option<String>,
+
+    /// Allow unauthenticated connections (development mode)
+    ///
+    /// WARNING: Only use for local development. This accepts ALL connections.
+    #[arg(long)]
+    pub no_auth: bool,
 }
 
 /// Arguments for export subcommand.
@@ -417,5 +437,96 @@ mod tests {
         // Seeds should be different (time-based)
         // Note: In rare cases they might be the same if time resolution is low
         assert!(seed1 != seed2 || seed1 > 0);
+    }
+
+    #[cfg(feature = "ssh")]
+    #[test]
+    fn cli_parses_ssh_subcommand() {
+        let cli = Cli::try_parse_from([
+            "demo_showcase",
+            "ssh",
+            "--host-key",
+            "/tmp/host_key",
+            "--addr",
+            ":3333",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Some(Command::Ssh(args)) => {
+                assert_eq!(args.addr, ":3333");
+                assert_eq!(args.host_key, PathBuf::from("/tmp/host_key"));
+                assert!(args.password.is_none());
+                assert!(args.username.is_none());
+                assert!(!args.no_auth);
+            }
+            _ => panic!("Expected Ssh command"),
+        }
+    }
+
+    #[cfg(feature = "ssh")]
+    #[test]
+    fn cli_parses_ssh_with_password() {
+        let cli = Cli::try_parse_from([
+            "demo_showcase",
+            "ssh",
+            "--host-key",
+            "/tmp/host_key",
+            "--password",
+            "secret123",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Some(Command::Ssh(args)) => {
+                assert_eq!(args.password, Some("secret123".to_string()));
+                assert!(args.username.is_none());
+            }
+            _ => panic!("Expected Ssh command"),
+        }
+    }
+
+    #[cfg(feature = "ssh")]
+    #[test]
+    fn cli_parses_ssh_with_username_and_password() {
+        let cli = Cli::try_parse_from([
+            "demo_showcase",
+            "ssh",
+            "--host-key",
+            "/tmp/host_key",
+            "--username",
+            "demo",
+            "--password",
+            "secret",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Some(Command::Ssh(args)) => {
+                assert_eq!(args.username, Some("demo".to_string()));
+                assert_eq!(args.password, Some("secret".to_string()));
+            }
+            _ => panic!("Expected Ssh command"),
+        }
+    }
+
+    #[cfg(feature = "ssh")]
+    #[test]
+    fn cli_parses_ssh_no_auth() {
+        let cli = Cli::try_parse_from([
+            "demo_showcase",
+            "ssh",
+            "--host-key",
+            "/tmp/host_key",
+            "--no-auth",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Some(Command::Ssh(args)) => {
+                assert!(args.no_auth);
+            }
+            _ => panic!("Expected Ssh command"),
+        }
     }
 }

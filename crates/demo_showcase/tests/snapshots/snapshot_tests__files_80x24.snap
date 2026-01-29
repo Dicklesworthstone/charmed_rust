@@ -2,28 +2,28 @@
 source: crates/demo_showcase/tests/snapshot_tests.rs
 expression: view
 ---
- Charmed Control Center   Connected                                     [Dark]    
-  [] Dashboardfixtures/                         │ README.md [MD]                  
-  >_ Services > 📄 README.md                    │ ────────────────────────────────
-  >> Jobs       📁 config/                      │                                 
-   # Logs       📁 logs/                        │                                 
-   ? Docs       📁 nested/                      │    Demo Fixtures                
-> <> Files                                      │   This directory contains       
-   * Wizard                                     │   sample files for the file     
-   @ Settings                                   │   browser demo.                 
-                                                │                                 
-                                                │                                 
-                                                │   ## Contents                   
-                                                │                                 
-                                                │   •  config/  - Configuration   
-                                                │   •  logs/  - Sample log files  
-                                                │   •  nested/  - Nested directo  
-                                                │                                 
-                                                │   ## Usage                      
-                                                │   These files demonstrate       
-                                                │   the FilePicker component's    
-                                                │   ability to:                   
-                                                │ Top [S·]                        
-              1/4 [h] Show hidden               │                                 
-  j/k nav  l/Enter open  h back  H hidden  Tab preview  |  1-7 pages  [ sidebar   
-? help  q quit
+ Charmed Control Center   Connected                                    [Dark]  
+  [] Dashboardfixtures/                         │ README.md [MD]               
+  >_ Services > 📄 README.md                    │ ─────────────────────────────
+  >> Jobs       📁 config/                      │                              
+   # Logs       📁 logs/                        │                              
+   ? Docs       📁 nested/                      │    Demo Fixtures             
+> <> Files                                      │   This directory contains    
+   * Wizard                                     │   sample files for the file  
+   @ Settings                                   │   browser demo.              
+                                                │                              
+                                                │                              
+                                                │   ## Contents                
+                                                │                              
+                                                │   •  config/  - Configuration
+                                                │   •  logs/  - Sample log file
+                                                │   •  nested/  - Nested direct
+                                                │                              
+                                                │   ## Usage                   
+                                                │   These files demonstrate    
+                                                │   the FilePicker component's 
+                                                │   ability to:                
+                                                │ Top [S·]                     
+              1/4 [h] Show hidden               │                              
+  j/k nav  l/Enter open  h back  H hidden  Tab preview  |  1-7 pages  [ sidebar
+ ? help  q quit
