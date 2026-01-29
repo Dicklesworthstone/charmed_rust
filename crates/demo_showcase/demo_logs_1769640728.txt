@@ -1,0 +1,40 @@
+ Charmed Control Center   Connected                                                                             [Dark]  
+  [] Dashboard[●] E [●] W [●] I [ ] D [●] T  Filter: > ru                                                               
+  >_ Services                                                                                                           
+  >> Jobs                                                                                                               
+>  # Logs                                                                                                               
+   ? Docs                                                                                                               
+  <> Files                                                                                                              
+   * Wizard                                                                                                             
+   @ Settings                                                                                                           
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+               FOLLOWING                                                                  0/196 shown  1:0              
+                                                                                                                        
+ ●  Exported to demo_logs_1769640728.txt                                                                                
+  y copy  e export  X clear  / filter  1-5 levels  f follow  j/k scroll  |  1-7 pages  [ sidebar  ? help  q quit        

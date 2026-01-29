@@ -1,0 +1,40 @@
+ Charmed Control Center   Connected                                                                            [Light]  
+  [] Dashboard[ ] E [ ] W [ ] I [ ] D [●] T  Filter: > t                                                                
+  >_ Services 23:24:41 TRACE api::auth                 Error handled gracefully                                         
+  >> Jobs     23:24:41 TRACE health::checker           Retrying operation                                               
+>  # Logs     23:24:41 TRACE cache::memcached          Processing request                                               
+   ? Docs     23:24:41 TRACE worker::jobs              Connection established                                           
+  <> Files    23:24:41 TRACE grpc::server              Cache hit                                                        
+   * Wizard   23:24:41 TRACE metrics::exporter         Authentication successful                                        
+   @ Settings 23:24:41 TRACE cache::memcached          Connection closed                                                
+              23:24:41 TRACE api::routes               Retrying operation                                               
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+               PAUSED                                                                     8/196 shown  1:8              
+                                                                                                                        
+  y copy  e export  X clear  / filter  1-5 levels  f follow  j/k scroll  |  1-7 pages  [ sidebar  ? help  q quit        
