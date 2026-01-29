@@ -474,6 +474,58 @@ impl SettingsPage {
 
         format!("{primary}{success}{warning}{error}{info}")
     }
+
+    /// Render a single keybinding entry row.
+    fn render_keybinding_entry(entry: &KeybindingEntry, theme: &Theme) -> String {
+        let key_style = theme.info_style().bold();
+        let action_style = theme.muted_style();
+        let formatted_key = format!("{:>10}", entry.key);
+
+        format!(
+            "    {}  {}",
+            key_style.render(&formatted_key),
+            action_style.render(entry.action)
+        )
+    }
+
+    /// Render the keybindings reference section.
+    fn render_keybindings(&self, width: usize, theme: &Theme) -> Vec<String> {
+        let mut lines = Vec::new();
+
+        // Section header
+        let keybindings_focused = self.section == SettingsSection::Keybindings;
+        let header = if keybindings_focused {
+            theme.title_style().render("▸ Keybindings Reference")
+        } else {
+            theme.muted_style().render("  Keybindings Reference")
+        };
+        lines.push(header);
+        lines.push(String::new());
+
+        // Global keybindings
+        lines.push(theme.title_style().render("  Global"));
+        for entry in &GLOBAL_KEYS {
+            lines.push(Self::render_keybinding_entry(entry, theme));
+        }
+        lines.push(String::new());
+
+        // Page-specific keybindings
+        lines.push(theme.title_style().render("  Page-Specific"));
+        for entry in &PAGE_KEYS {
+            lines.push(Self::render_keybinding_entry(entry, theme));
+        }
+
+        // Note about customization
+        lines.push(String::new());
+        let note = if width > 60 {
+            "  Note: Keybindings are currently read-only. Customization coming soon!"
+        } else {
+            "  Keybindings are read-only."
+        };
+        lines.push(theme.muted_style().italic().render(note));
+
+        lines
+    }
 }
 
 impl Default for SettingsPage {
@@ -545,6 +597,11 @@ impl PageModel for SettingsPage {
         for (i, preset) in ThemePreset::all().iter().enumerate() {
             lines.push(self.render_theme_row(*preset, i, width, theme));
         }
+
+        lines.push(String::new());
+
+        // Section: Keybindings Reference (bd-3b7o)
+        lines.extend(self.render_keybindings(width, theme));
 
         lines.push(String::new());
         lines.push(theme.muted_style().render(&"─".repeat(width.min(60))));
@@ -635,6 +692,9 @@ mod tests {
         assert_eq!(page.section, SettingsSection::Themes);
 
         page.next_section();
+        assert_eq!(page.section, SettingsSection::Keybindings);
+
+        page.next_section();
         assert_eq!(page.section, SettingsSection::Toggles);
     }
 
@@ -700,10 +760,59 @@ mod tests {
     fn settings_page_view_contains_sections() {
         let page = SettingsPage::new();
         let theme = Theme::dark();
-        let view = page.view(80, 24, &theme);
+        let view = page.view(80, 60, &theme);
 
-        // Should have both sections
+        // Should have all three sections
         assert!(view.contains("Toggles"));
         assert!(view.contains("Theme"));
+        assert!(view.contains("Keybindings Reference"));
+    }
+
+    #[test]
+    fn settings_page_keybindings_is_readonly() {
+        let mut page = SettingsPage::new();
+        page.section = SettingsSection::Keybindings;
+
+        // Keybindings section is read-only, so navigation should be no-op
+        page.move_down();
+        page.move_up();
+
+        // activate_selected should return None for Keybindings
+        let cmd = page.activate_selected();
+        assert!(cmd.is_none());
+    }
+
+    #[test]
+    fn settings_page_keybindings_view_contains_keys() {
+        let page = SettingsPage::new();
+        let theme = Theme::dark();
+        let view = page.view(120, 80, &theme);
+
+        // Should contain global keybindings
+        assert!(view.contains("Global"));
+        assert!(view.contains("Toggle help overlay"));
+        assert!(view.contains("Quit application"));
+
+        // Should contain page-specific keybindings
+        assert!(view.contains("Page-Specific"));
+        assert!(view.contains("Dashboard"));
+        assert!(view.contains("Jobs"));
+        assert!(view.contains("Logs"));
+    }
+
+    #[test]
+    fn settings_page_keybindings_focused_style() {
+        let mut page = SettingsPage::new();
+        let theme = Theme::dark();
+
+        // When not focused, header should be muted
+        page.section = SettingsSection::Toggles;
+        let view1 = page.view(80, 60, &theme);
+        assert!(view1.contains("Keybindings Reference"));
+
+        // When focused, should have arrow indicator
+        page.section = SettingsSection::Keybindings;
+        let view2 = page.view(80, 60, &theme);
+        assert!(view2.contains("▸ Keybindings Reference"));
     }
 }

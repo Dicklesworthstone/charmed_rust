@@ -55,5 +55,9 @@ assert_cmd.workspace = true
 predicates.workspace = true
 insta.workspace = true
 
+[[bin]]
+name = "run_e2e"
+path = "src/bin/run_e2e.rs"
+
 [lints]
 workspace = true
