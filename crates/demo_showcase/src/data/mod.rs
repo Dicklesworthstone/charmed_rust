@@ -8,6 +8,7 @@
 //!
 //! The [`actions`] module provides the domain action API for state changes.
 //! The [`animation`] module provides spring-based animation primitives.
+//! The [`async_runner`] module provides async workload patterns using `AsyncCmd`.
 //! The [`generator`] module provides seedable, deterministic data generation.
 //! The [`simulation`] module provides a background simulation engine.
 
@@ -15,6 +16,7 @@
 
 pub mod actions;
 pub mod animation;
+pub mod async_runner;
 pub mod generator;
 pub mod simulation;
 
