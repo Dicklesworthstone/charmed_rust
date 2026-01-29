@@ -254,6 +254,13 @@ fn run_self_check(config: &Config) -> anyhow::Result<()> {
     }
 }
 
+/// Default maximum width for ultra-wide terminals.
+///
+/// Terminals wider than this get their PTY width capped at startup, and the
+/// app's layout width is capped in the `WindowSizeMsg` handler. The value
+/// must match the `AUTO_MAX_WIDTH` constant in `App::update`.
+const AUTO_MAX_WIDTH: u16 = 200;
+
 /// Apply PTY width cap for ultra-wide terminals.
 ///
 /// When a terminal is very wide (> 200 columns), rendering can have issues
@@ -261,13 +268,10 @@ fn run_self_check(config: &Config) -> anyhow::Result<()> {
 /// This function uses `stty cols` to set a narrower PTY width, which makes
 /// the terminal driver handle line wrapping at the capped width.
 fn apply_pty_width_cap(config: &Config) {
-    // Get effective max_width from config (explicit or auto-cap at 200)
-    let max_width = config.max_width.unwrap_or(200);
+    let max_width = config.max_width.unwrap_or(AUTO_MAX_WIDTH);
 
-    // Try to get current terminal size
     if let Ok((cols, _rows)) = crossterm::terminal::size() {
-        if cols > max_width as u16 {
-            // Terminal is wider than max_width - apply stty cap
+        if cols > max_width {
             let _ = std::process::Command::new("stty")
                 .arg("cols")
                 .arg(max_width.to_string())

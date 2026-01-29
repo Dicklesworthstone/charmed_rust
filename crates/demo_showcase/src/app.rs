@@ -367,7 +367,6 @@ impl App {
             current_page: Page::Dashboard,
             pages: Pages::default(),
             width: 80,
-            terminal_width: 80,
             height: 24,
             ready: false,
             show_help: false,
@@ -1113,33 +1112,6 @@ impl App {
         self.focused
     }
 
-    /// Pad each line to the actual terminal width when max_width is active.
-    ///
-    /// When max_width caps the layout width, the rendered content is narrower
-    /// than the terminal. Without padding, the remaining terminal area appears
-    /// blank or shows artifacts. This fills the rest with spaces.
-    fn pad_to_terminal_width(&self, content: &str) -> String {
-        // No padding needed if terminal width matches layout width
-        if self.terminal_width <= self.width {
-            return content.to_string();
-        }
-
-        // Pad with plain spaces - the terminal's default background will show
-        // This is simpler and more compatible than styled padding
-        content
-            .lines()
-            .map(|line| {
-                let visible_len = lipgloss::width(line);
-                if visible_len < self.terminal_width {
-                    let padding = self.terminal_width - visible_len;
-                    format!("{}{}", line, " ".repeat(padding))
-                } else {
-                    line.to_string()
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
 }
 
 impl Default for App {
@@ -1158,29 +1130,19 @@ impl Model for App {
     }
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
-        // Handle window resize
-        // Apply max_width cap if configured (helps with very wide terminals)
-        // When using max_width (auto or explicit), we set terminal_width = width
-        // so that padding fills the entire layout rather than the actual terminal.
-        // This prevents rendering artifacts when layout width differs from terminal width.
+        // Handle window resize.
+        // Cap width at max_width (explicit CLI flag) or AUTO_MAX_WIDTH (200)
+        // to prevent layout issues on ultra-wide terminals. The PTY width is
+        // also capped at startup via apply_pty_width_cap() so that the terminal
+        // driver's line-wrapping agrees with our layout width.
         if let Some(size) = msg.downcast_ref::<WindowSizeMsg>() {
             let actual_width = size.width as usize;
 
-            // Sensible default: cap very wide terminals at 200 columns
-            // This prevents layout issues on ultra-wide monitors while still
-            // allowing reasonable flexibility. Users can override with --max-width.
             const AUTO_MAX_WIDTH: usize = 200;
-            let capped_width = match self.config.max_width {
+            self.width = match self.config.max_width {
                 Some(max) => actual_width.min(max as usize),
-                None if actual_width > AUTO_MAX_WIDTH => AUTO_MAX_WIDTH,
-                None => actual_width,
+                None => actual_width.min(AUTO_MAX_WIDTH),
             };
-
-            self.width = capped_width;
-            // Set terminal_width to match layout width when capping is active
-            // This prevents the mismatch between layout and terminal that causes
-            // rendering issues. The tradeoff is that the app won't fill ultra-wide screens.
-            self.terminal_width = capped_width;
             self.height = size.height as usize;
             self.ready = true;
             return None;
@@ -1511,24 +1473,17 @@ impl Model for App {
 
         // Render command palette overlay if visible (bd-3mtt)
         if self.command_palette.visible {
-            let palette_view = self.command_palette.view(self.width, self.height, &self.theme);
-            // The palette is a centered overlay; return it instead of compositing
-            // since we want it to fully occupy the screen
-            return self.pad_to_terminal_width(&palette_view);
+            return self.command_palette.view(self.width, self.height, &self.theme);
         }
 
         // Render guided tour overlay if active (bd-2eky)
         if self.guided_tour.is_active() {
-            let tour_view = self.guided_tour.view(&self.theme, self.width, self.height);
-            // The tour is a centered overlay
-            return self.pad_to_terminal_width(&tour_view);
+            return self.guided_tour.view(&self.theme, self.width, self.height);
         }
 
         // Render notes modal overlay if visible (bd-1xvj)
         if self.notes_modal.is_open() {
-            let modal_view = self.notes_modal.view_centered(&self.theme, self.width, self.height);
-            // The modal is a centered overlay; return it instead of compositing
-            return self.pad_to_terminal_width(&modal_view);
+            return self.notes_modal.view_centered(&self.theme, self.width, self.height);
         }
 
         // Truncate all lines to layout width to prevent wrapping/scrolling (bd-pty1)
@@ -1538,11 +1493,7 @@ impl Model for App {
 
         // Pad every line to uniform width so the background fills evenly
         // (prevents the "slanted" ragged-right look)
-        let padded = pad_lines_to_width(&truncated, safe_width);
-
-        // Pad lines to actual terminal width when max_width caps the layout
-        // This prevents blank areas when terminal is wider than layout
-        self.pad_to_terminal_width(&padded)
+        pad_lines_to_width(&truncated, safe_width)
     }
 }
 
