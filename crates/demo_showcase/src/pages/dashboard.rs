@@ -44,6 +44,17 @@ pub enum DashboardCard {
     Metrics,
 }
 
+/// State for the drill-down details panel (bd-qkxb).
+#[derive(Debug, Clone, Default)]
+pub struct DetailsPanel {
+    /// Whether the panel is open.
+    pub open: bool,
+    /// Which card's details are being shown.
+    pub card: DashboardCard,
+    /// Selected item index within the card (for lists).
+    pub selected_index: usize,
+}
+
 impl DashboardCard {
     /// Get the navigation target page for this card, if any.
     #[must_use]
@@ -108,6 +119,8 @@ pub struct DashboardPage {
     /// Last rendered card bounds for hit testing (y_start, y_end, x_start, x_end).
     /// Uses RwLock for interior mutability since view() takes &self.
     card_bounds: RwLock<CardBounds>,
+    /// Drill-down details panel state (bd-qkxb).
+    details_panel: DetailsPanel,
 }
 
 /// Bounds for dashboard cards used for mouse hit testing.
@@ -161,6 +174,7 @@ impl DashboardPage {
             animator,
             selected_card: DashboardCard::None,
             card_bounds: RwLock::new(CardBounds::default()),
+            details_panel: DetailsPanel::default(),
         }
     }
 
@@ -423,6 +437,57 @@ impl DashboardPage {
     #[must_use]
     pub const fn selected_card(&self) -> DashboardCard {
         self.selected_card
+    }
+
+    /// Check if the details panel is open.
+    #[must_use]
+    pub const fn is_details_open(&self) -> bool {
+        self.details_panel.open
+    }
+
+    /// Open the details panel for the currently selected card.
+    fn open_details(&mut self) {
+        if self.selected_card != DashboardCard::None {
+            self.details_panel.open = true;
+            self.details_panel.card = self.selected_card;
+            self.details_panel.selected_index = 0;
+        }
+    }
+
+    /// Close the details panel.
+    fn close_details(&mut self) {
+        self.details_panel.open = false;
+    }
+
+    /// Navigate to the next item in the details panel.
+    fn details_next(&mut self) {
+        let max = self.details_item_count();
+        if max > 0 {
+            self.details_panel.selected_index = (self.details_panel.selected_index + 1) % max;
+        }
+    }
+
+    /// Navigate to the previous item in the details panel.
+    fn details_prev(&mut self) {
+        let max = self.details_item_count();
+        if max > 0 {
+            self.details_panel.selected_index = if self.details_panel.selected_index == 0 {
+                max - 1
+            } else {
+                self.details_panel.selected_index - 1
+            };
+        }
+    }
+
+    /// Get the number of items in the current details panel.
+    fn details_item_count(&self) -> usize {
+        match self.details_panel.card {
+            DashboardCard::Services => self.services().len().min(6),
+            DashboardCard::Jobs => self.jobs().len().min(4),
+            DashboardCard::Deployments => self.recent_deployments().len(),
+            DashboardCard::Metrics => 4, // 4 metric types
+            DashboardCard::None => 0,
+        }
     }
 
     // ========================================================================
@@ -785,6 +850,359 @@ impl DashboardPage {
         let content = lines.join("\n");
         format!("{header}\n{content}")
     }
+
+    /// Render the drill-down details panel (bd-qkxb).
+    ///
+    /// Shows a centered modal overlay with entity details, metrics, and actions.
+    fn render_details_panel(&self, theme: &Theme, width: usize, height: usize) -> String {
+        // Panel dimensions (centered, 70% width, 60% height)
+        let panel_width = (width * 70 / 100).max(40).min(80);
+        let panel_height = (height * 60 / 100).max(15).min(30);
+
+        // Header based on card type
+        let (title, icon) = match self.details_panel.card {
+            DashboardCard::Services => ("Service Details", ""),
+            DashboardCard::Jobs => ("Job Details", ""),
+            DashboardCard::Deployments => ("Deployment Details", ""),
+            DashboardCard::Metrics => ("Metric Details", ""),
+            DashboardCard::None => return String::new(),
+        };
+
+        // Render content based on card type
+        let content = match self.details_panel.card {
+            DashboardCard::Services => self.render_service_details(theme, panel_width - 4),
+            DashboardCard::Jobs => self.render_job_details(theme, panel_width - 4),
+            DashboardCard::Deployments => self.render_deployment_details(theme, panel_width - 4),
+            DashboardCard::Metrics => self.render_metric_details(theme, panel_width - 4),
+            DashboardCard::None => return String::new(),
+        };
+
+        // Action hints
+        let actions = match self.details_panel.card {
+            DashboardCard::Services => "Enter: go to Services  j/k: navigate  Esc: close",
+            DashboardCard::Jobs => "Enter: go to Jobs  j/k: navigate  Esc: close",
+            DashboardCard::Deployments => "j/k: navigate  Esc: close",
+            DashboardCard::Metrics => "j/k: navigate  Esc: close",
+            DashboardCard::None => "",
+        };
+
+        // Build panel header
+        let header_text = format!(" {icon} {title} ");
+        let header = Style::new()
+            .foreground(theme.primary)
+            .bold()
+            .render(&header_text);
+
+        // Build action hints footer
+        let actions_styled = theme.muted_style().render(actions);
+
+        // Compose panel content
+        let mut lines = vec![header.clone(), String::new()];
+        lines.extend(content.lines().take(panel_height - 5).map(String::from));
+        lines.push(String::new());
+        lines.push(actions_styled);
+
+        // Pad to panel height
+        while lines.len() < panel_height {
+            lines.insert(lines.len() - 1, String::new());
+        }
+
+        let panel_content = lines.join("\n");
+
+        // Create modal box style
+        let modal_box = theme
+            .panel_style()
+            .width(panel_width as u16)
+            .height(panel_height as u16)
+            .padding_left(2)
+            .padding_right(2)
+            .render(&panel_content);
+
+        // Center the modal on screen
+        lipgloss::place(
+            width,
+            height,
+            lipgloss::Position::Center,
+            lipgloss::Position::Center,
+            &modal_box,
+        )
+    }
+
+    /// Render detailed view for services.
+    fn render_service_details(&self, theme: &Theme, width: usize) -> String {
+        let services: Vec<_> = self.services().iter().take(6).collect();
+        if services.is_empty() {
+            return theme.muted_style().render("No services").to_string();
+        }
+
+        let selected = self
+            .details_panel
+            .selected_index
+            .min(services.len().saturating_sub(1));
+        let service = services[selected];
+
+        let mut lines = Vec::new();
+
+        // Service name and status
+        let status_chip = match service.health {
+            ServiceHealth::Healthy => chip(theme, StatusLevel::Success, "healthy"),
+            ServiceHealth::Degraded => chip(theme, StatusLevel::Warning, "degraded"),
+            ServiceHealth::Unhealthy => chip(theme, StatusLevel::Error, "unhealthy"),
+            ServiceHealth::Unknown => chip(theme, StatusLevel::Info, "unknown"),
+        };
+        let name = Style::new()
+            .foreground(theme.text)
+            .bold()
+            .render(&service.name);
+        lines.push(format!("{name}  {status_chip}"));
+        lines.push(String::new());
+
+        // Service details
+        lines.push(format!(
+            "Version: {}",
+            theme.muted_style().render(&service.version)
+        ));
+        lines.push(format!("Environments: {}", service.environment_count));
+        if let Some(desc) = &service.description {
+            lines.push(format!("Description: {}", theme.muted_style().render(desc)));
+        }
+        lines.push(String::new());
+
+        // Service list (for navigation)
+        lines.push(divider_with_label(theme, "All Services", width));
+        for (i, svc) in services.iter().enumerate() {
+            let marker = if i == selected { "▸ " } else { "  " };
+            let health_icon = match svc.health {
+                ServiceHealth::Healthy => theme.success_style().render("●"),
+                ServiceHealth::Degraded => theme.warning_style().render("●"),
+                ServiceHealth::Unhealthy => theme.error_style().render("●"),
+                ServiceHealth::Unknown => theme.muted_style().render("○"),
+            };
+            let name_styled = if i == selected {
+                Style::new().foreground(theme.primary).render(&svc.name)
+            } else {
+                Style::new().foreground(theme.text).render(&svc.name)
+            };
+            lines.push(format!("{marker}{health_icon} {name_styled}"));
+        }
+
+        lines.join("\n")
+    }
+
+    /// Render detailed view for jobs.
+    fn render_job_details(&self, theme: &Theme, width: usize) -> String {
+        let jobs = self.recent_jobs();
+        if jobs.is_empty() {
+            return theme.muted_style().render("No recent jobs").to_string();
+        }
+
+        let selected = self
+            .details_panel
+            .selected_index
+            .min(jobs.len().saturating_sub(1));
+        let job = jobs[selected];
+
+        let mut lines = Vec::new();
+
+        // Job name and status
+        let status_chip = match job.status {
+            JobStatus::Queued => chip(theme, StatusLevel::Info, "queued"),
+            JobStatus::Running => chip(theme, StatusLevel::Running, "running"),
+            JobStatus::Completed => chip(theme, StatusLevel::Success, "completed"),
+            JobStatus::Failed | JobStatus::Cancelled => chip(theme, StatusLevel::Error, "failed"),
+        };
+        let name = Style::new().foreground(theme.text).bold().render(&job.name);
+        lines.push(format!("{name}  {status_chip}"));
+        lines.push(String::new());
+
+        // Job details
+        lines.push(format!("Progress: {}%", job.progress));
+        lines.push(format!(
+            "Kind: {}",
+            theme.muted_style().render(&format!("{:?}", job.kind))
+        ));
+        lines.push(String::new());
+
+        // Job list (for navigation)
+        lines.push(divider_with_label(theme, "Recent Jobs", width));
+        for (i, j) in jobs.iter().enumerate() {
+            let marker = if i == selected { "▸ " } else { "  " };
+            let status_icon = match j.status {
+                JobStatus::Queued => theme.muted_style().render("○"),
+                JobStatus::Running => theme.info_style().render("◐"),
+                JobStatus::Completed => theme.success_style().render("●"),
+                JobStatus::Failed | JobStatus::Cancelled => theme.error_style().render("●"),
+            };
+            let name_styled = if i == selected {
+                Style::new().foreground(theme.primary).render(&j.name)
+            } else {
+                Style::new().foreground(theme.text).render(&j.name)
+            };
+            lines.push(format!("{marker}{status_icon} {name_styled}"));
+        }
+
+        lines.join("\n")
+    }
+
+    /// Render detailed view for deployments.
+    fn render_deployment_details(&self, theme: &Theme, width: usize) -> String {
+        let deployments = self.recent_deployments();
+        if deployments.is_empty() {
+            return theme
+                .muted_style()
+                .render("No recent deployments")
+                .to_string();
+        }
+
+        let selected = self
+            .details_panel
+            .selected_index
+            .min(deployments.len().saturating_sub(1));
+        let deploy = deployments[selected];
+
+        let mut lines = Vec::new();
+
+        // Deployment SHA and status
+        let status_chip = match deploy.status {
+            DeploymentStatus::Pending => chip(theme, StatusLevel::Info, "pending"),
+            DeploymentStatus::InProgress => chip(theme, StatusLevel::Running, "deploying"),
+            DeploymentStatus::Succeeded => chip(theme, StatusLevel::Success, "success"),
+            DeploymentStatus::Failed => chip(theme, StatusLevel::Error, "failed"),
+            DeploymentStatus::RolledBack => chip(theme, StatusLevel::Warning, "rolled back"),
+        };
+        let sha = Style::new()
+            .foreground(theme.text)
+            .bold()
+            .render(&deploy.sha[..7.min(deploy.sha.len())]);
+        lines.push(format!("{sha}  {status_chip}"));
+        lines.push(String::new());
+
+        // Deployment details
+        lines.push(format!(
+            "Author: {}",
+            theme.muted_style().render(&deploy.author)
+        ));
+        lines.push(format!("SHA: {}", theme.muted_style().render(&deploy.sha)));
+        lines.push(String::new());
+
+        // Deployment list (for navigation)
+        lines.push(divider_with_label(theme, "Recent Deployments", width));
+        for (i, d) in deployments.iter().enumerate() {
+            let marker = if i == selected { "▸ " } else { "  " };
+            let status_icon = match d.status {
+                DeploymentStatus::Pending => theme.muted_style().render("○"),
+                DeploymentStatus::InProgress => theme.info_style().render("◐"),
+                DeploymentStatus::Succeeded => theme.success_style().render("●"),
+                DeploymentStatus::Failed => theme.error_style().render("●"),
+                DeploymentStatus::RolledBack => theme.warning_style().render("◐"),
+            };
+            let sha_short = &d.sha[..7.min(d.sha.len())];
+            let sha_styled = if i == selected {
+                Style::new().foreground(theme.primary).render(sha_short)
+            } else {
+                theme.muted_style().render(sha_short)
+            };
+            lines.push(format!(
+                "{marker}{status_icon} {sha_styled}  {}",
+                theme.muted_style().render(&d.author)
+            ));
+        }
+
+        lines.join("\n")
+    }
+
+    /// Render detailed view for metrics.
+    fn render_metric_details(&self, theme: &Theme, _width: usize) -> String {
+        let metrics = &self.simulation.metrics;
+        let selected = self.details_panel.selected_index % 4;
+
+        let metric_info = [
+            (
+                "Requests/sec",
+                metrics.requests_per_sec.value,
+                "",
+                metrics.requests_per_sec.health,
+                metrics.requests_per_sec.trend,
+                "Request throughput",
+            ),
+            (
+                "P95 Latency",
+                metrics.p95_latency_ms.value,
+                "ms",
+                metrics.p95_latency_ms.health,
+                metrics.p95_latency_ms.trend,
+                "95th percentile response time",
+            ),
+            (
+                "Error Rate",
+                metrics.error_rate.value,
+                "%",
+                metrics.error_rate.health,
+                metrics.error_rate.trend,
+                "Percentage of failed requests",
+            ),
+            (
+                "Job Throughput",
+                metrics.job_throughput.value,
+                "/min",
+                metrics.job_throughput.health,
+                metrics.job_throughput.trend,
+                "Jobs completed per minute",
+            ),
+        ];
+
+        let (name, value, unit, health, trend, description) = &metric_info[selected];
+
+        let mut lines = Vec::new();
+
+        // Metric name and health
+        let health_chip = match health {
+            MetricHealth::Ok => chip(theme, StatusLevel::Success, "ok"),
+            MetricHealth::Warning => chip(theme, StatusLevel::Warning, "warning"),
+            MetricHealth::Error => chip(theme, StatusLevel::Error, "error"),
+        };
+        let name_styled = Style::new().foreground(theme.text).bold().render(*name);
+        lines.push(format!("{name_styled}  {health_chip}"));
+        lines.push(String::new());
+
+        // Metric value
+        let value_str = if *value >= 100.0 {
+            format!("{value:.0}{unit}")
+        } else if *value >= 10.0 {
+            format!("{value:.1}{unit}")
+        } else {
+            format!("{value:.2}{unit}")
+        };
+        lines.push(format!(
+            "Value: {}",
+            theme.heading_style().render(&value_str)
+        ));
+        lines.push(format!("Trend: {}", trend.icon()));
+        lines.push(format!(
+            "Description: {}",
+            theme.muted_style().render(*description)
+        ));
+        lines.push(String::new());
+
+        // Metric list (for navigation)
+        lines.push("All Metrics".to_string());
+        for (i, (m_name, _, _, m_health, _, _)) in metric_info.iter().enumerate() {
+            let marker = if i == selected { "▸ " } else { "  " };
+            let health_icon = match m_health {
+                MetricHealth::Ok => theme.success_style().render("●"),
+                MetricHealth::Warning => theme.warning_style().render("●"),
+                MetricHealth::Error => theme.error_style().render("●"),
+            };
+            let name_styled = if i == selected {
+                Style::new().foreground(theme.primary).render(*m_name)
+            } else {
+                Style::new().foreground(theme.text).render(*m_name)
+            };
+            lines.push(format!("{marker}{health_icon} {name_styled}"));
+        }
+
+        lines.join("\n")
+    }
 }
 
 impl Default for DashboardPage {
@@ -815,6 +1233,33 @@ impl PageModel for DashboardPage {
 
         // Handle keyboard input
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+            // Handle details panel interactions first (bd-qkxb)
+            if self.details_panel.open {
+                match key.key_type {
+                    KeyType::Esc => {
+                        self.close_details();
+                        return None;
+                    }
+                    KeyType::Runes => match key.runes.as_slice() {
+                        ['j'] | ['n'] => self.details_next(),
+                        ['k'] | ['p'] => self.details_prev(),
+                        _ => {}
+                    },
+                    KeyType::Down => self.details_next(),
+                    KeyType::Up => self.details_prev(),
+                    KeyType::Enter => {
+                        // Navigate to the full page for this card type
+                        if let Some(page) = self.details_panel.card.target_page() {
+                            self.close_details();
+                            return Some(Cmd::new(move || AppMsg::Navigate(page).into_message()));
+                        }
+                    }
+                    _ => {}
+                }
+                return None;
+            }
+
+            // Normal dashboard keyboard handling
             match key.key_type {
                 KeyType::Runes => {
                     match key.runes.as_slice() {
@@ -831,12 +1276,14 @@ impl PageModel for DashboardPage {
                 // Arrow keys for card navigation
                 KeyType::Down | KeyType::Right => self.select_next_card(),
                 KeyType::Up | KeyType::Left => self.select_prev_card(),
-                // Enter to navigate to selected card's target page
+                // Enter opens the details panel for the selected card (bd-qkxb)
                 KeyType::Enter => {
-                    if let Some(page) = self.selected_card.target_page() {
-                        return Some(Cmd::new(move || AppMsg::Navigate(page).into_message()));
+                    if self.selected_card != DashboardCard::None {
+                        self.open_details();
                     }
                 }
+                // Esc does nothing when details are closed
+                KeyType::Esc => {}
                 _ => {}
             }
         }
@@ -934,10 +1381,17 @@ impl PageModel for DashboardPage {
         let content = format!("{status_bar}\n\n{stats_row}\n\n{main_content}");
 
         // Place in available space (allow scrolling if needed)
-        if height > 20 {
+        let base_view = if height > 20 {
             lipgloss::place(width, height, Position::Left, Position::Top, &content)
         } else {
             content
+        };
+
+        // Overlay details panel if open (bd-qkxb)
+        if self.details_panel.open {
+            self.render_details_panel(theme, width, height)
+        } else {
+            base_view
         }
     }
 
@@ -946,7 +1400,11 @@ impl PageModel for DashboardPage {
     }
 
     fn hints(&self) -> &'static str {
-        "r refresh  j/k nav  Tab cycle  Enter select"
+        if self.details_panel.open {
+            "j/k nav items  Enter go to page  Esc close"
+        } else {
+            "r refresh  j/k nav  Tab cycle  Enter details"
+        }
     }
 }
 
@@ -1198,5 +1656,118 @@ mod tests {
             "Deployments bounds should be set"
         );
         assert!(bounds.metrics.is_some(), "Metrics bounds should be set");
+    }
+
+    // =========================================================================
+    // Details Panel Tests (bd-qkxb)
+    // =========================================================================
+
+    #[test]
+    fn details_panel_starts_closed() {
+        let page = DashboardPage::new();
+        assert!(!page.is_details_open());
+    }
+
+    #[test]
+    fn details_panel_opens_on_card_selection() {
+        let mut page = DashboardPage::new();
+
+        // Select a card first
+        page.select_next_card(); // Now on Services
+        assert_eq!(page.selected_card(), DashboardCard::Services);
+
+        // Open details
+        page.open_details();
+        assert!(page.is_details_open());
+        assert_eq!(page.details_panel.card, DashboardCard::Services);
+    }
+
+    #[test]
+    fn details_panel_does_not_open_for_none() {
+        let mut page = DashboardPage::new();
+        assert_eq!(page.selected_card(), DashboardCard::None);
+
+        // Try to open details with no card selected
+        page.open_details();
+        assert!(!page.is_details_open());
+    }
+
+    #[test]
+    fn details_panel_closes() {
+        let mut page = DashboardPage::new();
+        page.select_next_card();
+        page.open_details();
+        assert!(page.is_details_open());
+
+        page.close_details();
+        assert!(!page.is_details_open());
+    }
+
+    #[test]
+    fn details_panel_navigation() {
+        let mut page = DashboardPage::new();
+        page.select_next_card(); // Services
+        page.open_details();
+
+        let initial = page.details_panel.selected_index;
+        page.details_next();
+        let next = page.details_panel.selected_index;
+
+        // Should have moved to next item
+        assert_ne!(initial, next);
+
+        page.details_prev();
+        assert_eq!(page.details_panel.selected_index, initial);
+    }
+
+    #[test]
+    fn details_item_count_by_card() {
+        let page = DashboardPage::new();
+
+        // Create a page with each card type selected
+        let mut page_services = DashboardPage::new();
+        page_services.details_panel.card = DashboardCard::Services;
+        assert!(page_services.details_item_count() > 0);
+
+        let mut page_jobs = DashboardPage::new();
+        page_jobs.details_panel.card = DashboardCard::Jobs;
+        assert!(page_jobs.details_item_count() > 0);
+
+        let mut page_metrics = DashboardPage::new();
+        page_metrics.details_panel.card = DashboardCard::Metrics;
+        assert_eq!(page_metrics.details_item_count(), 4);
+
+        // None card has 0 items
+        assert_eq!(page.details_item_count(), 0);
+    }
+
+    #[test]
+    fn details_renders_when_open() {
+        use crate::theme::Theme;
+
+        let mut page = DashboardPage::new();
+        page.select_next_card(); // Services
+        page.open_details();
+
+        let theme = Theme::default();
+        let view = page.view(100, 40, &theme);
+
+        // View should contain something (not empty)
+        assert!(!view.is_empty());
+    }
+
+    #[test]
+    fn hints_change_when_details_open() {
+        let mut page = DashboardPage::new();
+
+        // Default hints
+        let closed_hints = page.hints();
+        assert!(closed_hints.contains("Enter"));
+
+        // Open details
+        page.select_next_card();
+        page.open_details();
+        let open_hints = page.hints();
+        assert!(open_hints.contains("Esc"));
     }
 }

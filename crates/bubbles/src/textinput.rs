@@ -266,7 +266,10 @@ impl TextInput {
 
     /// Sets the value of the text input.
     pub fn set_value(&mut self, s: &str) {
-        let runes = self.sanitizer.sanitize(&s.chars().collect::<Vec<_>>());
+        let mut runes = self.sanitizer.sanitize(&s.chars().collect::<Vec<_>>());
+        if self.char_limit > 0 && runes.len() > self.char_limit {
+            runes.truncate(self.char_limit);
+        }
         let err = self.do_validate(&runes);
         self.set_value_internal(runes, err);
     }
@@ -1494,5 +1497,26 @@ mod tests {
             "col1 col2",
             "Tabs should be converted to single space"
         );
+    }
+
+    #[test]
+    fn test_set_value_validates_after_truncation() {
+        let mut input = TextInput::new();
+        input.char_limit = 3;
+        // Validator fails if length > 3
+        input.set_validate(|s| {
+            if s.len() > 3 {
+                Some("Too long".to_string())
+            } else {
+                None
+            }
+        });
+
+        // "1234" -> truncated to "123"
+        // Validation should see "123", which is valid
+        input.set_value("1234");
+
+        assert_eq!(input.value(), "123");
+        assert!(input.err.is_none(), "Validation should run on truncated value");
     }
 }
