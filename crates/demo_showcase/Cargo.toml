@@ -11,6 +11,8 @@ description = "Flagship showcase demonstrating all charmed_rust capabilities"
 default = ["syntax-highlighting"]
 syntax-highlighting = ["glamour/syntax-highlighting"]
 ssh = ["dep:wish", "dep:tracing", "dep:tracing-subscriber"]
+# Async runtime support for non-blocking background operations
+async = ["bubbletea/async"]
 
 [dependencies]
 # Core TUI framework

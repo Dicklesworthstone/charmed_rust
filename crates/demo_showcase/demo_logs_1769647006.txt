@@ -1,0 +1,40 @@
+ Charmed Control Center   Connected                                                                             [Dark]  
+  [] Dashboard[●] E [●] W [●] I [●] D [●] T  / filter > rror                                                            
+  >_ Services 00:36:46 INFO  health::checker           Error handled gracefully                                         
+  >> Jobs     00:36:46 INFO  db::postgres              Error handled gracefully                                         
+>  # Logs     00:36:46 INFO  grpc::server              Error handled gracefully                                         
+   ? Docs     00:36:46 TRACE api::auth                 Error handled gracefully                                         
+  <> Files    00:36:46 DEBUG api::routes               Error handled gracefully                                         
+   * Wizard   00:36:46 WARN  http::server              Error handled gracefully                                         
+   @ Settings 00:36:46 DEBUG health::checker           Error handled gracefully                                         
+              00:36:46 INFO  api::auth                 Error handled gracefully                                         
+              00:36:46 INFO  health::checker           Error handled gracefully                                         
+              00:36:46 INFO  api::auth                 Error handled gracefully                                         
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+               FOLLOWING                                                                  10/196 shown  1:10            
+                                                                                                                        
+ ●  Exported to demo_logs_1769647006.txt                                                                                
+  y copy  e export  X clear  / filter  1-5 levels  f follow  j/k scroll  |  1-7 pages  [ sidebar  ? help  q quit        

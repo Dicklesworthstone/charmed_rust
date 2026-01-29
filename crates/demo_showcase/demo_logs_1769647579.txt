@@ -1,0 +1,40 @@
+ Charmed Control Center   Connected                                                                             [Dark]  
+  [] Dashboard[●] E [●] W [●] I [●] D [●] T  / filter > Filter logs... (/ to focus)                                     
+  >_ Services 00:46:19 DEBUG metrics::exporter         Health check passed                                              
+  >> Jobs     00:46:19 INFO  db::redis                 Metrics exported                                                 
+>  # Logs     00:46:19 DEBUG grpc::server              Session created                                                  
+   ? Docs     00:46:19 ERROR health::checker           Session created                                                  
+  <> Files    00:46:19 INFO  db::redis                 Session created                                                  
+   * Wizard   00:46:19 INFO  api::handlers             Processing request                                               
+   @ Settings 00:46:19 INFO  health::checker           Cache hit                                                        
+              00:46:19 TRACE api::routes               Retrying operation                                               
+              00:46:19 DEBUG worker::jobs              Data validated                                                   
+              00:46:19 INFO  grpc::server              Cache hit                                                        
+              00:46:19 WARN  worker::scheduler         Connection closed                                                
+              00:46:19 WARN  api::handlers             Connection established                                           
+              00:46:19 INFO  worker::jobs              Query executed                                                   
+              00:46:19 INFO  api::auth                 Error handled gracefully                                         
+              00:46:19 INFO  api::routes               Retrying operation                                               
+              00:46:19 INFO  worker::jobs              Session created                                                  
+              00:46:19 ERROR db::redis                 Connection established                                           
+              00:46:19 WARN  health::checker           Connection established                                           
+              00:46:19 INFO  db::redis                 Connection established                                           
+              00:46:19 INFO  db::postgres              Cache hit                                                        
+              00:46:19 INFO  api::handlers             Cache miss                                                       
+              00:46:19 INFO  http::server              Processing request                                               
+              00:46:19 INFO  db::redis                 Session created                                                  
+              00:46:19 INFO  health::checker           Error handled gracefully                                         
+              00:46:19 INFO  api::routes               Retrying operation                                               
+              00:46:19 DEBUG api::routes               Task scheduled                                                   
+              00:46:19 DEBUG api::routes               Task completed                                                   
+              00:46:19 WARN  db::postgres              Request received                                                 
+              00:46:19 INFO  metrics::exporter         Connection established                                           
+              00:46:19 WARN  metrics::exporter         Task completed                                                   
+              00:46:19 INFO  api::routes               Processing request                                               
+              00:46:19 INFO  api::handlers             Request received                                                 
+              00:46:19 INFO  api::auth                 Error handled gracefully                                         
+              00:46:19 INFO  db::postgres              Cache miss                                                       
+              00:46:19 INFO  worker::scheduler         Health check passed                                              
+               FOLLOWING                                                                  196 lines  162:196            
+                                                                                                                        
+  y copy  e export  X clear  / filter  1-5 levels  f follow  j/k scroll  |  1-7 pages  [ sidebar  ? help  q quit        

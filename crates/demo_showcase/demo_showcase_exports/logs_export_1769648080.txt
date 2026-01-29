@@ -1,0 +1,10 @@
+00:54:40 INF [health::checker] Error handled gracefully
+00:54:40 INF [db::postgres] Error handled gracefully
+00:54:40 INF [grpc::server] Error handled gracefully
+00:54:40 TRC [api::auth] Error handled gracefully
+00:54:40 DBG [api::routes] Error handled gracefully
+00:54:40 WRN [http::server] Error handled gracefully
+00:54:40 DBG [health::checker] Error handled gracefully
+00:54:40 INF [api::auth] Error handled gracefully
+00:54:40 INF [health::checker] Error handled gracefully
+00:54:40 INF [api::auth] Error handled gracefully
