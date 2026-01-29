@@ -13,12 +13,14 @@
 mod command_palette;
 mod guided_tour;
 mod interaction_counter;
+mod loading;
 mod notes_modal;
 mod sidebar;
 
 pub use command_palette::{CommandAction, CommandCategory, CommandPalette, CommandPaletteMsg};
 pub use guided_tour::{GuidedTour, GuidedTourMsg};
 pub use interaction_counter::{CounterMsg, InteractionCounter};
+pub use loading::{LoadingOverlay, LoadingSpinner, PulsingIndicator, SkeletonBlock, SkeletonLine, SpinnerStyle};
 pub use notes_modal::{NotesModal, NotesModalMsg};
 pub use sidebar::{Sidebar, SidebarFocus};
 

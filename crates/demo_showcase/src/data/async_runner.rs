@@ -747,17 +747,36 @@ mod tests {
     fn cancel_where_removes_matching_operations() {
         let mut runner = AsyncRunner::new(true);
 
-        // Start some operations (sync fallback, so they complete immediately)
-        let _ = runner.start(AsyncOperation::FetchMetrics { service_id: 1 });
-        let _ = runner.start(AsyncOperation::FetchMetrics { service_id: 2 });
-        let _ = runner.start(AsyncOperation::LoadDocsIndex);
+        // Manually add pending operations to test cancel_where
+        runner.pending.insert(
+            1,
+            PendingOperation {
+                operation: AsyncOperation::FetchMetrics { service_id: 1 },
+                generation: 0,
+            },
+        );
+        runner.pending.insert(
+            2,
+            PendingOperation {
+                operation: AsyncOperation::FetchMetrics { service_id: 2 },
+                generation: 0,
+            },
+        );
+        runner.pending.insert(
+            3,
+            PendingOperation {
+                operation: AsyncOperation::LoadDocsIndex,
+                generation: 0,
+            },
+        );
 
-        // In sync mode, operations complete immediately, so pending is empty
-        // This test verifies the cancel_where API works
+        assert_eq!(runner.pending_count(), 3);
+
+        // Cancel only FetchMetrics operations
         runner.cancel_where(|op| matches!(op, AsyncOperation::FetchMetrics { .. }));
 
-        // No pending operations in sync mode anyway
-        assert_eq!(runner.pending_count(), 0);
+        // Only LoadDocsIndex should remain
+        assert_eq!(runner.pending_count(), 1);
     }
 
     #[test]
