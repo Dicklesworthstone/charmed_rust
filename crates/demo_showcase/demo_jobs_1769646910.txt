@@ -1,7 +1,3 @@
----
-source: crates/demo_showcase/tests/snapshot_tests.rs
-expression: view
----
  Charmed Control Center   Connected                                                                             [Dark]  
   [] DashboardJobs                                                                                                      
   >_ Services / filter > Filter jobs... (/ to focus)                                                                    
@@ -42,4 +38,4 @@ expression: view
                                                                                                                         
                                                                                                                         
   n new  ⏎ start  x cancel  R retry  / filter  s sort  j/k nav  [/] page  r refresh  |  1-7 pages  [ sidebar  ? help  q 
-quit
+quit                                                                                                                    

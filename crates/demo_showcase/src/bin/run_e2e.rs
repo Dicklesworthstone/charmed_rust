@@ -463,33 +463,15 @@ impl E2ERunner {
         let mut failed_tests = Vec::new();
 
         for line in stdout.lines() {
+            // Count individual test results (more reliable than parsing summary)
             if line.contains("... ok") {
                 passed += 1;
             } else if line.contains("... FAILED") {
                 failed += 1;
-                // Extract test name
+                // Extract test name (format: "test path::to::test ... FAILED")
                 if let Some(name) = line.split("...").next() {
-                    failed_tests.push(name.trim().to_string());
-                }
-            } else if line.starts_with("test result:") {
-                // Parse the summary line: "test result: ok. X passed; Y failed"
-                if line.contains("passed") {
-                    if let Some(n) = line.split("passed").next() {
-                        if let Some(num_str) = n.split_whitespace().last() {
-                            if let Ok(n) = num_str.parse::<usize>() {
-                                passed = n;
-                            }
-                        }
-                    }
-                }
-                if line.contains("failed") {
-                    if let Some(parts) = line.split("failed").next() {
-                        if let Some(num_str) = parts.split(';').last() {
-                            if let Some(n) = num_str.trim().parse::<usize>().ok() {
-                                failed = n;
-                            }
-                        }
-                    }
+                    let name = name.trim().trim_start_matches("test ");
+                    failed_tests.push(name.to_string());
                 }
             }
         }

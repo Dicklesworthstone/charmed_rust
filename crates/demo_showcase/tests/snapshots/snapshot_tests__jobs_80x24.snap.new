@@ -1,5 +1,6 @@
 ---
 source: crates/demo_showcase/tests/snapshot_tests.rs
+assertion_line: 116
 expression: view
 ---
  Charmed Control Center   Connected                                     [Dark]                          
@@ -19,7 +20,7 @@ expression: view
               Summary                                                                                   
                 Kind:     Task                                                                          
                 Progress: ██████████████░  96% ~807h                                                    
-                Duration: 19368h 31m                                                                    
+                Duration: 19368h 32m                                                                    
                                                                                                         
               Parameters                                                                                
                  Environment  development                                                               

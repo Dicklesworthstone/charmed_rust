@@ -19,11 +19,39 @@ expression: view
                 ○ Light   Pri  Ok  !!  Err  Inf                                               
                 ○ Dracula   Pri  Ok  !!  Err  Inf                                             
                                                                                               
+                Keybindings Reference                                                         
+                                                                                              
+                Global                                                                        
+                           ?  Toggle help overlay                                             
+                           q  Quit application                                                
+                         Esc  Close modal/cancel                                              
+                         1-8  Navigate to page                                                
+                         Tab  Cycle focus/section                                             
+                       j / ↓  Move down                                                       
+                       k / ↑  Move up                                                         
+                           g  Go to top                                                       
+                           G  Go to bottom                                                    
+                       Enter  Confirm/activate                                                
+                      Ctrl+C  Copy to clipboard                                               
+                           /  Search (in page)                                                
+                                                                                              
+                Page-Specific                                                                 
+                           r  Dashboard: Refresh data                                         
+                       Enter  Dashboard: Open details                                         
+                           n  Jobs: Create new job                                            
+                           x  Jobs: Cancel selected                                           
+                       Enter  Jobs: View details                                              
+                           f  Logs: Toggle follow                                             
+                           e  Logs: Export to file                                            
+                           c  Logs: Clear logs                                                
+                         n/N  Docs: Next/prev match                                           
+                           s  Docs: Toggle syntax                                             
+                       Enter  Files: Open preview                                             
+                   Backspace  Files: Go up directory                                          
+                                                                                              
+                Note: Keybindings are currently read-only. Customization coming soon!         
+                                                                                              
               ────────────────────────────────────────────────────────────                    
               Theme: Dark  |  ○ Mouse Input  ○ Animations  ○ ASCII Mode  ● Syntax Highlighting
-                                                                                              
-                                                                                              
-                                                                                              
-                                                                                              
   Tab section  j/k nav  Enter apply  m/a/c/s toggles  |  1-7 pages  [ sidebar  ?              
 help  q quit
