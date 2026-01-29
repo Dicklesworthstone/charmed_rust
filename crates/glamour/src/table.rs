@@ -778,12 +778,45 @@ pub fn truncate_content(content: &str, max_width: usize) -> String {
     let mut in_escape = false;
     let mut has_style = false;
 
-    // ANSI-aware truncation: skip escape sequences when counting width
-    for c in content.chars() {
-        if in_escape {
+    // ANSI-aware truncation: skip escape sequences when counting width.
+    // We track states for: normal, saw-ESC, inside-CSI-params, and
+    // inside string-type sequences (OSC, DCS, SOS, PM, APC).
+    // CSI = ESC [ <params> <final_byte>. The '[' is the introducer,
+    // parameter bytes are 0x30-0x3F, intermediate bytes 0x20-0x2F,
+    // and the final byte is 0x40-0x7E.
+    // String sequences = ESC ] | P | X | ^ | _ ... terminated by BEL or ST (ESC \).
+    let mut in_csi = false;
+    let mut in_str = false; // Inside string-type sequence (OSC, DCS, etc.)
+    let mut chars = content.chars().peekable();
+    while let Some(c) = chars.next() {
+        if in_str {
             result.push(c);
-            // CSI sequences end with a letter in 0x40-0x7E range
+            // String sequence ends with BEL (\x07) or ST (ESC \)
+            if c == '\x07' {
+                in_str = false;
+                in_escape = false;
+            } else if c == '\x1b' && chars.peek() == Some(&'\\') {
+                result.push(chars.next().unwrap());
+                in_str = false;
+                in_escape = false;
+            }
+        } else if in_csi {
+            result.push(c);
+            // CSI ends with a final byte in 0x40-0x7E
             if ('@'..='~').contains(&c) {
+                in_csi = false;
+                in_escape = false;
+            }
+        } else if in_escape {
+            result.push(c);
+            if c == '[' {
+                // CSI introducer — continue consuming until final byte
+                in_csi = true;
+            } else if matches!(c, ']' | 'P' | 'X' | '^' | '_') {
+                // String-type sequence (OSC, DCS, SOS, PM, APC)
+                in_str = true;
+            } else {
+                // Simple two-char escape (e.g., ESC 7): done
                 in_escape = false;
             }
         } else if c == '\x1b' {

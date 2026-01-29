@@ -246,7 +246,7 @@ pub fn join_horizontal(pos: Position, strs: &[&str]) -> String {
         .iter()
         .map(|block| {
             let extra = max_height.saturating_sub(block.len());
-            (extra as f64 * factor).round() as usize
+            (extra as f64 * factor).floor() as usize
         })
         .collect();
 
@@ -340,7 +340,7 @@ pub fn join_vertical(pos: Position, strs: &[&str]) -> String {
 
             let line_width = visible_width(line);
             let extra = max_width.saturating_sub(line_width);
-            let left_pad = (extra as f64 * factor).round() as usize;
+            let left_pad = (extra as f64 * factor).floor() as usize;
             let right_pad = extra.saturating_sub(left_pad);
 
             // Add left padding (avoid " ".repeat() allocation)
@@ -506,11 +506,9 @@ mod tests {
         let result = join_vertical(Position::Center, &["Short", "LongerText"]);
         println!("Result bytes: {:?}", result.as_bytes());
         println!("Result repr: {:?}", result);
-        // Expected: "   Short  \nLongerText" (3 left, 2 right for center)
-        // Note: Go uses int truncation which gives left=2, but fixture shows left=3
-        // This suggests Go might use rounding, let's check both
-        let expected_go = "   Short  \nLongerText"; // 3 left, 2 right
-        assert_eq!(result, expected_go);
+        // Go uses int() truncation (floor) for alignment: floor(5 * 0.5) = 2 left, 3 right
+        let expected = "  Short   \nLongerText";
+        assert_eq!(result, expected);
     }
 
     // =========================================================================

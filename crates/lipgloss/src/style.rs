@@ -1255,7 +1255,7 @@ impl Style {
 
         let extra = target_height - current_height;
         let factor = self.align_vertical.factor();
-        let top_extra = (extra as f64 * factor).round() as usize;
+        let top_extra = (extra as f64 * factor).floor() as usize;
         let bottom_extra = extra - top_extra;
 
         // Pre-allocate result - avoid Vec<String> intermediate and clone()
@@ -1321,7 +1321,7 @@ impl Style {
                 result.push_str(line);
             } else {
                 let extra = target_width - line_width;
-                let left_pad = (extra as f64 * factor).round() as usize;
+                let left_pad = (extra as f64 * factor).floor() as usize;
                 let right_pad = extra - left_pad;
 
                 if has_ws_style {
@@ -2036,14 +2036,15 @@ fn truncate_line_ansi(line: &str, max_width: usize) -> String {
                         result.push(chars.next().unwrap());
                         while let Some(&ch) = chars.peek() {
                             result.push(chars.next().unwrap());
-                            // CSI ends with a letter A-Z or a-z (0x40-0x7E)
+                            // CSI ends with a final byte (0x40-0x7E)
                             if (0x40..=0x7E).contains(&(ch as u8)) {
                                 break;
                             }
                         }
                     }
-                    ']' => {
-                        // OSC sequence: ESC ] ... BEL or ESC \
+                    ']' | 'P' | 'X' | '^' | '_' => {
+                        // String-type sequences (OSC, DCS, SOS, PM, APC)
+                        // terminated by BEL or ST (ESC \)
                         result.push(chars.next().unwrap());
                         while let Some(ch) = chars.next() {
                             result.push(ch);
@@ -2057,7 +2058,7 @@ fn truncate_line_ansi(line: &str, max_width: usize) -> String {
                         }
                     }
                     _ => {
-                        // Other escape sequences (e.g., ESC ( B)
+                        // Simple two-char escape (e.g., ESC 7, ESC ( B)
                         result.push(chars.next().unwrap());
                     }
                 }

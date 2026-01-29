@@ -377,10 +377,13 @@ impl FilesPage {
     /// Ensure selected item is visible.
     fn ensure_visible(&mut self) {
         let visible_rows = self.height.saturating_sub(4); // Header + footer
+        if visible_rows == 0 {
+            return;
+        }
         if self.selected < self.scroll_offset {
             self.scroll_offset = self.selected;
         } else if self.selected >= self.scroll_offset + visible_rows {
-            self.scroll_offset = self.selected.saturating_sub(visible_rows) + 1;
+            self.scroll_offset = self.selected - visible_rows + 1;
         }
     }
 

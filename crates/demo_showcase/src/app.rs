@@ -1558,14 +1558,15 @@ fn truncate_line_ansi_aware(line: &str, max_width: usize) -> String {
                         result.push(chars.next().unwrap());
                         while let Some(&ch) = chars.peek() {
                             result.push(chars.next().unwrap());
-                            // CSI ends with a letter (0x40-0x7E)
+                            // CSI ends with a final byte (0x40-0x7E)
                             if (0x40..=0x7E).contains(&(ch as u8)) {
                                 break;
                             }
                         }
                     }
-                    ']' => {
-                        // OSC sequence: ESC ] ... BEL or ESC \
+                    ']' | 'P' | 'X' | '^' | '_' => {
+                        // String-type sequences (OSC, DCS, SOS, PM, APC)
+                        // terminated by BEL or ST (ESC \)
                         result.push(chars.next().unwrap());
                         while let Some(ch) = chars.next() {
                             result.push(ch);
@@ -1581,7 +1582,7 @@ fn truncate_line_ansi_aware(line: &str, max_width: usize) -> String {
                         }
                     }
                     _ => {
-                        // Other escape sequences
+                        // Simple two-char escape
                         result.push(chars.next().unwrap());
                     }
                 }
