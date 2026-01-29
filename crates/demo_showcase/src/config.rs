@@ -67,6 +67,10 @@ pub struct Config {
     /// Whether to use alternate screen mode.
     pub alt_screen: bool,
 
+    /// Maximum render width in columns.
+    /// If Some, caps the layout width regardless of terminal size.
+    pub max_width: Option<u16>,
+
     // ========================================================================
     // Data Settings
     // ========================================================================
@@ -106,6 +110,7 @@ impl Default for Config {
             animations: AnimationMode::Enabled,
             mouse: false, // Disabled by default for safety
             alt_screen: true,
+            max_width: None,
             seed: None,
             files_root: None,
             self_check: false,
@@ -161,6 +166,7 @@ impl Config {
             animations,
             mouse: !cli.no_mouse,
             alt_screen: !cli.no_alt_screen,
+            max_width: cli.max_width,
             seed: cli.seed,
             files_root: cli.files_root.clone(),
             self_check: cli.self_check,

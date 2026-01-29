@@ -90,6 +90,13 @@ pub struct Cli {
     #[arg(long, env = "DEMO_NO_ALT_SCREEN")]
     pub no_alt_screen: bool,
 
+    /// Maximum render width in columns
+    ///
+    /// Caps the layout width to prevent unusable layouts on very wide terminals.
+    /// If unset, uses the full terminal width. Recommended: 120-200.
+    #[arg(long, env = "DEMO_MAX_WIDTH")]
+    pub max_width: Option<u16>,
+
     /// Run headless self-check and exit
     ///
     /// Renders all pages without TTY, useful for CI validation

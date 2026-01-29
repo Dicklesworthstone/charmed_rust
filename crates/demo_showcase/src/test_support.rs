@@ -1545,6 +1545,7 @@ impl Config {
             animations: AnimationMode::Disabled,
             mouse: true,
             alt_screen: false,
+            max_width: None,
             seed: Some(42),
             files_root: None,
             self_check: false,

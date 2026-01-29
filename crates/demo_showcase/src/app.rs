@@ -265,6 +265,9 @@ pub struct AppConfig {
     pub animations: bool,
     /// Whether mouse support is enabled.
     pub mouse: bool,
+    /// Maximum render width in columns.
+    /// If Some, caps the layout width regardless of terminal size.
+    pub max_width: Option<u16>,
 }
 
 impl Default for AppConfig {
@@ -273,6 +276,7 @@ impl Default for AppConfig {
             theme: ThemePreset::Dark,
             animations: true,
             mouse: false,
+            max_width: None,
         }
     }
 }
@@ -290,8 +294,10 @@ pub struct App {
     current_page: Page,
     /// Page models.
     pages: Pages,
-    /// Window dimensions.
+    /// Layout width (may be capped by max_width config).
     width: usize,
+    /// Actual terminal width (for padding output).
+    terminal_width: usize,
     height: usize,
     /// Whether the app is ready (received window size).
     ready: bool,
@@ -363,6 +369,7 @@ impl App {
             current_page: Page::Dashboard,
             pages: Pages::default(),
             width: 80,
+            terminal_width: 80,
             height: 24,
             ready: false,
             show_help: false,
@@ -411,6 +418,7 @@ impl App {
             theme: config.theme_preset,
             animations: config.use_animations(),
             mouse: config.mouse,
+            max_width: config.max_width,
         };
         let seed = config.effective_seed();
         let is_headless = config.is_headless();
@@ -1125,8 +1133,15 @@ impl Model for App {
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         // Handle window resize
+        // Apply max_width cap if configured (helps with very wide terminals)
+        // Store both actual terminal width (for padding) and layout width (for rendering)
         if let Some(size) = msg.downcast_ref::<WindowSizeMsg>() {
-            self.width = size.width as usize;
+            let actual_width = size.width as usize;
+            self.terminal_width = actual_width;
+            self.width = match self.config.max_width {
+                Some(max) => actual_width.min(max as usize),
+                None => actual_width,
+            };
             self.height = size.height as usize;
             self.ready = true;
             return None;
@@ -1460,27 +1475,60 @@ impl Model for App {
             let palette_view = self.command_palette.view(self.width, self.height, &self.theme);
             // The palette is a centered overlay; return it instead of compositing
             // since we want it to fully occupy the screen
-            return palette_view;
+            return self.pad_to_terminal_width(&palette_view);
         }
 
         // Render guided tour overlay if active (bd-2eky)
         if self.guided_tour.is_active() {
             let tour_view = self.guided_tour.view(&self.theme, self.width, self.height);
             // The tour is a centered overlay
-            return tour_view;
+            return self.pad_to_terminal_width(&tour_view);
         }
 
         // Render notes modal overlay if visible (bd-1xvj)
         if self.notes_modal.is_open() {
             let modal_view = self.notes_modal.view_centered(&self.theme, self.width, self.height);
             // The modal is a centered overlay; return it instead of compositing
-            return modal_view;
+            return self.pad_to_terminal_width(&modal_view);
         }
 
-        // Truncate all lines to terminal width to prevent wrapping/scrolling (bd-pty1)
+        // Truncate all lines to layout width to prevent wrapping/scrolling (bd-pty1)
         // Use width-1 to avoid edge cases where exactly-width lines trigger autowrap
         let safe_width = self.width.saturating_sub(1).max(1);
-        truncate_to_width(&base_view, safe_width)
+        let truncated = truncate_to_width(&base_view, safe_width);
+
+        // Pad lines to actual terminal width when max_width caps the layout
+        // This prevents blank areas when terminal is wider than layout
+        self.pad_to_terminal_width(&truncated)
+    }
+
+    /// Pad each line to the actual terminal width when max_width is active.
+    ///
+    /// When max_width caps the layout width, the rendered content is narrower
+    /// than the terminal. Without padding, the remaining terminal area appears
+    /// blank or shows artifacts. This fills the rest with background.
+    fn pad_to_terminal_width(&self, content: &str) -> String {
+        // No padding needed if terminal width matches layout width
+        if self.terminal_width <= self.width {
+            return content.to_string();
+        }
+
+        let bg_style = Style::new().background(self.theme.background);
+
+        content
+            .lines()
+            .map(|line| {
+                let visible_len = lipgloss::width(line);
+                if visible_len < self.terminal_width {
+                    let padding = self.terminal_width - visible_len;
+                    let pad_str = " ".repeat(padding);
+                    format!("{}{}", line, bg_style.render(&pad_str))
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }
 
