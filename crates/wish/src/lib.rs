@@ -425,12 +425,8 @@ impl Session {
     }
 
     /// Sets the input receiver.
-    pub fn set_input_receiver(&self, rx: tokio::sync::mpsc::Receiver<Vec<u8>>) {
-        // Use tokio::task::block_in_place to safely run blocking operations
-        // within an async context, or use the blocking_lock when not in async
-        tokio::task::block_in_place(|| {
-            *self.input_rx.blocking_lock() = Some(rx);
-        });
+    pub async fn set_input_receiver(&self, rx: tokio::sync::mpsc::Receiver<Vec<u8>>) {
+        *self.input_rx.lock().await = Some(rx);
     }
 
     /// Receives input from the client.

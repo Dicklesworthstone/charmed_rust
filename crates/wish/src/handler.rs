@@ -481,7 +481,7 @@ impl RusshHandler for WishHandler {
         ctx.set_client_version(client_version);
         let mut wish_session = Session::new(ctx);
         wish_session.set_output_sender(output_tx);
-        wish_session.set_input_receiver(input_rx);
+        wish_session.set_input_receiver(input_rx).await;
 
         // Get session handle for sending exit status from spawned task
         let handle = session.handle();

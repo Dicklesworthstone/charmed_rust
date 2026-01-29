@@ -1974,19 +1974,22 @@ fn wrap_text(s: &str, width: usize) -> String {
         if visible_width(line) <= width {
             result.push(line.to_string());
         } else {
-            // Simple word wrap
-            let words: Vec<&str> = line.split_whitespace().collect();
+            // Word wrap preserving whitespace
+            let words: Vec<&str> = line.split(' ').collect();
             let mut current_line = String::new();
             let mut current_width = 0;
 
-            for word in words {
+            for (i, word) in words.iter().enumerate() {
                 let word_width = visible_width(word);
-                if current_width + word_width + 1 > width && current_width > 0 {
+                // Account for the space separator if this isn't the first word
+                let space_width = if i > 0 { 1 } else { 0 };
+
+                if current_width + space_width + word_width > width && current_width > 0 {
                     result.push(current_line);
                     current_line = word.to_string();
                     current_width = word_width;
                 } else {
-                    if !current_line.is_empty() {
+                    if i > 0 {
                         current_line.push(' ');
                         current_width += 1;
                     }

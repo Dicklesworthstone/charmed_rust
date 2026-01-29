@@ -403,7 +403,9 @@ fn e2e_docs_comprehensive_scenario() {
     runner.press_key('1');
     runner.assert_page(Page::Dashboard);
 
-    runner.finish().expect("docs comprehensive scenario should pass");
+    runner
+        .finish()
+        .expect("docs comprehensive scenario should pass");
 }
 
 // =============================================================================
