@@ -19,11 +19,11 @@ expression: view
               Summary                                                                                   
                 Kind:     Task                                                                          
                 Progress: ██████████████░  96% ~807h                                                    
-                Duration: 19368h 18m                                                                    
+                Duration: 19368h 26m                                                                    
                                                                                                         
               Parameters                                                                                
                  Environment  development                                                               
                                                                                                         
                                                                                                         
-n new ⏎ start x cancel R retry / filter s sort j/k nav [/] page r refresh | 1-7                         
-pages [ sidebar ? help q quit
+  n new  ⏎ start  x cancel  R retry  / filter  s sort  j/k nav  [/] page  r                             
+refresh  |  1-7 pages  [ sidebar  ? help  q quit

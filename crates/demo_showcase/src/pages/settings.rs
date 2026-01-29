@@ -59,7 +59,127 @@ pub enum SettingsSection {
     Toggles,
     /// Theme picker section.
     Themes,
+    /// Keybindings reference section (bd-3b7o).
+    Keybindings,
 }
+
+/// A keybinding entry for display.
+#[derive(Debug, Clone, Copy)]
+struct KeybindingEntry {
+    /// The key or key combination.
+    key: &'static str,
+    /// Description of what the key does.
+    action: &'static str,
+}
+
+/// Global keybindings that work across all pages.
+const GLOBAL_KEYS: [KeybindingEntry; 12] = [
+    KeybindingEntry {
+        key: "?",
+        action: "Toggle help overlay",
+    },
+    KeybindingEntry {
+        key: "q",
+        action: "Quit application",
+    },
+    KeybindingEntry {
+        key: "Esc",
+        action: "Close modal/cancel",
+    },
+    KeybindingEntry {
+        key: "1-8",
+        action: "Navigate to page",
+    },
+    KeybindingEntry {
+        key: "Tab",
+        action: "Cycle focus/section",
+    },
+    KeybindingEntry {
+        key: "j / ↓",
+        action: "Move down",
+    },
+    KeybindingEntry {
+        key: "k / ↑",
+        action: "Move up",
+    },
+    KeybindingEntry {
+        key: "g",
+        action: "Go to top",
+    },
+    KeybindingEntry {
+        key: "G",
+        action: "Go to bottom",
+    },
+    KeybindingEntry {
+        key: "Enter",
+        action: "Confirm/activate",
+    },
+    KeybindingEntry {
+        key: "Ctrl+C",
+        action: "Copy to clipboard",
+    },
+    KeybindingEntry {
+        key: "/",
+        action: "Search (in page)",
+    },
+];
+
+/// Page-specific keybindings.
+const PAGE_KEYS: [KeybindingEntry; 12] = [
+    // Dashboard
+    KeybindingEntry {
+        key: "r",
+        action: "Dashboard: Refresh data",
+    },
+    KeybindingEntry {
+        key: "Enter",
+        action: "Dashboard: Open details",
+    },
+    // Jobs
+    KeybindingEntry {
+        key: "n",
+        action: "Jobs: Create new job",
+    },
+    KeybindingEntry {
+        key: "x",
+        action: "Jobs: Cancel selected",
+    },
+    KeybindingEntry {
+        key: "Enter",
+        action: "Jobs: View details",
+    },
+    // Logs
+    KeybindingEntry {
+        key: "f",
+        action: "Logs: Toggle follow",
+    },
+    KeybindingEntry {
+        key: "e",
+        action: "Logs: Export to file",
+    },
+    KeybindingEntry {
+        key: "c",
+        action: "Logs: Clear logs",
+    },
+    // Docs
+    KeybindingEntry {
+        key: "n/N",
+        action: "Docs: Next/prev match",
+    },
+    KeybindingEntry {
+        key: "s",
+        action: "Docs: Toggle syntax",
+    },
+    // Files
+    KeybindingEntry {
+        key: "Enter",
+        action: "Files: Open preview",
+    },
+    KeybindingEntry {
+        key: "Backspace",
+        action: "Files: Go up directory",
+    },
+];
 
 /// Settings page showing application preferences.
 pub struct SettingsPage {
@@ -113,7 +233,8 @@ impl SettingsPage {
     fn next_section(&mut self) {
         self.section = match self.section {
             SettingsSection::Toggles => SettingsSection::Themes,
-            SettingsSection::Themes => SettingsSection::Toggles,
+            SettingsSection::Themes => SettingsSection::Keybindings,
+            SettingsSection::Keybindings => SettingsSection::Toggles,
         };
     }
 
@@ -129,6 +250,9 @@ impl SettingsPage {
                 if self.theme_selected > 0 {
                     self.theme_selected -= 1;
                 }
+            }
+            SettingsSection::Keybindings => {
+                // Keybindings section is read-only reference; no selection to move
             }
         }
     }
@@ -147,6 +271,9 @@ impl SettingsPage {
                     self.theme_selected += 1;
                 }
             }
+            SettingsSection::Keybindings => {
+                // Keybindings section is read-only reference; no selection to move
+            }
         }
     }
 
@@ -155,6 +282,7 @@ impl SettingsPage {
         match self.section {
             SettingsSection::Toggles => self.toggle_selected_toggle(),
             SettingsSection::Themes => self.apply_selected_theme(),
+            SettingsSection::Keybindings => None, // Read-only reference section
         }
     }
 

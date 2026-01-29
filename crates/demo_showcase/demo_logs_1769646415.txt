@@ -1,0 +1,40 @@
+ Charmed Control Center   Connected                                                                            [Light]  
+  [] Dashboard[ ] E [ ] W [ ] I [●] D [●] T  Filter: > t                                                                
+  >_ Services 00:26:55 DEBUG db::redis                 Metrics exported                                                 
+  >> Jobs     00:26:55 DEBUG db::redis                 Metrics exported                                                 
+>  # Logs     00:26:55 DEBUG api::routes               Task scheduled                                                   
+   ? Docs     00:26:55 DEBUG api::routes               Error handled gracefully                                         
+  <> Files    00:26:55 TRACE worker::jobs              Connection established                                           
+   * Wizard   00:26:55 DEBUG http::server              Query executed                                                   
+   @ Settings 00:26:55 TRACE grpc::server              Cache hit                                                        
+              00:26:55 DEBUG cache::memcached          Task completed                                                   
+              00:26:55 DEBUG health::checker           Response sent                                                    
+              00:26:55 DEBUG worker::jobs              Authentication successful                                        
+              00:26:55 TRACE metrics::exporter         Authentication successful                                        
+              00:26:55 TRACE cache::memcached          Connection closed                                                
+              00:26:55 DEBUG db::redis                 Data validated                                                   
+              00:26:55 DEBUG api::auth                 Connection established                                           
+              00:26:55 DEBUG api::auth                 Rate limit applied                                               
+              00:26:55 DEBUG db::redis                 Connection established                                           
+              00:26:55 DEBUG cache::memcached          Metrics exported                                                 
+              00:26:55 DEBUG metrics::exporter         Authentication successful                                        
+              00:26:55 DEBUG grpc::server              Connection closed                                                
+              00:26:55 DEBUG http::server              Cache miss                                                       
+              00:26:55 DEBUG health::checker           Error handled gracefully                                         
+              00:26:55 DEBUG worker::jobs              Processing request                                               
+              00:26:55 DEBUG db::redis                 Connection established                                           
+              00:26:55 DEBUG worker::jobs              Connection closed                                                
+              00:26:55 DEBUG http::server              Task scheduled                                                   
+              00:26:55 DEBUG api::routes               Session created                                                  
+              00:26:55 DEBUG grpc::server              Connection established                                           
+              00:26:55 DEBUG metrics::exporter         Health check passed                                              
+              00:26:55 DEBUG grpc::server              Session created                                                  
+              00:26:55 TRACE api::routes               Retrying operation                                               
+              00:26:55 DEBUG worker::jobs              Data validated                                                   
+              00:26:55 DEBUG api::routes               Task scheduled                                                   
+              00:26:55 DEBUG api::routes               Task completed                                                   
+                                                                                                                        
+                                                                                                                        
+               PAUSED                                                                     49/196 shown  17:49           
+                                                                                                                        
+  y copy  e export  X clear  / filter  1-5 levels  f follow  j/k scroll  |  1-7 pages  [ sidebar  ? help  q quit        
