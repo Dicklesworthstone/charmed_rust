@@ -10,8 +10,10 @@
 
 #![allow(dead_code)] // Components will be used by pages as they're implemented
 
+mod interaction_counter;
 mod sidebar;
 
+pub use interaction_counter::{CounterMsg, InteractionCounter};
 pub use sidebar::{Sidebar, SidebarFocus};
 
 use crate::theme::{Theme, spacing};

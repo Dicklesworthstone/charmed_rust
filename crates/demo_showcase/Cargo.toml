@@ -14,7 +14,7 @@ ssh = ["dep:wish", "dep:tracing", "dep:tracing-subscriber"]
 
 [dependencies]
 # Core TUI framework
-bubbletea = { path = "../bubbletea" }
+bubbletea = { path = "../bubbletea", features = ["macros"] }
 lipgloss = { path = "../lipgloss" }
 bubbles = { path = "../bubbles" }
 

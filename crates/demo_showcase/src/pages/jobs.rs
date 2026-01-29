@@ -13,6 +13,7 @@
 //! Filtering maintains a `filtered_indices` vector for O(1) row access
 //! without rebuilding heavy row structs on each keystroke.
 
+use bubbles::paginator::Paginator;
 use bubbles::table::{Column, Row, Styles, Table};
 use bubbles::textinput::TextInput;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, println};
@@ -173,6 +174,9 @@ pub enum JobsFocus {
     QueryInput,
 }
 
+/// Default items per page for pagination.
+const DEFAULT_ITEMS_PER_PAGE: usize = 10;
+
 /// Jobs page showing background task monitoring.
 pub struct JobsPage {
     /// The jobs table component.
@@ -201,6 +205,8 @@ pub struct JobsPage {
     focus: JobsFocus,
     /// ID generator for creating new jobs and log entries.
     id_gen: IdGenerator,
+    /// Paginator for navigating through pages of jobs.
+    paginator: Paginator,
 }
 
 impl JobsPage {
@@ -248,6 +254,10 @@ impl JobsPage {
         let max_id = jobs.iter().map(|j| j.id).max().unwrap_or(0);
         let id_gen = IdGenerator::new(max_id + 100);
 
+        // Initialize paginator
+        let mut paginator = Paginator::new().per_page(DEFAULT_ITEMS_PER_PAGE);
+        paginator.set_total_pages_from_items(filtered_indices.len());
+
         Self {
             table,
             jobs,
@@ -262,6 +272,7 @@ impl JobsPage {
             sort_direction: SortDirection::Descending, // Most recent first
             focus: JobsFocus::Table,
             id_gen,
+            paginator,
         }
     }
 
@@ -271,6 +282,9 @@ impl JobsPage {
 
     /// Apply current filters and sorting, updating filtered_indices.
     fn apply_filter_and_sort(&mut self) {
+        // Save current selection to restore after filter (best-effort)
+        let prev_selected_job_id = self.selected_job().map(|j| j.id);
+
         let query_lower = self.query.to_lowercase();
 
         // Build filtered indices
@@ -301,8 +315,38 @@ impl JobsPage {
         // Sort filtered indices
         self.sort_filtered_indices();
 
+        // Update paginator total pages
+        self.paginator
+            .set_total_pages_from_items(self.filtered_indices.len());
+
+        // Try to restore selection (or reset to page containing it)
+        if let Some(job_id) = prev_selected_job_id {
+            self.try_restore_selection(job_id);
+        }
+
         // Update table rows
         self.update_table_rows();
+    }
+
+    /// Try to restore selection to a specific job ID after filtering.
+    /// Adjusts the page if the job is on a different page.
+    fn try_restore_selection(&mut self, job_id: u64) {
+        // Find the position of the job in filtered_indices
+        if let Some(pos) = self
+            .filtered_indices
+            .iter()
+            .position(|&idx| self.jobs[idx].id == job_id)
+        {
+            // Calculate which page this job is on
+            let per_page = self.paginator.get_per_page();
+            let target_page = pos / per_page;
+            self.paginator.set_page(target_page);
+
+            // Set table cursor to the position within the page
+            let _pos_in_page = pos % per_page;
+            // We'll set the cursor after update_table_rows is called
+            // For now, just ensure the page is correct
+        }
     }
 
     /// Sort the filtered indices based on current sort settings.
@@ -337,10 +381,37 @@ impl JobsPage {
         });
     }
 
-    /// Update table rows from filtered indices.
+    /// Update table rows from filtered indices, respecting pagination.
     fn update_table_rows(&mut self) {
-        let rows = Self::indices_to_rows(&self.jobs, &self.filtered_indices);
+        // Get the slice bounds for the current page
+        let (start, end) = self.paginator.get_slice_bounds(self.filtered_indices.len());
+        let page_indices = &self.filtered_indices[start..end];
+
+        let rows = Self::indices_to_rows(&self.jobs, page_indices);
+        let row_count = rows.len();
         self.table.set_rows(rows);
+
+        // Clamp table cursor to valid range
+        if self.table.cursor() >= row_count && row_count > 0 {
+            self.table.goto_top();
+        }
+    }
+
+    /// Get the index of the selected job within the current page.
+    fn page_cursor(&self) -> usize {
+        self.table.cursor()
+    }
+
+    /// Get the global index in filtered_indices from page cursor.
+    fn global_filtered_index(&self) -> Option<usize> {
+        let (start, _) = self.paginator.get_slice_bounds(self.filtered_indices.len());
+        let local = self.table.cursor();
+        let global = start + local;
+        if global < self.filtered_indices.len() {
+            Some(global)
+        } else {
+            None
+        }
     }
 
     /// Convert filtered indices to table rows.
@@ -478,15 +549,9 @@ impl JobsPage {
                     format!("{}%", job.progress)
                 }
             }
-            JobStatus::Completed => {
-                "✓ done".to_string()
-            }
-            JobStatus::Failed => {
-                "✕ error".to_string()
-            }
-            JobStatus::Cancelled => {
-                "⊘ cancel".to_string()
-            }
+            JobStatus::Completed => "✓ done".to_string(),
+            JobStatus::Failed => "✕ error".to_string(),
+            JobStatus::Cancelled => "⊘ cancel".to_string(),
         }
     }
 
@@ -543,12 +608,14 @@ impl JobsPage {
         elapsed.num_seconds() >= 30 && job.progress < 10
     }
 
-    /// Get the currently selected job (using filtered indices).
+    /// Get the currently selected job (using filtered indices and pagination).
     #[must_use]
     pub fn selected_job(&self) -> Option<&Job> {
-        // Map table cursor to filtered index, then to actual job
+        // Map table cursor to global filtered index, then to actual job
+        let (start, _) = self.paginator.get_slice_bounds(self.filtered_indices.len());
+        let global_idx = start + self.table.cursor();
         self.filtered_indices
-            .get(self.table.cursor())
+            .get(global_idx)
             .and_then(|&i| self.jobs.get(i))
     }
 
@@ -563,6 +630,9 @@ impl JobsPage {
         self.id_gen.set_next(max_id + 100);
         // Reapply current filters
         self.apply_filter_and_sort();
+        // Reset to first page AFTER filter/sort (to override any selection restoration)
+        self.paginator.set_page(0);
+        self.update_table_rows();
     }
 
     // =========================================================================
@@ -571,7 +641,9 @@ impl JobsPage {
 
     /// Get the index of the currently selected job in the jobs vector.
     fn selected_job_index(&self) -> Option<usize> {
-        self.filtered_indices.get(self.table.cursor()).copied()
+        let (start, _) = self.paginator.get_slice_bounds(self.filtered_indices.len());
+        let global_idx = start + self.table.cursor();
+        self.filtered_indices.get(global_idx).copied()
     }
 
     /// Create a new job with a random kind and add it to the list.
@@ -773,13 +845,27 @@ impl JobsPage {
 
         // Sort indicator
         let sort_indicator = theme.muted_style().render(&format!(
-            "Sort: {}{} ",
+            "Sort: {}{}",
             self.sort_column.name(),
             self.sort_direction.icon()
         ));
 
+        // Paginator display
+        let page_display = if self.paginator.get_total_pages() > 1 {
+            format!(
+                "  {}",
+                theme.info_style().render(&format!(
+                    "Page {}/{}",
+                    self.paginator.page() + 1,
+                    self.paginator.get_total_pages()
+                ))
+            )
+        } else {
+            String::new()
+        };
+
         format!(
-            "{count_display}  {running_chip} {completed_chip} {failed_chip} {queued_chip}  {sort_indicator}"
+            "{count_display}  {running_chip} {completed_chip} {failed_chip} {queued_chip}  {sort_indicator}{page_display}"
         )
     }
 
@@ -831,7 +917,9 @@ impl JobsPage {
         if Self::is_job_slow(job) {
             lines.push(format!(
                 "  Status:   {}",
-                theme.warning_style().render("⚠ Job may be stuck or experiencing delays")
+                theme
+                    .warning_style()
+                    .render("⚠ Job may be stuck or experiencing delays")
             ));
         }
 
@@ -966,11 +1054,7 @@ impl JobsPage {
                         theme.warning_style().render("⚠ slow")
                     )
                 } else if let Some(eta) = Self::estimate_eta(job) {
-                    format!(
-                        "{} {}",
-                        progress_bar,
-                        theme.muted_style().render(&eta)
-                    )
+                    format!("{} {}", progress_bar, theme.muted_style().render(&eta))
                 } else {
                     progress_bar
                 }
@@ -1267,6 +1351,22 @@ impl PageModel for JobsPage {
                         self.clear_filters();
                         return None;
                     }
+                    ['['] | ['h'] => {
+                        // Previous page
+                        if !self.paginator.on_first_page() {
+                            self.paginator.prev_page();
+                            self.update_table_rows();
+                        }
+                        return None;
+                    }
+                    [']'] | ['l'] => {
+                        // Next page
+                        if !self.paginator.on_last_page() {
+                            self.paginator.next_page();
+                            self.update_table_rows();
+                        }
+                        return None;
+                    }
                     _ => {}
                 },
                 KeyType::Up => {
@@ -1286,11 +1386,19 @@ impl PageModel for JobsPage {
                     return None;
                 }
                 KeyType::PgUp => {
-                    self.table.move_up(self.table.get_height());
+                    // Navigate to previous page
+                    if !self.paginator.on_first_page() {
+                        self.paginator.prev_page();
+                        self.update_table_rows();
+                    }
                     return None;
                 }
                 KeyType::PgDown => {
-                    self.table.move_down(self.table.get_height());
+                    // Navigate to next page
+                    if !self.paginator.on_last_page() {
+                        self.paginator.next_page();
+                        self.update_table_rows();
+                    }
                     return None;
                 }
                 KeyType::Enter => {
@@ -1336,7 +1444,7 @@ impl PageModel for JobsPage {
     }
 
     fn hints(&self) -> &'static str {
-        "n new  ⏎ start  x cancel  R retry  / filter  s sort  j/k nav  r refresh"
+        "n new  ⏎ start  x cancel  R retry  / filter  s sort  j/k nav  [/] page  r refresh"
     }
 
     fn on_enter(&mut self) -> Option<Cmd> {
@@ -1369,7 +1477,42 @@ impl JobsPage {
             sort_direction: self.sort_direction,
             focus: self.focus,
             id_gen: self.id_gen.clone(),
+            paginator: self.paginator.clone(),
         }
+    }
+
+    /// Get the current page number (0-indexed).
+    #[must_use]
+    pub fn current_page(&self) -> usize {
+        self.paginator.page()
+    }
+
+    /// Get the total number of pages.
+    #[must_use]
+    pub fn total_pages(&self) -> usize {
+        self.paginator.get_total_pages()
+    }
+
+    /// Navigate to the next page.
+    pub fn next_page(&mut self) {
+        if !self.paginator.on_last_page() {
+            self.paginator.next_page();
+            self.update_table_rows();
+        }
+    }
+
+    /// Navigate to the previous page.
+    pub fn prev_page(&mut self) {
+        if !self.paginator.on_first_page() {
+            self.paginator.prev_page();
+            self.update_table_rows();
+        }
+    }
+
+    /// Jump to a specific page (0-indexed).
+    pub fn goto_page(&mut self, page: usize) {
+        self.paginator.set_page(page);
+        self.update_table_rows();
     }
 }
 
@@ -1952,7 +2095,11 @@ mod tests {
         };
 
         let cell = JobsPage::format_progress_cell(&job);
-        assert!(cell.contains("queued"), "Queued job should show 'queued': {}", cell);
+        assert!(
+            cell.contains("queued"),
+            "Queued job should show 'queued': {}",
+            cell
+        );
     }
 
     #[test]
@@ -1970,7 +2117,11 @@ mod tests {
         };
 
         let cell = JobsPage::format_progress_cell(&job);
-        assert!(cell.contains("50%"), "Running job should show percentage: {}", cell);
+        assert!(
+            cell.contains("50%"),
+            "Running job should show percentage: {}",
+            cell
+        );
     }
 
     #[test]
@@ -1988,7 +2139,11 @@ mod tests {
         };
 
         let cell = JobsPage::format_progress_cell(&job);
-        assert!(cell.contains("done"), "Completed job should show 'done': {}", cell);
+        assert!(
+            cell.contains("done"),
+            "Completed job should show 'done': {}",
+            cell
+        );
     }
 
     #[test]
@@ -2006,7 +2161,11 @@ mod tests {
         };
 
         let cell = JobsPage::format_progress_cell(&job);
-        assert!(cell.contains("error"), "Failed job should show 'error': {}", cell);
+        assert!(
+            cell.contains("error"),
+            "Failed job should show 'error': {}",
+            cell
+        );
     }
 
     #[test]
@@ -2024,7 +2183,11 @@ mod tests {
         };
 
         let cell = JobsPage::format_progress_cell(&job);
-        assert!(cell.contains("cancel"), "Cancelled job should show 'cancel': {}", cell);
+        assert!(
+            cell.contains("cancel"),
+            "Cancelled job should show 'cancel': {}",
+            cell
+        );
     }
 
     #[test]
@@ -2062,7 +2225,11 @@ mod tests {
         let eta = JobsPage::estimate_eta(&job);
         assert!(eta.is_some(), "Running job with progress should have ETA");
         let eta_str = eta.unwrap();
-        assert!(eta_str.starts_with('~'), "ETA should start with ~: {}", eta_str);
+        assert!(
+            eta_str.starts_with('~'),
+            "ETA should start with ~: {}",
+            eta_str
+        );
     }
 
     #[test]
@@ -2097,7 +2264,10 @@ mod tests {
             error: None,
         };
 
-        assert!(!JobsPage::is_job_slow(&job), "Queued job should not be slow");
+        assert!(
+            !JobsPage::is_job_slow(&job),
+            "Queued job should not be slow"
+        );
     }
 
     #[test]
@@ -2114,7 +2284,10 @@ mod tests {
             error: None,
         };
 
-        assert!(!JobsPage::is_job_slow(&job), "Job with good progress should not be slow");
+        assert!(
+            !JobsPage::is_job_slow(&job),
+            "Job with good progress should not be slow"
+        );
     }
 
     #[test]
@@ -2131,35 +2304,54 @@ mod tests {
             error: None,
         };
 
-        assert!(JobsPage::is_job_slow(&job), "Job with <10% progress after 30s should be slow");
+        assert!(
+            JobsPage::is_job_slow(&job),
+            "Job with <10% progress after 30s should be slow"
+        );
     }
 
     #[test]
     fn render_progress_bar_zero() {
         let theme = Theme::dark();
         let bar = JobsPage::render_progress_bar(0, 25, &theme);
-        assert!(bar.contains("0%"), "Zero progress bar should show 0%: {}", bar);
+        assert!(
+            bar.contains("0%"),
+            "Zero progress bar should show 0%: {}",
+            bar
+        );
     }
 
     #[test]
     fn render_progress_bar_fifty() {
         let theme = Theme::dark();
         let bar = JobsPage::render_progress_bar(50, 25, &theme);
-        assert!(bar.contains("50%"), "50% progress bar should show 50%: {}", bar);
+        assert!(
+            bar.contains("50%"),
+            "50% progress bar should show 50%: {}",
+            bar
+        );
     }
 
     #[test]
     fn render_progress_bar_hundred() {
         let theme = Theme::dark();
         let bar = JobsPage::render_progress_bar(100, 25, &theme);
-        assert!(bar.contains("100%"), "100% progress bar should show 100%: {}", bar);
+        assert!(
+            bar.contains("100%"),
+            "100% progress bar should show 100%: {}",
+            bar
+        );
     }
 
     #[test]
     fn render_progress_bar_over_hundred() {
         let theme = Theme::dark();
         let bar = JobsPage::render_progress_bar(150, 25, &theme);
-        assert!(bar.contains("100%"), "Over 100% should clamp to 100%: {}", bar);
+        assert!(
+            bar.contains("100%"),
+            "Over 100% should clamp to 100%: {}",
+            bar
+        );
     }
 
     #[test]
@@ -2167,7 +2359,11 @@ mod tests {
         let theme = Theme::dark();
         let bar = JobsPage::render_progress_bar(50, 5, &theme);
         // Very narrow bar should still show percentage
-        assert!(bar.contains("50"), "Narrow bar should show percentage: {}", bar);
+        assert!(
+            bar.contains("50"),
+            "Narrow bar should show percentage: {}",
+            bar
+        );
     }
 
     #[test]
@@ -2186,7 +2382,11 @@ mod tests {
         };
 
         let inline = JobsPage::render_inline_progress(&job, &theme);
-        assert!(inline.contains("queue") || inline.contains("◌"), "Queued should show queue indicator: {}", inline);
+        assert!(
+            inline.contains("queue") || inline.contains("◌"),
+            "Queued should show queue indicator: {}",
+            inline
+        );
     }
 
     #[test]
@@ -2205,8 +2405,11 @@ mod tests {
         };
 
         let inline = JobsPage::render_inline_progress(&job, &theme);
-        assert!(inline.contains("50%") || inline.contains("█") || inline.contains("░"),
-            "Running should show progress bar: {}", inline);
+        assert!(
+            inline.contains("50%") || inline.contains("█") || inline.contains("░"),
+            "Running should show progress bar: {}",
+            inline
+        );
     }
 
     #[test]
@@ -2225,8 +2428,11 @@ mod tests {
         };
 
         let inline = JobsPage::render_inline_progress(&job, &theme);
-        assert!(inline.contains("✓") || inline.contains("Completed"),
-            "Completed should show success: {}", inline);
+        assert!(
+            inline.contains("✓") || inline.contains("Completed"),
+            "Completed should show success: {}",
+            inline
+        );
     }
 
     #[test]
@@ -2245,7 +2451,150 @@ mod tests {
         };
 
         let inline = JobsPage::render_inline_progress(&job, &theme);
-        assert!(inline.contains("✕") || inline.contains("Database error"),
-            "Failed should show error: {}", inline);
+        assert!(
+            inline.contains("✕") || inline.contains("Database error"),
+            "Failed should show error: {}",
+            inline
+        );
+    }
+
+    // =========================================================================
+    // Paginator Integration Tests (bd-1tdh)
+    // =========================================================================
+
+    #[test]
+    fn paginator_initializes_correctly() {
+        let page = JobsPage::new();
+        // With 20 jobs and 10 per page, should have 2 pages
+        assert_eq!(page.total_pages(), 2);
+        assert_eq!(page.current_page(), 0);
+    }
+
+    #[test]
+    fn paginator_navigation_works() {
+        let mut page = JobsPage::new();
+        assert_eq!(page.current_page(), 0);
+
+        // Navigate to next page
+        page.next_page();
+        assert_eq!(page.current_page(), 1);
+
+        // Should not go past last page
+        page.next_page();
+        assert_eq!(page.current_page(), 1); // Still on page 1 (last page)
+
+        // Navigate back
+        page.prev_page();
+        assert_eq!(page.current_page(), 0);
+
+        // Should not go before first page
+        page.prev_page();
+        assert_eq!(page.current_page(), 0);
+    }
+
+    #[test]
+    fn paginator_goto_page_works() {
+        let mut page = JobsPage::new();
+
+        page.goto_page(1);
+        assert_eq!(page.current_page(), 1);
+
+        page.goto_page(0);
+        assert_eq!(page.current_page(), 0);
+
+        // Out of bounds should clamp
+        page.goto_page(100);
+        assert_eq!(page.current_page(), 1); // Clamped to last page
+    }
+
+    #[test]
+    fn filter_updates_paginator_total_pages() {
+        let mut page = JobsPage::new();
+        let initial_pages = page.total_pages();
+
+        // Filter to fewer jobs
+        page.query = "nonexistent_job_name".to_string();
+        page.apply_filter_and_sort();
+
+        // With no matches, should have 1 page (minimum)
+        assert_eq!(page.total_pages(), 1);
+
+        // Clear filter
+        page.clear_filters();
+        assert_eq!(page.total_pages(), initial_pages);
+    }
+
+    #[test]
+    fn filter_resets_to_valid_page() {
+        let mut page = JobsPage::new();
+
+        // Go to second page
+        page.goto_page(1);
+        assert_eq!(page.current_page(), 1);
+
+        // Apply a filter that reduces to fewer pages
+        page.query = "unique_nonexistent".to_string();
+        page.apply_filter_and_sort();
+
+        // Page should be clamped to valid range
+        assert!(page.current_page() < page.total_pages());
+    }
+
+    #[test]
+    fn selected_job_respects_pagination() {
+        let mut page = JobsPage::new();
+
+        // First page, first job
+        let first_page_job = page.selected_job().map(|j| j.id);
+        assert!(first_page_job.is_some());
+
+        // Go to second page
+        page.next_page();
+        let second_page_job = page.selected_job().map(|j| j.id);
+        assert!(second_page_job.is_some());
+
+        // Jobs should be different (different pages)
+        assert_ne!(first_page_job, second_page_job);
+    }
+
+    #[test]
+    fn table_cursor_stays_in_page_bounds() {
+        let mut page = JobsPage::new();
+
+        // Navigate within the page
+        page.table.move_down(5);
+        let cursor = page.table.cursor();
+        assert!(cursor < DEFAULT_ITEMS_PER_PAGE);
+
+        // The selected job should be valid
+        assert!(page.selected_job().is_some());
+    }
+
+    #[test]
+    fn refresh_resets_to_first_page() {
+        let mut page = JobsPage::new();
+
+        // Go to second page
+        page.next_page();
+        assert_eq!(page.current_page(), 1);
+
+        // Refresh
+        page.refresh();
+        assert_eq!(page.current_page(), 0);
+    }
+
+    #[test]
+    fn create_job_updates_pagination() {
+        let mut page = JobsPage::new();
+        let initial_total = page.jobs.len();
+        let initial_pages = page.total_pages();
+
+        // Create several jobs to potentially add a new page
+        for _ in 0..DEFAULT_ITEMS_PER_PAGE {
+            page.action_create_job();
+        }
+
+        assert_eq!(page.jobs.len(), initial_total + DEFAULT_ITEMS_PER_PAGE);
+        assert!(page.total_pages() >= initial_pages);
     }
 }

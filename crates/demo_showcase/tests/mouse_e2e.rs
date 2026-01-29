@@ -310,7 +310,9 @@ fn e2e_mouse_rapid_events_no_panic() {
     runner.press_key('1');
     runner.assert_page(Page::Dashboard);
 
-    runner.finish().expect("rapid mouse events should not panic");
+    runner
+        .finish()
+        .expect("rapid mouse events should not panic");
 }
 
 /// Verify that mouse events work on all pages.
@@ -372,7 +374,9 @@ fn e2e_mouse_with_help_overlay() {
     runner.press_special(KeyType::Esc);
     runner.assert_not_contains("Keyboard Shortcuts");
 
-    runner.finish().expect("mouse should work with help overlay");
+    runner
+        .finish()
+        .expect("mouse should work with help overlay");
 }
 
 // =============================================================================

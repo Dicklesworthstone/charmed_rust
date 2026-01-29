@@ -8,17 +8,17 @@ expression: view
 > >> Jobs     19/20 shown  [●] R:3 [●] C:9 [ ] F:0 [●] Q:7  Sort: time↓                                 
    # Logs                                                                                               
    ? Docs      ID      Name                          Kind        Status        Progress    Started      
-  <> Files     #59     metrics-aggregate-8916        Backup      ● Completed   1                        
-   * Wizard    #56     cache-warmup-8648             Migration   ● Completed   1                        
-   @ Settings  #64     cleanup-expired-3113          Migration   ● Completed   1                        
-               #63     data-sync-3676                Cron        ● Completed   1                        
-               #60     cache-warmup-3354             Migration   ● Completed   1                        
+  <> Files     #59     metrics-aggregate-8916        Backup      ● Completed   ✓                        
+   * Wizard    #56     cache-warmup-8648             Migration   ● Completed   ✓                        
+   @ Settings  #64     cleanup-expired-3113          Migration   ● Completed   ✓                        
+               #63     data-sync-3676                Cron        ● Completed   ✓                        
+               #60     cache-warmup-3354             Migration   ● Completed   ✓                        
                                                                                                         
               metrics-aggregate-8916   ● Completed                                                      
                                                                                                         
               Summary                                                                                   
                 Kind:     Backup                                                                        
-                Progress: [####################] 100%                                                   
+                Progress: ✓ Completed successfully                                                      
                 Duration: 27s                                                                           
                                                                                                         
               Parameters                                                                                

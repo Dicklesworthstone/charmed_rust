@@ -598,11 +598,10 @@ impl CustomTheme {
             return Err(ThemeLoadError::FileNotFound(path.display().to_string()));
         }
 
-        let content = fs::read_to_string(path)
-            .map_err(|e| ThemeLoadError::ReadError(e.to_string()))?;
+        let content =
+            fs::read_to_string(path).map_err(|e| ThemeLoadError::ReadError(e.to_string()))?;
 
-        serde_json::from_str(&content)
-            .map_err(|e| ThemeLoadError::ParseError(e.to_string()))
+        serde_json::from_str(&content).map_err(|e| ThemeLoadError::ParseError(e.to_string()))
     }
 
     /// Validate the custom theme and convert to a Theme.
@@ -645,7 +644,13 @@ impl CustomTheme {
             ("text_muted", &self.text_muted, "bg", &self.bg, 3.0),
             ("text", &self.text, "bg_subtle", &self.bg_subtle, 4.5),
             ("text", &self.text, "bg_highlight", &self.bg_highlight, 4.5),
-            ("text_inverse", &self.text_inverse, "primary", &self.primary, 4.5),
+            (
+                "text_inverse",
+                &self.text_inverse,
+                "primary",
+                &self.primary,
+                4.5,
+            ),
         ];
 
         for (fg_name, fg, bg_name, bg, min_ratio) in &contrast_pairs {
@@ -1853,20 +1858,29 @@ mod tests {
     #[test]
     fn contrast_ratio_black_white() {
         let ratio = contrast_ratio((0, 0, 0), (255, 255, 255));
-        assert!((ratio - 21.0).abs() < 0.1, "black/white contrast should be ~21:1");
+        assert!(
+            (ratio - 21.0).abs() < 0.1,
+            "black/white contrast should be ~21:1"
+        );
     }
 
     #[test]
     fn contrast_ratio_same_color() {
         let ratio = contrast_ratio((128, 128, 128), (128, 128, 128));
-        assert!((ratio - 1.0).abs() < 0.001, "same color contrast should be 1:1");
+        assert!(
+            (ratio - 1.0).abs() < 0.001,
+            "same color contrast should be 1:1"
+        );
     }
 
     #[test]
     fn contrast_ratio_order_independent() {
         let ratio1 = contrast_ratio((0, 0, 0), (255, 255, 255));
         let ratio2 = contrast_ratio((255, 255, 255), (0, 0, 0));
-        assert!((ratio1 - ratio2).abs() < 0.001, "contrast ratio should be order-independent");
+        assert!(
+            (ratio1 - ratio2).abs() < 0.001,
+            "contrast ratio should be order-independent"
+        );
     }
 
     // --- CustomTheme validation ---
@@ -1893,7 +1907,9 @@ mod tests {
 
         let (_, warnings) = theme.validate_and_convert();
         assert!(
-            warnings.iter().any(|w| w.kind == ThemeWarningKind::InvalidColor),
+            warnings
+                .iter()
+                .any(|w| w.kind == ThemeWarningKind::InvalidColor),
             "should warn about invalid color"
         );
     }
@@ -1920,7 +1936,9 @@ mod tests {
 
         let (_, warnings) = theme.validate_and_convert();
         assert!(
-            warnings.iter().any(|w| w.kind == ThemeWarningKind::LowContrast),
+            warnings
+                .iter()
+                .any(|w| w.kind == ThemeWarningKind::LowContrast),
             "should warn about low contrast"
         );
     }
