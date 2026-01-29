@@ -6,7 +6,7 @@
 //! This page integrates with the simulation engine to provide live-updating
 //! metrics with trends, health indicators, and notifications.
 
-use std::sync::RwLock;
+use parking_lot::RwLock;
 use std::time::Duration;
 
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, MouseAction, MouseButton, MouseMsg, tick};
@@ -466,7 +466,7 @@ impl DashboardPage {
 
     /// Determine which card (if any) contains the given point.
     fn hit_test(&self, x: usize, y: usize) -> DashboardCard {
-        let bounds = self.card_bounds.read().unwrap();
+        let bounds = self.card_bounds.read();
 
         // Check each card's bounds
         if let Some((y1, y2, x1, x2)) = bounds.services {
@@ -1429,7 +1429,8 @@ impl PageModel for DashboardPage {
         let live_metrics_lines = live_metrics.lines().count();
 
         // Update card bounds (interior mutability via RwLock)
-        if let Ok(mut bounds) = self.card_bounds.write() {
+        {
+            let mut bounds = self.card_bounds.write();
             // Services: left column, starts at header_lines
             bounds.services = Some((header_lines, header_lines + services_lines, 0, left_width));
 
@@ -1724,7 +1725,7 @@ mod tests {
         let _ = page.view(100, 40, &theme);
 
         // Card bounds should now be populated
-        let bounds = page.card_bounds.read().unwrap();
+        let bounds = page.card_bounds.read();
         assert!(bounds.services.is_some(), "Services bounds should be set");
         assert!(bounds.jobs.is_some(), "Jobs bounds should be set");
         assert!(

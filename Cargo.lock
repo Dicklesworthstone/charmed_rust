@@ -910,6 +910,7 @@ dependencies = [
  "huh",
  "insta",
  "lipgloss",
+ "parking_lot",
  "portable-pty 0.8.1",
  "predicates",
  "rand 0.9.2",

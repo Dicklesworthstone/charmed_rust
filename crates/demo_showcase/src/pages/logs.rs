@@ -15,7 +15,7 @@
 //! Uses `RwLock` for thread-safe interior mutability, enabling SSH mode.
 
 use std::path::PathBuf;
-use std::sync::RwLock;
+use parking_lot::RwLock;
 
 use bubbles::textinput::TextInput;
 use bubbles::viewport::Viewport;
@@ -275,7 +275,7 @@ impl LogsPage {
             .collect();
 
         // Mark for reformatting
-        *self.needs_reformat.write().unwrap() = true;
+        *self.needs_reformat.write() = true;
     }
 
     /// Toggle a level filter and reapply.
@@ -410,7 +410,7 @@ impl LogsPage {
         // Reapply filters to new data
         self.apply_filters();
         if self.following {
-            self.viewport.write().unwrap().goto_bottom();
+            self.viewport.write().goto_bottom();
         }
     }
 
@@ -418,9 +418,9 @@ impl LogsPage {
     #[allow(dead_code)] // Reserved for simulation tick integration
     pub fn push_log(&mut self, entry: LogEntry) {
         self.logs.push(entry);
-        *self.needs_reformat.write().unwrap() = true;
+        *self.needs_reformat.write() = true;
         if self.following {
-            self.viewport.write().unwrap().goto_bottom();
+            self.viewport.write().goto_bottom();
         }
     }
 
@@ -428,13 +428,13 @@ impl LogsPage {
     pub fn toggle_follow(&mut self) {
         self.following = !self.following;
         if self.following {
-            self.viewport.write().unwrap().goto_bottom();
+            self.viewport.write().goto_bottom();
         }
     }
 
     /// Check if follow mode should pause (user scrolled up).
     fn check_follow_pause(&mut self) {
-        if self.following && !self.viewport.read().unwrap().at_bottom() {
+        if self.following && !self.viewport.read().at_bottom() {
             self.following = false;
         }
     }
@@ -460,7 +460,7 @@ impl LogsPage {
     ///
     /// Returns a command to show a notification.
     fn action_copy_viewport(&self, theme: &Theme) -> Option<Cmd> {
-        let content = self.viewport.read().unwrap().view();
+        let content = self.viewport.read().view();
         Self::write_to_export_file("viewport", &content, theme)
     }
 
@@ -518,8 +518,8 @@ impl LogsPage {
         let count = self.logs.len();
         self.logs = LogStream::new(MAX_LOG_ENTRIES);
         self.filtered_indices.clear();
-        *self.needs_reformat.write().unwrap() = true;
-        self.viewport.write().unwrap().set_content("");
+        *self.needs_reformat.write() = true;
+        self.viewport.write().set_content("");
 
         Some(Cmd::new(move || {
             let notification = Notification::info(0, format!("Cleared {count} log entries"));
@@ -656,7 +656,7 @@ impl LogsPage {
                 .render(&format!("{filtered}/{total} shown"))
         };
 
-        let viewport = self.viewport.read().unwrap();
+        let viewport = self.viewport.read();
         let position = format!("{}:{}", viewport.y_offset() + 1, filtered);
         let position_styled = theme.muted_style().render(&position);
 
@@ -734,12 +734,12 @@ impl PageModel for LogsPage {
             // Viewport focus mode
             match key.key_type {
                 KeyType::Home => {
-                    self.viewport.write().unwrap().goto_top();
+                    self.viewport.write().goto_top();
                     self.following = false;
                     return None;
                 }
                 KeyType::End => {
-                    self.viewport.write().unwrap().goto_bottom();
+                    self.viewport.write().goto_bottom();
                     self.following = true;
                     return None;
                 }
@@ -759,13 +759,13 @@ impl PageModel for LogsPage {
                         }
                         // Go to top with 'g'
                         ['g'] => {
-                            self.viewport.write().unwrap().goto_top();
+                            self.viewport.write().goto_top();
                             self.following = false;
                             return None;
                         }
                         // Go to bottom with 'G'
                         ['G'] => {
-                            self.viewport.write().unwrap().goto_bottom();
+                            self.viewport.write().goto_bottom();
                             self.following = true;
                             return None;
                         }
@@ -826,7 +826,7 @@ impl PageModel for LogsPage {
         }
 
         // Delegate to viewport for scroll handling
-        self.viewport.write().unwrap().update(msg);
+        self.viewport.write().update(msg);
 
         // Check if scrolling paused follow mode
         self.check_follow_pause();
@@ -841,20 +841,20 @@ impl PageModel for LogsPage {
         let content_height = height.saturating_sub(filter_bar_height + status_bar_height + 1);
 
         // Check if dimensions changed or content needs reformatting
-        let last_dims = *self.last_dims.read().unwrap();
+        let last_dims = *self.last_dims.read();
         let needs_resize = last_dims.0 != width || last_dims.1 != content_height;
-        let needs_reformat = *self.needs_reformat.read().unwrap();
+        let needs_reformat = *self.needs_reformat.read();
 
         if needs_resize || needs_reformat {
-            let mut viewport = self.viewport.write().unwrap();
+            let mut viewport = self.viewport.write();
             viewport.width = width;
             viewport.height = content_height;
 
             let formatted = self.format_logs(theme, width);
             viewport.set_content(&formatted);
-            *self.formatted_content.write().unwrap() = formatted;
-            *self.needs_reformat.write().unwrap() = false;
-            *self.last_dims.write().unwrap() = (width, content_height);
+            *self.formatted_content.write() = formatted;
+            *self.needs_reformat.write() = false;
+            *self.last_dims.write() = (width, content_height);
 
             // Maintain follow mode position
             if self.following {
@@ -866,7 +866,7 @@ impl PageModel for LogsPage {
         let filter_bar = self.render_filter_bar(theme, width);
 
         // Render viewport content
-        let content = self.viewport.read().unwrap().view();
+        let content = self.viewport.read().view();
 
         // Render status bar
         let status = self.render_status_bar(theme, width);
@@ -885,10 +885,10 @@ impl PageModel for LogsPage {
 
     fn on_enter(&mut self) -> Option<Cmd> {
         // Mark content for reformatting when page becomes active
-        *self.needs_reformat.write().unwrap() = true;
+        *self.needs_reformat.write() = true;
         self.focus = LogsFocus::Viewport;
         if self.following {
-            self.viewport.write().unwrap().goto_bottom();
+            self.viewport.write().goto_bottom();
         }
         None
     }

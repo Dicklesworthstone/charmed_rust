@@ -15,7 +15,7 @@
 //! Uses `RwLock` for thread-safe interior mutability, enabling SSH mode.
 
 use std::collections::HashMap;
-use std::sync::RwLock;
+use parking_lot::RwLock;
 
 use bubbles::viewport::Viewport;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message};
@@ -143,13 +143,13 @@ impl DocsPage {
     /// Toggle syntax highlighting on/off.
     pub fn toggle_syntax_highlighting(&mut self) {
         self.syntax_highlighting = !self.syntax_highlighting;
-        *self.needs_render.write().unwrap() = true;
+        *self.needs_render.write() = true;
     }
 
     /// Toggle line numbers on/off.
     pub fn toggle_line_numbers(&mut self) {
         self.line_numbers = !self.line_numbers;
-        *self.needs_render.write().unwrap() = true;
+        *self.needs_render.write() = true;
     }
 
     /// Check if syntax highlighting is enabled.
@@ -171,16 +171,16 @@ impl DocsPage {
 
     /// Save the current scroll position for the current document.
     fn save_scroll_position(&mut self) {
-        let offset = self.viewport.read().unwrap().y_offset();
+        let offset = self.viewport.read().y_offset();
         self.scroll_positions.insert(self.current_index, offset);
     }
 
     /// Restore the scroll position for the current document.
     fn restore_scroll_position(&self) {
         if let Some(&offset) = self.scroll_positions.get(&self.current_index) {
-            self.viewport.write().unwrap().set_y_offset(offset);
+            self.viewport.write().set_y_offset(offset);
         } else {
-            self.viewport.write().unwrap().goto_top();
+            self.viewport.write().goto_top();
         }
     }
 
@@ -192,7 +192,7 @@ impl DocsPage {
             self.save_scroll_position();
             // Change document
             self.current_index = index;
-            *self.needs_render.write().unwrap() = true;
+            *self.needs_render.write() = true;
             // Clear search state when changing documents
             self.search_query.clear();
             self.search_matches.clear();
@@ -205,7 +205,7 @@ impl DocsPage {
         if !self.entries.is_empty() {
             self.save_scroll_position();
             self.current_index = (self.current_index + 1) % self.entries.len();
-            *self.needs_render.write().unwrap() = true;
+            *self.needs_render.write() = true;
             // Restore position for new document (or reset to top)
             self.restore_scroll_position();
         }
@@ -220,7 +220,7 @@ impl DocsPage {
             } else {
                 self.current_index -= 1;
             }
-            *self.needs_render.write().unwrap() = true;
+            *self.needs_render.write() = true;
             // Restore position for new document (or reset to top)
             self.restore_scroll_position();
         }
@@ -283,7 +283,7 @@ impl DocsPage {
         if let Some(m) = self.search_matches.get(self.current_match) {
             // Scroll viewport to show the match line
             // Center the match in the viewport if possible
-            let viewport = self.viewport.read().unwrap();
+            let viewport = self.viewport.read();
             let visible_lines = viewport.height;
             drop(viewport);
 
@@ -292,7 +292,7 @@ impl DocsPage {
             } else {
                 0
             };
-            self.viewport.write().unwrap().set_y_offset(target_offset);
+            self.viewport.write().set_y_offset(target_offset);
         }
     }
 
@@ -441,10 +441,10 @@ impl DocsPage {
         let is_searching = self.focus == DocsFocus::Search;
 
         // Get viewport content
-        let viewport_content = self.viewport.read().unwrap().view();
+        let viewport_content = self.viewport.read().view();
 
         // Render scroll indicator
-        let viewport = self.viewport.read().unwrap();
+        let viewport = self.viewport.read();
         let total = viewport.total_line_count();
         let visible = viewport.height;
         let offset = viewport.y_offset();
@@ -627,11 +627,11 @@ impl PageModel for DocsPage {
 
                 // Ctrl+D/U for half-page scrolling (content focused)
                 KeyType::CtrlD if self.focus == DocsFocus::Content => {
-                    self.viewport.write().unwrap().half_page_down();
+                    self.viewport.write().half_page_down();
                     return None;
                 }
                 KeyType::CtrlU if self.focus == DocsFocus::Content => {
-                    self.viewport.write().unwrap().half_page_up();
+                    self.viewport.write().half_page_up();
                     return None;
                 }
 
@@ -662,7 +662,7 @@ impl PageModel for DocsPage {
                             if self.focus == DocsFocus::List {
                                 self.next_doc();
                             } else {
-                                self.viewport.write().unwrap().scroll_down(1);
+                                self.viewport.write().scroll_down(1);
                             }
                             return None;
                         }
@@ -670,16 +670,16 @@ impl PageModel for DocsPage {
                             if self.focus == DocsFocus::List {
                                 self.prev_doc();
                             } else {
-                                self.viewport.write().unwrap().scroll_up(1);
+                                self.viewport.write().scroll_up(1);
                             }
                             return None;
                         }
                         ['g'] if self.focus == DocsFocus::Content => {
-                            self.viewport.write().unwrap().goto_top();
+                            self.viewport.write().goto_top();
                             return None;
                         }
                         ['G'] if self.focus == DocsFocus::Content => {
-                            self.viewport.write().unwrap().goto_bottom();
+                            self.viewport.write().goto_bottom();
                             return None;
                         }
                         ['l' | 'h'] if self.focus == DocsFocus::List => {
@@ -706,7 +706,7 @@ impl PageModel for DocsPage {
                     if self.focus == DocsFocus::List {
                         self.next_doc();
                     } else {
-                        self.viewport.write().unwrap().scroll_down(1);
+                        self.viewport.write().scroll_down(1);
                     }
                     return None;
                 }
@@ -714,7 +714,7 @@ impl PageModel for DocsPage {
                     if self.focus == DocsFocus::List {
                         self.prev_doc();
                     } else {
-                        self.viewport.write().unwrap().scroll_up(1);
+                        self.viewport.write().scroll_up(1);
                     }
                     return None;
                 }
@@ -729,19 +729,19 @@ impl PageModel for DocsPage {
 
                 // Page navigation (content only)
                 KeyType::PgUp if self.focus == DocsFocus::Content => {
-                    self.viewport.write().unwrap().page_up();
+                    self.viewport.write().page_up();
                     return None;
                 }
                 KeyType::PgDown if self.focus == DocsFocus::Content => {
-                    self.viewport.write().unwrap().page_down();
+                    self.viewport.write().page_down();
                     return None;
                 }
                 KeyType::Home if self.focus == DocsFocus::Content => {
-                    self.viewport.write().unwrap().goto_top();
+                    self.viewport.write().goto_top();
                     return None;
                 }
                 KeyType::End if self.focus == DocsFocus::Content => {
-                    self.viewport.write().unwrap().goto_bottom();
+                    self.viewport.write().goto_bottom();
                     return None;
                 }
 
@@ -751,7 +751,7 @@ impl PageModel for DocsPage {
 
         // Delegate to viewport for mouse wheel handling (when content focused)
         if self.focus == DocsFocus::Content {
-            self.viewport.write().unwrap().update(msg);
+            self.viewport.write().update(msg);
         }
 
         None
@@ -770,35 +770,35 @@ impl PageModel for DocsPage {
         let content_height = height.saturating_sub(2);
 
         // Check if dimensions or theme changed
-        let last_dims = *self.last_dims.read().unwrap();
+        let last_dims = *self.last_dims.read();
         let needs_resize = last_dims.0 != actual_content_width || last_dims.1 != content_height;
 
         let theme_name = theme.preset.name().to_string();
-        let last_theme = self.last_theme.read().unwrap().clone();
+        let last_theme = self.last_theme.read().clone();
         let theme_changed = theme_name != last_theme;
 
-        let needs_render = *self.needs_render.read().unwrap();
+        let needs_render = *self.needs_render.read();
 
         if needs_resize || theme_changed || needs_render {
             // Update viewport dimensions (account for header and separator)
             let viewport_height = content_height.saturating_sub(2);
-            let mut viewport = self.viewport.write().unwrap();
+            let mut viewport = self.viewport.write();
             viewport.width = actual_content_width;
             viewport.height = viewport_height;
 
             // Render markdown with glamour
             let rendered = self.render_markdown(theme, actual_content_width);
             viewport.set_content(&rendered);
-            *self.rendered_content.write().unwrap() = rendered;
+            *self.rendered_content.write() = rendered;
 
             // Restore scroll position after re-render
             drop(viewport);
             self.restore_scroll_position();
 
             // Update cache state
-            *self.needs_render.write().unwrap() = false;
-            *self.last_dims.write().unwrap() = (actual_content_width, content_height);
-            *self.last_theme.write().unwrap() = theme_name;
+            *self.needs_render.write() = false;
+            *self.last_dims.write() = (actual_content_width, content_height);
+            *self.last_theme.write() = theme_name;
         }
 
         // Render panels
@@ -829,7 +829,7 @@ impl PageModel for DocsPage {
 
     fn on_enter(&mut self) -> Option<Cmd> {
         // Mark content for re-rendering when page becomes active
-        *self.needs_render.write().unwrap() = true;
+        *self.needs_render.write() = true;
         self.focus = DocsFocus::List;
         None
     }
@@ -924,10 +924,10 @@ mod tests {
                 .map(|i| format!("Line {i}"))
                 .collect::<Vec<_>>()
                 .join("\n");
-            page.viewport.write().unwrap().set_content(&content);
+            page.viewport.write().set_content(&content);
 
             // Set viewport y_offset and save it - this simulates scrolling down
-            page.viewport.write().unwrap().set_y_offset(5);
+            page.viewport.write().set_y_offset(5);
             page.save_scroll_position();
             assert_eq!(page.scroll_positions.get(&0), Some(&5));
 
@@ -935,7 +935,7 @@ mod tests {
             page.next_doc();
             assert_eq!(page.current_index, 1);
             // Doc 1 should restore to 0 (no saved position)
-            assert_eq!(page.viewport.read().unwrap().y_offset(), 0);
+            assert_eq!(page.viewport.read().y_offset(), 0);
 
             // Navigate back to doc 0
             page.prev_doc();
@@ -946,7 +946,7 @@ mod tests {
 
             // Check scroll position is restored
             assert_eq!(
-                page.viewport.read().unwrap().y_offset(),
+                page.viewport.read().y_offset(),
                 5,
                 "Scroll position should be restored"
             );
@@ -962,7 +962,7 @@ mod tests {
             assert_eq!(page.current_index, 1);
 
             // Selecting same doc should not change anything
-            let _needs_render = *page.needs_render.read().unwrap();
+            let _needs_render = *page.needs_render.read();
             page.select_doc(1);
             // Note: needs_render won't change if index is same
         }
@@ -1324,15 +1324,15 @@ mod tests {
         page.toggle_syntax_highlighting();
         assert!(!page.syntax_highlighting);
         assert!(
-            *page.needs_render.read().unwrap(),
+            *page.needs_render.read(),
             "Should need re-render after toggle"
         );
 
-        *page.needs_render.write().unwrap() = false;
+        *page.needs_render.write() = false;
         page.toggle_syntax_highlighting();
         assert!(page.syntax_highlighting);
         assert!(
-            *page.needs_render.read().unwrap(),
+            *page.needs_render.read(),
             "Should need re-render after toggle"
         );
     }
@@ -1345,15 +1345,15 @@ mod tests {
         page.toggle_line_numbers();
         assert!(page.line_numbers);
         assert!(
-            *page.needs_render.read().unwrap(),
+            *page.needs_render.read(),
             "Should need re-render after toggle"
         );
 
-        *page.needs_render.write().unwrap() = false;
+        *page.needs_render.write() = false;
         page.toggle_line_numbers();
         assert!(!page.line_numbers);
         assert!(
-            *page.needs_render.read().unwrap(),
+            *page.needs_render.read(),
             "Should need re-render after toggle"
         );
     }

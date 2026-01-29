@@ -17,7 +17,7 @@
 //! - Breadcrumb path display
 
 use std::path::PathBuf;
-use std::sync::RwLock;
+use parking_lot::RwLock;
 
 use bubbles::filepicker::FilePicker;
 use bubbles::viewport::Viewport;
@@ -293,7 +293,7 @@ impl FilesPage {
                 self.virtual_entries = children;
                 self.selected = 0;
                 self.scroll_offset = 0;
-                self.preview_viewport.write().unwrap().set_content("");
+                self.preview_viewport.write().set_content("");
                 self.preview_name = None;
                 self.preview_truncated = false;
             } else if let Some(content) = content_opt {
@@ -308,7 +308,7 @@ impl FilesPage {
                 } else {
                     (content, false)
                 };
-                let mut viewport = self.preview_viewport.write().unwrap();
+                let mut viewport = self.preview_viewport.write();
                 viewport.set_content(&truncated_content);
                 viewport.goto_top();
                 self.preview_name = Some(name.to_string());
@@ -400,7 +400,7 @@ impl FilesPage {
     /// Set a preview error and clear content (bd-2id5).
     #[allow(dead_code)]
     fn set_preview_error(&mut self, error: FilePreviewError) {
-        self.preview_viewport.write().unwrap().set_content("");
+        self.preview_viewport.write().set_content("");
         self.raw_content = None;
         self.is_markdown = false;
         self.preview_truncated = false;
@@ -494,28 +494,27 @@ impl FilesPage {
                 if self.is_markdown {
                     self.raw_content = Some(truncated_content.clone());
                     // Clear viewport - will be filled in render_preview with proper theme
-                    self.preview_viewport.write().unwrap().set_content("");
+                    self.preview_viewport.write().set_content("");
                     // Force re-render by clearing last dimensions
-                    *self.last_width.write().unwrap() = 0;
-                    self.last_theme.write().unwrap().clear();
+                    *self.last_width.write() = 0;
+                    self.last_theme.write().clear();
                 } else {
                     // Non-markdown: show raw content directly
                     self.raw_content = None;
                     self.preview_viewport
                         .write()
-                        .unwrap()
                         .set_content(&truncated_content);
                 }
                 self.preview_truncated = was_truncated;
             } else {
-                self.preview_viewport.write().unwrap().set_content("");
+                self.preview_viewport.write().set_content("");
                 self.raw_content = None;
                 self.preview_truncated = false;
             }
             // Reset scroll position when switching files
-            self.preview_viewport.write().unwrap().goto_top();
+            self.preview_viewport.write().goto_top();
         } else {
-            self.preview_viewport.write().unwrap().set_content("");
+            self.preview_viewport.write().set_content("");
             self.preview_name = None;
             self.raw_content = None;
             self.is_markdown = false;
@@ -660,23 +659,22 @@ impl FilesPage {
         if self.is_markdown {
             if let Some(ref raw) = self.raw_content {
                 // Re-render if width or theme changed
-                let last_w = *self.last_width.read().unwrap();
-                let last_t = self.last_theme.read().unwrap().clone();
+                let last_w = *self.last_width.read();
+                let last_t = self.last_theme.read().clone();
                 if last_w != width || last_t != theme_name {
                     let content_width = width.saturating_sub(2);
                     let rendered = self.render_markdown(raw, theme, content_width);
                     self.preview_viewport
                         .write()
-                        .unwrap()
                         .set_content(&rendered);
-                    *self.last_width.write().unwrap() = width;
-                    *self.last_theme.write().unwrap() = theme_name;
+                    *self.last_width.write() = width;
+                    *self.last_theme.write() = theme_name;
                 }
             }
         }
 
         // Content via viewport
-        let viewport = self.preview_viewport.read().unwrap();
+        let viewport = self.preview_viewport.read();
         let has_content =
             viewport.total_line_count() > 0 || (self.is_markdown && self.raw_content.is_some());
         if has_content {
@@ -848,19 +846,18 @@ impl FilesPage {
 
         if self.is_markdown {
             self.raw_content = Some(truncated_content);
-            self.preview_viewport.write().unwrap().set_content("");
-            *self.last_width.write().unwrap() = 0;
-            self.last_theme.write().unwrap().clear();
+            self.preview_viewport.write().set_content("");
+            *self.last_width.write() = 0;
+            self.last_theme.write().clear();
         } else {
             self.raw_content = None;
             self.preview_viewport
                 .write()
-                .unwrap()
                 .set_content(&truncated_content);
         }
 
         self.preview_truncated = was_truncated;
-        self.preview_viewport.write().unwrap().goto_top();
+        self.preview_viewport.write().goto_top();
 
         Ok(())
     }
@@ -887,7 +884,7 @@ impl PageModel for FilesPage {
 
             // When preview is focused, delegate scroll keys to viewport
             if self.preview_focused {
-                let mut viewport = self.preview_viewport.write().unwrap();
+                let mut viewport = self.preview_viewport.write();
                 match key.key_type {
                     KeyType::Up => viewport.scroll_up(1),
                     KeyType::Down => viewport.scroll_down(1),
@@ -911,14 +908,14 @@ impl PageModel for FilesPage {
                             drop(viewport);
                             self.toggle_syntax_highlighting();
                             // Force re-render
-                            *self.last_width.write().unwrap() = 0;
+                            *self.last_width.write() = 0;
                         }
                         // Toggle line numbers with '#' for markdown files
                         ['#'] if self.is_markdown => {
                             drop(viewport);
                             self.toggle_line_numbers();
                             // Force re-render
-                            *self.last_width.write().unwrap() = 0;
+                            *self.last_width.write() = 0;
                         }
                         _ => {}
                     },
@@ -1142,7 +1139,7 @@ mod tests {
     #[test]
     fn files_page_viewport_initialized() {
         let page = FilesPage::new();
-        assert_eq!(page.preview_viewport.read().unwrap().total_line_count(), 0);
+        assert_eq!(page.preview_viewport.read().total_line_count(), 0);
         assert!(!page.preview_truncated);
     }
 
@@ -1162,7 +1159,7 @@ mod tests {
 
             // Verify content was loaded into viewport
             assert!(
-                page.preview_viewport.read().unwrap().total_line_count() > 0
+                page.preview_viewport.read().total_line_count() > 0
                     || page.preview_name.is_some()
             );
         }
