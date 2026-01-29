@@ -11,7 +11,7 @@ use bubbletea::{
 };
 use lipgloss::{Position, Style};
 
-use crate::components::{Sidebar, SidebarFocus, StatusLevel, banner, key_hint};
+use crate::components::{CommandPalette, GuidedTour, NotesModal, NotesModalMsg, Sidebar, SidebarFocus, StatusLevel, banner, key_hint};
 use crate::config::Config;
 use crate::keymap::{HELP_SECTIONS, help_total_lines};
 use crate::messages::{
@@ -322,6 +322,12 @@ pub struct App {
     /// When false, animations may be paused and a visual indicator is shown.
     /// Defaults to true (focused) until a BlurMsg is received.
     focused: bool,
+    /// Command palette for quick action access (bd-3mtt).
+    command_palette: CommandPalette,
+    /// Notes scratchpad modal (bd-1xvj).
+    notes_modal: NotesModal,
+    /// Guided tour walkthrough (bd-2eky).
+    guided_tour: GuidedTour,
 }
 
 impl App {
@@ -366,6 +372,9 @@ impl App {
             force_ascii: false,
             is_headless,
             focused: true, // Default to focused until BlurMsg received (bd-1fxl)
+            command_palette: CommandPalette::new(),
+            notes_modal: NotesModal::new(),
+            guided_tour: GuidedTour::new(),
         }
     }
 
@@ -619,6 +628,21 @@ impl App {
 
     /// Handle global keyboard shortcuts.
     fn handle_global_key(&mut self, key: &KeyMsg) -> Option<Cmd> {
+        // Handle notes modal input (highest priority when open)
+        if self.notes_modal.is_open() {
+            return self.notes_modal.update(Message::new(key.clone()));
+        }
+
+        // Handle command palette input (highest priority after overlays)
+        if self.command_palette.visible {
+            return self.command_palette.handle_key(key);
+        }
+
+        // Handle guided tour input (bd-2eky)
+        if self.guided_tour.is_active() {
+            return self.guided_tour.update(&Message::new(key.clone()));
+        }
+
         // Handle help overlay scrolling
         if self.show_help {
             return self.handle_help_key(key);
@@ -663,6 +687,16 @@ impl App {
                     self.help_scroll_offset = 0;
                     return None;
                 }
+                ['/'] => {
+                    // Show command palette (bd-3mtt)
+                    self.command_palette.show();
+                    return None;
+                }
+                ['N'] => {
+                    // Open notes scratchpad (bd-1xvj)
+                    self.notes_modal.open();
+                    return None;
+                }
                 ['['] => {
                     self.sidebar_visible = !self.sidebar_visible;
                     return None;
@@ -698,6 +732,10 @@ impl App {
                         "Diagnostics unavailable in headless mode",
                     ));
                     return None;
+                }
+                ['g'] => {
+                    // Start guided tour (bd-2eky)
+                    return self.guided_tour.start();
                 }
                 [c] => {
                     if let Some(page) = Page::from_shortcut(*c) {
@@ -1278,6 +1316,52 @@ impl Model for App {
             return None;
         }
 
+        // Handle notes modal messages (bd-1xvj)
+        if let Some(notes_msg) = msg.downcast_ref::<NotesModalMsg>() {
+            match notes_msg {
+                NotesModalMsg::Saved(content) => {
+                    // Emit log entry + toast notification
+                    let id = self.next_notification_id;
+                    self.next_notification_id += 1;
+                    let preview = if content.len() > 30 {
+                        format!("{}...", &content[..30])
+                    } else {
+                        content.clone()
+                    };
+                    self.notifications
+                        .push(Notification::success(id, format!("Note saved: {preview}")));
+                    while self.notifications.len() > MAX_NOTIFICATIONS {
+                        self.notifications.remove(0);
+                    }
+                    // Also emit println for logging
+                    return Some(println(format!("[notes] Saved: {}", content.lines().next().unwrap_or(""))));
+                }
+                NotesModalMsg::Copied(content) => {
+                    let id = self.next_notification_id;
+                    self.next_notification_id += 1;
+                    let chars = content.len();
+                    self.notifications
+                        .push(Notification::info(id, format!("Copied {chars} chars to clipboard")));
+                    while self.notifications.len() > MAX_NOTIFICATIONS {
+                        self.notifications.remove(0);
+                    }
+                }
+                NotesModalMsg::Cleared => {
+                    let id = self.next_notification_id;
+                    self.next_notification_id += 1;
+                    self.notifications
+                        .push(Notification::info(id, "Note cleared"));
+                    while self.notifications.len() > MAX_NOTIFICATIONS {
+                        self.notifications.remove(0);
+                    }
+                }
+                NotesModalMsg::Closed => {
+                    // Modal closed without saving - no notification needed
+                }
+            }
+            return None;
+        }
+
         // Handle keyboard input
         if let Some(key) = msg.downcast_ref::<KeyMsg>()
             && let Some(cmd) = self.handle_global_key(key)
@@ -1337,14 +1421,38 @@ impl Model for App {
         };
 
         // Build final layout: header, content, notifications (if any), footer
-        if notifications.is_empty() {
+        let base_view = if notifications.is_empty() {
             lipgloss::join_vertical(Position::Left, &[&header, &main_area, &footer])
         } else {
             lipgloss::join_vertical(
                 Position::Left,
                 &[&header, &main_area, &notifications, &footer],
             )
+        };
+
+        // Render command palette overlay if visible (bd-3mtt)
+        if self.command_palette.visible {
+            let palette_view = self.command_palette.view(self.width, self.height, &self.theme);
+            // The palette is a centered overlay; return it instead of compositing
+            // since we want it to fully occupy the screen
+            return palette_view;
         }
+
+        // Render guided tour overlay if active (bd-2eky)
+        if self.guided_tour.is_active() {
+            let tour_view = self.guided_tour.view(&self.theme, self.width, self.height);
+            // The tour is a centered overlay
+            return tour_view;
+        }
+
+        // Render notes modal overlay if visible (bd-1xvj)
+        if self.notes_modal.is_open() {
+            let modal_view = self.notes_modal.view_centered(&self.theme, self.width, self.height);
+            // The modal is a centered overlay; return it instead of compositing
+            return modal_view;
+        }
+
+        base_view
     }
 }
 

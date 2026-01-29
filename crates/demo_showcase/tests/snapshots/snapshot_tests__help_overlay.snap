@@ -22,6 +22,8 @@ expression: view
                                       1-7  Jump to page                     
                                         [  Toggle sidebar                   
                                         t  Cycle theme                      
+                                        /  Command palette                  
+                                        N  Notes scratchpad                 
                                     e / E  Export (txt / html)              
                                         D  Open diagnostics                 
                                       Tab  Focus next pane                  
@@ -32,7 +34,5 @@ expression: view
                                     k / ↑  Move up                          
                                     h / ←  Left / collapse                  
                                     l / →  Right / expand                   
-                                 g / Home  Go to top                        
-                                  G / End  Go to bottom                     
                                                                             
                         j/k scroll  q/?/Esc close  [  0%]

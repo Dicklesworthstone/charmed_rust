@@ -10,10 +10,16 @@
 
 #![allow(dead_code)] // Components will be used by pages as they're implemented
 
+mod command_palette;
+mod guided_tour;
 mod interaction_counter;
+mod notes_modal;
 mod sidebar;
 
+pub use command_palette::{CommandAction, CommandCategory, CommandPalette, CommandPaletteMsg};
+pub use guided_tour::{GuidedTour, GuidedTourMsg};
 pub use interaction_counter::{CounterMsg, InteractionCounter};
+pub use notes_modal::{NotesModal, NotesModalMsg};
 pub use sidebar::{Sidebar, SidebarFocus};
 
 use crate::theme::{Theme, spacing};

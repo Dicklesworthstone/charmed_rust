@@ -448,6 +448,8 @@ pub const HELP_GLOBAL: HelpSection = HelpSection {
         HelpEntry::new("1-7", "Jump to page"),
         HelpEntry::new("[", "Toggle sidebar"),
         HelpEntry::new("t", "Cycle theme"),
+        HelpEntry::new("/", "Command palette"),
+        HelpEntry::new("N", "Notes scratchpad"),
         HelpEntry::new("e / E", "Export (txt / html)"),
         HelpEntry::new("D", "Open diagnostics"),
         HelpEntry::new("Tab", "Focus next pane"),
