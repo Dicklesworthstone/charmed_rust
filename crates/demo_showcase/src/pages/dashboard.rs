@@ -55,6 +55,19 @@ pub struct DetailsPanel {
     pub selected_index: usize,
 }
 
+/// SLA urgency level based on remaining time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlaUrgency {
+    /// Plenty of time remaining (> 1 hour).
+    Normal,
+    /// Getting close (15 min - 1 hour).
+    Warning,
+    /// Critical (< 15 minutes).
+    Critical,
+    /// SLA breached (0 or negative).
+    Breached,
+}
+
 impl DashboardCard {
     /// Get the navigation target page for this card, if any.
     #[must_use]
@@ -121,6 +134,9 @@ pub struct DashboardPage {
     card_bounds: RwLock<CardBounds>,
     /// Drill-down details panel state (bd-qkxb).
     details_panel: DetailsPanel,
+    /// Incident SLA countdown in seconds (None = no active incident).
+    /// Simulates an SLA timer that counts down. (bd-39hl)
+    incident_sla_seconds: Option<u64>,
 }
 
 /// Bounds for dashboard cards used for mouse hit testing.
@@ -175,6 +191,8 @@ impl DashboardPage {
             selected_card: DashboardCard::None,
             card_bounds: RwLock::new(CardBounds::default()),
             details_panel: DetailsPanel::default(),
+            // Simulate an active incident with 45 minutes SLA remaining (bd-39hl)
+            incident_sla_seconds: Some(45 * 60),
         }
     }
 
@@ -253,6 +271,11 @@ impl DashboardPage {
         if self.ticks_since_uptime >= 10 {
             self.ticks_since_uptime = 0;
             self.uptime_seconds += 1;
+
+            // Decrement incident SLA countdown (bd-39hl)
+            if let Some(sla) = self.incident_sla_seconds.as_mut() {
+                *sla = sla.saturating_sub(1);
+            }
         }
 
         // Convert metric health changes to notifications
@@ -369,6 +392,56 @@ impl DashboardPage {
         } else {
             format!("{minutes}m")
         }
+    }
+
+    /// Format uptime as DD:HH:MM:SS stopwatch format (bd-39hl).
+    fn format_uptime_stopwatch(&self) -> String {
+        let days = self.uptime_seconds / 86400;
+        let hours = (self.uptime_seconds % 86400) / 3600;
+        let minutes = (self.uptime_seconds % 3600) / 60;
+        let seconds = self.uptime_seconds % 60;
+
+        format!("{days:02}:{hours:02}:{minutes:02}:{seconds:02}")
+    }
+
+    /// Format SLA countdown as HH:MM:SS (bd-39hl).
+    fn format_sla_countdown(sla_seconds: u64) -> String {
+        let hours = sla_seconds / 3600;
+        let minutes = (sla_seconds % 3600) / 60;
+        let seconds = sla_seconds % 60;
+
+        if hours > 0 {
+            format!("{hours:02}:{minutes:02}:{seconds:02}")
+        } else {
+            format!("{minutes:02}:{seconds:02}")
+        }
+    }
+
+    /// Determine SLA urgency level based on remaining time (bd-39hl).
+    fn sla_urgency(sla_seconds: u64) -> SlaUrgency {
+        if sla_seconds == 0 {
+            SlaUrgency::Breached
+        } else if sla_seconds < 15 * 60 {
+            // Less than 15 minutes
+            SlaUrgency::Critical
+        } else if sla_seconds < 60 * 60 {
+            // Less than 1 hour
+            SlaUrgency::Warning
+        } else {
+            SlaUrgency::Normal
+        }
+    }
+
+    /// Get the incident SLA remaining seconds, if any.
+    #[must_use]
+    pub const fn incident_sla(&self) -> Option<u64> {
+        self.incident_sla_seconds
+    }
+
+    /// Set the incident SLA countdown (for testing).
+    #[allow(dead_code)]
+    pub fn set_incident_sla(&mut self, seconds: Option<u64>) {
+        self.incident_sla_seconds = seconds;
     }
 
     // ========================================================================

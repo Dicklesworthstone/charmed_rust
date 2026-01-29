@@ -169,7 +169,7 @@ const TOUR_STEPS: &[TourStep] = &[
     },
     TourStep {
         title: "Global Features",
-        description: "Try these features anywhere: '?' for help overlay, '/' for command palette, '!' (shift+1) to restart this tour. The sidebar (Tab) provides navigation.",
+        description: "Try these features anywhere: '?' for help overlay, '/' for command palette, '`' (backtick) to restart this tour. The sidebar (Tab) provides navigation.",
         page: Page::Dashboard,
         feature: "bubbletea (routing)",
         tips: &[
@@ -185,7 +185,7 @@ const TOUR_STEPS: &[TourStep] = &[
         feature: "The Full Stack",
         tips: &[
             "Explore any page at your own pace",
-            "Press '!' (shift+1) to restart the tour",
+            "Press '`' (backtick) to restart the tour",
             "Check out the source code!",
         ],
     },

@@ -744,7 +744,7 @@ impl App {
                     ));
                     return None;
                 }
-                ['!'] => {
+                ['`'] => {
                     // Start guided tour (bd-2eky)
                     return self.guided_tour.start();
                 }

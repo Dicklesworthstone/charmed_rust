@@ -251,8 +251,15 @@ impl Sidebar {
     }
 
     /// Render the sidebar.
+    ///
+    /// # Arguments
+    ///
+    /// * `height` - Height in lines
+    /// * `theme` - Theme for styling
+    /// * `focus_intensity` - Animation intensity for focus state (0.0 to 1.0)
+    ///   Used for smooth focus transitions (bd-30md).
     #[must_use]
-    pub fn view(&self, height: usize, theme: &Theme) -> String {
+    pub fn view(&self, height: usize, theme: &Theme, focus_intensity: f64) -> String {
         let sidebar_width = spacing::SIDEBAR_WIDTH;
         let all_pages = Page::all();
 
@@ -287,11 +294,18 @@ impl Sidebar {
         #[expect(clippy::cast_possible_truncation)]
         let height_u16 = height as u16;
 
-        theme
-            .sidebar_style()
-            .height(height_u16)
-            .width(sidebar_width)
-            .render(&format!("{nav}{padding_str}"))
+        // Apply focus highlight border when focused (bd-30md)
+        // The border_right appears when focus_intensity > 0.5
+        let base_style = theme.sidebar_style().height(height_u16).width(sidebar_width);
+        let styled = if focus_intensity > 0.5 {
+            base_style
+                .border_right(true)
+                .border_foreground(theme.primary)
+        } else {
+            base_style
+        };
+
+        styled.render(&format!("{nav}{padding_str}"))
     }
 
     /// Get the style for an item.
