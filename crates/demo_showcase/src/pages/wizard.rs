@@ -2,6 +2,17 @@
 //!
 //! This page demonstrates huh form integration by guiding users through
 //! a realistic "Deploy a Service" workflow with validation and progress.
+//!
+//! ## Error States (bd-2fty)
+//!
+//! The wizard simulates realistic backend errors to demonstrate polished
+//! error handling:
+//!
+//! - **Permission denied** - For production deployments (simulated 15% chance)
+//! - **Network timeout** - Transient failures (simulated 10% chance)
+//! - **Conflict** - Service name already exists (deterministic for "api-*" names)
+//!
+//! Recovery flows allow retrying or backing out safely.
 
 use bubbletea::{Cmd, KeyMsg, KeyType, Message};
 // Note: huh components would be used in a more complete implementation
@@ -9,7 +20,7 @@ use bubbletea::{Cmd, KeyMsg, KeyType, Message};
 use lipgloss::Style;
 
 use super::PageModel;
-use crate::messages::{Page, WizardDeploymentConfig, WizardMsg};
+use crate::messages::{Notification, NotificationMsg, Page, WizardDeploymentConfig, WizardMsg};
 use crate::theme::Theme;
 
 /// Service type options for deployment.
@@ -108,15 +119,66 @@ const ENV_VARS: &[EnvVar] = &[
     },
 ];
 
+/// Simulated backend error types (bd-2fty).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SimulatedError {
+    /// Permission denied (e.g., production deployment without approval).
+    PermissionDenied,
+    /// Network/timeout error (transient, can retry).
+    NetworkTimeout,
+    /// Conflict - resource already exists.
+    Conflict(String),
+}
+
+impl SimulatedError {
+    /// Get a user-friendly error message.
+    #[must_use]
+    pub fn message(&self) -> String {
+        match self {
+            Self::PermissionDenied => {
+                "Permission denied: production deployments require admin approval".to_string()
+            }
+            Self::NetworkTimeout => {
+                "Network timeout: failed to reach deployment service (retryable)".to_string()
+            }
+            Self::Conflict(name) => {
+                format!("Conflict: service '{name}' already exists in this environment")
+            }
+        }
+    }
+
+    /// Whether this error is retryable.
+    #[must_use]
+    pub const fn is_retryable(&self) -> bool {
+        match self {
+            Self::PermissionDenied => false,
+            Self::NetworkTimeout => true,
+            Self::Conflict(_) => false,
+        }
+    }
+
+    /// Get recovery hint for the user.
+    #[must_use]
+    pub fn recovery_hint(&self) -> &'static str {
+        match self {
+            Self::PermissionDenied => "Press b to go back and change environment",
+            Self::NetworkTimeout => "Press Enter to retry or b to go back",
+            Self::Conflict(_) => "Press b to go back and change service name",
+        }
+    }
+}
+
 /// Deployment status.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-#[allow(dead_code)]
 pub enum DeploymentStatus {
     #[default]
     NotStarted,
     InProgress(usize),
     Complete,
-    Failed(String),
+    /// Failed with a simulated error.
+    Failed(SimulatedError),
+    /// Failed with a generic error message (legacy compatibility).
+    FailedGeneric(String),
 }
 
 /// Wizard state containing all form data.
@@ -195,6 +257,14 @@ pub struct WizardPage {
     error: Option<String>,
     /// Whether the page is focused.
     focused: bool,
+    /// Field-level error hints (field_index -> hint).
+    field_errors: Vec<Option<String>>,
+    /// Counter for pseudo-random error simulation (deterministic based on name hash).
+    error_seed: u64,
+    /// Number of retry attempts for current deployment.
+    retry_count: u32,
+    /// Next notification ID (for generating unique IDs).
+    next_notification_id: u64,
 }
 
 impl WizardPage {
@@ -206,6 +276,10 @@ impl WizardPage {
             field_index: 0,
             error: None,
             focused: false,
+            field_errors: vec![None; 10], // Pre-allocate for common field counts
+            error_seed: 0,
+            retry_count: 0,
+            next_notification_id: 1000, // Start at 1000 to avoid collisions
         }
     }
 
@@ -214,6 +288,65 @@ impl WizardPage {
         self.state = WizardState::default();
         self.field_index = 0;
         self.error = None;
+        self.field_errors = vec![None; 10];
+        self.retry_count = 0;
+        // Keep error_seed for reproducible behavior within session
+    }
+
+    /// Compute a deterministic error seed from the service name.
+    fn compute_error_seed(&mut self) {
+        // Simple hash for deterministic pseudo-random behavior
+        let mut hash: u64 = 5381;
+        for byte in self.state.name.bytes() {
+            hash = hash.wrapping_mul(33).wrapping_add(u64::from(byte));
+        }
+        self.error_seed = hash;
+    }
+
+    /// Check if a simulated error should occur based on deployment context.
+    ///
+    /// Returns `Some(SimulatedError)` if an error should be simulated.
+    fn check_simulated_error(&self) -> Option<SimulatedError> {
+        // Conflict: service names starting with "api-" are always in conflict
+        if self.state.name.starts_with("api-") || self.state.name == "api" {
+            return Some(SimulatedError::Conflict(self.state.name.clone()));
+        }
+
+        // Use error_seed for deterministic "random" behavior
+        let seed = self.error_seed.wrapping_add(u64::from(self.retry_count));
+
+        // Permission denied: 15% chance for production, never for other envs
+        if self.state.environment == Environment::Production && (seed % 7) == 0 {
+            return Some(SimulatedError::PermissionDenied);
+        }
+
+        // Network timeout: 10% chance on first attempt, less on retries
+        let timeout_threshold = if self.retry_count == 0 { 10 } else { 20 };
+        if (seed % timeout_threshold) == 1 {
+            return Some(SimulatedError::NetworkTimeout);
+        }
+
+        None
+    }
+
+    /// Clear field-level error for the current field.
+    fn clear_field_error(&mut self) {
+        if self.field_index < self.field_errors.len() {
+            self.field_errors[self.field_index] = None;
+        }
+    }
+
+    /// Set field-level error for a specific field.
+    fn set_field_error(&mut self, field_index: usize, message: String) {
+        if field_index >= self.field_errors.len() {
+            self.field_errors.resize(field_index + 1, None);
+        }
+        self.field_errors[field_index] = Some(message);
+    }
+
+    /// Get field-level error for a specific field.
+    fn get_field_error(&self, field_index: usize) -> Option<&String> {
+        self.field_errors.get(field_index).and_then(|e| e.as_ref())
     }
 
     /// Move to the next step if validation passes.
@@ -342,7 +475,7 @@ impl WizardPage {
 
     /// Handle keyboard input.
     fn handle_key(&mut self, key: &KeyMsg) -> Option<Cmd> {
-        // During deployment, only allow viewing
+        // During deployment in progress, only allow viewing
         if self.state.step == 5
             && matches!(
                 self.state.deployment_status,
@@ -352,13 +485,24 @@ impl WizardPage {
             return None;
         }
 
+        // Handle back navigation from failed state
+        let in_failed_state = matches!(
+            self.state.deployment_status,
+            DeploymentStatus::Failed(_) | DeploymentStatus::FailedGeneric(_)
+        );
+
         match key.key_type {
             KeyType::Enter => self.handle_enter(),
             KeyType::Esc => {
-                if self.state.step > 0 {
+                if in_failed_state && self.state.step == 5 {
+                    // From failed state, go back to review step
+                    self.go_back_from_failure()
+                } else if self.state.step > 0 {
                     self.prev_step();
+                    None
+                } else {
+                    None
                 }
-                None
             }
             KeyType::Tab => {
                 self.next_field();
@@ -378,7 +522,9 @@ impl WizardPage {
                     ['k'] => self.handle_up(),
                     [' '] => self.handle_space(),
                     ['b'] => {
-                        if self.state.step > 0 {
+                        if in_failed_state && self.state.step == 5 {
+                            return self.go_back_from_failure();
+                        } else if self.state.step > 0 {
                             self.prev_step();
                         }
                     }
@@ -397,6 +543,52 @@ impl WizardPage {
         }
     }
 
+    /// Go back from a failed deployment state to fix the issue.
+    fn go_back_from_failure(&mut self) -> Option<Cmd> {
+        let error = match &self.state.deployment_status {
+            DeploymentStatus::Failed(err) => Some(err.clone()),
+            _ => None,
+        };
+
+        // Determine which step to go back to based on error type
+        let target_step = match &error {
+            Some(SimulatedError::PermissionDenied) => 1, // Go to config to change env
+            Some(SimulatedError::Conflict(_)) => 1,      // Go to config to change name
+            Some(SimulatedError::NetworkTimeout) => 4,   // Go to review to retry
+            None => 4,                                   // Default to review
+        };
+
+        self.state.step = target_step;
+        self.state.deployment_status = DeploymentStatus::NotStarted;
+        self.state.confirmed = false;
+        self.field_index = match &error {
+            Some(SimulatedError::PermissionDenied) => 2, // Focus on environment field
+            Some(SimulatedError::Conflict(_)) => 0,      // Focus on name field
+            _ => 0,
+        };
+        self.error = None;
+        self.retry_count = 0;
+
+        // Emit navigation notification
+        let id = self.next_notification_id;
+        self.next_notification_id += 1;
+
+        let message = match &error {
+            Some(SimulatedError::PermissionDenied) => {
+                "Returned to configuration - change environment to proceed"
+            }
+            Some(SimulatedError::Conflict(_)) => {
+                "Returned to configuration - change service name to proceed"
+            }
+            _ => "Returned to review - make changes and try again",
+        };
+
+        let notification = Notification::info(id, message);
+        Some(Cmd::new(move || {
+            NotificationMsg::Show(notification).into_message()
+        }))
+    }
+
     /// Handle Enter key.
     ///
     /// Returns a Cmd when deployment starts to emit messages.
@@ -409,15 +601,26 @@ impl WizardPage {
                 None
             }
             5 => {
-                // On deploy step, start deployment if not started
-                if self.state.deployment_status == DeploymentStatus::NotStarted {
-                    self.start_deployment()
-                } else if self.state.deployment_status == DeploymentStatus::Complete {
-                    // Reset wizard on completion
-                    self.reset();
-                    None
-                } else {
-                    None
+                // On deploy step, handle various states
+                match &self.state.deployment_status {
+                    DeploymentStatus::NotStarted => self.start_deployment(),
+                    DeploymentStatus::Complete => {
+                        // Reset wizard on completion
+                        self.reset();
+                        None
+                    }
+                    DeploymentStatus::Failed(err) if err.is_retryable() => {
+                        // Retry deployment for retryable errors
+                        self.retry_deployment()
+                    }
+                    DeploymentStatus::Failed(_) | DeploymentStatus::FailedGeneric(_) => {
+                        // Non-retryable: Enter does nothing, must go back
+                        None
+                    }
+                    DeploymentStatus::InProgress(_) => {
+                        // Still deploying, ignore Enter
+                        None
+                    }
                 }
             }
             _ => {
@@ -425,6 +628,29 @@ impl WizardPage {
                 self.next_step();
                 None
             }
+        }
+    }
+
+    /// Retry a failed deployment.
+    fn retry_deployment(&mut self) -> Option<Cmd> {
+        self.retry_count += 1;
+        self.state.deployment_status = DeploymentStatus::NotStarted;
+        self.error = None;
+
+        // Emit notification about retry
+        let retry_count = self.retry_count;
+        let id = self.next_notification_id;
+        self.next_notification_id += 1;
+
+        let notification = Notification::info(id, format!("Retrying deployment (attempt #{})", retry_count + 1));
+        let notification_cmd = Cmd::new(move || NotificationMsg::Show(notification).into_message());
+
+        // Start the new deployment attempt
+        let start_cmd = self.start_deployment();
+
+        match start_cmd {
+            Some(cmd) => Some(Cmd::batch(vec![Some(notification_cmd), Some(cmd)])),
+            None => Some(notification_cmd),
         }
     }
 
@@ -1158,6 +1384,9 @@ impl WizardPage {
         if self.state.deployment_status != DeploymentStatus::NotStarted {
             return None;
         }
+
+        // Compute error seed for deterministic error simulation
+        self.compute_error_seed();
 
         self.state.deployment_status = DeploymentStatus::InProgress(0);
         let config = self.deployment_config();
