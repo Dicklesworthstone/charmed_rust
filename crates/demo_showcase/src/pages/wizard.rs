@@ -14,7 +14,7 @@
 //!
 //! Recovery flows allow retrying or backing out safely.
 
-use bubbletea::{Cmd, KeyMsg, KeyType, Message};
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, batch};
 // Note: huh components would be used in a more complete implementation
 // For now, we implement a custom form UI to demonstrate the patterns
 use lipgloss::Style;
@@ -128,6 +128,12 @@ pub enum SimulatedError {
     NetworkTimeout,
     /// Conflict - resource already exists.
     Conflict(String),
+}
+
+impl std::fmt::Display for SimulatedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message())
+    }
 }
 
 impl SimulatedError {
@@ -649,7 +655,7 @@ impl WizardPage {
         let start_cmd = self.start_deployment();
 
         match start_cmd {
-            Some(cmd) => Some(Cmd::batch(vec![Some(notification_cmd), Some(cmd)])),
+            Some(cmd) => batch(vec![Some(notification_cmd), Some(cmd)]),
             None => Some(notification_cmd),
         }
     }
@@ -1347,6 +1353,21 @@ impl WizardPage {
                 lines.push(theme.error_style().render("Deployment failed!").to_string());
                 lines.push(format!("Error: {err}"));
             }
+            DeploymentStatus::FailedGeneric(msg) => {
+                for (i, step) in steps.iter().enumerate() {
+                    let icon = if i < 2 {
+                        theme.success_style().render("*")
+                    } else if i == 2 {
+                        theme.error_style().render("x")
+                    } else {
+                        theme.muted_style().render("o")
+                    };
+                    lines.push(format!("  {icon} {step}"));
+                }
+                lines.push(String::new());
+                lines.push(theme.error_style().render("Deployment failed!").to_string());
+                lines.push(format!("Error: {msg}"));
+            }
         }
 
         lines.join("\n")
@@ -1401,6 +1422,14 @@ impl WizardPage {
     /// Returns a Cmd if deployment state changed (progress or completion).
     pub fn tick_deployment(&mut self) -> Option<Cmd> {
         if let DeploymentStatus::InProgress(step) = self.state.deployment_status {
+            // Check for simulated errors at step 2 (after initial progress)
+            // This mimics "Provisioning resources" failing
+            if step == 2 {
+                if let Some(sim_error) = self.check_simulated_error() {
+                    return self.fail_deployment(sim_error);
+                }
+            }
+
             if step < 4 {
                 self.state.deployment_status = DeploymentStatus::InProgress(step + 1);
                 Some(Cmd::new(move || {
@@ -1409,13 +1438,58 @@ impl WizardPage {
             } else {
                 self.state.deployment_status = DeploymentStatus::Complete;
                 let config = self.deployment_config();
-                Some(Cmd::new(move || {
-                    WizardMsg::DeploymentCompleted(config).into_message()
-                }))
+                self.retry_count = 0; // Reset retry count on success
+
+                // Emit success notification
+                let id = self.next_notification_id;
+                self.next_notification_id += 1;
+                let service_name = config.service_name.clone();
+
+                let notification = Notification::success(
+                    id,
+                    format!("Deployment complete: '{service_name}' is now running"),
+                );
+                let notification_cmd =
+                    Cmd::new(move || NotificationMsg::Show(notification).into_message());
+
+                let completed_cmd =
+                    Cmd::new(move || WizardMsg::DeploymentCompleted(config).into_message());
+
+                batch(vec![Some(notification_cmd), Some(completed_cmd)])
             }
         } else {
             None
         }
+    }
+
+    /// Fail the deployment with a simulated error.
+    fn fail_deployment(&mut self, error: SimulatedError) -> Option<Cmd> {
+        let error_message = error.message();
+        let is_retryable = error.is_retryable();
+
+        self.state.deployment_status = DeploymentStatus::Failed(error);
+
+        // Emit error notification
+        let id = self.next_notification_id;
+        self.next_notification_id += 1;
+
+        let notification_msg = if is_retryable {
+            format!("{error_message} (Press Enter to retry)")
+        } else {
+            format!("{error_message} (Press b to go back)")
+        };
+
+        let notification = Notification::error(id, notification_msg.clone());
+        let notification_cmd =
+            Cmd::new(move || NotificationMsg::Show(notification).into_message());
+
+        let failure_cmd =
+            Cmd::new(move || WizardMsg::DeploymentFailed(error_message).into_message());
+
+        batch(vec![
+            Some(notification_cmd),
+            Some(failure_cmd),
+        ])
     }
 
     /// Check if deployment is in progress.
@@ -1472,7 +1546,9 @@ impl PageModel for WizardPage {
                 DeploymentStatus::NotStarted => "Enter start",
                 DeploymentStatus::InProgress(_) => "deploying...",
                 DeploymentStatus::Complete => "Enter new wizard",
-                DeploymentStatus::Failed(_) => "Enter retry  b back",
+                DeploymentStatus::Failed(_) | DeploymentStatus::FailedGeneric(_) => {
+                    "Enter retry  b back"
+                }
             },
             _ => "j/k navigate  Enter select",
         }
