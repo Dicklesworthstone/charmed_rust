@@ -40,3 +40,20 @@ charmed_rust_illustration.png
 
 # NTM agent coordination
 .ntm/
+
+# Profiling artifacts
+perf.data
+perf.data.*
+
+# Screenshots
+Charmed_*.png
+
+# Proptest regression files
+*.proptest-regressions
+
+# Demo showcase ephemeral output
+crates/demo_showcase/demo_*_*.txt
+crates/demo_showcase/demo_showcase_exports/
+
+# Insta snapshot pending files
+*.snap.new

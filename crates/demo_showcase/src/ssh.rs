@@ -132,7 +132,10 @@ impl SshConfig {
                 password: password.clone(),
             }
         } else {
-            // Default: require DEMO_SSH_PASSWORD to be set, or use AcceptAll with warning
+            // No password configured and --no-auth not set: fall back to AcceptAll.
+            // This is insecure — warn the user so they don't accidentally expose a server.
+            eprintln!("Warning: No authentication configured. Use --password or --no-auth to be explicit.");
+            eprintln!("         Accepting all connections (equivalent to --no-auth).");
             AuthMode::AcceptAll
         };
 
