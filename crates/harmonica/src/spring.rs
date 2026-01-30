@@ -64,8 +64,7 @@ pub fn fps(n: u32) -> f64 {
     if n == 0 {
         return 0.0;
     }
-    debug_assert!(n > 0, "fps() requires a non-zero frame rate");
-    1.0 / n as f64
+    1.0 / f64::from(n)
 }
 
 /// Precomputed spring motion parameters for efficient animation updates.

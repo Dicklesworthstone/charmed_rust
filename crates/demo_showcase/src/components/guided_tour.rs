@@ -416,7 +416,9 @@ impl GuidedTour {
             title
         };
         let display_char_count = title_display.chars().count();
-        let available = modal_width.saturating_sub(2).saturating_sub(display_char_count);
+        let available = modal_width
+            .saturating_sub(2)
+            .saturating_sub(display_char_count);
         let title_pad_left = available / 2;
         let title_pad_right = available.saturating_sub(title_pad_left);
         lines.push(format!(
@@ -493,7 +495,10 @@ impl GuidedTour {
             let tip_text = format!("  {}", tip);
             let tip_char_count = tip_text.chars().count();
             let tip_padded = if tip_char_count > content_width {
-                let truncated: String = tip_text.chars().take(content_width.saturating_sub(3)).collect();
+                let truncated: String = tip_text
+                    .chars()
+                    .take(content_width.saturating_sub(3))
+                    .collect();
                 format!("{truncated}...")
             } else {
                 format!("{:width$}", tip_text, width = content_width)

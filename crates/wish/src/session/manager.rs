@@ -191,7 +191,9 @@ impl SessionManager {
     ///
     /// This task periodically scans for stale sessions and removes them.
     pub fn start_cleanup_task(self: &Arc<Self>) {
-        if let Some(handle) = self.cleanup_handle.read().as_ref()
+        // Use write lock for the entire check-and-set to avoid TOCTOU race
+        let mut handle_guard = self.cleanup_handle.write();
+        if let Some(handle) = handle_guard.as_ref()
             && !handle.is_finished()
         {
             debug!("Session cleanup task already running");
@@ -211,7 +213,7 @@ impl SessionManager {
             }
         });
 
-        *self.cleanup_handle.write() = Some(handle);
+        *handle_guard = Some(handle);
         debug!(
             interval_secs = interval.as_secs(),
             "Session cleanup task started"

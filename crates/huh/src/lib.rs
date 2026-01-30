@@ -1788,7 +1788,7 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Select<T> {
         if pos < self.offset {
             self.offset = pos;
         } else if pos >= self.offset + self.height {
-            self.offset = pos.saturating_sub(self.height - 1);
+            self.offset = pos.saturating_sub(self.height.saturating_sub(1));
         }
     }
 
@@ -1949,7 +1949,7 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for Select<T>
             {
                 self.selected = idx;
                 let last_pos = filtered_indices.len().saturating_sub(1);
-                self.offset = last_pos.saturating_sub(self.height - 1);
+                self.offset = last_pos.saturating_sub(self.height.saturating_sub(1));
             }
         }
 
@@ -2230,7 +2230,7 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> MultiSelect<T> {
         if self.cursor < self.offset {
             self.offset = self.cursor;
         } else if self.cursor >= self.offset + self.height {
-            self.offset = self.cursor.saturating_sub(self.height - 1);
+            self.offset = self.cursor.saturating_sub(self.height.saturating_sub(1));
         }
     }
 
@@ -2429,7 +2429,7 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for MultiSele
                 if self.cursor < filtered.len().saturating_sub(1) {
                     self.cursor += 1;
                     if self.cursor >= self.offset + self.height {
-                        self.offset = self.cursor.saturating_sub(self.height - 1);
+                        self.offset = self.cursor.saturating_sub(self.height.saturating_sub(1));
                     }
                 }
             } else if binding_matches(&self.keymap.goto_top, key_msg) {
@@ -2438,7 +2438,7 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for MultiSele
             } else if binding_matches(&self.keymap.goto_bottom, key_msg) {
                 let filtered = self.filtered_options();
                 self.cursor = filtered.len().saturating_sub(1);
-                self.offset = self.cursor.saturating_sub(self.height - 1);
+                self.offset = self.cursor.saturating_sub(self.height.saturating_sub(1));
             }
         }
 
