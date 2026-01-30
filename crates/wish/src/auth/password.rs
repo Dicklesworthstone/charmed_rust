@@ -235,11 +235,12 @@ fn constant_time_eq(a: &str, b: &str) -> bool {
     let a_bytes = a.as_bytes();
     let b_bytes = b.as_bytes();
     let len = a_bytes.len().max(b_bytes.len());
-    let mut result = (a_bytes.len() ^ b_bytes.len()) as u8;
+    // Use usize for result to avoid truncation when lengths differ by ≥256
+    let mut result: usize = a_bytes.len() ^ b_bytes.len();
     for i in 0..len {
         let x = a_bytes.get(i).copied().unwrap_or(0);
         let y = b_bytes.get(i).copied().unwrap_or(0);
-        result |= x ^ y;
+        result |= (x ^ y) as usize;
     }
     result == 0
 }
@@ -415,5 +416,30 @@ mod tests {
             auth.auth_password(&ctx, "wrong").await,
             AuthResult::Reject
         ));
+    }
+
+    #[test]
+    fn test_constant_time_eq_basic() {
+        assert!(constant_time_eq("hello", "hello"));
+        assert!(!constant_time_eq("hello", "world"));
+        assert!(!constant_time_eq("hello", "hell"));
+        assert!(!constant_time_eq("", "a"));
+        assert!(constant_time_eq("", ""));
+    }
+
+    #[test]
+    fn test_constant_time_eq_length_differs_by_256() {
+        // This test verifies the fix for the u8 truncation bug.
+        // With the old code, (0 ^ 256) as u8 == 0, which would incorrectly
+        // seed the result as "equal" for length comparison.
+        let short = "";
+        let long = "a".repeat(256);
+        assert!(!constant_time_eq(short, &long));
+        assert!(!constant_time_eq(&long, short));
+
+        // Also test non-empty strings differing by 256
+        let a = "x";
+        let b = "x".to_string() + &"y".repeat(256);
+        assert!(!constant_time_eq(a, &b));
     }
 }
