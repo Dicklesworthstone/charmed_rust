@@ -502,11 +502,7 @@ impl GuidedTour {
         }
 
         // Progress bar
-        let progress = format!(
-            "Step {} of {}",
-            self.current_step + 1,
-            TOUR_STEPS.len()
-        );
+        let progress = format!("Step {} of {}", self.current_step + 1, TOUR_STEPS.len());
         let bar_width = modal_width.saturating_sub(progress.len() + 8);
         let filled = (self.current_step * bar_width) / TOUR_STEPS.len().max(1);
         let empty_bar = bar_width.saturating_sub(filled);

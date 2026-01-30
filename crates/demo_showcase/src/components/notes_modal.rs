@@ -202,24 +202,26 @@ impl NotesModal {
         let header = format!(
             "{}{}",
             title,
-            theme.muted_style().render(&" ".repeat(self.width.saturating_sub(self.title.len() + 2)))
+            theme
+                .muted_style()
+                .render(&" ".repeat(self.width.saturating_sub(self.title.len() + 2)))
         );
 
         // Textarea
         let textarea_view = self.textarea.view();
 
         // Footer with hints
-        let hints = theme.muted_style().render("Ctrl+S save  Ctrl+C copy  Ctrl+X clear  Esc close");
-        let char_count = theme.muted_style().render(&format!(
-            "{} chars",
-            self.textarea.length()
-        ));
+        let hints = theme
+            .muted_style()
+            .render("Ctrl+S save  Ctrl+C copy  Ctrl+X clear  Esc close");
+        let char_count = theme
+            .muted_style()
+            .render(&format!("{} chars", self.textarea.length()));
 
         let footer_left = hints;
         let footer_right = char_count;
         let footer_padding = self.width.saturating_sub(
-            lipgloss::visible_width(&footer_left) +
-            lipgloss::visible_width(&footer_right) + 2
+            lipgloss::visible_width(&footer_left) + lipgloss::visible_width(&footer_right) + 2,
         );
         let footer = format!(
             "{}{}{}",
@@ -244,7 +246,12 @@ impl NotesModal {
 
     /// Render the modal centered on the screen.
     #[must_use]
-    pub fn view_centered(&self, theme: &Theme, screen_width: usize, screen_height: usize) -> String {
+    pub fn view_centered(
+        &self,
+        theme: &Theme,
+        screen_width: usize,
+        screen_height: usize,
+    ) -> String {
         if !self.open {
             return String::new();
         }
@@ -252,7 +259,8 @@ impl NotesModal {
         let modal = self.view(theme);
         let modal_lines: Vec<&str> = modal.lines().collect();
         let modal_height = modal_lines.len();
-        let modal_width = modal_lines.iter()
+        let modal_width = modal_lines
+            .iter()
             .map(|l| lipgloss::visible_width(l))
             .max()
             .unwrap_or(0);

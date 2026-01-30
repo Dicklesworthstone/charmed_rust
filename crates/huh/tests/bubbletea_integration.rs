@@ -10,7 +10,10 @@ use huh::{Confirm, Form, Group, Input, MultiSelect, Note, Select, SelectOption, 
 /// Helper to create a simple form with one input field.
 fn simple_input_form() -> Form {
     Form::new(vec![Group::new(vec![Box::new(
-        Input::new().key("name").title("Name").placeholder("Enter name"),
+        Input::new()
+            .key("name")
+            .title("Name")
+            .placeholder("Enter name"),
     )])])
 }
 
@@ -91,8 +94,15 @@ fn test_form_receives_character_input() {
 
     // View should update - verify we processed input (view count increased)
     // Note: The actual text may be styled with ANSI codes, so we verify processing occurred
-    assert_eq!(sim.stats().update_calls, 5, "Should have processed all 5 characters");
-    assert!(!sim.last_view().unwrap().is_empty(), "View should not be empty after input");
+    assert_eq!(
+        sim.stats().update_calls,
+        5,
+        "Should have processed all 5 characters"
+    );
+    assert!(
+        !sim.last_view().unwrap().is_empty(),
+        "View should not be empty after input"
+    );
 }
 
 #[test]
@@ -210,14 +220,11 @@ fn test_form_escape_aborts() {
 #[test]
 fn test_select_field_navigation() {
     let form = Form::new(vec![Group::new(vec![Box::new(
-        Select::new()
-            .key("choice")
-            .title("Choose")
-            .options(vec![
-                SelectOption::new("Option A", "a"),
-                SelectOption::new("Option B", "b"),
-                SelectOption::new("Option C", "c"),
-            ]),
+        Select::new().key("choice").title("Choose").options(vec![
+            SelectOption::new("Option A", "a"),
+            SelectOption::new("Option B", "b"),
+            SelectOption::new("Option C", "c"),
+        ]),
     )])]);
 
     let mut sim = ProgramSimulator::new(form);
@@ -236,13 +243,10 @@ fn test_select_field_navigation() {
 #[test]
 fn test_select_field_wraps_at_bounds() {
     let form = Form::new(vec![Group::new(vec![Box::new(
-        Select::new()
-            .key("choice")
-            .title("Choose")
-            .options(vec![
-                SelectOption::new("A", "a"),
-                SelectOption::new("B", "b"),
-            ]),
+        Select::new().key("choice").title("Choose").options(vec![
+            SelectOption::new("A", "a"),
+            SelectOption::new("B", "b"),
+        ]),
     )])]);
 
     let mut sim = ProgramSimulator::new(form);
@@ -322,7 +326,11 @@ fn test_confirm_field_toggle() {
 #[test]
 fn test_note_field_displays() {
     let form = Form::new(vec![Group::new(vec![
-        Box::new(Note::new().title("Important").description("Read this carefully")),
+        Box::new(
+            Note::new()
+                .title("Important")
+                .description("Read this carefully"),
+        ),
         Box::new(Input::new().key("ack").title("Acknowledge")),
     ])])
     .show_help(false);
@@ -369,8 +377,12 @@ fn test_text_field_multiline_input() {
 #[test]
 fn test_multi_group_navigation() {
     let form = Form::new(vec![
-        Group::new(vec![Box::new(Input::new().key("g1_field").title("Group 1 Field"))]),
-        Group::new(vec![Box::new(Input::new().key("g2_field").title("Group 2 Field"))]),
+        Group::new(vec![Box::new(
+            Input::new().key("g1_field").title("Group 1 Field"),
+        )]),
+        Group::new(vec![Box::new(
+            Input::new().key("g2_field").title("Group 2 Field"),
+        )]),
     ]);
 
     let mut sim = ProgramSimulator::new(form);

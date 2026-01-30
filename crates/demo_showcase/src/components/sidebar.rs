@@ -296,7 +296,10 @@ impl Sidebar {
 
         // Apply focus highlight border when focused (bd-30md)
         // The border_right appears when focus_intensity > 0.5
-        let base_style = theme.sidebar_style().height(height_u16).width(sidebar_width);
+        let base_style = theme
+            .sidebar_style()
+            .height(height_u16)
+            .width(sidebar_width);
         let styled = if focus_intensity > 0.5 {
             base_style
                 .border_right(true)
@@ -413,5 +416,126 @@ mod tests {
         sidebar.focus = SidebarFocus::Filtering;
         let filter_hints = sidebar.hints();
         assert!(filter_hints.contains("filter"));
+    }
+
+    #[test]
+    fn debug_sidebar_line_count() {
+        let sidebar = Sidebar::new();
+        let theme = Theme::dark();
+
+        // Render at height 22 (simulating 80x24 terminal)
+        let view = sidebar.view(22, &theme, 0.0);
+
+        // Strip ANSI codes for counting
+        fn strip_ansi(input: &str) -> String {
+            let mut result = String::with_capacity(input.len());
+            let mut in_escape = false;
+            for c in input.chars() {
+                if c == '\x1b' {
+                    in_escape = true;
+                    continue;
+                }
+                if in_escape {
+                    if c == 'm' {
+                        in_escape = false;
+                    }
+                    continue;
+                }
+                result.push(c);
+            }
+            result
+        }
+
+        let stripped = strip_ansi(&view);
+        let line_count = stripped.lines().count();
+
+        eprintln!("Sidebar view line count: {}", line_count);
+        eprintln!("First 5 lines:");
+        for (i, line) in stripped.lines().take(5).enumerate() {
+            eprintln!(
+                "  Line {}: {:?} (width={})",
+                i,
+                line,
+                lipgloss::visible_width(line)
+            );
+        }
+
+        // The sidebar should have exactly 22 lines for height 22
+        assert_eq!(line_count, 22, "Sidebar should have exactly height lines");
+    }
+
+    #[test]
+    fn debug_join_horizontal() {
+        use lipgloss::{Position, join_horizontal};
+
+        let sidebar = Sidebar::new();
+        let theme = Theme::dark();
+
+        // Render at height 22 (simulating 80x24 terminal)
+        let sidebar_view = sidebar.view(22, &theme, 0.0);
+
+        // Check visible widths of sidebar lines
+        eprintln!("=== Sidebar item widths ===");
+        for (i, line) in sidebar_view.lines().take(10).enumerate() {
+            let visible_w = lipgloss::visible_width(line);
+            eprintln!("  Line {}: visible_width={}", i, visible_w);
+        }
+
+        // Simple content (simulate page content)
+        let mut content_lines = vec![];
+        for i in 0..22 {
+            content_lines.push(format!("Content line {:02}", i));
+        }
+        let content = content_lines.join("\n");
+
+        // Join them
+        let joined = join_horizontal(Position::Top, &[&sidebar_view, &content]);
+
+        // Strip ANSI codes for counting
+        fn strip_ansi(input: &str) -> String {
+            let mut result = String::with_capacity(input.len());
+            let mut in_escape = false;
+            for c in input.chars() {
+                if c == '\x1b' {
+                    in_escape = true;
+                    continue;
+                }
+                if in_escape {
+                    if c == 'm' {
+                        in_escape = false;
+                    }
+                    continue;
+                }
+                result.push(c);
+            }
+            result
+        }
+
+        let stripped = strip_ansi(&joined);
+        let line_count = stripped.lines().count();
+
+        eprintln!("Joined view line count: {}", line_count);
+        eprintln!("First 10 lines:");
+        for (i, line) in stripped.lines().take(10).enumerate() {
+            eprintln!("  Line {}: {:?}", i, line);
+        }
+
+        // The joined output should have exactly 22 lines
+        assert_eq!(line_count, 22, "Joined view should have exactly 22 lines");
+
+        // Each line should start with sidebar content, not have sidebar content in middle
+        let first_line = stripped.lines().next().unwrap();
+        assert!(
+            first_line.starts_with("> [] Dashboard"),
+            "First line should start with Dashboard, got: {:?}",
+            first_line
+        );
+
+        let second_line = stripped.lines().nth(1).unwrap();
+        assert!(
+            second_line.starts_with("  >_ Services"),
+            "Second line should start with Services, got: {:?}",
+            second_line
+        );
     }
 }

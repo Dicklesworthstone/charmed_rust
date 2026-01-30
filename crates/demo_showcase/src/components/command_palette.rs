@@ -571,11 +571,7 @@ impl CommandPalette {
                 let is_selected = display_idx == self.selected;
 
                 let line = self.render_command_line(cmd, is_selected, palette_width - 4, theme);
-                let cmd_line = format!(
-                    "{}{}",
-                    pad,
-                    border_style.render(&format!("│ {} │", line))
-                );
+                let cmd_line = format!("{}{}", pad, border_style.render(&format!("│ {} │", line)));
                 lines.push(cmd_line);
             }
 
@@ -718,10 +714,12 @@ mod tests {
         palette.update_filter();
         assert!(!palette.filtered_commands.is_empty());
         // Should include the dashboard command
-        assert!(palette
-            .filtered_commands
-            .iter()
-            .any(|&idx| COMMANDS[idx].id == "nav-dashboard"));
+        assert!(
+            palette
+                .filtered_commands
+                .iter()
+                .any(|&idx| COMMANDS[idx].id == "nav-dashboard")
+        );
     }
 
     #[test]
@@ -731,10 +729,12 @@ mod tests {
         palette.update_filter();
         assert!(!palette.filtered_commands.is_empty());
         // "metrics" is a keyword for dashboard
-        assert!(palette
-            .filtered_commands
-            .iter()
-            .any(|&idx| COMMANDS[idx].id == "nav-dashboard"));
+        assert!(
+            palette
+                .filtered_commands
+                .iter()
+                .any(|&idx| COMMANDS[idx].id == "nav-dashboard")
+        );
     }
 
     #[test]

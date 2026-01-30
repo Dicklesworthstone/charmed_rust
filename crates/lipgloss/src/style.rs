@@ -2016,8 +2016,17 @@ fn wrap_text(s: &str, width: usize) -> String {
 /// - Simple escape sequences (e.g., `\x1b(B`)
 ///
 /// Any open style is closed with a reset sequence if truncation occurs.
-#[allow(dead_code)]
-fn truncate_line_ansi(line: &str, max_width: usize) -> String {
+///
+/// # Example
+///
+/// ```rust
+/// use lipgloss::truncate_line_ansi;
+///
+/// let styled = "\x1b[31mHello, World!\x1b[0m";
+/// let truncated = truncate_line_ansi(styled, 5);
+/// // Returns "\x1b[31mHello\x1b[0m" (5 visible chars + reset)
+/// ```
+pub fn truncate_line_ansi(line: &str, max_width: usize) -> String {
     let mut result = String::new();
     let mut visible_count = 0;
     let mut chars = line.chars().peekable();
@@ -2659,16 +2668,14 @@ mod tests {
     fn test_height_adds_blank_lines() {
         let style = Style::new().height(5);
         let rendered = style.render("Hello");
-        let lines: Vec<&str> = rendered.lines().collect();
-        assert_eq!(lines.len(), 5);
+        assert_eq!(rendered.lines().count(), 5);
     }
 
     #[test]
     fn test_height_with_vertical_center() {
         let style = Style::new().height(5).align_vertical(Position::Center);
         let rendered = style.render("Hello");
-        let lines: Vec<&str> = rendered.lines().collect();
-        assert_eq!(lines.len(), 5);
+        assert_eq!(rendered.lines().count(), 5);
         // Content should be in the middle
     }
 
@@ -2684,8 +2691,7 @@ mod tests {
     fn test_max_height_truncates() {
         let style = Style::new().max_height(2);
         let rendered = style.render("Line1\nLine2\nLine3\nLine4");
-        let lines: Vec<&str> = rendered.lines().collect();
-        assert_eq!(lines.len(), 2);
+        assert_eq!(rendered.lines().count(), 2);
     }
 
     #[test]
@@ -2854,7 +2860,7 @@ mod tests {
         let style = Style::new().border(Border::ascii());
         let rendered = style.render("X");
         // ASCII border uses - | + characters
-        assert!(rendered.contains("-") || rendered.contains("+"));
+        assert!(rendered.contains('-') || rendered.contains('+'));
     }
 
     #[test]
@@ -2862,8 +2868,7 @@ mod tests {
         let style = Style::new().border(Border::hidden());
         let rendered = style.render("X");
         // Hidden border uses spaces
-        let lines: Vec<&str> = rendered.lines().collect();
-        assert!(lines.len() >= 1); // Still has border structure, just invisible
+        assert!(rendered.lines().count() >= 1); // Still has border structure, just invisible
     }
 
     #[test]
@@ -2871,8 +2876,7 @@ mod tests {
         let style = Style::new().border(Border::none());
         let rendered = style.render("Hello");
         // Should render without border characters
-        let lines: Vec<&str> = rendered.lines().collect();
-        assert_eq!(lines.len(), 1);
+        assert_eq!(rendered.lines().count(), 1);
         assert_eq!(visible_width(&rendered), 5); // Just "Hello"
     }
 
@@ -3161,7 +3165,7 @@ mod tests {
         let style = Style::new().bold();
         let rendered = style.render("");
         // Empty string with bold should still render ANSI codes
-        assert!(rendered.is_empty() || rendered.contains("\x1b"));
+        assert!(rendered.is_empty() || rendered.contains('\x1b'));
     }
 
     #[test]
@@ -3231,8 +3235,7 @@ mod tests {
         let style = Style::new().inline().border(Border::normal());
         let rendered = style.render("X");
         // Inline mode should not apply border
-        let lines: Vec<&str> = rendered.lines().collect();
-        assert_eq!(lines.len(), 1);
+        assert_eq!(rendered.lines().count(), 1);
     }
 
     #[test]

@@ -6,8 +6,8 @@
 //! validators, Input, Select, MultiSelect, SelectOption, Confirm, Note, Text.
 
 use huh::{
-    validate_email, validate_min_length_8, validate_required, validate_required_name,
-    Confirm, EchoMode, Input, MultiSelect, Note, Select, SelectOption, Text,
+    Confirm, EchoMode, Input, MultiSelect, Note, Select, SelectOption, Text, validate_email,
+    validate_min_length_8, validate_required, validate_required_name,
 };
 use proptest::prelude::*;
 

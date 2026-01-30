@@ -957,10 +957,7 @@ impl JobsPage {
 
         // Show ETA for running jobs (bd-3aio)
         if let Some(eta) = Self::estimate_eta(job) {
-            lines.push(format!(
-                "  ETA:      {}",
-                theme.info_style().render(&eta)
-            ));
+            lines.push(format!("  ETA:      {}", theme.info_style().render(&eta)));
         }
 
         // Show slow warning for running jobs
@@ -1014,7 +1011,11 @@ impl JobsPage {
                 let time_str = entry.timestamp.format("%H:%M:%S");
                 let max_msg = content_width.saturating_sub(20);
                 let msg = if entry.message.chars().count() > max_msg {
-                    let truncated: String = entry.message.chars().take(max_msg.saturating_sub(3)).collect();
+                    let truncated: String = entry
+                        .message
+                        .chars()
+                        .take(max_msg.saturating_sub(3))
+                        .collect();
                     format!("{truncated}...")
                 } else {
                     entry.message.clone()
@@ -2810,10 +2811,7 @@ mod tests {
         let is_slow_1 = JobsPage::is_job_slow(&job);
         let is_slow_2 = JobsPage::is_job_slow(&job);
 
-        assert_eq!(
-            is_slow_1, is_slow_2,
-            "is_job_slow should be deterministic"
-        );
+        assert_eq!(is_slow_1, is_slow_2, "is_job_slow should be deterministic");
         assert!(is_slow_1, "Job with 5% after 60s should be slow");
     }
 

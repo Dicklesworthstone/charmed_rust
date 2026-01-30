@@ -8,7 +8,7 @@
 //! Additional unit tests for harmonica covering physics edge cases,
 //! long-duration stability, energy conservation, and extreme parameters.
 
-use harmonica::{fps, Projectile, Spring, Point, Vector, GRAVITY, TERMINAL_GRAVITY};
+use harmonica::{GRAVITY, Point, Projectile, Spring, TERMINAL_GRAVITY, Vector, fps};
 
 // =============================================================================
 // Spring: extreme parameters
@@ -76,7 +76,10 @@ fn spring_stability_1000_seconds() {
         assert!(pos.is_finite(), "pos became non-finite");
         assert!(vel.is_finite(), "vel became non-finite");
     }
-    assert!((pos - 5.0).abs() < 0.01, "should converge to 5.0, got {pos}");
+    assert!(
+        (pos - 5.0).abs() < 0.01,
+        "should converge to 5.0, got {pos}"
+    );
     assert!(vel.abs() < 0.01, "velocity should be near zero, got {vel}");
 }
 
@@ -114,10 +117,7 @@ fn spring_critical_damping_fastest_convergence() {
 
     let cf = c_frames.expect("critical should converge");
     let of = o_frames.expect("over-damped should converge");
-    assert!(
-        cf <= of,
-        "critical ({cf}) should be <= over-damped ({of})"
-    );
+    assert!(cf <= of, "critical ({cf}) should be <= over-damped ({of})");
 }
 
 // =============================================================================
@@ -133,7 +133,8 @@ fn projectile_energy_approximately_conserved() {
     let mut proj = Projectile::new(dt, initial_pos, initial_vel, GRAVITY);
 
     let mass = 1.0; // Arbitrary
-    let initial_ke = 0.5 * mass * (initial_vel.x.powi(2) + initial_vel.y.powi(2) + initial_vel.z.powi(2));
+    let initial_ke =
+        0.5 * mass * (initial_vel.x.powi(2) + initial_vel.y.powi(2) + initial_vel.z.powi(2));
     let initial_pe = mass * 9.81 * initial_pos.y;
     let initial_energy = initial_ke + initial_pe;
 
@@ -213,7 +214,8 @@ fn projectile_horizontal_range() {
         let expected_x = 10.0 * dt * i as f64;
         assert!(
             (pos.x - expected_x).abs() < 1e-6,
-            "frame {i}: expected x={expected_x}, got {}", pos.x
+            "frame {i}: expected x={expected_x}, got {}",
+            pos.x
         );
         assert!((pos.y).abs() < 1e-10);
         assert!((pos.z).abs() < 1e-10);
@@ -224,9 +226,24 @@ fn projectile_horizontal_range() {
 fn projectile_3d_components_independent() {
     // Each axis should be independent
     let dt = fps(60);
-    let mut proj_x = Projectile::new(dt, Point::origin(), Vector::new(5.0, 0.0, 0.0), Vector::zero());
-    let mut proj_y = Projectile::new(dt, Point::origin(), Vector::new(0.0, 5.0, 0.0), Vector::zero());
-    let mut proj_all = Projectile::new(dt, Point::origin(), Vector::new(5.0, 5.0, 0.0), Vector::zero());
+    let mut proj_x = Projectile::new(
+        dt,
+        Point::origin(),
+        Vector::new(5.0, 0.0, 0.0),
+        Vector::zero(),
+    );
+    let mut proj_y = Projectile::new(
+        dt,
+        Point::origin(),
+        Vector::new(0.0, 5.0, 0.0),
+        Vector::zero(),
+    );
+    let mut proj_all = Projectile::new(
+        dt,
+        Point::origin(),
+        Vector::new(5.0, 5.0, 0.0),
+        Vector::zero(),
+    );
 
     for _ in 0..30 {
         let px = proj_x.update();

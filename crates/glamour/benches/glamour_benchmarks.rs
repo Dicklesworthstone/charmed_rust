@@ -1,5 +1,13 @@
 //! Benchmarks for glamour markdown parsing and rendering.
 
+// These casts are safe in benchmarks where values are small/bounded
+#![expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::ref_as_ptr,
+    clippy::too_many_lines
+)]
+
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use glamour::{Renderer, Style, StyleBlock, StyleConfig, StylePrimitive};
 use pulldown_cmark::Parser;
@@ -217,7 +225,9 @@ fn benchmark_lru_cache(c: &mut Criterion) {
     // Benchmark 1: Cache hit performance
     // Target: <100ns per hit (O(1) operation)
     group.bench_function("cache_hit", |b| {
-        use syntect::highlighting::{Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle};
+        use syntect::highlighting::{
+            Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle,
+        };
 
         let mut cache = StyleCache::new();
         let style = SynStyle {
@@ -247,7 +257,9 @@ fn benchmark_lru_cache(c: &mut Criterion) {
 
     // Benchmark 2: Cache miss (conversion + storage)
     group.bench_function("cache_miss", |b| {
-        use syntect::highlighting::{Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle};
+        use syntect::highlighting::{
+            Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle,
+        };
 
         b.iter_custom(|iters| {
             let mut total = std::time::Duration::ZERO;
@@ -282,7 +294,9 @@ fn benchmark_lru_cache(c: &mut Criterion) {
     // Benchmark 3: Heavy style mixing (round-robin access pattern)
     // Simulates real workload: 20 distinct styles accessed repeatedly
     group.bench_function("heavy_mixing_20_styles", |b| {
-        use syntect::highlighting::{Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle};
+        use syntect::highlighting::{
+            Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle,
+        };
 
         let mut cache = StyleCache::with_capacity(50);
 
@@ -322,7 +336,9 @@ fn benchmark_lru_cache(c: &mut Criterion) {
     // Benchmark 4: LRU promotion (accessing existing entries)
     // This is the key O(1) vs O(n) improvement
     group.bench_function("lru_promotion", |b| {
-        use syntect::highlighting::{Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle};
+        use syntect::highlighting::{
+            Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle,
+        };
 
         let mut cache = StyleCache::with_capacity(256);
 
@@ -373,7 +389,9 @@ fn benchmark_lru_cache(c: &mut Criterion) {
     // Benchmark 5: Eviction under pressure
     // Test performance when cache is at capacity and must evict
     group.bench_function("eviction_pressure", |b| {
-        use syntect::highlighting::{Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle};
+        use syntect::highlighting::{
+            Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle,
+        };
 
         let mut cache = StyleCache::with_capacity(100);
 

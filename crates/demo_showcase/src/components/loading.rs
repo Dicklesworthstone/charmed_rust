@@ -36,7 +36,7 @@
 //! let loading_view = spinner.view(&theme);
 //! ```
 
-use bubbles::spinner::{spinners, SpinnerModel, TickMsg};
+use bubbles::spinner::{SpinnerModel, TickMsg, spinners};
 use bubbletea::{Cmd, Message};
 
 use crate::theme::Theme;
@@ -384,7 +384,13 @@ impl LoadingOverlay {
 
     /// Render the overlay centered on screen.
     #[must_use]
-    pub fn view(&self, theme: &Theme, animations_enabled: bool, width: usize, height: usize) -> String {
+    pub fn view(
+        &self,
+        theme: &Theme,
+        animations_enabled: bool,
+        width: usize,
+        height: usize,
+    ) -> String {
         let spinner_view = self.spinner.view(theme, animations_enabled);
         let message_styled = theme.heading_style().render(&self.message);
 
@@ -619,8 +625,7 @@ mod tests {
 
     #[test]
     fn loading_overlay_with_sub_message() {
-        let overlay = LoadingOverlay::new("Loading")
-            .with_sub_message("This may take a moment");
+        let overlay = LoadingOverlay::new("Loading").with_sub_message("This may take a moment");
         assert!(overlay.sub_message.is_some());
     }
 

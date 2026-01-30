@@ -14,8 +14,8 @@
 //!
 //! Uses `RwLock` for thread-safe interior mutability, enabling SSH mode.
 
-use std::path::PathBuf;
 use parking_lot::RwLock;
+use std::path::PathBuf;
 
 use bubbles::textinput::TextInput;
 use bubbles::viewport::Viewport;
@@ -592,7 +592,11 @@ impl LogsPage {
             timestamp: 8,
             level: 5,
             target: target_col_width,
-            message: if message_width > 0 { Some(message_width) } else { None },
+            message: if message_width > 0 {
+                Some(message_width)
+            } else {
+                None
+            },
         });
 
         let entries = self.logs.entries();

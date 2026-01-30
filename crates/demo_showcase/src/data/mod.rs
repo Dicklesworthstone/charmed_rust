@@ -1137,7 +1137,10 @@ impl LogFormatter {
     fn format_target(&self, target: &str) -> String {
         // Truncate if too long (char-safe to avoid mid-codepoint panic)
         let truncated = if target.chars().count() > self.widths.target {
-            let t: String = target.chars().take(self.widths.target.saturating_sub(1)).collect();
+            let t: String = target
+                .chars()
+                .take(self.widths.target.saturating_sub(1))
+                .collect();
             format!("{t}…")
         } else {
             target.to_string()

@@ -46,8 +46,8 @@
 //! - Session duration on disconnect
 
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use wish::auth::{AcceptAllAuth, CallbackAuth, RateLimitedAuth};
@@ -134,7 +134,9 @@ impl SshConfig {
         } else {
             // No password configured and --no-auth not set: fall back to AcceptAll.
             // This is insecure — warn the user so they don't accidentally expose a server.
-            eprintln!("Warning: No authentication configured. Use --password or --no-auth to be explicit.");
+            eprintln!(
+                "Warning: No authentication configured. Use --password or --no-auth to be explicit."
+            );
             eprintln!("         Accepting all connections (equivalent to --no-auth).");
             AuthMode::AcceptAll
         };

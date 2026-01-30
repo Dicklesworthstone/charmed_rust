@@ -652,7 +652,10 @@ impl WizardPage {
         let id = self.next_notification_id;
         self.next_notification_id += 1;
 
-        let notification = Notification::info(id, format!("Retrying deployment (attempt #{})", retry_count + 1));
+        let notification = Notification::info(
+            id,
+            format!("Retrying deployment (attempt #{})", retry_count + 1),
+        );
         let notification_cmd = Cmd::new(move || NotificationMsg::Show(notification).into_message());
 
         // Start the new deployment attempt
@@ -1415,7 +1418,10 @@ impl WizardPage {
                     lines.push(
                         theme
                             .muted_style()
-                            .render(&format!("  Failed after {} attempt(s)", self.retry_count + 1))
+                            .render(&format!(
+                                "  Failed after {} attempt(s)",
+                                self.retry_count + 1
+                            ))
                             .to_string(),
                     );
                 }
@@ -1547,16 +1553,12 @@ impl WizardPage {
         };
 
         let notification = Notification::error(id, notification_msg.clone());
-        let notification_cmd =
-            Cmd::new(move || NotificationMsg::Show(notification).into_message());
+        let notification_cmd = Cmd::new(move || NotificationMsg::Show(notification).into_message());
 
         let failure_cmd =
             Cmd::new(move || WizardMsg::DeploymentFailed(error_message).into_message());
 
-        batch(vec![
-            Some(notification_cmd),
-            Some(failure_cmd),
-        ])
+        batch(vec![Some(notification_cmd), Some(failure_cmd)])
     }
 
     /// Check if deployment is in progress.
@@ -1840,7 +1842,10 @@ mod tests {
 
         page.retry_deployment();
         assert_eq!(page.retry_count, 1);
-        assert_eq!(page.state.deployment_status, DeploymentStatus::InProgress(0));
+        assert_eq!(
+            page.state.deployment_status,
+            DeploymentStatus::InProgress(0)
+        );
     }
 
     #[test]

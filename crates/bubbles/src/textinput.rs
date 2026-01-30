@@ -1517,6 +1517,9 @@ mod tests {
         input.set_value("1234");
 
         assert_eq!(input.value(), "123");
-        assert!(input.err.is_none(), "Validation should run on truncated value");
+        assert!(
+            input.err.is_none(),
+            "Validation should run on truncated value"
+        );
     }
 }

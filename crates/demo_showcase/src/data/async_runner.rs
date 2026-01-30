@@ -292,10 +292,7 @@ impl AsyncRunner {
     /// Returns an `AsyncCmd` that will complete with an `AsyncOperationMsg`.
     /// Use `start_sync` for sync-compatible operations that work with `batch`.
     #[cfg(feature = "async")]
-    pub fn start_async(
-        &mut self,
-        operation: AsyncOperation,
-    ) -> bubbletea::AsyncCmd {
+    pub fn start_async(&mut self, operation: AsyncOperation) -> bubbletea::AsyncCmd {
         use bubbletea::AsyncCmd;
 
         let id = self.next_id;

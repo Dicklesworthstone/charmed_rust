@@ -4,6 +4,12 @@
 //! and driven by the bubbletea runtime (simulated).
 
 #![forbid(unsafe_code)]
+#![expect(
+    clippy::items_after_statements,
+    clippy::float_cmp,
+    clippy::uninlined_format_args,
+    clippy::single_char_pattern
+)]
 
 use bubbles::spinner::{SpinnerModel, spinners};
 use bubbles::textarea::TextArea;
@@ -11,7 +17,7 @@ use bubbles::textinput::TextInput;
 use bubbles::timer::Timer;
 use bubbles::viewport::Viewport;
 use bubbletea::simulator::ProgramSimulator;
-use bubbletea::{batch, Cmd, KeyMsg, KeyType, Message, Model};
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, batch};
 use std::time::Duration;
 
 // ============================================================================
@@ -44,10 +50,7 @@ impl FormApp {
 impl Model for FormApp {
     fn init(&self) -> Option<Cmd> {
         // Return batch of init commands from children
-        batch(vec![
-            self.name_input.init(),
-            self.bio_input.init(),
-        ])
+        batch(vec![self.name_input.init(), self.bio_input.init()])
     }
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
@@ -141,10 +144,7 @@ impl AsyncApp {
 impl Model for AsyncApp {
     fn init(&self) -> Option<Cmd> {
         // Start both
-        batch(vec![
-            self.spinner.init(),
-            self.timer.init(),
-        ])
+        batch(vec![self.spinner.init(), self.timer.init()])
     }
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
@@ -204,9 +204,14 @@ fn test_async_component_integration() {
 
     // The view should either be "Done!" or contain spinner characters
     let is_done = view.contains("Done!");
-    let has_spinner = view.contains('⣾') || view.contains('⣽') || view.contains('⣻')
-        || view.contains('⢿') || view.contains('⡿') || view.contains('⣟')
-        || view.contains('⣯') || view.contains('⣷');
+    let has_spinner = view.contains('⣾')
+        || view.contains('⣽')
+        || view.contains('⣻')
+        || view.contains('⢿')
+        || view.contains('⡿')
+        || view.contains('⣟')
+        || view.contains('⣯')
+        || view.contains('⣷');
 
     assert!(
         is_done || has_spinner,
@@ -317,7 +322,9 @@ impl MouseScrollApp {
         let mut vp = Viewport::new(40, 5);
         // mouse_wheel_enabled is true by default
         // Add enough content to scroll
-        vp.set_content("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10");
+        vp.set_content(
+            "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10",
+        );
         Self { viewport: vp }
     }
 }
@@ -352,7 +359,10 @@ fn test_viewport_mouse_wheel_scrolling() {
     sim.sim_mouse(5, 2, MouseButton::WheelDown, MouseAction::Press);
     sim.run_until_empty();
 
-    assert!(!sim.model().viewport.at_top(), "Should scroll down on wheel");
+    assert!(
+        !sim.model().viewport.at_top(),
+        "Should scroll down on wheel"
+    );
 
     // 3. Scroll back up with mouse wheel
     sim.sim_mouse(5, 2, MouseButton::WheelUp, MouseAction::Press);
@@ -486,7 +496,11 @@ impl Model for MultiPanelApp {
     }
 
     fn view(&self) -> String {
-        format!("{} | {}", self.left_viewport.view(), self.right_viewport.view())
+        format!(
+            "{} | {}",
+            self.left_viewport.view(),
+            self.right_viewport.view()
+        )
     }
 }
 
@@ -546,7 +560,9 @@ impl StyledPanelApp {
         Self {
             input,
             viewport: vp,
-            panel_style: LipStyle::new().padding(1).border(lipgloss::Border::rounded()),
+            panel_style: LipStyle::new()
+                .padding(1)
+                .border(lipgloss::Border::rounded()),
             input_wrapper_style: LipStyle::new().foreground("205"),
         }
     }
@@ -581,8 +597,14 @@ fn test_nested_component_rendering() {
     let view = sim.model().view();
 
     // View should contain input prompt and viewport content
-    assert!(view.contains(">>") || view.contains(">"), "Should contain input prompt");
-    assert!(view.contains("Content line"), "Should contain viewport content");
+    assert!(
+        view.contains(">>") || view.contains(">"),
+        "Should contain input prompt"
+    );
+    assert!(
+        view.contains("Content line"),
+        "Should contain viewport content"
+    );
 
     // 2. Type some text (step once per key to avoid cursor blink loop)
     sim.model_mut().input.focus();
@@ -597,7 +619,8 @@ fn test_nested_component_rendering() {
 
     // 4. Verify styles are applied (view should have border characters from rounded border)
     // Rounded borders use: ╭ ╮ ╰ ╯ │ ─
-    let has_border = view_after.contains('╭') || view_after.contains('│') || view_after.contains('─');
+    let has_border =
+        view_after.contains('╭') || view_after.contains('│') || view_after.contains('─');
     assert!(has_border, "Should have border styling applied");
 }
 
@@ -622,8 +645,14 @@ fn test_style_composition_no_corruption() {
     let view_modified1 = sim.model().view();
     let view_modified2 = sim.model().view();
 
-    assert_eq!(view_modified1, view_modified2, "Modified views should be identical");
-    assert_ne!(view1, view_modified1, "Modified view should differ from original");
+    assert_eq!(
+        view_modified1, view_modified2,
+        "Modified views should be identical"
+    );
+    assert_ne!(
+        view1, view_modified1,
+        "Modified view should differ from original"
+    );
 }
 
 // ============================================================================
@@ -668,18 +697,15 @@ impl FocusStyleApp {
 
 impl Model for FocusStyleApp {
     fn init(&self) -> Option<Cmd> {
-        batch(vec![
-            self.input1.init(),
-            self.input2.init(),
-        ])
+        batch(vec![self.input1.init(), self.input2.init()])
     }
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
-        if let Some(key) = msg.downcast_ref::<KeyMsg>() {
-            if key.key_type == KeyType::Tab {
-                self.switch_focus();
-                return None;
-            }
+        if let Some(key) = msg.downcast_ref::<KeyMsg>()
+            && key.key_type == KeyType::Tab
+        {
+            self.switch_focus();
+            return None;
         }
 
         // Route to focused input

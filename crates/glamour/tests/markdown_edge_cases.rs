@@ -4,7 +4,7 @@
 //! Tests for glamour markdown rendering edge cases, API surface,
 //! and markdown feature coverage gaps.
 
-use glamour::{available_styles, render, Renderer, Style};
+use glamour::{Renderer, Style, available_styles, render};
 
 // =============================================================================
 // API surface tests
@@ -204,7 +204,9 @@ fn render_empty_input() {
 
 #[test]
 fn render_only_whitespace() {
-    let output = Renderer::new().with_style(Style::Dark).render("   \n\n  \n");
+    let output = Renderer::new()
+        .with_style(Style::Dark)
+        .render("   \n\n  \n");
     let _ = output;
 }
 

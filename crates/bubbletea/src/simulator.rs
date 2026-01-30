@@ -650,10 +650,10 @@ mod tests {
                 None
             }
             fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
-                if let Some(key) = msg.downcast_ref::<KeyMsg>() {
-                    if key.key_type == KeyType::Runes {
-                        self.keys.extend(&key.runes);
-                    }
+                if let Some(key) = msg.downcast_ref::<KeyMsg>()
+                    && key.key_type == KeyType::Runes
+                {
+                    self.keys.extend(&key.runes);
                 }
                 None
             }
@@ -685,10 +685,10 @@ mod tests {
                 None
             }
             fn update(&mut self, msg: Message) -> Option<crate::Cmd> {
-                if let Some(key) = msg.downcast_ref::<KeyMsg>() {
-                    if key.key_type != KeyType::Runes {
-                        self.special_keys.push(key.key_type.clone());
-                    }
+                if let Some(key) = msg.downcast_ref::<KeyMsg>()
+                    && key.key_type != KeyType::Runes
+                {
+                    self.special_keys.push(key.key_type);
                 }
                 None
             }

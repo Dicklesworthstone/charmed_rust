@@ -16,8 +16,8 @@
 //! - Selection updates preview pane
 //! - Breadcrumb path display
 
-use std::path::PathBuf;
 use parking_lot::RwLock;
+use std::path::PathBuf;
 
 use bubbles::filepicker::FilePicker;
 use bubbles::viewport::Viewport;
@@ -423,13 +423,22 @@ impl FilesPage {
             let hex: Vec<String> = chunk.iter().map(|b| format!("{b:02x}")).collect();
             let ascii: String = chunk
                 .iter()
-                .map(|&b| if (0x20..0x7f).contains(&b) { b as char } else { '.' })
+                .map(|&b| {
+                    if (0x20..0x7f).contains(&b) {
+                        b as char
+                    } else {
+                        '.'
+                    }
+                })
                 .collect();
             lines.push(format!("{:<48} {}", hex.join(" "), ascii));
         }
 
         if content.len() > preview_bytes {
-            lines.push(format!("... ({} more bytes)", content.len() - preview_bytes));
+            lines.push(format!(
+                "... ({} more bytes)",
+                content.len() - preview_bytes
+            ));
         }
 
         self.binary_preview = Some(lines.join("\n"));
@@ -664,9 +673,7 @@ impl FilesPage {
                 if last_w != width || last_t != theme_name {
                     let content_width = width.saturating_sub(2);
                     let rendered = self.render_markdown(raw, theme, content_width);
-                    self.preview_viewport
-                        .write()
-                        .set_content(&rendered);
+                    self.preview_viewport.write().set_content(&rendered);
                     *self.last_width.write() = width;
                     *self.last_theme.write() = theme_name;
                 }
@@ -837,10 +844,7 @@ impl FilesPage {
         };
 
         // Get filename for markdown detection
-        let filename = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
+        let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         self.is_markdown = Self::is_markdown_file(filename);
 
@@ -1159,8 +1163,7 @@ mod tests {
 
             // Verify content was loaded into viewport
             assert!(
-                page.preview_viewport.read().total_line_count() > 0
-                    || page.preview_name.is_some()
+                page.preview_viewport.read().total_line_count() > 0 || page.preview_name.is_some()
             );
         }
     }
@@ -1233,7 +1236,9 @@ mod tests {
     fn binary_content_detection() {
         // Text content should not be binary
         assert!(!is_binary_content(b"Hello, world!\n"));
-        assert!(!is_binary_content(b"fn main() {\n    println!(\"test\");\n}\n"));
+        assert!(!is_binary_content(
+            b"fn main() {\n    println!(\"test\");\n}\n"
+        ));
         assert!(!is_binary_content(b"Line1\r\nLine2\r\n")); // Windows line endings
         assert!(!is_binary_content(b"Tab\there\nNewline\n"));
 
@@ -1246,7 +1251,9 @@ mod tests {
         assert!(is_binary_content(&[0xFF, 0xD8, 0xFF])); // JPEG header
 
         // Many control characters indicate binary
-        let mostly_control: Vec<u8> = (0..100).map(|i| if i % 5 == 0 { 0x01 } else { 0x20 }).collect();
+        let mostly_control: Vec<u8> = (0..100)
+            .map(|i| if i % 5 == 0 { 0x01 } else { 0x20 })
+            .collect();
         assert!(is_binary_content(&mostly_control));
     }
 

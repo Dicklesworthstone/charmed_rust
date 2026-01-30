@@ -4,7 +4,8 @@ expression: view
 ---
  Charmed Control Center                
 Connected[Dark]                        
-> [] Dashboard   >_ Services                          
+> [] Dashboard DEGRADED   10/12 servi..
+  >_ Services                          
   >> Jobs     ╭────────╮╭───────╮╭─────
    # Logs     │Services││Active│ │Compl
    ? Docs     │10/12│   │Jobs │  │9 ↓1 

@@ -55,8 +55,7 @@ fn populated_browser(dir: &TempDir) -> FileBrowser {
     fs::create_dir(dir.path().join("subdir")).unwrap();
     touch(&dir.path().join("subdir"), "nested.md");
 
-    let mut browser =
-        FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
+    let mut browser = FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
     browser.scan().unwrap();
     browser
 }
@@ -150,16 +149,14 @@ fn browser_with_invalid_directory() {
 fn browser_with_file_path_not_directory() {
     let dir = make_dir();
     touch(dir.path(), "file.txt");
-    let result =
-        FileBrowser::with_directory(dir.path().join("file.txt"), BrowserConfig::default());
+    let result = FileBrowser::with_directory(dir.path().join("file.txt"), BrowserConfig::default());
     assert!(result.is_err());
 }
 
 #[test]
 fn browser_empty_directory() {
     let dir = make_dir();
-    let mut browser =
-        FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
+    let mut browser = FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
     browser.scan().unwrap();
     assert!(browser.entries().is_empty());
     assert!(browser.selected_entry().is_none());
@@ -172,8 +169,7 @@ fn browser_scan_excludes_non_markdown() {
     touch(dir.path(), "main.rs");
     touch(dir.path(), "data.json");
 
-    let mut browser =
-        FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
+    let mut browser = FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
     browser.scan().unwrap();
 
     let names: Vec<_> = browser.entries().iter().map(|e| e.name.as_str()).collect();
@@ -189,8 +185,7 @@ fn browser_directories_sorted_first() {
     fs::create_dir(dir.path().join("aaa_dir")).unwrap();
     touch(dir.path(), "alpha.md");
 
-    let mut browser =
-        FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
+    let mut browser = FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
     browser.scan().unwrap();
 
     assert!(browser.entries()[0].is_directory());
@@ -224,8 +219,7 @@ fn browser_hidden_files_excluded_by_default() {
     touch(dir.path(), ".hidden.md");
     touch(dir.path(), "visible.md");
 
-    let mut browser =
-        FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
+    let mut browser = FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
     browser.scan().unwrap();
 
     let names: Vec<_> = browser.entries().iter().map(|e| e.name.as_str()).collect();
@@ -242,7 +236,10 @@ fn browser_move_up_at_top_stays() {
     let dir = make_dir();
     let mut browser = populated_browser(&dir);
     browser.move_up();
-    assert_eq!(browser.selected_entry().map(|e| e.name.as_str()), browser.entries().first().map(|e| e.name.as_str()));
+    assert_eq!(
+        browser.selected_entry().map(|e| e.name.as_str()),
+        browser.entries().first().map(|e| e.name.as_str())
+    );
 }
 
 #[test]
@@ -501,8 +498,7 @@ fn browser_view_contains_entries() {
 #[test]
 fn browser_view_empty_dir_message() {
     let dir = make_dir();
-    let mut browser =
-        FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
+    let mut browser = FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
     browser.scan().unwrap();
     let view = browser.view();
     assert!(view.contains("No markdown files found"));
@@ -546,8 +542,7 @@ fn browser_toggle_hidden() {
     touch(dir.path(), ".secret.md");
     touch(dir.path(), "visible.md");
 
-    let mut browser =
-        FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
+    let mut browser = FileBrowser::with_directory(dir.path(), BrowserConfig::default()).unwrap();
     browser.scan().unwrap();
     let without_hidden = browser.entries().len();
 
@@ -593,7 +588,9 @@ fn reader_render_file_from_disk() {
 
 #[test]
 fn reader_all_valid_styles() {
-    let styles = ["dark", "light", "ascii", "pink", "auto", "no-tty", "notty", "no_tty"];
+    let styles = [
+        "dark", "light", "ascii", "pink", "auto", "no-tty", "notty", "no_tty",
+    ];
     for style in &styles {
         let reader = Reader::new(Config::new().style(*style));
         let result = reader.render_markdown("# Test");
@@ -629,9 +626,7 @@ fn reader_width_option() {
 
 #[test]
 fn reader_preserve_newlines_option() {
-    let config = Config::new()
-        .style("ascii")
-        .preserve_newlines(true);
+    let config = Config::new().style("ascii").preserve_newlines(true);
     let reader = Reader::new(config);
     let result = reader.render_markdown("Line 1\nLine 2");
     assert!(result.is_ok());
@@ -639,9 +634,7 @@ fn reader_preserve_newlines_option() {
 
 #[test]
 fn reader_line_numbers_option() {
-    let config = Config::new()
-        .style("ascii")
-        .line_numbers(true);
+    let config = Config::new().style("ascii").line_numbers(true);
     let reader = Reader::new(config);
     let result = reader.render_markdown("```\ncode\n```");
     assert!(result.is_ok());

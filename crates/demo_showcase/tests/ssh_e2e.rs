@@ -57,7 +57,7 @@ fn generate_temp_host_key() -> PathBuf {
             "-f",
             key_path.to_str().unwrap(),
             "-N",
-            "", // No passphrase
+            "",   // No passphrase
             "-q", // Quiet
         ])
         .output()
@@ -154,10 +154,7 @@ impl SshTestHarness {
             }
             std::thread::sleep(Duration::from_millis(100));
         }
-        Err(format!(
-            "Server did not become ready within {:?}",
-            timeout
-        ))
+        Err(format!("Server did not become ready within {:?}", timeout))
     }
 
     /// Connect to the SSH server using the ssh command.
@@ -261,10 +258,7 @@ fn ssh_e2e_server_starts() {
     };
 
     // If we got here, the server started and is accepting connections
-    println!(
-        "SSH server started successfully on port {}",
-        harness.port
-    );
+    println!("SSH server started successfully on port {}", harness.port);
 
     // Verify the port is actually listening
     assert!(

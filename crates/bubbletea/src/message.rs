@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_message_downcast_ref_wrong_type() {
-        struct TestMsg1(i32);
+        struct TestMsg1(#[expect(dead_code)] i32);
         struct TestMsg2;
 
         let msg = Message::new(TestMsg1(42));
@@ -270,13 +270,13 @@ mod tests {
 
     #[test]
     fn test_message_with_tuple() {
-        let msg = Message::new((1i32, "hello", 3.14f64));
+        let msg = Message::new((1i32, "hello", 2.71f64));
         assert!(msg.is::<(i32, &str, f64)>());
 
         let (a, b, c) = msg.downcast::<(i32, &str, f64)>().unwrap();
         assert_eq!(a, 1);
         assert_eq!(b, "hello");
-        assert!((c - 3.14).abs() < f64::EPSILON);
+        assert!((c - 2.71).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -314,17 +314,17 @@ mod tests {
 
     #[test]
     fn test_builtin_msg_clone() {
-        // Test Clone for built-in message types
+        // Test Clone/Copy for built-in message types
         let quit = QuitMsg;
-        let quit_clone = quit.clone();
-        assert_eq!(quit, quit_clone);
+        let quit_copy = quit;
+        assert_eq!(quit, quit_copy);
 
         let size = WindowSizeMsg {
             width: 80,
             height: 24,
         };
-        let size_clone = size.clone();
-        assert_eq!(size, size_clone);
+        let size_copy = size;
+        assert_eq!(size, size_copy);
     }
 
     #[test]

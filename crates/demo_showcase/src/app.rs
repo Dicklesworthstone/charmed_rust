@@ -11,9 +11,12 @@ use bubbletea::{
 };
 use lipgloss::{Position, Style};
 
-use crate::components::{CommandPalette, GuidedTour, NotesModal, NotesModalMsg, Sidebar, SidebarFocus, StatusLevel, banner, key_hint};
-use crate::data::animation::Animator;
+use crate::components::{
+    CommandPalette, GuidedTour, NotesModal, NotesModalMsg, Sidebar, SidebarFocus, StatusLevel,
+    banner, key_hint,
+};
 use crate::config::Config;
+use crate::data::animation::Animator;
 use crate::keymap::{HELP_SECTIONS, help_total_lines};
 use crate::messages::{
     AppMsg, ExportFormat, ExportMsg, Notification, NotificationMsg, Page, ShellOutMsg, WizardMsg,
@@ -1113,7 +1116,6 @@ impl App {
     pub const fn focused(&self) -> bool {
         self.focused
     }
-
 }
 
 impl Default for App {
@@ -1375,14 +1377,19 @@ impl Model for App {
                         self.notifications.remove(0);
                     }
                     // Also emit println for logging
-                    return Some(println(format!("[notes] Saved: {}", content.lines().next().unwrap_or(""))));
+                    return Some(println(format!(
+                        "[notes] Saved: {}",
+                        content.lines().next().unwrap_or("")
+                    )));
                 }
                 NotesModalMsg::Copied(content) => {
                     let id = self.next_notification_id;
                     self.next_notification_id += 1;
                     let chars = content.len();
-                    self.notifications
-                        .push(Notification::info(id, format!("Copied {chars} chars to clipboard")));
+                    self.notifications.push(Notification::info(
+                        id,
+                        format!("Copied {chars} chars to clipboard"),
+                    ));
                     while self.notifications.len() > MAX_NOTIFICATIONS {
                         self.notifications.remove(0);
                     }
@@ -1476,7 +1483,9 @@ impl Model for App {
 
         // Render command palette overlay if visible (bd-3mtt)
         if self.command_palette.visible {
-            return self.command_palette.view(self.width, self.height, &self.theme);
+            return self
+                .command_palette
+                .view(self.width, self.height, &self.theme);
         }
 
         // Render guided tour overlay if active (bd-2eky)
@@ -1486,7 +1495,9 @@ impl Model for App {
 
         // Render notes modal overlay if visible (bd-1xvj)
         if self.notes_modal.is_open() {
-            return self.notes_modal.view_centered(&self.theme, self.width, self.height);
+            return self
+                .notes_modal
+                .view_centered(&self.theme, self.width, self.height);
         }
 
         // Truncate all lines to layout width to prevent wrapping/scrolling (bd-pty1)
@@ -2225,14 +2236,17 @@ mod tests {
 
     #[test]
     fn debug_view_output() {
-        use bubbletea::{Message, Model};
         use bubbletea::message::WindowSizeMsg;
+        use bubbletea::{Message, Model};
 
         let mut app = App::new();
         assert!(!app.ready);
 
         // Simulate receiving window size
-        let size_msg = Message::new(WindowSizeMsg { width: 120, height: 40 });
+        let size_msg = Message::new(WindowSizeMsg {
+            width: 120,
+            height: 40,
+        });
         app.update(size_msg);
         assert!(app.ready);
 
@@ -2248,8 +2262,10 @@ mod tests {
 
         // Basic assertions
         assert!(view.len() > 100, "View should have substantial content");
-        assert!(view.contains("Charmed") || view.contains("Dashboard"),
-            "View should contain expected UI elements");
+        assert!(
+            view.contains("Charmed") || view.contains("Dashboard"),
+            "View should contain expected UI elements"
+        );
     }
 
     #[test]
@@ -2551,18 +2567,33 @@ mod tests {
         if !problematic_lines.is_empty() {
             println!("\n!!! LINES EXCEEDING 119 COLUMNS !!!\n");
             for (line_num, width, line) in &problematic_lines {
-                println!("Line {} (width {}): {:?}",
-                    line_num, width,
-                    line.chars().take(80).collect::<String>().replace('\x1b', "ESC"));
+                println!(
+                    "Line {} (width {}): {:?}",
+                    line_num,
+                    width,
+                    line.chars()
+                        .take(80)
+                        .collect::<String>()
+                        .replace('\x1b', "ESC")
+                );
             }
-            panic!("Found {} lines exceeding safe width (119)", problematic_lines.len());
+            panic!(
+                "Found {} lines exceeding safe width (119)",
+                problematic_lines.len()
+            );
         }
 
         // Also verify the view has the expected structure
-        assert!(view.contains("Charmed Control Center"), "Header should be visible");
+        assert!(
+            view.contains("Charmed Control Center"),
+            "Header should be visible"
+        );
         assert!(view.contains("Dashboard"), "Sidebar should be visible");
 
-        println!("✓ All {} lines fit within 119 columns (max: {})", total_lines, max_visible_width);
+        println!(
+            "✓ All {} lines fit within 119 columns (max: {})",
+            total_lines, max_visible_width
+        );
 
         // Check for trailing newline
         let has_trailing_newline = view.ends_with('\n');
@@ -2570,8 +2601,12 @@ mod tests {
 
         // Count actual newlines in the view
         let newline_count = view.chars().filter(|&c| c == '\n').count();
-        println!("Newline count in view: {} (should be {} for {} lines)",
-            newline_count, total_lines - 1, total_lines);
+        println!(
+            "Newline count in view: {} (should be {} for {} lines)",
+            newline_count,
+            total_lines - 1,
+            total_lines
+        );
 
         // If there's a trailing newline, that's an extra newline that could cause scroll
         if has_trailing_newline {
@@ -2600,41 +2635,87 @@ mod tests {
         let content_width = app.width.saturating_sub(sidebar_width);
         let sidebar = app.render_sidebar(content_height);
 
-        let page_content = app.pages.get(app.current_page).view(content_width, content_height, &app.theme);
+        let page_content =
+            app.pages
+                .get(app.current_page)
+                .view(content_width, content_height, &app.theme);
 
         // Check each component
         println!("=== COMPONENT WIDTH ANALYSIS ===\n");
 
         // Header
-        let header_max_width = header.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
-        println!("Header: {} lines, max width = {} (expected ~{})",
-            header.lines().count(), header_max_width, app.width - 1);
+        let header_max_width = header
+            .lines()
+            .map(|l| lipgloss::width(l))
+            .max()
+            .unwrap_or(0);
+        println!(
+            "Header: {} lines, max width = {} (expected ~{})",
+            header.lines().count(),
+            header_max_width,
+            app.width - 1
+        );
 
         // Footer
-        let footer_max_width = footer.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
-        println!("Footer: {} lines, max width = {} (expected ~{})",
-            footer.lines().count(), footer_max_width, app.width);
+        let footer_max_width = footer
+            .lines()
+            .map(|l| lipgloss::width(l))
+            .max()
+            .unwrap_or(0);
+        println!(
+            "Footer: {} lines, max width = {} (expected ~{})",
+            footer.lines().count(),
+            footer_max_width,
+            app.width
+        );
 
         // Sidebar
-        let sidebar_max_width = sidebar.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
-        println!("Sidebar: {} lines, max width = {} (expected {})",
-            sidebar.lines().count(), sidebar_max_width, sidebar_width);
+        let sidebar_max_width = sidebar
+            .lines()
+            .map(|l| lipgloss::width(l))
+            .max()
+            .unwrap_or(0);
+        println!(
+            "Sidebar: {} lines, max width = {} (expected {})",
+            sidebar.lines().count(),
+            sidebar_max_width,
+            sidebar_width
+        );
 
         // Page content
-        let page_max_width = page_content.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
-        println!("Page content: {} lines, max width = {} (expected {})",
-            page_content.lines().count(), page_max_width, content_width);
+        let page_max_width = page_content
+            .lines()
+            .map(|l| lipgloss::width(l))
+            .max()
+            .unwrap_or(0);
+        println!(
+            "Page content: {} lines, max width = {} (expected {})",
+            page_content.lines().count(),
+            page_max_width,
+            content_width
+        );
 
         // Join horizontal: sidebar + page_content
         let main_area = lipgloss::join_horizontal(Position::Top, &[&sidebar, &page_content]);
-        let main_area_max_width = main_area.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
-        println!("Main area (sidebar + content): {} lines, max width = {} (expected {})",
-            main_area.lines().count(), main_area_max_width, app.width);
+        let main_area_max_width = main_area
+            .lines()
+            .map(|l| lipgloss::width(l))
+            .max()
+            .unwrap_or(0);
+        println!(
+            "Main area (sidebar + content): {} lines, max width = {} (expected {})",
+            main_area.lines().count(),
+            main_area_max_width,
+            app.width
+        );
 
         // Check for overflow
         let safe_width = app.width.saturating_sub(1);
         if main_area_max_width > safe_width {
-            println!("\n!!! MAIN AREA EXCEEDS SAFE WIDTH ({} > {}) !!!", main_area_max_width, safe_width);
+            println!(
+                "\n!!! MAIN AREA EXCEEDS SAFE WIDTH ({} > {}) !!!",
+                main_area_max_width, safe_width
+            );
 
             // Find offending lines
             for (i, line) in main_area.lines().enumerate() {
@@ -2647,17 +2728,35 @@ mod tests {
 
         // Final join
         let base_view = lipgloss::join_vertical(Position::Left, &[&header, &main_area, &footer]);
-        let base_max_width = base_view.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
-        println!("\nBefore truncation: {} lines, max width = {}",
-            base_view.lines().count(), base_max_width);
+        let base_max_width = base_view
+            .lines()
+            .map(|l| lipgloss::width(l))
+            .max()
+            .unwrap_or(0);
+        println!(
+            "\nBefore truncation: {} lines, max width = {}",
+            base_view.lines().count(),
+            base_max_width
+        );
 
         // After truncation
         let final_view = truncate_to_width(&base_view, safe_width);
-        let final_max_width = final_view.lines().map(|l| lipgloss::width(l)).max().unwrap_or(0);
-        println!("After truncation to {}: max width = {}", safe_width, final_max_width);
+        let final_max_width = final_view
+            .lines()
+            .map(|l| lipgloss::width(l))
+            .max()
+            .unwrap_or(0);
+        println!(
+            "After truncation to {}: max width = {}",
+            safe_width, final_max_width
+        );
 
         // Assertions
-        assert!(final_max_width <= safe_width,
-            "Final view width {} exceeds safe width {}", final_max_width, safe_width);
+        assert!(
+            final_max_width <= safe_width,
+            "Final view width {} exceeds safe width {}",
+            final_max_width,
+            safe_width
+        );
     }
 }

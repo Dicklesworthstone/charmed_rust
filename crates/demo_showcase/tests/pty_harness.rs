@@ -8,8 +8,8 @@
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use std::io::{Read, Write};
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::time::{Duration, Instant};
 use std::thread;
+use std::time::{Duration, Instant};
 use vt100::Parser;
 
 /// Size of the virtual terminal.
@@ -44,8 +44,7 @@ impl PtyHarness {
         })?;
 
         // Build command to run the demo - use the built binary directly
-        let binary_path = std::env::current_dir()?
-            .join("../../target/debug/demo_showcase");
+        let binary_path = std::env::current_dir()?.join("../../target/debug/demo_showcase");
 
         if !binary_path.exists() {
             anyhow::bail!("Binary not found at {}", binary_path.display());
@@ -121,7 +120,11 @@ impl PtyHarness {
         // Debug: Print raw output and escape sequence analysis
         if total_read > 0 {
             let preview_len = std::cmp::min(2000, all_data.len());
-            println!("=== Raw output preview (first {} of {} bytes) ===", preview_len, all_data.len());
+            println!(
+                "=== Raw output preview (first {} of {} bytes) ===",
+                preview_len,
+                all_data.len()
+            );
             println!("{}", String::from_utf8_lossy(&all_data[..preview_len]));
             println!("=== End raw preview ===");
 
@@ -147,12 +150,17 @@ impl PtyHarness {
                     if pos < all_data.len() {
                         let cmd = all_data[pos] as char;
                         match cmd {
-                            'H' | 'f' => println!("  @{}: CUP (cursor position) params={}", start, params),
+                            'H' | 'f' => {
+                                println!("  @{}: CUP (cursor position) params={}", start, params)
+                            }
                             'A' => println!("  @{}: CUU (cursor up) params={}", start, params),
                             'B' => println!("  @{}: CUD (cursor down) params={}", start, params),
                             'C' => println!("  @{}: CUF (cursor forward) params={}", start, params),
                             'D' => println!("  @{}: CUB (cursor back) params={}", start, params),
-                            'G' => println!("  @{}: CHA (cursor horizontal absolute) params={}", start, params),
+                            'G' => println!(
+                                "  @{}: CHA (cursor horizontal absolute) params={}",
+                                start, params
+                            ),
                             'K' => println!("  @{}: EL (erase line) params={}", start, params),
                             'J' => println!("  @{}: ED (erase display) params={}", start, params),
                             _ => {}
@@ -234,7 +242,10 @@ fn test_vt100_with_real_output() {
         let screen = parser.screen();
         let row0 = screen.contents_between(0, 0, 0, 40);
         println!("After 'Loading...': row0 = '{}'", row0);
-        assert!(row0.contains("Loading"), "Should see Loading... after first render");
+        assert!(
+            row0.contains("Loading"),
+            "Should see Loading... after first render"
+        );
     }
 
     // 3. Set window title (OSC sequence - note: NO BEL terminator before next ESC)
@@ -269,8 +280,14 @@ fn test_vt100_with_real_output() {
         let screen = parser.screen();
         let row0 = screen.contents_between(0, 0, 0, 60);
         println!("After styled content: row0 = '{}'", row0);
-        assert!(row0.contains("Connected"), "Should see 'Connected' in output");
-        assert!(row0.contains("more text"), "Should see 'more text' in output");
+        assert!(
+            row0.contains("Connected"),
+            "Should see 'Connected' in output"
+        );
+        assert!(
+            row0.contains("more text"),
+            "Should see 'more text' in output"
+        );
     }
 
     println!("\n=== Real output simulation passed ===");
@@ -281,8 +298,8 @@ fn test_vt100_with_real_output() {
 
     // What if an escape sequence is split across process() calls?
     // E.g., "\x1b[1" then ";1H" then "Hello"
-    parser.process(b"\x1b[1");  // Partial CSI
-    parser.process(b";1H");     // Rest of CSI
+    parser.process(b"\x1b[1"); // Partial CSI
+    parser.process(b";1H"); // Rest of CSI
     parser.process(b"Hello at 1,1");
 
     let screen = parser.screen();
@@ -291,25 +308,31 @@ fn test_vt100_with_real_output() {
 
     // Test 2: Split in the middle of OSC sequence
     let mut parser = Parser::new(5, 60, 0);
-    parser.process(b"\x1b[1;1H\x1b[2JContent\x1b]0;");  // Start OSC
-    parser.process(b"Title");                            // OSC text
-    parser.process(b"\x1b[1;1H\x1b[2JNew Content");      // Next sequence
+    parser.process(b"\x1b[1;1H\x1b[2JContent\x1b]0;"); // Start OSC
+    parser.process(b"Title"); // OSC text
+    parser.process(b"\x1b[1;1H\x1b[2JNew Content"); // Next sequence
 
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 30);
     println!("Split OSC result: row0 = '{}'", row0);
-    assert!(row0.contains("New Content"), "New content should be visible after split OSC");
+    assert!(
+        row0.contains("New Content"),
+        "New content should be visible after split OSC"
+    );
 
     // Test 3: Split RGB color sequence
     let mut parser = Parser::new(5, 60, 0);
-    parser.process(b"\x1b[1;1H\x1b[2J\x1b[38;2;");   // Start RGB
-    parser.process(b"0;255;0");                       // RGB values
-    parser.process(b"mGreenText\x1b[0m");             // End + text
+    parser.process(b"\x1b[1;1H\x1b[2J\x1b[38;2;"); // Start RGB
+    parser.process(b"0;255;0"); // RGB values
+    parser.process(b"mGreenText\x1b[0m"); // End + text
 
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 30);
     println!("Split RGB result: row0 = '{}'", row0);
-    assert!(row0.contains("GreenText"), "Green text should be visible after split RGB");
+    assert!(
+        row0.contains("GreenText"),
+        "Green text should be visible after split RGB"
+    );
 
     println!("\n=== Chunk boundary tests passed ===");
 }
@@ -382,8 +405,14 @@ fn test_vt100_all_at_once_vs_chunked() {
     println!("Parser (100-byte chunks) row 0: '{}'", row0_small);
 
     // All should match
-    assert_eq!(row0_once, row0_chunked, "All-at-once vs 1000-byte chunks should match");
-    assert_eq!(row0_once, row0_small, "All-at-once vs 100-byte chunks should match");
+    assert_eq!(
+        row0_once, row0_chunked,
+        "All-at-once vs 1000-byte chunks should match"
+    );
+    assert_eq!(
+        row0_once, row0_small,
+        "All-at-once vs 100-byte chunks should match"
+    );
 
     // Check if the content is correct
     let has_content = row0_once.contains("Connected") || row0_once.contains("Charmed");
@@ -410,7 +439,10 @@ fn test_vt100_all_at_once_vs_chunked() {
 
         // Check parser cursor position
         let cursor = screen_once.cursor_position();
-        println!("\nParser cursor position: row={}, col={}", cursor.0, cursor.1);
+        println!(
+            "\nParser cursor position: row={}, col={}",
+            cursor.0, cursor.1
+        );
         println!("Parser screen size: {:?}", screen_once.size());
 
         // Try processing first part only (before second clear)
@@ -441,8 +473,13 @@ fn test_vt100_all_at_once_vs_chunked() {
 
             // Print when row 0 changes
             if processed == 0 || row0.trim() != "" {
-                println!("\nAfter bytes {}..{}: row0='{}', cursor={:?}",
-                         processed, end, row0.trim(), cursor);
+                println!(
+                    "\nAfter bytes {}..{}: row0='{}', cursor={:?}",
+                    processed,
+                    end,
+                    row0.trim(),
+                    cursor
+                );
             }
             processed = end;
 
@@ -475,19 +512,26 @@ fn test_vt100_all_at_once_vs_chunked() {
             // Track when row 0 content changes
             if row0 != last_row0 {
                 // Safely truncate strings with potential multi-byte chars
-                let safe_last = last_row0.char_indices()
+                let safe_last = last_row0
+                    .char_indices()
                     .take_while(|(i, _)| *i < 30)
                     .last()
                     .map(|(i, c)| i + c.len_utf8())
                     .unwrap_or(last_row0.len());
-                let safe_row0 = row0.char_indices()
+                let safe_row0 = row0
+                    .char_indices()
                     .take_while(|(i, _)| *i < 30)
                     .last()
                     .map(|(i, c)| i + c.len_utf8())
                     .unwrap_or(row0.len());
-                println!("Bytes {}-{}: Row0 changed from '{}' to '{}', cursor={:?}",
-                    processed, end, &last_row0[..safe_last],
-                    &row0[..safe_row0], cursor);
+                println!(
+                    "Bytes {}-{}: Row0 changed from '{}' to '{}', cursor={:?}",
+                    processed,
+                    end,
+                    &last_row0[..safe_last],
+                    &row0[..safe_row0],
+                    cursor
+                );
 
                 // If row 0 became empty, show the bytes that caused it
                 if row0.is_empty() && !last_row0.is_empty() {
@@ -496,13 +540,16 @@ fn test_vt100_all_at_once_vs_chunked() {
                     // Look for clear or scroll sequences
                     let context_str = String::from_utf8_lossy(context_bytes);
                     // Safely truncate - find a safe char boundary
-                    let safe_end = context_str.char_indices()
+                    let safe_end = context_str
+                        .char_indices()
                         .take_while(|(i, _)| *i < 300)
                         .last()
                         .map(|(i, c)| i + c.len_utf8())
                         .unwrap_or(context_str.len());
-                    println!("  Context (first ~300 chars): {:?}",
-                        context_str[..safe_end].replace('\x1b', "ESC"));
+                    println!(
+                        "  Context (first ~300 chars): {:?}",
+                        context_str[..safe_end].replace('\x1b', "ESC")
+                    );
                 }
                 last_row0 = row0;
             }
@@ -518,7 +565,8 @@ fn test_vt100_all_at_once_vs_chunked() {
         // Count clear sequences
         let data_str = String::from_utf8_lossy(&all_data);
         let clear_count = data_str.matches("\x1b[2J").count() + data_str.matches("\x1b[J").count();
-        let moveto_count = data_str.matches("\x1b[1;1H").count() + data_str.matches("\x1b[H").count();
+        let moveto_count =
+            data_str.matches("\x1b[1;1H").count() + data_str.matches("\x1b[H").count();
         println!("Clear sequences (ESC[2J/ESC[J): {}", clear_count);
         println!("MoveTo(0,0) sequences: {}", moveto_count);
 
@@ -530,14 +578,20 @@ fn test_vt100_all_at_once_vs_chunked() {
 
         // If more than expected newlines, the terminal will scroll
         if newline_count > usize::from(TERM_ROWS) {
-            println!("\n!!! SCROLL DETECTED: {} newlines > {} rows !!!", newline_count, TERM_ROWS);
+            println!(
+                "\n!!! SCROLL DETECTED: {} newlines > {} rows !!!",
+                newline_count, TERM_ROWS
+            );
             println!("Extra newlines will cause content to scroll off screen");
         }
 
         // Analyze the first 400 bytes to see what Line 0 actually contains
         println!("\n=== FIRST 400 BYTES ANALYSIS ===");
         let first_400 = &all_data[..400.min(all_data.len())];
-        let first_nl = first_400.iter().position(|&b| b == 0x0A).unwrap_or(first_400.len());
+        let first_nl = first_400
+            .iter()
+            .position(|&b| b == 0x0A)
+            .unwrap_or(first_400.len());
         let line0_bytes = &first_400[..first_nl];
 
         println!("Line 0 ends at byte {}", first_nl);
@@ -552,7 +606,9 @@ fn test_vt100_all_at_once_vs_chunked() {
                 if next == b'[' {
                     // CSI - find end
                     let mut end = pos + 2;
-                    while end < line0_bytes.len() && !(line0_bytes[end] >= 0x40 && line0_bytes[end] <= 0x7E) {
+                    while end < line0_bytes.len()
+                        && !(line0_bytes[end] >= 0x40 && line0_bytes[end] <= 0x7E)
+                    {
                         end += 1;
                     }
                     if end < line0_bytes.len() {
@@ -565,14 +621,21 @@ fn test_vt100_all_at_once_vs_chunked() {
                     // OSC - find BEL or ST
                     let mut end = pos + 2;
                     while end < line0_bytes.len() && line0_bytes[end] != 0x07 {
-                        if line0_bytes[end] == 0x1b && end + 1 < line0_bytes.len() && line0_bytes[end + 1] == b'\\' {
+                        if line0_bytes[end] == 0x1b
+                            && end + 1 < line0_bytes.len()
+                            && line0_bytes[end + 1] == b'\\'
+                        {
                             end += 1;
                             break;
                         }
                         end += 1;
                     }
-                    let seq = String::from_utf8_lossy(&line0_bytes[pos..=end.min(line0_bytes.len() - 1)]);
-                    print!("[OSC:{}]", seq.replace('\x1b', "").chars().take(30).collect::<String>());
+                    let seq =
+                        String::from_utf8_lossy(&line0_bytes[pos..=end.min(line0_bytes.len() - 1)]);
+                    print!(
+                        "[OSC:{}]",
+                        seq.replace('\x1b', "").chars().take(30).collect::<String>()
+                    );
                     pos = end + 1;
                     continue;
                 }
@@ -594,14 +657,18 @@ fn test_vt100_all_at_once_vs_chunked() {
             let vlen = lipgloss::width(line);
             if vlen > TERM_COLS as usize {
                 lines_over_120 += 1;
-                if lines_over_120 <= 5 { // Limit output
+                if lines_over_120 <= 5 {
+                    // Limit output
                     // Find visible content only
-                    let visible: String = line.chars()
+                    let visible: String = line
+                        .chars()
                         .filter(|&c| c != '\x1b' && c.is_ascii_graphic() || c == ' ')
                         .take(80)
                         .collect();
-                    println!("Line {} has {} visible chars (over {}): visible = {:?}",
-                             line_num, vlen, TERM_COLS, visible);
+                    println!(
+                        "Line {} has {} visible chars (over {}): visible = {:?}",
+                        line_num, vlen, TERM_COLS, visible
+                    );
                 }
             }
             line_num += 1;
@@ -609,7 +676,8 @@ fn test_vt100_all_at_once_vs_chunked() {
         println!("Lines exceeding {} columns: {}", TERM_COLS, lines_over_120);
 
         // Also check where newlines are in the raw data
-        let newline_positions: Vec<usize> = all_data.iter()
+        let newline_positions: Vec<usize> = all_data
+            .iter()
             .enumerate()
             .filter(|&(_, &b)| b == 0x0A)
             .map(|(i, _)| i)
@@ -629,7 +697,10 @@ fn test_vt100_parser_escape_sequences() {
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 40);
     println!("Row 0: '{}'", row0);
-    assert!(row0.contains("Hello World"), "Simple text should be visible");
+    assert!(
+        row0.contains("Hello World"),
+        "Simple text should be visible"
+    );
 
     // Test 2: RGB colors (true color)
     println!("\n=== Test 2: RGB Colors ===");
@@ -638,7 +709,10 @@ fn test_vt100_parser_escape_sequences() {
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 40);
     println!("Row 0: '{}'", row0);
-    assert!(row0.contains("Green Text"), "Colored text should be visible");
+    assert!(
+        row0.contains("Green Text"),
+        "Colored text should be visible"
+    );
 
     // Test 3: OSC (window title) with proper BEL terminator
     println!("\n=== Test 3: OSC with BEL ===");
@@ -647,8 +721,10 @@ fn test_vt100_parser_escape_sequences() {
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 40);
     println!("Row 0: '{}'", row0);
-    assert!(row0.contains("Before") && row0.contains("After"),
-        "OSC should be skipped, text before and after visible");
+    assert!(
+        row0.contains("Before") && row0.contains("After"),
+        "OSC should be skipped, text before and after visible"
+    );
 
     // Test 4: OSC without BEL (just ESC to start next sequence)
     println!("\n=== Test 4: OSC without BEL ===");
@@ -669,7 +745,10 @@ fn test_vt100_parser_escape_sequences() {
     let row0 = screen.contents_between(0, 0, 0, 120);
     println!("Row 0: '{}'", row0);
     assert!(!row0.contains("Loading"), "First content should be cleared");
-    assert!(row0.contains("Final Content"), "Final content should be visible");
+    assert!(
+        row0.contains("Final Content"),
+        "Final content should be visible"
+    );
 
     // Test 6: Complex sequence like demo_showcase outputs
     println!("\n=== Test 6: Complex sequence ===");
@@ -681,7 +760,10 @@ fn test_vt100_parser_escape_sequences() {
     let row0 = screen.contents_between(0, 0, 0, 120);
     println!("Row 0: '{}'", row0);
     assert!(row0.contains("Connected"), "Styled text should be visible");
-    assert!(row0.contains("Rest of content"), "Unstyled text should be visible");
+    assert!(
+        row0.contains("Rest of content"),
+        "Unstyled text should be visible"
+    );
 
     println!("\n=== All vt100 parser tests completed ===");
 }
@@ -695,7 +777,10 @@ fn test_pty_app_starts() {
         .join("../../target/debug/demo_showcase");
 
     if !binary_path.exists() {
-        eprintln!("Skipping PTY test - binary not found at {}", binary_path.display());
+        eprintln!(
+            "Skipping PTY test - binary not found at {}",
+            binary_path.display()
+        );
         eprintln!("Run 'cargo build -p demo_showcase' first");
         return;
     }
@@ -815,22 +900,39 @@ fn test_full_ui_verification() {
     harness.dump_screen();
 
     // Verify header elements
-    assert!(screen.contains("Charmed") || screen.contains("Control Center"),
-        "Header should contain title");
+    assert!(
+        screen.contains("Charmed") || screen.contains("Control Center"),
+        "Header should contain title"
+    );
 
     // Verify sidebar elements
-    let sidebar_items = ["Dashboard", "Services", "Jobs", "Logs", "Docs", "Files", "Wizard", "Settings"];
+    let sidebar_items = [
+        "Dashboard",
+        "Services",
+        "Jobs",
+        "Logs",
+        "Docs",
+        "Files",
+        "Wizard",
+        "Settings",
+    ];
     let mut found_sidebar = 0;
     for item in &sidebar_items {
         if screen.contains(item) {
             found_sidebar += 1;
         }
     }
-    assert!(found_sidebar >= 4, "Should find at least 4 sidebar items, found {}", found_sidebar);
+    assert!(
+        found_sidebar >= 4,
+        "Should find at least 4 sidebar items, found {}",
+        found_sidebar
+    );
 
     // Verify footer
-    assert!(screen.contains("help") || screen.contains("quit"),
-        "Footer should show keybindings");
+    assert!(
+        screen.contains("help") || screen.contains("quit"),
+        "Footer should show keybindings"
+    );
 
     println!("✓ Full UI verification passed!");
 
@@ -845,8 +947,8 @@ fn test_full_ui_verification() {
 #[test]
 #[ignore = "Requires tmux installation - run with --ignored for manual testing"]
 fn test_tmux_real_terminal() {
-    use std::process::Command;
     use std::fs;
+    use std::process::Command;
 
     let binary_path = std::env::current_dir()
         .unwrap()
@@ -954,9 +1056,14 @@ fn test_tmux_real_terminal() {
             // Each content line should fit in 120 columns
             // (allowing 1 extra for edge cases)
             if visible_width > 121 {
-                println!("WARNING: Line {} chars exceeds 120: {}...",
+                println!(
+                    "WARNING: Line {} chars exceeds 120: {}...",
                     visible_width,
-                    line.chars().filter(|c| !c.is_control()).take(50).collect::<String>());
+                    line.chars()
+                        .filter(|c| !c.is_control())
+                        .take(50)
+                        .collect::<String>()
+                );
             }
         }
     }
@@ -965,7 +1072,11 @@ fn test_tmux_real_terminal() {
     println!("Max content line width: {}", max_content_width);
 
     // Ensure we checked some actual content
-    assert!(content_lines_checked >= 30, "Expected at least 30 content lines, got {}", content_lines_checked);
+    assert!(
+        content_lines_checked >= 30,
+        "Expected at least 30 content lines, got {}",
+        content_lines_checked
+    );
 
     // Allow up to 121 chars (terminal width + 1 for edge cases)
     assert!(
@@ -995,14 +1106,28 @@ fn test_analyze_view_output() {
     }
 
     let session_name = format!("analyze_{}", std::process::id());
-    let _ = Command::new("tmux").args(["kill-session", "-t", &session_name]).output();
+    let _ = Command::new("tmux")
+        .args(["kill-session", "-t", &session_name])
+        .output();
 
     // Create session with specific size
     let _ = Command::new("tmux")
-        .args(["new-session", "-d", "-s", &session_name, "-x", "120", "-y", "40"])
+        .args([
+            "new-session",
+            "-d",
+            "-s",
+            &session_name,
+            "-x",
+            "120",
+            "-y",
+            "40",
+        ])
         .output();
 
-    let cmd = format!("TERM=wezterm {} --seed 42 --no-alt-screen", binary_path.display());
+    let cmd = format!(
+        "TERM=wezterm {} --seed 42 --no-alt-screen",
+        binary_path.display()
+    );
     let _ = Command::new("tmux")
         .args(["send-keys", "-t", &session_name, &cmd, "Enter"])
         .output();
@@ -1011,12 +1136,22 @@ fn test_analyze_view_output() {
 
     // Get RAW output with escape sequences for analysis
     let raw_output = Command::new("tmux")
-        .args(["capture-pane", "-t", &session_name, "-p", "-S", "-100", "-e"])
+        .args([
+            "capture-pane",
+            "-t",
+            &session_name,
+            "-p",
+            "-S",
+            "-100",
+            "-e",
+        ])
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
         .unwrap_or_default();
 
-    let _ = Command::new("tmux").args(["kill-session", "-t", &session_name]).output();
+    let _ = Command::new("tmux")
+        .args(["kill-session", "-t", &session_name])
+        .output();
 
     println!("=== ANALYZING LINE-BY-LINE OUTPUT ===\n");
 
@@ -1027,11 +1162,21 @@ fn test_analyze_view_output() {
 
         if visible_width > 120 {
             problematic_lines += 1;
-            println!("LINE {} OVERFLOW: visible={}, raw_bytes={}", line_num, visible_width, raw_len);
+            println!(
+                "LINE {} OVERFLOW: visible={}, raw_bytes={}",
+                line_num, visible_width, raw_len
+            );
 
             // Show start and end of line
             let start: String = line.chars().take(80).collect();
-            let end: String = line.chars().rev().take(40).collect::<String>().chars().rev().collect();
+            let end: String = line
+                .chars()
+                .rev()
+                .take(40)
+                .collect::<String>()
+                .chars()
+                .rev()
+                .collect();
             println!("  START: {:?}", start.replace('\x1b', "ESC"));
             println!("  END: {:?}", end.replace('\x1b', "ESC"));
 
@@ -1051,7 +1196,11 @@ fn test_analyze_view_output() {
             }
             if excess_start_idx > 0 {
                 let excess: String = line.chars().skip(excess_start_idx).take(60).collect();
-                println!("  EXCESS CONTENT AT pos {}: {:?}", excess_start_idx, excess.replace('\x1b', "ESC"));
+                println!(
+                    "  EXCESS CONTENT AT pos {}: {:?}",
+                    excess_start_idx,
+                    excess.replace('\x1b', "ESC")
+                );
             }
             println!();
         }
@@ -1146,10 +1295,14 @@ fn test_wezterm_mux() {
     );
     let spawn_result = Command::new("wezterm")
         .args([
-            "cli", "spawn",
-            "--cwd", &std::env::current_dir().unwrap().to_string_lossy(),
+            "cli",
+            "spawn",
+            "--cwd",
+            &std::env::current_dir().unwrap().to_string_lossy(),
             "--",
-            "bash", "-c", &cmd,
+            "bash",
+            "-c",
+            &cmd,
         ])
         .output();
 
@@ -1158,7 +1311,10 @@ fn test_wezterm_mux() {
             String::from_utf8_lossy(&output.stdout).trim().to_string()
         }
         Ok(output) => {
-            eprintln!("wezterm cli spawn failed: {}", String::from_utf8_lossy(&output.stderr));
+            eprintln!(
+                "wezterm cli spawn failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
             return;
         }
         Err(e) => {
@@ -1182,7 +1338,10 @@ fn test_wezterm_mux() {
             String::from_utf8_lossy(&output.stdout).to_string()
         }
         Ok(output) => {
-            eprintln!("get-text failed: {}", String::from_utf8_lossy(&output.stderr));
+            eprintln!(
+                "get-text failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
             // Kill the pane
             let _ = Command::new("wezterm")
                 .args(["cli", "kill-pane", "--pane-id", &pane_id])

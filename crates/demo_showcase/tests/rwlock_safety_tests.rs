@@ -15,7 +15,7 @@
 //! ## Comparison with std::sync::RwLock
 //! - Demonstrate that std::sync::RwLock DOES poison (for documentation)
 
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 // =============================================================================
 // TEST: parking_lot::RwLock Never Poisons
@@ -39,7 +39,10 @@ fn test_parking_lot_never_poisons_on_write_panic() {
 
     // With parking_lot, the lock is NOT poisoned - read should work
     let value = lock.read();
-    assert_eq!(*value, 42, "parking_lot lock should be readable after panic");
+    assert_eq!(
+        *value, 42,
+        "parking_lot lock should be readable after panic"
+    );
 }
 
 /// Verify that parking_lot::RwLock allows writes after a panic.
@@ -86,7 +89,11 @@ fn test_parking_lot_multiple_panic_cycles() {
         }));
 
         // Verify value is still correct
-        assert_eq!(*lock.read(), i, "value should persist after panic cycle {i}");
+        assert_eq!(
+            *lock.read(),
+            i,
+            "value should persist after panic cycle {i}"
+        );
     }
 }
 

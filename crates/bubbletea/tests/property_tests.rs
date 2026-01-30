@@ -3,6 +3,9 @@
 //! bd-10x1: Verify message type system invariants, batch/sequence behavior,
 //! and command composition using proptest.
 
+// These casts are safe in tests where n_some < 10
+#![expect(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+
 use bubbletea::message::{BatchMsg, Message, SequenceMsg};
 use bubbletea::{Cmd, batch, sequence};
 use proptest::prelude::*;

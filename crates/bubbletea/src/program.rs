@@ -2464,14 +2464,11 @@ mod tests {
 
         // The join should return Err, not propagate the panic
         let result = handle.join();
-        assert!(result.is_err(), "Join should return Err when thread panics");
-
         // Verify we can inspect the panic payload
-        if let Err(e) = result {
-            // The panic payload is available for logging
-            let _panic_info = format!("{:?}", e);
-            // In production code, this would be logged with tracing::warn!
-        }
+        let e = result.expect_err("Join should return Err when thread panics");
+        // The panic payload is available for logging
+        let _panic_info = format!("{:?}", e);
+        // In production code, this would be logged with tracing::warn!
     }
 
     #[test]

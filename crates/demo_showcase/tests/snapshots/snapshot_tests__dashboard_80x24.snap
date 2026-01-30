@@ -3,7 +3,8 @@ source: crates/demo_showcase/tests/snapshot_tests.rs
 expression: view
 ---
  Charmed Control Center   Connected                                    [Dark]  
-> [] Dashboard DEGRADED  >_ Services                                                                  
+> [] Dashboard DEGRADED   10/12 services healthy  ⏱ 07:05:23:00  SLA: 45:00    
+  >_ Services                                                                  
   >> Jobs     ╭───────────────╮╭───────────────╮╭───────────────╮╭─────────────
    # Logs     │Services       ││Active Jobs    ││Completed      ││Deploys      
    ? Docs     │10/12 ↓1 issues││10 3 running   ││9 ↓1 failed    ││2 in progress

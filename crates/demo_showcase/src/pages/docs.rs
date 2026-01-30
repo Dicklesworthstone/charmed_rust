@@ -14,8 +14,8 @@
 //!
 //! Uses `RwLock` for thread-safe interior mutability, enabling SSH mode.
 
-use std::collections::HashMap;
 use parking_lot::RwLock;
+use std::collections::HashMap;
 
 use bubbles::viewport::Viewport;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message};

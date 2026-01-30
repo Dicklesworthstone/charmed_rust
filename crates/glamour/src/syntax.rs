@@ -662,7 +662,8 @@ impl StyleCache {
 
         // Use entry API pattern: get existing or insert new
         // LruCache::get_or_insert handles LRU promotion and eviction automatically
-        self.cache.get_or_insert(key, || syntect_to_lipgloss(syn_style))
+        self.cache
+            .get_or_insert(key, || syntect_to_lipgloss(syn_style))
     }
 
     /// Clears the cache, freeing memory.
@@ -2240,8 +2241,16 @@ mod tests {
 
         // HashMap operations should work correctly
         map.insert(key1, "style1");
-        assert_eq!(map.get(&key2), Some(&"style1"), "Lookup with equal key should work");
-        assert_eq!(map.get(&key3), None, "Lookup with different key should return None");
+        assert_eq!(
+            map.get(&key2),
+            Some(&"style1"),
+            "Lookup with equal key should work"
+        );
+        assert_eq!(
+            map.get(&key3),
+            None,
+            "Lookup with different key should return None"
+        );
 
         map.insert(key3, "style3");
         assert_eq!(map.len(), 2, "HashMap should have 2 distinct entries");

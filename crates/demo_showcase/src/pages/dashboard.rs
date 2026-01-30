@@ -641,13 +641,9 @@ impl DashboardPage {
             format!("{platform_status}  {service_styled}  {uptime_styled}  {sla_styled}")
         };
 
-        // Truncate if needed
-        if content.len() > width {
-            content
-                .chars()
-                .take(width.saturating_sub(3))
-                .collect::<String>()
-                + "..."
+        // Truncate if needed (using visible width and ANSI-aware truncation)
+        if lipgloss::visible_width(&content) > width {
+            lipgloss::truncate_line_ansi(&content, width.saturating_sub(3)) + "..."
         } else {
             content
         }

@@ -158,7 +158,7 @@ pub use color::{
 };
 pub use position::{Position, Sides};
 pub use renderer::{Renderer, color_profile, default_renderer, has_dark_background};
-pub use style::Style;
+pub use style::{Style, truncate_line_ansi};
 #[cfg(feature = "tokio")]
 pub use theme::AsyncThemeContext;
 pub use theme::{

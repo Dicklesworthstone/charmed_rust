@@ -101,11 +101,22 @@ impl RepoRef {
         // Sanitize components to prevent path traversal in cache filenames
         let sanitize = |s: &str| -> String {
             s.chars()
-                .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+                .map(|c| {
+                    if c.is_alphanumeric() || c == '-' || c == '_' {
+                        c
+                    } else {
+                        '_'
+                    }
+                })
                 .collect()
         };
         match &self.branch {
-            Some(branch) => format!("{}_{}_{}", sanitize(&self.owner), sanitize(&self.name), sanitize(branch)),
+            Some(branch) => format!(
+                "{}_{}_{}",
+                sanitize(&self.owner),
+                sanitize(&self.name),
+                sanitize(branch)
+            ),
             None => format!("{}_{}", sanitize(&self.owner), sanitize(&self.name)),
         }
     }
