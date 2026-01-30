@@ -17,7 +17,7 @@
 //! - Breadcrumb path display
 
 use parking_lot::RwLock;
-use std::path::PathBuf;
+use std::path::Path;
 
 use bubbles::filepicker::FilePicker;
 use bubbles::viewport::Viewport;
@@ -133,6 +133,7 @@ fn is_binary_content(content: &[u8]) -> bool {
 const PREVIEW_MAX_BYTES: usize = 64 * 1024;
 
 /// Files page showing file browser with preview.
+#[allow(clippy::struct_excessive_bools)]
 pub struct FilesPage {
     /// The file picker component (used for real filesystem mode).
     picker: Option<FilePicker>,
@@ -208,10 +209,10 @@ impl FilesPage {
 
     /// Create a new files page with real filesystem mode.
     #[must_use]
-    pub fn with_root(root: PathBuf) -> Self {
+    pub fn with_root(root: &Path) -> Self {
         let mut picker = FilePicker::new();
-        picker.set_root(&root);
-        picker.set_current_directory(&root);
+        picker.set_root(root);
+        picker.set_current_directory(root);
         picker.show_hidden = false;
         picker.show_permissions = false;
         picker.show_size = true;
@@ -310,6 +311,7 @@ impl FilesPage {
                 let mut viewport = self.preview_viewport.write();
                 viewport.set_content(&truncated_content);
                 viewport.goto_top();
+                drop(viewport);
                 self.preview_name = Some(name.to_string());
                 self.preview_truncated = was_truncated;
             }
@@ -376,7 +378,7 @@ impl FilesPage {
     }
 
     /// Ensure selected item is visible.
-    fn ensure_visible(&mut self) {
+    const fn ensure_visible(&mut self) {
         let visible_rows = self.height.saturating_sub(4); // Header + footer
         if visible_rows == 0 {
             return;
@@ -478,7 +480,13 @@ impl FilesPage {
             )
         };
 
-        if !name.is_empty() {
+        if name.is_empty() {
+            self.preview_viewport.write().set_content("");
+            self.preview_name = None;
+            self.raw_content = None;
+            self.is_markdown = false;
+            self.preview_truncated = false;
+        } else {
             // Check if file is markdown
             self.is_markdown = !is_dir && Self::is_markdown_file(&name);
 
@@ -524,12 +532,6 @@ impl FilesPage {
             }
             // Reset scroll position when switching files
             self.preview_viewport.write().goto_top();
-        } else {
-            self.preview_viewport.write().set_content("");
-            self.preview_name = None;
-            self.raw_content = None;
-            self.is_markdown = false;
-            self.preview_truncated = false;
         }
     }
 
@@ -742,11 +744,12 @@ impl FilesPage {
 
     /// Check if a filename indicates a markdown file.
     fn is_markdown_file(name: &str) -> bool {
-        let lower = name.to_lowercase();
-        lower.ends_with(".md")
-            || lower.ends_with(".markdown")
-            || lower.ends_with(".mdx")
-            || lower.ends_with(".mdown")
+        Path::new(name).extension().is_some_and(|ext| {
+            ext.eq_ignore_ascii_case("md")
+                || ext.eq_ignore_ascii_case("markdown")
+                || ext.eq_ignore_ascii_case("mdx")
+                || ext.eq_ignore_ascii_case("mdown")
+        })
     }
 
     /// Toggle syntax highlighting on/off.

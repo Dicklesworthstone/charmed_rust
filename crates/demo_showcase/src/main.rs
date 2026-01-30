@@ -42,6 +42,7 @@ use demo_showcase::messages;
 use demo_showcase::ssh;
 use demo_showcase::test_support;
 
+#[allow(clippy::large_stack_frames)] // Program struct is large by design
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
@@ -100,6 +101,7 @@ fn main() -> anyhow::Result<()> {
 /// # Errors
 ///
 /// Returns an error if the subcommand fails.
+#[allow(clippy::unnecessary_wraps)] // Consistent API with other command handlers
 fn handle_subcommand(cmd: &Command, cli: &Cli) -> anyhow::Result<()> {
     match cmd {
         #[cfg(feature = "ssh")]
@@ -270,13 +272,13 @@ const AUTO_MAX_WIDTH: u16 = 200;
 fn apply_pty_width_cap(config: &Config) {
     let max_width = config.max_width.unwrap_or(AUTO_MAX_WIDTH);
 
-    if let Ok((cols, _rows)) = crossterm::terminal::size() {
-        if cols > max_width {
-            let _ = std::process::Command::new("stty")
-                .arg("cols")
-                .arg(max_width.to_string())
-                .status();
-        }
+    if let Ok((cols, _rows)) = crossterm::terminal::size()
+        && cols > max_width
+    {
+        let _ = std::process::Command::new("stty")
+            .arg("cols")
+            .arg(max_width.to_string())
+            .status();
     }
 }
 

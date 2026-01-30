@@ -440,6 +440,7 @@ impl Simulation {
     }
 
     /// Update live metrics with simulated values.
+    #[allow(clippy::too_many_lines)]
     fn update_metrics(&mut self) -> bool {
         let mut changed = false;
 

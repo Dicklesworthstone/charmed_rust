@@ -9,7 +9,7 @@
 //! It also provides a theme picker with live previews for instant theme switching.
 //!
 //! The About/Diagnostics section (bd-2kp1) provides:
-//! - Version + build info for all charmed_rust crates
+//! - Version + build info for all `charmed_rust` crates
 //! - Active runtime configuration details
 //! - Terminal environment info
 //! - Feature flag status
@@ -231,7 +231,7 @@ pub struct SettingsPage {
 impl SettingsPage {
     /// Create a new settings page.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             section: SettingsSection::Toggles,
             toggle_selected: 0,
@@ -249,6 +249,7 @@ impl SettingsPage {
     /// Update toggle states from app state.
     ///
     /// Called on page enter to sync with current app configuration.
+    #[allow(clippy::fn_params_excessive_bools)] // Required to sync all toggle states
     pub fn sync_states(
         &mut self,
         mouse: bool,
@@ -276,13 +277,13 @@ impl SettingsPage {
     }
 
     /// Update terminal dimensions (called on resize).
-    pub fn update_terminal_size(&mut self, width: usize, height: usize) {
+    pub const fn update_terminal_size(&mut self, width: usize, height: usize) {
         self.terminal_width = width;
         self.terminal_height = height;
     }
 
     /// Switch to the next section.
-    fn next_section(&mut self) {
+    const fn next_section(&mut self) {
         self.section = match self.section {
             SettingsSection::Toggles => SettingsSection::Themes,
             SettingsSection::Themes => SettingsSection::Keybindings,
@@ -292,7 +293,7 @@ impl SettingsPage {
     }
 
     /// Move selection up within current section.
-    fn move_up(&mut self) {
+    const fn move_up(&mut self) {
         match self.section {
             SettingsSection::Toggles => {
                 if self.toggle_selected > 0 {
@@ -318,7 +319,7 @@ impl SettingsPage {
     }
 
     /// Move selection down within current section.
-    fn move_down(&mut self) {
+    const fn move_down(&mut self) {
         match self.section {
             SettingsSection::Toggles => {
                 if self.toggle_selected < TOGGLES.len() - 1 {
@@ -415,14 +416,15 @@ impl SettingsPage {
     }
 
     /// Generate full diagnostics string including all sections.
+    #[allow(clippy::too_many_lines)]
     fn generate_full_diagnostics(&self) -> String {
-        let mut lines = Vec::new();
-
         // Header
-        lines.push("═".repeat(60));
-        lines.push("  CHARMED_RUST DEMO SHOWCASE - DIAGNOSTICS REPORT".to_string());
-        lines.push("═".repeat(60));
-        lines.push(String::new());
+        let mut lines = vec![
+            "═".repeat(60),
+            "  CHARMED_RUST DEMO SHOWCASE - DIAGNOSTICS REPORT".to_string(),
+            "═".repeat(60),
+            String::new(),
+        ];
 
         // Version info (all crates use workspace version)
         let workspace_version = env!("CARGO_PKG_VERSION");
@@ -544,16 +546,17 @@ impl SettingsPage {
     }
 
     /// Toggle the currently selected toggle item.
+    #[allow(clippy::unnecessary_wraps)] // Consistent API with other toggle methods
     fn toggle_selected_toggle(&mut self) -> Option<Cmd> {
         self.toggle_states[self.toggle_selected] = !self.toggle_states[self.toggle_selected];
         let state = self.toggle_states[self.toggle_selected];
         let idx = self.toggle_selected;
         Some(Cmd::new(move || match idx {
-            0 => AppMsg::ToggleMouse.into_message(),
             1 => AppMsg::ToggleAnimations.into_message(),
             2 => AppMsg::ForceAscii(state).into_message(),
             3 => AppMsg::ToggleSyntax.into_message(),
-            _ => AppMsg::ToggleMouse.into_message(), // Fallback, shouldn't happen
+            // 0 and fallback both toggle mouse
+            _ => AppMsg::ToggleMouse.into_message(),
         }))
     }
 
@@ -647,7 +650,7 @@ impl SettingsPage {
             String::new()
         };
 
-        format!("{}  {}", label_part, description)
+        format!("{label_part}  {description}")
     }
 
     /// Render a theme preview row.

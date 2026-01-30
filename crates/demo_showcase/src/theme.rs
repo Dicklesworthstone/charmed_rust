@@ -752,7 +752,7 @@ pub fn parse_hex_color(s: &str) -> Option<(u8, u8, u8)> {
 }
 
 /// Calculate relative luminance for a color.
-/// See: https://www.w3.org/TR/WCAG20/#relativeluminancedef
+/// See: <https://www.w3.org/TR/WCAG20/#relativeluminancedef>
 #[must_use]
 pub fn relative_luminance(r: u8, g: u8, b: u8) -> f64 {
     fn channel(c: u8) -> f64 {
@@ -763,11 +763,14 @@ pub fn relative_luminance(r: u8, g: u8, b: u8) -> f64 {
             ((c + 0.055) / 1.055).powf(2.4)
         }
     }
-    0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+    let r_val = channel(r);
+    let g_val = channel(g);
+    let b_val = channel(b);
+    0.0722f64.mul_add(b_val, 0.2126f64.mul_add(r_val, 0.7152 * g_val))
 }
 
 /// Calculate WCAG contrast ratio between two colors.
-/// See: https://www.w3.org/TR/WCAG20/#contrast-ratiodef
+/// See: <https://www.w3.org/TR/WCAG20/#contrast-ratiodef>
 #[must_use]
 pub fn contrast_ratio(fg: (u8, u8, u8), bg: (u8, u8, u8)) -> f64 {
     let l1 = relative_luminance(fg.0, fg.1, fg.2);
@@ -789,7 +792,7 @@ fn leak_string(s: &str) -> &'static str {
 
 /// Terminal color profile capabilities.
 ///
-/// Ordered from least capable (Ascii) to most capable (TrueColor).
+/// Ordered from least capable (Ascii) to most capable (`TrueColor`).
 /// Detection follows the hierarchy defined in ACCESSIBILITY.md.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ColorProfile {

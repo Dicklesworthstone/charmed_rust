@@ -1156,27 +1156,28 @@ impl LogFormatter {
 
     /// Format just the message portion, truncating to fit available width.
     fn format_message(&self, message: &str) -> String {
-        let text = if let Some(max_w) = self.widths.message {
-            let visible_w = unicode_width::UnicodeWidthStr::width(message);
-            if visible_w > max_w && max_w > 1 {
-                // Truncate by display width, leaving room for the ellipsis
-                let limit = max_w.saturating_sub(1);
-                let mut w = 0;
-                let end = message
-                    .char_indices()
-                    .take_while(|(_, c)| {
-                        w += unicode_width::UnicodeWidthChar::width(*c).unwrap_or(0);
-                        w <= limit
-                    })
-                    .last()
-                    .map_or(0, |(i, c)| i + c.len_utf8());
-                format!("{}…", &message[..end])
-            } else {
-                message.to_string()
-            }
-        } else {
-            message.to_string()
-        };
+        let text = self.widths.message.map_or_else(
+            || message.to_string(),
+            |max_w| {
+                let visible_w = unicode_width::UnicodeWidthStr::width(message);
+                if visible_w > max_w && max_w > 1 {
+                    // Truncate by display width, leaving room for the ellipsis
+                    let limit = max_w.saturating_sub(1);
+                    let mut w = 0;
+                    let end = message
+                        .char_indices()
+                        .take_while(|(_, c)| {
+                            w += unicode_width::UnicodeWidthChar::width(*c).unwrap_or(0);
+                            w <= limit
+                        })
+                        .last()
+                        .map_or(0, |(i, c)| i + c.len_utf8());
+                    format!("{}…", &message[..end])
+                } else {
+                    message.to_string()
+                }
+            },
+        );
         if self.use_color {
             self.message_style.render(&text)
         } else {

@@ -984,6 +984,7 @@ impl DashboardPage {
         let panel_content = lines.join("\n");
 
         // Create modal box style
+        #[allow(clippy::cast_possible_truncation)] // Panel dimensions are always within u16 range
         let modal_box = theme
             .panel_style()
             .width(panel_width as u16)

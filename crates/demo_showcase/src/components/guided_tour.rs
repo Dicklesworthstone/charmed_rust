@@ -1,4 +1,4 @@
-//! Guided tour component for demo_showcase.
+//! Guided tour component for `demo_showcase`.
 //!
 //! A step-by-step walkthrough that showcases the capabilities of the
 //! Charm stack (bubbletea, lipgloss, bubbles, glamour, huh).
@@ -191,7 +191,7 @@ const TOUR_STEPS: &[TourStep] = &[
     },
 ];
 
-/// Messages emitted by the GuidedTour.
+/// Messages emitted by the `GuidedTour`.
 #[derive(Debug, Clone)]
 pub enum GuidedTourMsg {
     /// Tour was started.
@@ -230,7 +230,7 @@ impl Default for GuidedTour {
 impl GuidedTour {
     /// Create a new guided tour.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             current_step: 0,
             active: false,
@@ -245,7 +245,7 @@ impl GuidedTour {
     }
 
     /// Stop/cancel the tour.
-    pub fn stop(&mut self) {
+    pub const fn stop(&mut self) {
         self.active = false;
     }
 
@@ -301,22 +301,19 @@ impl GuidedTour {
 
     /// Emit a step changed message with navigation command.
     fn emit_step_changed(&self) -> Option<Cmd> {
-        if let Some(step) = TOUR_STEPS.get(self.current_step) {
-            let page = step.page;
-            let step_idx = self.current_step;
-            batch(vec![
-                Some(Cmd::new(move || AppMsg::Navigate(page).into_message())),
-                Some(Cmd::new(move || {
-                    GuidedTourMsg::StepChanged {
-                        step: step_idx,
-                        page,
-                    }
-                    .into_message()
-                })),
-            ])
-        } else {
-            None
-        }
+        let step = TOUR_STEPS.get(self.current_step)?;
+        let page = step.page;
+        let step_idx = self.current_step;
+        batch(vec![
+            Some(Cmd::new(move || AppMsg::Navigate(page).into_message())),
+            Some(Cmd::new(move || {
+                GuidedTourMsg::StepChanged {
+                    step: step_idx,
+                    page,
+                }
+                .into_message()
+            })),
+        ])
     }
 
     /// Handle input when tour is active.
@@ -370,14 +367,14 @@ impl GuidedTour {
 
     /// Render the tour overlay.
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn view(&self, theme: &Theme, screen_width: usize, screen_height: usize) -> String {
         if !self.active {
             return String::new();
         }
 
-        let step = match self.current() {
-            Some(s) => s,
-            None => return String::new(),
+        let Some(step) = self.current() else {
+            return String::new();
         };
 
         // Modal dimensions
@@ -436,7 +433,7 @@ impl GuidedTour {
 
         // Feature badge
         let feature_line = format!("[{}]", step.feature);
-        let feature_padded = format!("{:^width$}", feature_line, width = content_width);
+        let feature_padded = format!("{feature_line:^content_width$}");
         lines.push(format!(
             "{}{}{}{}",
             indent,
@@ -458,7 +455,7 @@ impl GuidedTour {
         // Description - word wrap
         let desc_lines = word_wrap(step.description, content_width);
         for desc_line in desc_lines.iter().take(4) {
-            let padded = format!("{:width$}", desc_line, width = content_width);
+            let padded = format!("{desc_line:content_width$}");
             lines.push(format!(
                 "{}{}{}{}",
                 indent,
@@ -492,7 +489,7 @@ impl GuidedTour {
             border_style.render("")
         ));
         for tip in step.tips.iter().take(2) {
-            let tip_text = format!("  {}", tip);
+            let tip_text = format!("  {tip}");
             let tip_char_count = tip_text.chars().count();
             let tip_padded = if tip_char_count > content_width {
                 let truncated: String = tip_text
@@ -501,7 +498,7 @@ impl GuidedTour {
                     .collect();
                 format!("{truncated}...")
             } else {
-                format!("{:width$}", tip_text, width = content_width)
+                format!("{tip_text:content_width$}")
             };
             lines.push(format!(
                 "{}{}{}{}",
@@ -523,7 +520,7 @@ impl GuidedTour {
             "".repeat(empty_bar),
             progress
         );
-        let progress_padded = format!("{:^width$}", progress_bar, width = content_width);
+        let progress_padded = format!("{progress_bar:^content_width$}");
         lines.push(format!(
             "{}{}{}{}",
             indent,
@@ -534,7 +531,7 @@ impl GuidedTour {
 
         // Navigation hints
         let nav_hints = "n/Enter next    p/Left back    q/Esc exit";
-        let nav_padded = format!("{:^width$}", nav_hints, width = content_width);
+        let nav_padded = format!("{nav_hints:^content_width$}");
         lines.push(format!(
             "{}{}{}{}",
             indent,

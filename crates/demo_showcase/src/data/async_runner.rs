@@ -1,4 +1,4 @@
-//! Async job runner for demo_showcase.
+//! Async job runner for `demo_showcase`.
 //!
 //! Demonstrates realistic async workload patterns using `bubbletea::AsyncCmd`
 //! when the `async` feature is enabled. Provides a sync fallback when the
@@ -46,20 +46,15 @@ use std::time::Duration;
 use super::Id;
 
 /// Delay profile for async operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DelayProfile {
     /// Normal delays (50-500ms range) for realistic feel.
+    #[default]
     Normal,
     /// Fast delays (10-50ms range) for testing.
     Fast,
     /// Fixed delays (all operations take exactly the same time) for E2E tests.
     Deterministic,
-}
-
-impl Default for DelayProfile {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 /// An async operation that can be started by the runner.
@@ -98,7 +93,7 @@ impl AsyncOperation {
     }
 
     /// Get the base duration for this operation.
-    fn base_duration(&self, profile: DelayProfile) -> Duration {
+    const fn base_duration(&self, profile: DelayProfile) -> Duration {
         match profile {
             DelayProfile::Deterministic => Duration::from_millis(100),
             DelayProfile::Fast => match self {
@@ -140,7 +135,7 @@ pub enum AsyncResult {
     /// Metrics were fetched successfully.
     MetricsFetched {
         service_id: Id,
-        /// Simulated metrics: (requests_per_sec, latency_ms, error_rate)
+        /// Simulated metrics: (`requests_per_sec`, `latency_ms`, `error_rate`)
         metrics: (f64, f64, f64),
     },
     /// Service was deployed successfully.
@@ -245,7 +240,7 @@ impl AsyncRunner {
     }
 
     /// Set the seed for deterministic results.
-    pub fn set_seed(&mut self, seed: u64) {
+    pub const fn set_seed(&mut self, seed: u64) {
         self.seed = seed;
     }
 
@@ -402,7 +397,8 @@ impl AsyncRunner {
     ///
     /// Returns `Some(result)` if the operation is still current,
     /// `None` if it was cancelled (stale generation).
-    pub fn handle_result<'a>(&self, msg: &'a AsyncOperationMsg) -> Option<&'a AsyncResult> {
+    #[must_use]
+    pub const fn handle_result<'a>(&self, msg: &'a AsyncOperationMsg) -> Option<&'a AsyncResult> {
         if self.is_current_generation(msg.generation) {
             Some(&msg.result)
         } else {
@@ -418,9 +414,11 @@ fn generate_result(operation: &AsyncOperation, seed: u64) -> AsyncResult {
 
     match operation {
         AsyncOperation::FetchMetrics { service_id } => {
-            let base_rps = 100.0 + (variation as f64);
-            let latency = 30.0 + (variation as f64 * 0.5);
-            let error_rate = (variation as f64 * 0.02).min(5.0);
+            #[allow(clippy::cast_precision_loss)] // variation is always < 100, safe to cast
+            let var_f64 = variation as f64;
+            let base_rps = 100.0 + var_f64;
+            let latency = var_f64.mul_add(0.5, 30.0);
+            let error_rate = (var_f64 * 0.02).min(5.0);
 
             AsyncResult::MetricsFetched {
                 service_id: *service_id,

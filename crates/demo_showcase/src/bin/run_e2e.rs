@@ -1,6 +1,6 @@
 //! E2E Test Runner Script (bd-1kx7)
 //!
-//! This is the canonical entrypoint for running demo_showcase E2E tests.
+//! This is the canonical entrypoint for running `demo_showcase` E2E tests.
 //! It supports profiles, scenario selection, determinism, and structured output.
 //!
 //! # Usage
@@ -28,6 +28,7 @@
 use serde::Serialize;
 use std::collections::HashMap;
 use std::env;
+use std::fmt::Write as FmtWrite;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
@@ -59,7 +60,7 @@ impl Profile {
         }
     }
 
-    fn name(self) -> &'static str {
+    const fn name(self) -> &'static str {
         match self {
             Self::Smoke => "smoke",
             Self::Full => "full",
@@ -98,7 +99,7 @@ impl Scenario {
         }
     }
 
-    fn name(self) -> &'static str {
+    const fn name(self) -> &'static str {
         match self {
             Self::Docs => "docs",
             Self::Logs => "logs",
@@ -113,7 +114,7 @@ impl Scenario {
     }
 
     /// Get the cargo test filter pattern for this scenario
-    fn test_filter(self) -> &'static str {
+    const fn test_filter(self) -> &'static str {
         match self {
             Self::Docs => "e2e_docs",
             Self::Logs => "e2e_logs",
@@ -129,7 +130,7 @@ impl Scenario {
 
     /// Get the test file name (if external test file)
     #[allow(dead_code)] // Reserved for future per-file test running
-    fn test_file(self) -> Option<&'static str> {
+    const fn test_file(self) -> Option<&'static str> {
         match self {
             Self::Docs => Some("docs_e2e"),
             Self::Logs => Some("logs_e2e"),
@@ -143,7 +144,8 @@ impl Scenario {
     }
 
     /// Approximate test count (for progress estimation)
-    fn test_count(self) -> usize {
+    #[allow(clippy::match_same_arms)]
+    const fn test_count(self) -> usize {
         match self {
             Self::Docs => 14,
             Self::Logs => 13,
@@ -157,7 +159,7 @@ impl Scenario {
         }
     }
 
-    fn all() -> &'static [Self] {
+    const fn all() -> &'static [Self] {
         &[
             Self::Docs,
             Self::Logs,
@@ -172,7 +174,7 @@ impl Scenario {
     }
 
     /// Scenarios included in smoke profile (fast, essential tests)
-    fn smoke_scenarios() -> &'static [Self] {
+    const fn smoke_scenarios() -> &'static [Self] {
         &[Self::Runner, Self::Navigation, Self::Mouse]
     }
 }
@@ -259,8 +261,7 @@ struct ScenarioResult {
 impl E2ERunner {
     fn new(profile: Profile, scenarios: Vec<Scenario>, seed: u64, verbose: bool) -> Self {
         let artifact_dir = env::var("DEMO_SHOWCASE_E2E_ARTIFACTS")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("target/e2e_runs"));
+            .map_or_else(|_| PathBuf::from("target/e2e_runs"), PathBuf::from);
 
         // Create run directory with timestamp
         let run_id = SystemTime::now()
@@ -287,11 +288,11 @@ impl E2ERunner {
     }
 
     fn log_event<T: Serialize>(&mut self, event: &T) {
-        if let Some(ref mut file) = self.log_file {
-            if let Ok(json) = serde_json::to_string(event) {
-                let _ = writeln!(file, "{}", json);
-                let _ = file.flush();
-            }
+        if let Some(ref mut file) = self.log_file
+            && let Ok(json) = serde_json::to_string(event)
+        {
+            let _ = writeln!(file, "{json}");
+            let _ = file.flush();
         }
     }
 
@@ -301,7 +302,7 @@ impl E2ERunner {
             .unwrap()
             .as_secs();
         // Simple ISO-8601 like timestamp
-        format!("{}", now)
+        format!("{now}")
     }
 
     fn run(&mut self) -> bool {
@@ -443,7 +444,7 @@ impl E2ERunner {
                 duration.as_secs_f64()
             );
             for test in &failed_tests {
-                println!("    - {}", test);
+                println!("    - {test}");
             }
             println!();
         }
@@ -457,6 +458,7 @@ impl E2ERunner {
         success
     }
 
+    #[allow(clippy::unused_self)]
     fn parse_test_output(&self, stdout: &str, _stderr: &str) -> (usize, usize, Vec<String>) {
         let mut passed = 0;
         let mut failed = 0;
@@ -509,7 +511,7 @@ impl E2ERunner {
                 if result.failed > 0 {
                     println!("    • {} ({} failures)", scenario.name(), result.failed);
                     for test in &result.failed_tests {
-                        println!("      - {}", test);
+                        println!("      - {test}");
                     }
                 }
             }
@@ -532,7 +534,8 @@ impl E2ERunner {
         let summary_path = self.artifact_dir.join("summary.txt");
         let mut summary = String::new();
 
-        summary.push_str(&format!(
+        let _ = write!(
+            summary,
             "E2E Test Run Summary\n\
              ====================\n\n\
              Profile:  {}\n\
@@ -546,33 +549,35 @@ impl E2ERunner {
             total_duration.as_secs_f64(),
             total_passed,
             total_failed
-        ));
+        );
 
         summary.push_str("Scenarios:\n");
         for (scenario, result) in &self.results {
             let status = if result.failed == 0 { "✓" } else { "✗" };
-            summary.push_str(&format!(
-                "  {} {} - {} passed, {} failed ({:.2}s)\n",
+            let _ = writeln!(
+                summary,
+                "  {} {} - {} passed, {} failed ({:.2}s)",
                 status,
                 scenario.name(),
                 result.passed,
                 result.failed,
                 result.duration.as_secs_f64()
-            ));
+            );
         }
 
         if !all_passed {
             summary.push_str("\nFailed Tests:\n");
             for (scenario, result) in &self.results {
                 for test in &result.failed_tests {
-                    summary.push_str(&format!("  - {}::{}\n", scenario.name(), test));
+                    let _ = writeln!(summary, "  - {}::{}", scenario.name(), test);
                 }
             }
-            summary.push_str(&format!(
-                "\nTo reproduce:\n  cargo run --bin run_e2e -- --profile {} --seed {}\n",
+            let _ = writeln!(
+                summary,
+                "\nTo reproduce:\n  cargo run --bin run_e2e -- --profile {} --seed {}",
                 self.profile.name(),
                 self.seed
-            ));
+            );
         }
 
         let _ = fs::write(&summary_path, &summary);
@@ -600,24 +605,24 @@ fn parse_args() -> Args {
         help: false,
     };
 
-    let argv: Vec<String> = env::args().collect();
+    let cli_args: Vec<String> = env::args().collect();
     let mut i = 1;
 
-    while i < argv.len() {
-        match argv[i].as_str() {
+    while i < cli_args.len() {
+        match cli_args[i].as_str() {
             "--help" | "-h" => {
                 args.help = true;
             }
             "--profile" | "-p" => {
                 i += 1;
-                if i < argv.len() {
-                    args.profile = Profile::from_str(&argv[i]).unwrap_or(Profile::Full);
+                if i < cli_args.len() {
+                    args.profile = Profile::from_str(&cli_args[i]).unwrap_or(Profile::Full);
                 }
             }
             "--scenario" | "-s" => {
                 i += 1;
-                if i < argv.len() {
-                    let scenarios: Vec<Scenario> = argv[i]
+                if i < cli_args.len() {
+                    let scenarios: Vec<Scenario> = cli_args[i]
                         .split(',')
                         .filter_map(|s| Scenario::from_str(s.trim()))
                         .collect();
@@ -628,8 +633,8 @@ fn parse_args() -> Args {
             }
             "--seed" => {
                 i += 1;
-                if i < argv.len() {
-                    args.seed = argv[i].parse().ok();
+                if i < cli_args.len() {
+                    args.seed = cli_args[i].parse().ok();
                 }
             }
             "--verbose" | "-v" => {
@@ -652,7 +657,7 @@ fn parse_args() -> Args {
 
 fn print_help() {
     println!(
-        r#"
+        r"
 E2E Test Runner for demo_showcase
 
 USAGE:
@@ -698,7 +703,7 @@ EXAMPLES:
 
     # Run with verbose output
     cargo run --bin run_e2e -- -v --scenario mouse
-"#
+"
     );
 }
 
@@ -721,6 +726,7 @@ fn main() -> ExitCode {
     });
 
     // Generate or use provided seed
+    #[allow(clippy::cast_possible_truncation)]
     let seed = args.seed.unwrap_or_else(|| {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)

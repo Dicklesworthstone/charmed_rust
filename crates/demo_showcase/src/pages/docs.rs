@@ -449,6 +449,7 @@ impl DocsPage {
         let offset = viewport.y_offset();
         drop(viewport);
 
+        #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let percent = if total <= visible {
             100
         } else {
@@ -558,6 +559,7 @@ impl Default for DocsPage {
 }
 
 impl PageModel for DocsPage {
+    #[allow(clippy::too_many_lines)]
     fn update(&mut self, msg: &Message) -> Option<Cmd> {
         // Handle keyboard navigation
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {

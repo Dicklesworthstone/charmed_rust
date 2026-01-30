@@ -290,6 +290,7 @@ pub enum CommandPaletteMsg {
 
 impl CommandPaletteMsg {
     /// Convert to a bubbletea Message.
+    #[must_use]
     pub fn into_message(self) -> Message {
         Message::new(self)
     }
@@ -330,7 +331,7 @@ impl CommandPalette {
     }
 
     /// Hide the palette.
-    pub fn hide(&mut self) {
+    pub const fn hide(&mut self) {
         self.visible = false;
     }
 
@@ -352,13 +353,9 @@ impl CommandPalette {
                 None
             }
             KeyType::Enter => {
-                if let Some(cmd) = self.selected_command() {
-                    let action = cmd.action.clone();
-                    self.hide();
-                    Some(Cmd::new(move || action.to_app_msg().into_message()))
-                } else {
-                    None
-                }
+                let action = self.selected_command().map(|cmd| cmd.action.clone());
+                self.hide();
+                action.map(|a| Cmd::new(move || a.to_app_msg().into_message()))
             }
             KeyType::Up => {
                 self.select_prev();
@@ -398,7 +395,7 @@ impl CommandPalette {
     }
 
     /// Move selection up.
-    fn select_prev(&mut self) {
+    const fn select_prev(&mut self) {
         if self.selected > 0 {
             self.selected -= 1;
         } else if !self.filtered_commands.is_empty() {
@@ -407,7 +404,7 @@ impl CommandPalette {
     }
 
     /// Move selection down.
-    fn select_next(&mut self) {
+    const fn select_next(&mut self) {
         if !self.filtered_commands.is_empty() {
             self.selected = (self.selected + 1) % self.filtered_commands.len();
         }
@@ -423,7 +420,7 @@ impl CommandPalette {
             self.filtered_commands = COMMANDS
                 .iter()
                 .enumerate()
-                .filter(|(_, cmd)| self.matches_query(cmd, &query))
+                .filter(|(_, cmd)| Self::matches_query(cmd, &query))
                 .map(|(idx, _)| idx)
                 .collect();
         }
@@ -435,7 +432,7 @@ impl CommandPalette {
     }
 
     /// Check if a command matches the query (fuzzy-ish).
-    fn matches_query(&self, cmd: &Command, query: &str) -> bool {
+    fn matches_query(cmd: &Command, query: &str) -> bool {
         let title_lower = cmd.title.to_lowercase();
         let desc_lower = cmd.description.to_lowercase();
 
@@ -464,6 +461,7 @@ impl CommandPalette {
 
     /// Render the command palette.
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn view(&self, width: usize, height: usize, theme: &Theme) -> String {
         if !self.visible {
             return String::new();
@@ -472,8 +470,8 @@ impl CommandPalette {
         let mut lines = Vec::new();
 
         // Calculate palette dimensions
-        let palette_width = width.min(70).max(40);
-        let palette_height = height.min(20).max(10);
+        let palette_width = width.clamp(40, 70);
+        let palette_height = height.clamp(10, 20);
         let left_pad = (width.saturating_sub(palette_width)) / 2;
         let top_pad = (height.saturating_sub(palette_height)) / 3;
 
@@ -573,8 +571,8 @@ impl CommandPalette {
                 let cmd = &COMMANDS[cmd_idx];
                 let is_selected = display_idx == self.selected;
 
-                let line = self.render_command_line(cmd, is_selected, palette_width - 4, theme);
-                let cmd_line = format!("{}{}", pad, border_style.render(&format!("│ {} │", line)));
+                let line = Self::render_command_line(cmd, is_selected, palette_width - 4, theme);
+                let cmd_line = format!("{}{}", pad, border_style.render(&format!("│ {line} │")));
                 lines.push(cmd_line);
             }
 
@@ -590,7 +588,7 @@ impl CommandPalette {
         }
 
         // Separator
-        lines.push(sep_line.clone());
+        lines.push(sep_line);
 
         // Hints bar
         let hints = format!(
@@ -622,15 +620,9 @@ impl CommandPalette {
     }
 
     /// Render a single command line.
-    fn render_command_line(
-        &self,
-        cmd: &Command,
-        selected: bool,
-        width: usize,
-        theme: &Theme,
-    ) -> String {
+    fn render_command_line(cmd: &Command, selected: bool, width: usize, theme: &Theme) -> String {
         let icon = cmd.category.icon();
-        let keybind = cmd.keybinding.map_or(String::new(), |k| format!("[{}]", k));
+        let keybind = cmd.keybinding.map_or(String::new(), |k| format!("[{k}]"));
 
         let title_width =
             width.saturating_sub(icon.chars().count() + 2 + keybind.chars().count() + 1);

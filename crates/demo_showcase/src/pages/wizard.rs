@@ -442,7 +442,7 @@ impl WizardPage {
     }
 
     /// Get the number of fields in the current step.
-    fn field_count(&self) -> usize {
+    const fn field_count(&self) -> usize {
         match self.state.step {
             0 | 3 | 4 => 1, // Service type select, MultiSelect for env vars, Confirm
             1 | 2 => 3,     // Name/description/environment, or type-specific options
@@ -452,7 +452,7 @@ impl WizardPage {
     }
 
     /// Move to the next field within the current step.
-    fn next_field(&mut self) {
+    const fn next_field(&mut self) {
         let count = self.field_count();
         if count > 0 && self.field_index < count - 1 {
             self.field_index += 1;
@@ -460,7 +460,7 @@ impl WizardPage {
     }
 
     /// Move to the previous field within the current step.
-    fn prev_field(&mut self) {
+    const fn prev_field(&mut self) {
         if self.field_index > 0 {
             self.field_index -= 1;
         }
@@ -1241,6 +1241,7 @@ impl WizardPage {
     }
 
     /// Render Step 6: Deployment Progress.
+    #[allow(clippy::too_many_lines)]
     fn render_step_deploy(&self, theme: &Theme, _width: usize) -> String {
         let mut lines = Vec::new();
 

@@ -76,6 +76,7 @@ fn contains_ignore_case(haystack: &str, needle: &str) -> bool {
 
 /// Level filter state - which log levels to show.
 #[derive(Debug, Clone, Copy)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct LevelFilter {
     /// Show ERROR level logs.
     pub error: bool,
@@ -475,6 +476,7 @@ impl LogsPage {
     /// Export the full log buffer to a file (plain text format).
     ///
     /// Returns a command to show a notification.
+    #[allow(clippy::unnecessary_wraps)] // Consistent API with other action methods
     fn action_export(&self, _theme: &Theme) -> Option<Cmd> {
         let content = self.format_logs_plain();
         let timestamp = std::time::SystemTime::now()
@@ -513,6 +515,7 @@ impl LogsPage {
     /// Clear all logs from the buffer.
     ///
     /// Returns a command to show a notification.
+    #[allow(clippy::unnecessary_wraps)] // Consistent API with other action methods
     fn action_clear(&mut self) -> Option<Cmd> {
         let count = self.logs.len();
         self.logs = LogStream::new(MAX_LOG_ENTRIES);
@@ -527,6 +530,7 @@ impl LogsPage {
     }
 
     /// Write content to an export file and return a notification command.
+    #[allow(clippy::unnecessary_wraps)] // Consistent API with other action methods
     fn write_to_export_file(prefix: &str, content: &str, _theme: &Theme) -> Option<Cmd> {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -685,6 +689,7 @@ impl Default for LogsPage {
 }
 
 impl PageModel for LogsPage {
+    #[allow(clippy::too_many_lines)]
     fn update(&mut self, msg: &Message) -> Option<Cmd> {
         // Handle key messages
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {

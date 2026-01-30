@@ -37,6 +37,7 @@ const DEFAULT_SEED: u64 = 42;
 
 /// Status filter state - which statuses to show.
 #[derive(Debug, Clone, Copy, Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct StatusFilter {
     /// Show running jobs.
     pub running: bool,
@@ -1275,6 +1276,7 @@ impl Default for JobsPage {
 }
 
 impl PageModel for JobsPage {
+    #[allow(clippy::too_many_lines)]
     fn update(&mut self, msg: &Message) -> Option<Cmd> {
         // Handle keyboard input
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
