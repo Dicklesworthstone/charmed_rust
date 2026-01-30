@@ -692,6 +692,7 @@ impl StyleCache {
 /// Compares two syntect styles for equality.
 ///
 /// SynStyle doesn't implement Eq, so we compare field by field.
+#[cfg(test)]
 fn styles_equal(a: &SynStyle, b: &SynStyle) -> bool {
     a.foreground.r == b.foreground.r
         && a.foreground.g == b.foreground.g
