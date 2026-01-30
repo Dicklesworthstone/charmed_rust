@@ -1414,6 +1414,7 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "lipgloss",
+ "lru",
  "proptest",
  "pulldown-cmark",
  "serde",

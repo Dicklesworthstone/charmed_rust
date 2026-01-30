@@ -9,6 +9,7 @@ description = "Stylesheet-based markdown rendering for terminal applications"
 
 [dependencies]
 lipgloss = { path = "../lipgloss" }
+lru = "0.12"  # O(1) LRU cache for StyleCache (bd-cnqe, bd-2oct)
 pulldown-cmark = "0.13"
 tracing.workspace = true
 unicode-width = "0.1"

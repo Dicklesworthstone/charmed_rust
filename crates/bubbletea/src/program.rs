@@ -2279,4 +2279,153 @@ mod tests {
 
         assert_eq!(count, 500, "Large batch should complete without panic");
     }
+
+    // === Thread Lifecycle Tests (bd-1327) ===
+
+    #[test]
+    fn test_thread_handles_captured() {
+        // Verify that JoinHandle types can be stored in Option variables.
+        // This is a compile-time check that the types work as expected.
+        let handle: Option<thread::JoinHandle<()>> = Some(thread::spawn(|| {
+            // Thread does nothing
+        }));
+
+        assert!(handle.is_some(), "Handle should be captured");
+
+        // Join to clean up
+        if let Some(h) = handle {
+            h.join().expect("Thread should join successfully");
+        }
+    }
+
+    #[test]
+    fn test_threads_exit_on_channel_drop() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        // Create a flag to track if the thread has exited
+        let thread_exited = Arc::new(AtomicBool::new(false));
+        let thread_exited_clone = Arc::clone(&thread_exited);
+
+        // Create a channel like the event_loop does
+        let (tx, rx) = mpsc::channel::<i32>();
+
+        // Spawn a thread that blocks on recv() like the external forwarder
+        let handle = thread::spawn(move || {
+            // This loop will exit when tx is dropped (recv() returns Err)
+            while rx.recv().is_ok() {}
+            thread_exited_clone.store(true, Ordering::SeqCst);
+        });
+
+        // Thread should be running
+        assert!(!thread_exited.load(Ordering::SeqCst));
+
+        // Drop the sender - this should cause recv() to return Err
+        drop(tx);
+
+        // Join the thread - it should exit promptly
+        handle.join().expect("Thread should join after channel drop");
+
+        // Verify the thread actually ran its exit code
+        assert!(
+            thread_exited.load(Ordering::SeqCst),
+            "Thread should have exited after channel drop"
+        );
+    }
+
+    #[test]
+    fn test_shutdown_joins_all_threads() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        // Track how many threads have been joined
+        let join_count = Arc::new(AtomicUsize::new(0));
+
+        // Create multiple thread handles like event_loop does
+        let mut handles: Vec<thread::JoinHandle<()>> = Vec::new();
+
+        for i in 0..3 {
+            let join_count_clone = Arc::clone(&join_count);
+            handles.push(thread::spawn(move || {
+                // Simulate some work
+                thread::sleep(Duration::from_millis(10 * (i as u64 + 1)));
+                join_count_clone.fetch_add(1, Ordering::SeqCst);
+            }));
+        }
+
+        // Join all threads (simulating shutdown behavior)
+        for handle in handles {
+            match handle.join() {
+                Ok(()) => {} // Thread joined successfully
+                Err(e) => panic!("Thread panicked during join: {:?}", e),
+            }
+        }
+
+        // All threads should have completed
+        assert_eq!(
+            join_count.load(Ordering::SeqCst),
+            3,
+            "All threads should have completed and been joined"
+        );
+    }
+
+    #[test]
+    fn test_thread_panic_handled_gracefully() {
+        // Spawn a thread that will panic
+        let handle = thread::spawn(|| {
+            panic!("Intentional panic for testing");
+        });
+
+        // The join should return Err, not propagate the panic
+        let result = handle.join();
+        assert!(result.is_err(), "Join should return Err when thread panics");
+
+        // Verify we can inspect the panic payload
+        if let Err(e) = result {
+            // The panic payload is available for logging
+            let _panic_info = format!("{:?}", e);
+            // In production code, this would be logged with tracing::warn!
+        }
+    }
+
+    #[test]
+    fn test_external_forwarder_pattern() {
+        // Test the exact pattern used in event_loop for external message forwarding
+        let (external_tx, external_rx) = mpsc::channel::<Message>();
+        let (event_tx, event_rx) = mpsc::channel::<Message>();
+
+        // Spawn forwarder thread like event_loop does
+        let tx_clone = event_tx.clone();
+        let handle = thread::spawn(move || {
+            while let Ok(msg) = external_rx.recv() {
+                if tx_clone.send(msg).is_err() {
+                    break;
+                }
+            }
+        });
+
+        // Send some messages through the forwarder
+        external_tx.send(Message::new(1i32)).unwrap();
+        external_tx.send(Message::new(2i32)).unwrap();
+        external_tx.send(Message::new(3i32)).unwrap();
+
+        // Drop the external sender to signal the forwarder to exit
+        drop(external_tx);
+
+        // Join should complete because the thread exits when external_rx.recv() returns Err
+        let join_result = handle.join();
+        assert!(
+            join_result.is_ok(),
+            "Forwarder thread should exit cleanly when sender is dropped"
+        );
+
+        // Verify messages were forwarded
+        let mut received = Vec::new();
+        while let Ok(msg) = event_rx.try_recv() {
+            if let Some(&n) = msg.downcast_ref::<i32>() {
+                received.push(n);
+            }
+        }
+        assert_eq!(received, vec![1, 2, 3], "All messages should be forwarded");
+    }
 }
