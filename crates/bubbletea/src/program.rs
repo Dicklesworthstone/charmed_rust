@@ -664,23 +664,31 @@ impl<M: Model> Program<M> {
         // Create message channel
         let (tx, rx): (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
+        // Thread handles for clean shutdown (bd-3dmx)
+        // These are captured for joining during shutdown in bd-3azk.
+        // TODO(bd-3azk): Join these handles before returning from event_loop.
+        let mut _external_forwarder_handle: Option<thread::JoinHandle<()>> = None;
+        let mut _input_parser_handle: Option<thread::JoinHandle<()>> = None;
+
         // Forward external messages
         if let Some(ext_rx) = self.external_rx.take() {
             let tx_clone = tx.clone();
-            thread::spawn(move || {
+            debug!(target: "bubbletea::thread", "Spawning external forwarder thread");
+            _external_forwarder_handle = Some(thread::spawn(move || {
                 while let Ok(msg) = ext_rx.recv() {
                     if tx_clone.send(msg).is_err() {
                         debug!(target: "bubbletea::event", "external message dropped — receiver disconnected");
                         break;
                     }
                 }
-            });
+            }));
         }
 
         // Read custom input stream and inject messages.
         if let Some(mut input) = self.input.take() {
             let tx_clone = tx.clone();
-            thread::spawn(move || {
+            debug!(target: "bubbletea::thread", "Spawning input parser thread");
+            _input_parser_handle = Some(thread::spawn(move || {
                 let mut parser = InputParser::new();
                 let mut buf = [0u8; 256];
                 loop {
@@ -709,7 +717,7 @@ impl<M: Model> Program<M> {
                         break;
                     }
                 }
-            });
+            }));
         }
 
         // Get initial window size (only if not custom IO, otherwise trust init msg)
