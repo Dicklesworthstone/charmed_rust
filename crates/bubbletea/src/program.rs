@@ -5,6 +5,7 @@
 
 use std::io::{self, Read, Write};
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -668,6 +669,10 @@ impl<M: Model> Program<M> {
         let mut external_forwarder_handle: Option<thread::JoinHandle<()>> = None;
         let mut input_parser_handle: Option<thread::JoinHandle<()>> = None;
 
+        // Track command execution threads for graceful shutdown (bd-zyb8)
+        let command_threads: Arc<Mutex<Vec<thread::JoinHandle<()>>>> =
+            Arc::new(Mutex::new(Vec::new()));
+
         // Forward external messages
         if let Some(ext_rx) = self.external_rx.take() {
             let tx_clone = tx.clone();
@@ -730,7 +735,7 @@ impl<M: Model> Program<M> {
 
         // Call init and handle initial command
         if let Some(cmd) = self.model.init() {
-            self.handle_command(cmd, tx.clone());
+            self.handle_command(cmd, tx.clone(), Arc::clone(&command_threads));
         }
 
         // Render initial view
@@ -909,7 +914,7 @@ impl<M: Model> Program<M> {
 
                 // Update model
                 if let Some(cmd) = self.model.update(msg) {
-                    self.handle_command(cmd, tx.clone());
+                    self.handle_command(cmd, tx.clone(), Arc::clone(&command_threads));
                 }
                 needs_render = true;
             }
@@ -936,23 +941,87 @@ impl<M: Model> Program<M> {
 
         if let Some(handle) = external_forwarder_handle {
             match handle.join() {
-                Ok(()) => debug!(target: "bubbletea::thread", "External forwarder thread joined successfully"),
-                Err(e) => tracing::warn!(target: "bubbletea::thread", "External forwarder thread panicked: {:?}", e),
+                Ok(()) => {
+                    debug!(target: "bubbletea::thread", "External forwarder thread joined successfully")
+                }
+                Err(e) => {
+                    tracing::warn!(target: "bubbletea::thread", "External forwarder thread panicked: {:?}", e)
+                }
             }
         }
 
         if let Some(handle) = input_parser_handle {
             match handle.join() {
-                Ok(()) => debug!(target: "bubbletea::thread", "Input parser thread joined successfully"),
-                Err(e) => tracing::warn!(target: "bubbletea::thread", "Input parser thread panicked: {:?}", e),
+                Ok(()) => {
+                    debug!(target: "bubbletea::thread", "Input parser thread joined successfully")
+                }
+                Err(e) => {
+                    tracing::warn!(target: "bubbletea::thread", "Input parser thread panicked: {:?}", e)
+                }
             }
+        }
+
+        // Join command execution threads with timeout (bd-zyb8)
+        // Give commands a reasonable time to complete, but don't block forever.
+        const COMMAND_THREAD_TIMEOUT: Duration = Duration::from_secs(5);
+        let join_deadline = std::time::Instant::now() + COMMAND_THREAD_TIMEOUT;
+
+        if let Ok(mut threads) = command_threads.lock() {
+            let thread_count = threads.len();
+            if thread_count > 0 {
+                debug!(target: "bubbletea::thread", "Waiting for {} command thread(s) to complete", thread_count);
+            }
+
+            // Drain and join all threads
+            for handle in threads.drain(..) {
+                if handle.is_finished() {
+                    // Thread already done, just join to clean up
+                    let _ = handle.join();
+                } else {
+                    // Thread still running - wait with timeout
+                    let remaining =
+                        join_deadline.saturating_duration_since(std::time::Instant::now());
+                    if remaining.is_zero() {
+                        debug!(target: "bubbletea::thread", "Timeout waiting for command threads, abandoning remaining");
+                        break;
+                    }
+
+                    // Spin-wait with small sleeps until thread finishes or timeout
+                    let poll_interval = Duration::from_millis(10);
+                    let start = std::time::Instant::now();
+                    while !handle.is_finished() && start.elapsed() < remaining {
+                        thread::sleep(poll_interval);
+                    }
+
+                    if handle.is_finished() {
+                        match handle.join() {
+                            Ok(()) => {
+                                debug!(target: "bubbletea::thread", "Command thread joined successfully")
+                            }
+                            Err(e) => {
+                                tracing::warn!(target: "bubbletea::thread", "Command thread panicked: {:?}", e)
+                            }
+                        }
+                    } else {
+                        debug!(target: "bubbletea::thread", "Command thread did not finish in time, abandoning");
+                    }
+                }
+            }
+        } else {
+            tracing::warn!(target: "bubbletea::thread", "Failed to join command threads: mutex poisoned");
         }
 
         Ok(self.model)
     }
 
-    fn handle_command(&self, cmd: Cmd, tx: Sender<Message>) {
-        thread::spawn(move || {
+    fn handle_command(
+        &self,
+        cmd: Cmd,
+        tx: Sender<Message>,
+        command_threads: Arc<Mutex<Vec<thread::JoinHandle<()>>>>,
+    ) {
+        // Spawn thread and track its handle for graceful shutdown (bd-zyb8)
+        let handle = thread::spawn(move || {
             if let Some(msg) = cmd.execute() {
                 // Handle batch and sequence messages specially
                 if msg.is::<BatchMsg>() {
@@ -984,6 +1053,17 @@ impl<M: Model> Program<M> {
                 }
             }
         });
+
+        // Track the handle for shutdown (lock is brief, just a Vec push)
+        if let Ok(mut threads) = command_threads.lock() {
+            // Prune finished threads to prevent unbounded growth
+            threads.retain(|h| !h.is_finished());
+            threads.push(handle);
+        } else {
+            // Mutex was poisoned (a thread panicked while holding it).
+            // Log and continue - the handle will be orphaned but program can proceed.
+            debug!(target: "bubbletea::thread", "Failed to track command thread: mutex poisoned");
+        }
     }
 
     fn render<W: Write>(&self, writer: &mut W, last_view: &mut String) -> Result<()> {
@@ -2169,6 +2249,7 @@ mod tests {
         let model = TestModel { count: 0 };
         let program = Program::new(model);
         let (tx, rx) = mpsc::channel();
+        let command_threads = Arc::new(Mutex::new(Vec::new()));
 
         // Build a batch of 50 sub-commands, each returning a unique i32
         let cmds: Vec<Option<Cmd>> = (0..50)
@@ -2176,7 +2257,7 @@ mod tests {
             .collect();
         let batch_cmd = crate::batch(cmds).unwrap();
 
-        program.handle_command(batch_cmd, tx);
+        program.handle_command(batch_cmd, tx, Arc::clone(&command_threads));
 
         // Collect all 50 results
         let mut results = Vec::new();
@@ -2203,12 +2284,12 @@ mod tests {
     #[cfg(feature = "thread-pool")]
     #[test]
     fn handle_command_batch_bounded_parallelism() {
-        use std::sync::Arc;
         use std::sync::atomic::{AtomicUsize, Ordering};
 
         let model = TestModel { count: 0 };
         let program = Program::new(model);
         let (tx, rx) = mpsc::channel();
+        let command_threads = Arc::new(Mutex::new(Vec::new()));
 
         let active = Arc::new(AtomicUsize::new(0));
         let max_active = Arc::new(AtomicUsize::new(0));
@@ -2229,7 +2310,7 @@ mod tests {
             .collect();
         let batch_cmd = crate::batch(cmds).unwrap();
 
-        program.handle_command(batch_cmd, tx);
+        program.handle_command(batch_cmd, tx, Arc::clone(&command_threads));
 
         // Wait for all results
         let mut count = 0usize;
@@ -2261,6 +2342,7 @@ mod tests {
         let model = TestModel { count: 0 };
         let program = Program::new(model);
         let (tx, rx) = mpsc::channel();
+        let command_threads = Arc::new(Mutex::new(Vec::new()));
 
         // Create a large batch of 500 lightweight commands
         let cmds: Vec<Option<Cmd>> = (0..500)
@@ -2268,7 +2350,7 @@ mod tests {
             .collect();
         let batch_cmd = crate::batch(cmds).unwrap();
 
-        program.handle_command(batch_cmd, tx);
+        program.handle_command(batch_cmd, tx, Arc::clone(&command_threads));
 
         // Collect results with timeout - don't need all, just verify no panic
         let mut count = 0usize;
@@ -2302,8 +2384,8 @@ mod tests {
 
     #[test]
     fn test_threads_exit_on_channel_drop() {
-        use std::sync::atomic::{AtomicBool, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
 
         // Create a flag to track if the thread has exited
         let thread_exited = Arc::new(AtomicBool::new(false));
@@ -2326,7 +2408,9 @@ mod tests {
         drop(tx);
 
         // Join the thread - it should exit promptly
-        handle.join().expect("Thread should join after channel drop");
+        handle
+            .join()
+            .expect("Thread should join after channel drop");
 
         // Verify the thread actually ran its exit code
         assert!(
@@ -2337,8 +2421,8 @@ mod tests {
 
     #[test]
     fn test_shutdown_joins_all_threads() {
-        use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
         // Track how many threads have been joined
         let join_count = Arc::new(AtomicUsize::new(0));
@@ -2437,8 +2521,8 @@ mod tests {
     fn test_task_tracker_spawn_blocking_tracks_thread() {
         // Verify that TaskTracker.spawn_blocking() actually tracks the spawned thread.
         // The key behavior: task_tracker.wait() should block until the spawned thread completes.
-        use std::sync::atomic::{AtomicBool, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
 
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -2474,8 +2558,8 @@ mod tests {
     #[test]
     fn test_cancellation_token_stops_blocking_task() {
         // Verify that CancellationToken properly signals spawn_blocking threads to exit.
-        use std::sync::atomic::{AtomicBool, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
 
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -2525,8 +2609,8 @@ mod tests {
     #[test]
     fn test_graceful_shutdown_waits_for_all_blocking_tasks() {
         // Verify that graceful shutdown waits for ALL spawn_blocking tasks.
-        use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -2591,8 +2675,8 @@ mod tests {
         // Document why spawn_blocking is needed vs std::thread::spawn.
         // With std::thread::spawn, TaskTracker.wait() doesn't wait for the thread.
         // With spawn_blocking, it does.
-        use std::sync::atomic::{AtomicBool, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
 
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -2649,8 +2733,8 @@ mod tests {
         // Test the exact pattern used for the event thread:
         // - spawn_blocking with CancellationToken
         // - poll with timeout to check cancellation
-        use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
