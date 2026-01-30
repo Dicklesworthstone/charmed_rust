@@ -371,7 +371,7 @@ impl LoadingOverlay {
     }
 
     /// Stop the overlay animation.
-    pub fn stop(&mut self) {
+    pub const fn stop(&mut self) {
         self.spinner.stop();
     }
 

@@ -61,7 +61,7 @@ fn contains_ignore_case(haystack: &str, needle: &str) -> bool {
             let n = needle_bytes[j];
 
             // Case-insensitive ASCII comparison
-            if h != n && h.to_ascii_lowercase() != n.to_ascii_lowercase() {
+            if !h.eq_ignore_ascii_case(&n) {
                 continue 'outer;
             }
         }
@@ -109,7 +109,7 @@ impl LevelFilter {
     }
 
     /// Toggle a specific level filter.
-    pub fn toggle(&mut self, level: LogLevel) {
+    pub const fn toggle(&mut self, level: LogLevel) {
         match level {
             LogLevel::Error => self.error = !self.error,
             LogLevel::Warn => self.warn = !self.warn,
@@ -121,7 +121,7 @@ impl LevelFilter {
 
     /// Check if a log level passes the filter.
     #[must_use]
-    pub const fn matches(&self, level: LogLevel) -> bool {
+    pub const fn matches(self, level: LogLevel) -> bool {
         match level {
             LogLevel::Error => self.error,
             LogLevel::Warn => self.warn,
@@ -134,7 +134,7 @@ impl LevelFilter {
     /// Count how many levels are enabled.
     #[must_use]
     #[allow(dead_code)]
-    pub const fn enabled_count(&self) -> usize {
+    pub const fn enabled_count(self) -> usize {
         let mut count = 0;
         if self.error {
             count += 1;
@@ -171,7 +171,7 @@ pub struct LogsPage {
     viewport: RwLock<Viewport>,
     /// The log stream containing entries.
     logs: LogStream,
-    /// Filtered entry indices (indices into logs.entries()).
+    /// Filtered entry indices (indices into `logs.entries()`).
     filtered_indices: Vec<usize>,
     /// Whether follow mode is enabled (tail -f behavior).
     following: bool,
@@ -243,7 +243,7 @@ impl LogsPage {
     // Filtering
     // =========================================================================
 
-    /// Apply current filters, updating filtered_indices.
+    /// Apply current filters, updating `filtered_indices`.
     ///
     /// Performance: Uses `contains_ignore_case()` to avoid allocating lowercase
     /// copies of message/target for every entry (bd-3kvw optimization).
@@ -479,8 +479,7 @@ impl LogsPage {
         let content = self.format_logs_plain();
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
+            .map_or(0, |d| d.as_secs());
 
         let export_dir = Self::export_dir();
         let filename = format!("logs_export_{timestamp}.txt");
@@ -531,8 +530,7 @@ impl LogsPage {
     fn write_to_export_file(prefix: &str, content: &str, _theme: &Theme) -> Option<Cmd> {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
+            .map_or(0, |d| d.as_secs());
 
         let export_dir = Self::export_dir();
         let filename = format!("{prefix}_{timestamp}.txt");
@@ -660,8 +658,8 @@ impl LogsPage {
                 .render(&format!("{filtered}/{total} shown"))
         };
 
-        let viewport = self.viewport.read();
-        let position = format!("{}:{}", viewport.y_offset() + 1, filtered);
+        let y_offset = self.viewport.read().y_offset();
+        let position = format!("{}:{filtered}", y_offset + 1);
         let position_styled = theme.muted_style().render(&position);
 
         // Calculate spacing
