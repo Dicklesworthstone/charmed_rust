@@ -227,11 +227,10 @@ impl DocsPage {
     }
 
     /// Toggle focus between list and content.
-    fn toggle_focus(&mut self) {
+    const fn toggle_focus(&mut self) {
         self.focus = match self.focus {
             DocsFocus::List => DocsFocus::Content,
-            DocsFocus::Content => DocsFocus::List,
-            DocsFocus::Search => DocsFocus::Content, // Exit search to content
+            DocsFocus::Content | DocsFocus::Search => DocsFocus::List,
         };
     }
 
@@ -245,7 +244,7 @@ impl DocsPage {
     }
 
     /// Exit search mode.
-    fn exit_search(&mut self) {
+    const fn exit_search(&mut self) {
         self.focus = self.prev_focus;
         // Keep search query and matches visible for n/N navigation
     }
@@ -457,23 +456,20 @@ impl DocsPage {
         };
 
         // Build header with title, scroll position, and optional search info
-        let title = self
-            .current_entry()
-            .map(|e| e.title)
-            .unwrap_or("Documentation");
-        let scroll_info = format!("{}%", percent);
+        let title = self.current_entry().map_or("Documentation", |e| e.title);
+        let scroll_info = format!("{percent}%");
 
         // Build toggle status indicators
         let syntax_indicator = if self.syntax_highlighting { "S" } else { "·" };
         let lines_indicator = if self.line_numbers { "#" } else { "·" };
-        let toggles = format!("[{}{}]", syntax_indicator, lines_indicator);
+        let toggles = format!("[{syntax_indicator}{lines_indicator}]");
 
         // Add search status if we have a search query
         let search_status = self.search_status();
         let right_info = if search_status.is_empty() {
-            format!("{} {}", toggles, scroll_info)
+            format!("{toggles} {scroll_info}")
         } else {
-            format!("{} | {} {}", search_status, toggles, scroll_info)
+            format!("{search_status} | {toggles} {scroll_info}")
         };
 
         let title_width = width.saturating_sub(right_info.chars().count() + 4);

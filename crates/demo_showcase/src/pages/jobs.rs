@@ -6,7 +6,7 @@
 //! # Filtering & Sorting
 //!
 //! The page provides:
-//! - **Query bar**: TextInput for instant name/ID filtering
+//! - **Query bar**: `TextInput` for instant name/ID filtering
 //! - **Status filters**: Toggle chips for Running/Completed/Failed/Queued
 //! - **Sorting**: Click column headers or use `s` to cycle sort order
 //!
@@ -63,19 +63,19 @@ impl StatusFilter {
     /// Check if all filters are enabled.
     #[must_use]
     #[allow(dead_code)]
-    pub const fn all_enabled(&self) -> bool {
+    pub const fn all_enabled(self) -> bool {
         self.running && self.completed && self.failed && self.queued
     }
 
     /// Check if no filters are enabled.
     #[must_use]
     #[allow(dead_code)]
-    pub const fn none_enabled(&self) -> bool {
+    pub const fn none_enabled(self) -> bool {
         !self.running && !self.completed && !self.failed && !self.queued
     }
 
     /// Toggle a specific status filter.
-    pub fn toggle(&mut self, status: JobStatus) {
+    pub const fn toggle(&mut self, status: JobStatus) {
         match status {
             JobStatus::Running => self.running = !self.running,
             JobStatus::Completed => self.completed = !self.completed,
@@ -86,7 +86,7 @@ impl StatusFilter {
 
     /// Check if a job status passes the filter.
     #[must_use]
-    pub const fn matches(&self, status: JobStatus) -> bool {
+    pub const fn matches(self, status: JobStatus) -> bool {
         match status {
             JobStatus::Running => self.running,
             JobStatus::Completed => self.completed,
@@ -281,7 +281,7 @@ impl JobsPage {
     // Filtering & Sorting
     // =========================================================================
 
-    /// Apply current filters and sorting, updating filtered_indices.
+    /// Apply current filters and sorting, updating `filtered_indices`.
     fn apply_filter_and_sort(&mut self) {
         // Save current selection to restore after filter (best-effort)
         let prev_selected_job_id = self.selected_job().map(|j| j.id);
@@ -342,11 +342,7 @@ impl JobsPage {
             let per_page = self.paginator.get_per_page();
             let target_page = pos / per_page;
             self.paginator.set_page(target_page);
-
-            // Set table cursor to the position within the page
-            let _pos_in_page = pos % per_page;
-            // We'll set the cursor after update_table_rows is called
-            // For now, just ensure the page is correct
+            // Note: table cursor position is handled by update_table_rows
         }
     }
 
@@ -524,24 +520,13 @@ impl JobsPage {
     /// Shows elapsed time for running jobs and total duration for completed jobs.
     fn format_duration_cell(job: &Job) -> String {
         match (job.started_at, job.ended_at, job.status) {
-            // Not started yet
-            (None, _, _) => "—".to_string(),
+            // Not started yet, or cancelled/other states with start but no end
+            (None, _, _) | (Some(_), None, _) => "—".to_string(),
             // Completed or failed: show total duration
             (Some(start), Some(end), _) => {
                 let duration = end.signed_duration_since(start);
                 Self::format_duration_short(duration.num_seconds())
             }
-            // Running: show elapsed time with running indicator
-            (Some(start), None, JobStatus::Running) => {
-                // For running jobs, use created_at as a deterministic reference
-                // This shows "simulated" elapsed time based on generation
-                let elapsed = job.created_at.signed_duration_since(start);
-                // Use absolute value since start might be after created_at in generated data
-                let secs = elapsed.num_seconds().abs();
-                format!("⏱ {}", Self::format_duration_short(secs))
-            }
-            // Cancelled or other states with start but no end
-            (Some(_), None, _) => "—".to_string(),
         }
     }
 
@@ -551,16 +536,17 @@ impl JobsPage {
             return "—".to_string();
         }
         if secs < 60 {
-            format!("{}s", secs)
+            format!("{secs}s")
         } else if secs < 3600 {
-            format!("{}m", secs / 60)
+            let mins = secs / 60;
+            format!("{mins}m")
         } else {
             let hours = secs / 3600;
             let mins = (secs % 3600) / 60;
             if mins > 0 {
-                format!("{}h{}m", hours, mins)
+                format!("{hours}h{mins}m")
             } else {
-                format!("{}h", hours)
+                format!("{hours}h")
             }
         }
     }
@@ -575,12 +561,11 @@ impl JobsPage {
             }
             JobStatus::Running => {
                 // Determinate with progress and ETA hint
-                let eta = Self::estimate_eta(job);
-                if let Some(eta_str) = eta {
-                    format!("{}% {}", job.progress, eta_str)
-                } else {
-                    format!("{}%", job.progress)
-                }
+                let progress = job.progress;
+                Self::estimate_eta(job).map_or_else(
+                    || format!("{progress}%"),
+                    |eta_str| format!("{progress}% {eta_str}"),
+                )
             }
             JobStatus::Completed => "✓ done".to_string(),
             JobStatus::Failed => "✕ error".to_string(),
@@ -610,22 +595,24 @@ impl JobsPage {
 
         // Estimate total time based on progress rate
         #[allow(clippy::cast_precision_loss)]
-        let rate = job.progress as f64 / elapsed_secs as f64; // percent per second
+        let rate = f64::from(job.progress) / elapsed_secs as f64; // percent per second
 
         if rate <= 0.0 {
             return None;
         }
 
-        #[allow(clippy::cast_precision_loss)]
-        let remaining_percent = (100 - job.progress) as f64;
+        let remaining_percent = f64::from(100 - job.progress);
+        #[allow(clippy::cast_possible_truncation)]
         let eta_secs = (remaining_percent / rate) as i64;
 
         if eta_secs < 60 {
-            Some(format!("~{}s", eta_secs))
+            Some(format!("~{eta_secs}s"))
         } else if eta_secs < 3600 {
-            Some(format!("~{}m", eta_secs / 60))
+            let mins = eta_secs / 60;
+            Some(format!("~{mins}m"))
         } else {
-            Some(format!("~{}h", eta_secs / 3600))
+            let hours = eta_secs / 3600;
+            Some(format!("~{hours}h"))
         }
     }
 
@@ -786,12 +773,6 @@ impl JobsPage {
                     notif.title.clone()
                 };
 
-                // Create a notification message
-                let notification = Notification::new(0, message.clone(), level);
-                let notification_cmd = Some(Cmd::new(move || {
-                    NotificationMsg::Show(notification).into_message()
-                }));
-
                 // bd-7iul: Emit println for job lifecycle events (visible in no-alt-screen mode)
                 // Only emit for Info/Success (job started, completed) to avoid noise
                 let println_cmd = match notif.severity {
@@ -800,6 +781,12 @@ impl JobsPage {
                     }
                     _ => None,
                 };
+
+                // Create a notification message
+                let notification = Notification::new(0, message, level);
+                let notification_cmd = Some(Cmd::new(move || {
+                    NotificationMsg::Show(notification).into_message()
+                }));
 
                 [notification_cmd, println_cmd]
             })

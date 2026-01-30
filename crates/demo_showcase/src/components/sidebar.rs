@@ -430,15 +430,27 @@ mod tests {
         fn strip_ansi(input: &str) -> String {
             let mut result = String::with_capacity(input.len());
             let mut in_escape = false;
+            let mut in_csi = false;
             for c in input.chars() {
                 if c == '\x1b' {
                     in_escape = true;
+                    in_csi = false;
                     continue;
                 }
                 if in_escape {
-                    if c == 'm' {
-                        in_escape = false;
+                    if c == '[' {
+                        in_csi = true;
+                        continue;
                     }
+                    if in_csi {
+                        // CSI sequences end with '@' through '~'
+                        if ('@'..='~').contains(&c) {
+                            in_escape = false;
+                            in_csi = false;
+                        }
+                        continue;
+                    }
+                    in_escape = false;
                     continue;
                 }
                 result.push(c);
@@ -495,15 +507,27 @@ mod tests {
         fn strip_ansi(input: &str) -> String {
             let mut result = String::with_capacity(input.len());
             let mut in_escape = false;
+            let mut in_csi = false;
             for c in input.chars() {
                 if c == '\x1b' {
                     in_escape = true;
+                    in_csi = false;
                     continue;
                 }
                 if in_escape {
-                    if c == 'm' {
-                        in_escape = false;
+                    if c == '[' {
+                        in_csi = true;
+                        continue;
                     }
+                    if in_csi {
+                        // CSI sequences end with '@' through '~'
+                        if ('@'..='~').contains(&c) {
+                            in_escape = false;
+                            in_csi = false;
+                        }
+                        continue;
+                    }
+                    in_escape = false;
                     continue;
                 }
                 result.push(c);

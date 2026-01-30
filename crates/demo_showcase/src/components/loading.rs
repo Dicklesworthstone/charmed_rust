@@ -1,4 +1,4 @@
-//! Loading state components for demo_showcase.
+//! Loading state components for `demo_showcase`.
 //!
 //! This module provides loading indicators, skeleton placeholders, and
 //! loading overlays that integrate with the animation subsystem and
@@ -70,12 +70,11 @@ impl SpinnerStyle {
     }
 
     /// Get a static character to show when animations are disabled.
-    fn static_char(self) -> &'static str {
+    const fn static_char(self) -> &'static str {
         match self {
-            Self::Dot | Self::MiniDot => "...",
+            Self::Dot | Self::MiniDot | Self::Points => "...",
             Self::Line => "-",
             Self::Pulse => "*",
-            Self::Points => "...",
         }
     }
 }
@@ -161,13 +160,13 @@ impl LoadingSpinner {
     }
 
     /// Stop the spinner.
-    pub fn stop(&mut self) {
+    pub const fn stop(&mut self) {
         self.started = false;
     }
 
     /// Check if the spinner is running.
     #[must_use]
-    pub fn is_running(&self) -> bool {
+    pub const fn is_running(&self) -> bool {
         self.started
     }
 
@@ -180,10 +179,10 @@ impl LoadingSpinner {
         }
 
         // Only handle tick messages for this spinner
-        if let Some(tick) = msg.downcast_ref::<TickMsg>() {
-            if tick.id != self.spinner.id() {
-                return None;
-            }
+        if let Some(tick) = msg.downcast_ref::<TickMsg>()
+            && tick.id != self.spinner.id()
+        {
+            return None;
         }
 
         self.spinner.update(msg)
@@ -229,7 +228,7 @@ impl Default for SkeletonLine {
 impl SkeletonLine {
     /// Create a new skeleton line with the given width.
     #[must_use]
-    pub fn new(width: usize) -> Self {
+    pub const fn new(width: usize) -> Self {
         Self {
             width,
             animate: true,
@@ -239,13 +238,13 @@ impl SkeletonLine {
 
     /// Set whether to animate the skeleton.
     #[must_use]
-    pub fn animated(mut self, animate: bool) -> Self {
+    pub const fn animated(mut self, animate: bool) -> Self {
         self.animate = animate;
         self
     }
 
     /// Advance the animation frame.
-    pub fn tick(&mut self) {
+    pub const fn tick(&mut self) {
         if self.animate {
             self.frame = (self.frame + 1) % 4;
         }
@@ -257,7 +256,6 @@ impl SkeletonLine {
         let char = if animations_enabled && self.animate {
             match self.frame {
                 0 => "░",
-                1 => "▒",
                 2 => "▓",
                 _ => "▒",
             }
@@ -394,12 +392,13 @@ impl LoadingOverlay {
         let spinner_view = self.spinner.view(theme, animations_enabled);
         let message_styled = theme.heading_style().render(&self.message);
 
-        let content = if let Some(ref sub) = self.sub_message {
-            let sub_styled = theme.muted_style().render(sub);
-            format!("{spinner_view}\n\n{message_styled}\n{sub_styled}")
-        } else {
-            format!("{spinner_view}\n\n{message_styled}")
-        };
+        let content = self.sub_message.as_ref().map_or_else(
+            || format!("{spinner_view}\n\n{message_styled}"),
+            |sub| {
+                let sub_styled = theme.muted_style().render(sub);
+                format!("{spinner_view}\n\n{message_styled}\n{sub_styled}")
+            },
+        );
 
         // Center the content
         let content_lines: Vec<&str> = content.lines().collect();
@@ -458,18 +457,18 @@ impl PulsingIndicator {
     }
 
     /// Start pulsing.
-    pub fn start(&mut self) {
+    pub const fn start(&mut self) {
         self.active = true;
     }
 
     /// Stop pulsing.
-    pub fn stop(&mut self) {
+    pub const fn stop(&mut self) {
         self.active = false;
         self.frame = 0;
     }
 
     /// Advance the pulse frame.
-    pub fn tick(&mut self) {
+    pub const fn tick(&mut self) {
         if self.active {
             self.frame = (self.frame + 1) % 4;
         }
@@ -485,10 +484,9 @@ impl PulsingIndicator {
 
         // Pulse between warning and dimmed warning
         let style = match self.frame {
-            0 => theme.warning_style(),
             1 => theme.warning_style().bold(),
-            2 => theme.warning_style(),
-            _ => theme.muted_style(),
+            3 => theme.muted_style(),
+            _ => theme.warning_style(),
         };
 
         style.render(&self.text)
