@@ -426,6 +426,7 @@ fn as_u16(value: usize) -> u16 {
 fn visible_width(s: &str) -> usize {
     let mut width = 0;
     let mut in_escape = false;
+    let mut in_csi = false;
 
     for c in s.chars() {
         if c == '\x1b' {
@@ -433,8 +434,18 @@ fn visible_width(s: &str) -> usize {
             continue;
         }
         if in_escape {
-            if c == 'm' {
-                in_escape = false;
+            in_escape = false;
+            if c == '[' {
+                // CSI sequence - wait for final byte
+                in_csi = true;
+            }
+            // Simple escape (e.g., \x1b7) - single char after ESC is consumed
+            continue;
+        }
+        if in_csi {
+            // CSI sequences end with a final byte in 0x40-0x7E (@ through ~)
+            if ('@'..='~').contains(&c) {
+                in_csi = false;
             }
             continue;
         }
@@ -452,6 +463,7 @@ fn cut_line(line: &str, start: usize, width: usize) -> String {
     let end = start.saturating_add(width);
     let mut result = String::new();
     let mut in_escape = false;
+    let mut in_csi = false;
     let mut visible = 0;
 
     for c in line.chars() {
@@ -461,9 +473,20 @@ fn cut_line(line: &str, start: usize, width: usize) -> String {
             continue;
         }
         if in_escape {
+            in_escape = false;
             result.push(c);
-            if c == 'm' {
-                in_escape = false;
+            if c == '[' {
+                // CSI sequence - wait for final byte
+                in_csi = true;
+            }
+            // Simple escape (e.g., \x1b7) - single char after ESC is consumed
+            continue;
+        }
+        if in_csi {
+            result.push(c);
+            // CSI sequences end with a final byte in 0x40-0x7E (@ through ~)
+            if ('@'..='~').contains(&c) {
+                in_csi = false;
             }
             continue;
         }
@@ -673,5 +696,36 @@ mod tests {
         let mut v = Viewport::new(10, 2);
         v.set_content("Line 1\nLine 2\nLine 3");
         assert_eq!(Model::view(&v), v.view());
+    }
+
+    #[test]
+    fn test_visible_width_with_non_sgr_csi_sequences() {
+        // CSI sequences ending with characters other than 'm' should be handled
+        // Test: clear screen \x1b[2J followed by "Hello" should have width 5
+        assert_eq!(visible_width("\x1b[2JHello"), 5);
+        // Test: cursor position \x1b[H followed by "World" should have width 5
+        assert_eq!(visible_width("\x1b[HWorld"), 5);
+        // Test: mixed - SGR sequence followed by non-SGR CSI followed by text
+        assert_eq!(visible_width("\x1b[31m\x1b[2KRed"), 3);
+        // Test: text followed by CSI sequence (erase to end of line)
+        assert_eq!(visible_width("Start\x1b[K"), 5);
+    }
+
+    #[test]
+    fn test_visible_width_with_simple_escapes() {
+        // Simple escapes like save/restore cursor should be handled
+        // \x1b7 = save cursor, \x1b8 = restore cursor
+        assert_eq!(visible_width("\x1b7Text\x1b8"), 4);
+    }
+
+    #[test]
+    fn test_cut_line_with_non_sgr_csi_sequences() {
+        // cut_line should properly handle non-SGR CSI sequences
+        let line = "\x1b[2JHello World";
+        // Start at 0, width 5 should give escape sequence + "Hello"
+        assert_eq!(cut_line(line, 0, 5), "\x1b[2JHello");
+        // Start at 6, width 5 - escape sequences at beginning are preserved
+        // (important for color codes, harmless for other escape types)
+        assert_eq!(cut_line(line, 6, 5), "\x1b[2JWorld");
     }
 }
