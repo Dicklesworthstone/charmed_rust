@@ -232,7 +232,7 @@ impl Progress {
     #[must_use]
     pub fn is_animating(&self) -> bool {
         let dist = (self.percent_shown - self.target_percent).abs();
-        !(dist < 0.001 && self.velocity < 0.01)
+        !(dist < 0.001 && self.velocity.abs() < 0.01)
     }
 
     /// Creates a command for the next animation frame.
@@ -497,6 +497,30 @@ mod tests {
 
         p.target_percent = 0.8;
         assert!(p.is_animating());
+    }
+
+    #[test]
+    fn test_progress_animation_negative_velocity() {
+        // Test that negative velocity is correctly detected as animating.
+        // In an under-damped spring, velocity oscillates and can be negative
+        // even when close to the target position.
+        let mut p = Progress::new();
+        p.percent_shown = 0.5;
+        p.target_percent = 0.5;
+        p.velocity = -0.5; // Significant negative velocity (moving backward)
+
+        // Should still be animating because of momentum, even though at target
+        assert!(
+            p.is_animating(),
+            "Should be animating with significant negative velocity"
+        );
+
+        // Small negative velocity should not be animating
+        p.velocity = -0.001;
+        assert!(
+            !p.is_animating(),
+            "Should not be animating with tiny negative velocity at target"
+        );
     }
 
     // Model trait implementation tests
