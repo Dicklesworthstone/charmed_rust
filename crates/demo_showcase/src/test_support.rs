@@ -381,8 +381,9 @@ impl ScenarioRecorder {
                 format!("Resize: {width}x{height}")
             }
             TestInput::Paste { text } => {
-                let preview = if text.len() > 20 {
-                    format!("{}...", &text[..20])
+                let preview = if text.chars().count() > 20 {
+                    let truncated: String = text.chars().take(20).collect();
+                    format!("{truncated}...")
                 } else {
                     text.clone()
                 };
@@ -1518,10 +1519,11 @@ impl E2ERunner {
 
 /// Truncates a view string for error messages.
 fn truncate_view(view: &str, max_len: usize) -> String {
-    if view.len() <= max_len {
+    if view.chars().count() <= max_len {
         view.to_string()
     } else {
-        format!("{}...", &view[..max_len])
+        let truncated: String = view.chars().take(max_len).collect();
+        format!("{truncated}...")
     }
 }
 

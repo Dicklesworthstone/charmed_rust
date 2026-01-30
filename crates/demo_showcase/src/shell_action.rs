@@ -159,12 +159,8 @@ fn run_pager_command(pager_cmd: &str, content: &str) -> Result<(), String> {
         .wait()
         .map_err(|e| format!("failed to wait for pager: {e}"))?;
 
-    if status.success() {
-        Ok(())
-    } else {
-        // Non-zero exit is usually fine (e.g., user pressed 'q' in less)
-        Ok(())
-    }
+    // Non-zero exit is usually fine (e.g., user pressed 'q' in less)
+    Ok(())
 }
 
 /// Fallback prompt when no pager is available.
@@ -543,7 +539,7 @@ mod tests {
         let shell_msg = msg.downcast::<ShellOutMsg>().unwrap();
         match shell_msg {
             ShellOutMsg::PagerCompleted(err) => assert!(err.is_none()),
-            other => panic!("expected PagerCompleted(None), got {:?}", other),
+            other => panic!("expected PagerCompleted(None), got {other:?}"),
         }
     }
 
@@ -553,7 +549,7 @@ mod tests {
         let shell_msg = msg.downcast::<ShellOutMsg>().unwrap();
         match shell_msg {
             ShellOutMsg::PagerCompleted(Some(e)) => assert_eq!(e, "spawn failed"),
-            other => panic!("expected PagerCompleted(Some(..)), got {:?}", other),
+            other => panic!("expected PagerCompleted(Some(..)), got {other:?}"),
         }
     }
 
@@ -569,7 +565,7 @@ mod tests {
         ];
 
         for variant in variants {
-            let label = format!("{:?}", variant);
+            let label = format!("{variant:?}");
             let msg = variant.into_message();
             assert!(
                 msg.downcast::<ShellOutMsg>().is_some(),

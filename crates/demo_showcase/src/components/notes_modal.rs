@@ -32,7 +32,7 @@ use lipgloss::{Border, Style};
 
 use crate::theme::Theme;
 
-/// Messages emitted by the NotesModal.
+/// Messages emitted by the `NotesModal`.
 #[derive(Debug, Clone)]
 pub enum NotesModalMsg {
     /// Note was saved with this content.
@@ -231,15 +231,17 @@ impl NotesModal {
         );
 
         // Combine into modal box
-        let content = format!("{}\n\n{}\n\n{}", header, textarea_view, footer);
+        let content = format!("{header}\n\n{textarea_view}\n\n{footer}");
 
         // Apply modal styling with border
         let modal_style = Style::new()
             .border(Border::rounded())
             .border_foreground(theme.border)
             .padding_left(1)
-            .padding_right(1)
-            .width(self.width as u16);
+            .padding_right(1);
+
+        #[expect(clippy::cast_possible_truncation)]
+        let modal_style = modal_style.width(self.width as u16);
 
         modal_style.render(&content)
     }
@@ -280,7 +282,7 @@ impl NotesModal {
         // Modal content with left padding
         let left_pad = " ".repeat(left_padding);
         for line in modal_lines {
-            lines.push(format!("{}{}", left_pad, line));
+            lines.push(format!("{left_pad}{line}"));
         }
 
         // Bottom padding
@@ -392,7 +394,6 @@ mod tests {
         let view = modal.view_centered(&theme, 80, 24);
         assert!(!view.is_empty());
         // Should have some empty lines for centering
-        let lines: Vec<&str> = view.lines().collect();
-        assert!(lines.len() <= 24);
+        assert!(view.lines().count() <= 24);
     }
 }
