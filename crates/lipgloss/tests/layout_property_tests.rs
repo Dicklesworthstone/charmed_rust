@@ -6,16 +6,12 @@
 //! Property-based tests for lipgloss layout functions:
 //! join_horizontal, join_vertical, place.
 
-use lipgloss::{join_horizontal, join_vertical, place, visible_width, Position};
+use lipgloss::{Position, join_horizontal, join_vertical, place, visible_width};
 use proptest::prelude::*;
 
 /// Count lines in output.
 fn line_count(s: &str) -> usize {
-    if s.is_empty() {
-        0
-    } else {
-        s.lines().count()
-    }
+    if s.is_empty() { 0 } else { s.lines().count() }
 }
 
 /// Max visible width across all lines.
@@ -35,8 +31,7 @@ fn position_strategy() -> impl Strategy<Value = Position> {
 
 fn ascii_block() -> impl Strategy<Value = String> {
     // Generate 1-5 lines of 1-20 chars each
-    prop::collection::vec("[a-zA-Z0-9]{1,20}", 1..=5)
-        .prop_map(|lines| lines.join("\n"))
+    prop::collection::vec("[a-zA-Z0-9]{1,20}", 1..=5).prop_map(|lines| lines.join("\n"))
 }
 
 // =============================================================================

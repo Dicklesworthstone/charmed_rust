@@ -6,8 +6,8 @@
 #![allow(clippy::cast_possible_wrap)]
 
 use lipgloss::{
-    join_horizontal, join_vertical, new_range, place, style_ranges, style_runes, visible_width,
-    Border, Position, Style,
+    Border, Position, Style, join_horizontal, join_vertical, new_range, place, style_ranges,
+    style_runes, visible_width,
 };
 
 // =============================================================================
@@ -293,10 +293,7 @@ fn style_ranges_unsorted_input() {
     let bold = Style::new().bold();
     let italic = Style::new().italic();
     // Ranges given in reverse order - should still work (sorted internally)
-    let result = style_ranges(
-        "ABCDEF",
-        &[new_range(3, 6, italic), new_range(0, 3, bold)],
-    );
+    let result = style_ranges("ABCDEF", &[new_range(3, 6, italic), new_range(0, 3, bold)]);
     let stripped = strip_ansi(&result);
     assert_eq!(stripped, "ABCDEF");
 }

@@ -242,11 +242,12 @@ pub fn join_horizontal(pos: Position, strs: &[&str]) -> String {
     let factor = pos.factor();
 
     // Pre-compute vertical offsets for each block (avoid per-row calculation)
+    // Use round() to match Go's lipgloss behavior for center alignment (bd-3vqi)
     let offsets: Vec<usize> = blocks
         .iter()
         .map(|block| {
             let extra = max_height.saturating_sub(block.len());
-            (extra as f64 * factor).floor() as usize
+            (extra as f64 * factor).round() as usize
         })
         .collect();
 
@@ -340,7 +341,8 @@ pub fn join_vertical(pos: Position, strs: &[&str]) -> String {
 
             let line_width = visible_width(line);
             let extra = max_width.saturating_sub(line_width);
-            let left_pad = (extra as f64 * factor).floor() as usize;
+            // Use round() to match Go's lipgloss behavior for center alignment (bd-3vqi)
+            let left_pad = (extra as f64 * factor).round() as usize;
             let right_pad = extra.saturating_sub(left_pad);
 
             // Add left padding (avoid " ".repeat() allocation)
@@ -506,8 +508,8 @@ mod tests {
         let result = join_vertical(Position::Center, &["Short", "LongerText"]);
         println!("Result bytes: {:?}", result.as_bytes());
         println!("Result repr: {:?}", result);
-        // Go uses int() truncation (floor) for alignment: floor(5 * 0.5) = 2 left, 3 right
-        let expected = "  Short   \nLongerText";
+        // Go rounds for center alignment: round(5 * 0.5) = 3 left, 2 right (bd-3vqi)
+        let expected = "   Short  \nLongerText";
         assert_eq!(result, expected);
     }
 
@@ -943,24 +945,52 @@ mod escape_sequence_tests {
     #[test]
     fn test_width_with_terminal_escape_sequences() {
         // CSI DEC private modes (like hide cursor)
-        assert_eq!(visible_width("\x1b[?25l"), 0, "Hide cursor CSI should have 0 width");
-        assert_eq!(visible_width("\x1b[?1000h"), 0, "Mouse mode CSI should have 0 width");
+        assert_eq!(
+            visible_width("\x1b[?25l"),
+            0,
+            "Hide cursor CSI should have 0 width"
+        );
+        assert_eq!(
+            visible_width("\x1b[?1000h"),
+            0,
+            "Mouse mode CSI should have 0 width"
+        );
 
         // MoveTo and Clear
-        assert_eq!(visible_width("\x1b[1;1H"), 0, "MoveTo CSI should have 0 width");
+        assert_eq!(
+            visible_width("\x1b[1;1H"),
+            0,
+            "MoveTo CSI should have 0 width"
+        );
         assert_eq!(visible_width("\x1b[2J"), 0, "Clear CSI should have 0 width");
 
         // OSC title
-        assert_eq!(visible_width("\x1b]0;Title\x07"), 0, "OSC title should have 0 width");
-        assert_eq!(visible_width("\x1b]0;Title\x1b\\"), 0, "OSC title with ST should have 0 width");
+        assert_eq!(
+            visible_width("\x1b]0;Title\x07"),
+            0,
+            "OSC title should have 0 width"
+        );
+        assert_eq!(
+            visible_width("\x1b]0;Title\x1b\\"),
+            0,
+            "OSC title with ST should have 0 width"
+        );
 
         // Combined sequence like in PTY output
         let setup = "\x1b[?25l\x1b[?1000h\x1b[1;1H\x1b[2JLoading...";
-        assert_eq!(visible_width(setup), 10, "Setup + Loading... should be 10 chars");
+        assert_eq!(
+            visible_width(setup),
+            10,
+            "Setup + Loading... should be 10 chars"
+        );
 
         // With OSC title
         let with_title = "\x1b[?25l\x1b[1;1H\x1b[2JLoading...\x1b]0;Charmed\x07More";
-        assert_eq!(visible_width(with_title), 14, "With OSC should count Loading + More = 14");
+        assert_eq!(
+            visible_width(with_title),
+            14,
+            "With OSC should count Loading + More = 14"
+        );
 
         println!("All escape sequence width tests passed!");
     }
