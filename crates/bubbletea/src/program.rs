@@ -664,17 +664,15 @@ impl<M: Model> Program<M> {
         // Create message channel
         let (tx, rx): (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
-        // Thread handles for clean shutdown (bd-3dmx)
-        // These are captured for joining during shutdown in bd-3azk.
-        // TODO(bd-3azk): Join these handles before returning from event_loop.
-        let mut _external_forwarder_handle: Option<thread::JoinHandle<()>> = None;
-        let mut _input_parser_handle: Option<thread::JoinHandle<()>> = None;
+        // Thread handles for clean shutdown (bd-3dmx, bd-3azk)
+        let mut external_forwarder_handle: Option<thread::JoinHandle<()>> = None;
+        let mut input_parser_handle: Option<thread::JoinHandle<()>> = None;
 
         // Forward external messages
         if let Some(ext_rx) = self.external_rx.take() {
             let tx_clone = tx.clone();
             debug!(target: "bubbletea::thread", "Spawning external forwarder thread");
-            _external_forwarder_handle = Some(thread::spawn(move || {
+            external_forwarder_handle = Some(thread::spawn(move || {
                 while let Ok(msg) = ext_rx.recv() {
                     if tx_clone.send(msg).is_err() {
                         debug!(target: "bubbletea::event", "external message dropped — receiver disconnected");
@@ -688,7 +686,7 @@ impl<M: Model> Program<M> {
         if let Some(mut input) = self.input.take() {
             let tx_clone = tx.clone();
             debug!(target: "bubbletea::thread", "Spawning input parser thread");
-            _input_parser_handle = Some(thread::spawn(move || {
+            input_parser_handle = Some(thread::spawn(move || {
                 let mut parser = InputParser::new();
                 let mut buf = [0u8; 256];
                 loop {
@@ -807,15 +805,18 @@ impl<M: Model> Program<M> {
 
             // Process all pending messages
             let mut needs_render = false;
+            let mut should_quit = false;
             while let Ok(msg) = rx.try_recv() {
                 // Check for quit message
                 if msg.is::<QuitMsg>() {
-                    return Ok(self.model);
+                    should_quit = true;
+                    break;
                 }
 
                 // Check for interrupt message (Ctrl+C)
                 if msg.is::<InterruptMsg>() {
-                    return Ok(self.model);
+                    should_quit = true;
+                    break;
                 }
 
                 // Handle batch message (already handled in handle_command)
@@ -913,6 +914,11 @@ impl<M: Model> Program<M> {
                 needs_render = true;
             }
 
+            // Exit main loop if quit was requested
+            if should_quit {
+                break;
+            }
+
             // Render if needed
             if needs_render {
                 self.render(writer, &mut last_view)?;
@@ -923,6 +929,26 @@ impl<M: Model> Program<M> {
                 thread::sleep(frame_duration);
             }
         }
+
+        // Clean shutdown: drop sender to signal threads, then join them (bd-3azk)
+        drop(tx);
+        debug!(target: "bubbletea::thread", "Sender dropped, waiting for threads to exit");
+
+        if let Some(handle) = external_forwarder_handle {
+            match handle.join() {
+                Ok(()) => debug!(target: "bubbletea::thread", "External forwarder thread joined successfully"),
+                Err(e) => tracing::warn!(target: "bubbletea::thread", "External forwarder thread panicked: {:?}", e),
+            }
+        }
+
+        if let Some(handle) = input_parser_handle {
+            match handle.join() {
+                Ok(()) => debug!(target: "bubbletea::thread", "Input parser thread joined successfully"),
+                Err(e) => tracing::warn!(target: "bubbletea::thread", "Input parser thread panicked: {:?}", e),
+            }
+        }
+
+        Ok(self.model)
     }
 
     fn handle_command(&self, cmd: Cmd, tx: Sender<Message>) {
@@ -1185,12 +1211,12 @@ impl<M: Model> Program<M> {
             });
         }
 
-        // Spawn event listener thread
+        // Spawn event listener thread (bd-2353: use task_tracker for graceful shutdown)
         let (event_tx, mut event_rx) = tokio::sync::mpsc::channel::<Event>(100);
         let event_cancel = cancel_token.clone();
 
         if !self.options.custom_io {
-            std::thread::spawn(move || {
+            task_tracker.spawn_blocking(move || {
                 loop {
                     if event_cancel.is_cancelled() {
                         break;
