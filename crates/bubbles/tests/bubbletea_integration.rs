@@ -182,10 +182,10 @@ fn test_async_component_integration() {
     assert!(init_cmd.is_some(), "Init should return batch command");
 
     // Execute init batch (spinner tick + timer tick)
-    if let Some(cmd) = init_cmd {
-        if let Some(batch_msg) = cmd.execute() {
-            sim.send(batch_msg);
-        }
+    if let Some(cmd) = init_cmd
+        && let Some(batch_msg) = cmd.execute()
+    {
+        sim.send(batch_msg);
     }
 
     // 2. Step a few times to process commands (avoid run_until_empty due to timer tick loops)
