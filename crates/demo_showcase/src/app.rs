@@ -24,6 +24,7 @@ use crate::messages::{
 use crate::pages::Pages;
 use crate::shell_action::{generate_diagnostics, open_diagnostics_in_pager};
 use crate::theme::{Theme, ThemePreset, spacing};
+use std::fmt::Write as _;
 
 /// Convert ANSI-styled terminal output to HTML with inline styles.
 ///
@@ -159,10 +160,10 @@ fn ansi_to_html(input: &str) -> String {
                         style_parts.push(format!("background:{bg}"));
                     }
                     if !style_parts.is_empty() {
-                        html.push_str(&format!(" style=\"{}\"", style_parts.join(";")));
+                        let _ = write!(html, " style=\"{}\"", style_parts.join(";"));
                     }
                     if !current_styles.is_empty() {
-                        html.push_str(&format!(" class=\"{}\"", current_styles.join(" ")));
+                        let _ = write!(html, " class=\"{}\"", current_styles.join(" "));
                     }
                     html.push('>');
                 }
@@ -288,6 +289,7 @@ impl Default for AppConfig {
 const MAX_NOTIFICATIONS: usize = 3;
 
 /// Main application state.
+#[allow(clippy::struct_excessive_bools)]
 pub struct App {
     /// Application configuration.
     config: AppConfig,
@@ -297,7 +299,7 @@ pub struct App {
     current_page: Page,
     /// Page models.
     pages: Pages,
-    /// Layout width (capped by max_width / auto-cap when terminal is very wide).
+    /// Layout width (capped by `max_width` / auto-cap when terminal is very wide).
     width: usize,
     height: usize,
     /// Whether the app is ready (received window size).
@@ -328,7 +330,7 @@ pub struct App {
     /// Whether the terminal has focus (bd-1fxl).
     ///
     /// When false, animations may be paused and a visual indicator is shown.
-    /// Defaults to true (focused) until a BlurMsg is received.
+    /// Defaults to true (focused) until a `BlurMsg` is received.
     focused: bool,
     /// Command palette for quick action access (bd-3mtt).
     command_palette: CommandPalette,
@@ -1133,6 +1135,7 @@ impl Model for App {
         ])
     }
 
+    #[allow(clippy::too_many_lines, clippy::items_after_statements, clippy::option_if_let_else)]
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         // Handle window resize.
         // Cap width at max_width (explicit CLI flag) or AUTO_MAX_WIDTH (200)

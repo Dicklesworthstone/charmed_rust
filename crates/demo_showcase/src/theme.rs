@@ -1508,8 +1508,8 @@ mod tests {
         let dark = Theme::dark();
         let light = Theme::light();
 
-        let dark_table = dark.table_style().render("data").to_string();
-        let light_table = light.table_style().render("data").to_string();
+        let dark_table = dark.table_style().render("data");
+        let light_table = light.table_style().render("data");
 
         assert_ne!(
             dark_table, light_table,
@@ -1526,9 +1526,7 @@ mod tests {
             let output = theme.render_status(status, ColorProfile::Ascii);
             assert!(
                 !output.contains('\x1b'),
-                "ASCII mode status {:?} contains ANSI: {:?}",
-                status,
-                output
+                "ASCII mode status {status:?} contains ANSI: {output:?}"
             );
         }
     }
@@ -1540,8 +1538,7 @@ mod tests {
             let output = theme.render_progress(pct, 20, ColorProfile::Ascii);
             assert!(
                 !output.contains('\x1b'),
-                "ASCII progress at {pct}% contains ANSI: {:?}",
-                output
+                "ASCII progress at {pct}% contains ANSI: {output:?}"
             );
         }
     }
@@ -1669,7 +1666,7 @@ mod tests {
     fn all_style_helpers_produce_output_for_every_theme() {
         for preset in ThemePreset::all() {
             let theme = Theme::from_preset(preset);
-            let name = preset.name();
+            let _name = preset.name();
             let text = "test";
 
             // Typography

@@ -346,7 +346,7 @@ impl GuidedTour {
                     let runes = &key.runes;
                     match runes.as_slice() {
                         // Next step
-                        ['n'] | [' '] => {
+                        ['n' | ' '] => {
                             return self.next_step();
                         }
                         // Previous step
