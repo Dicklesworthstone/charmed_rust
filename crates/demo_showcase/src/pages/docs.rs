@@ -476,9 +476,11 @@ impl DocsPage {
             format!("{} | {} {}", search_status, toggles, scroll_info)
         };
 
-        let title_width = width.saturating_sub(right_info.len() + 4);
-        let truncated_title = if title.len() > title_width {
-            format!("{}…", &title[..title_width.saturating_sub(1)])
+        let title_width = width.saturating_sub(right_info.chars().count() + 4);
+        let title_char_count = title.chars().count();
+        let truncated_title = if title_char_count > title_width {
+            let truncated: String = title.chars().take(title_width.saturating_sub(1)).collect();
+            format!("{truncated}…")
         } else {
             title.to_string()
         };

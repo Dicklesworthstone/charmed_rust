@@ -629,9 +629,16 @@ impl CommandPalette {
         let icon = cmd.category.icon();
         let keybind = cmd.keybinding.map_or(String::new(), |k| format!("[{}]", k));
 
-        let title_width = width.saturating_sub(icon.len() + 2 + keybind.len() + 1);
-        let title = if cmd.title.len() > title_width {
-            format!("{}...", &cmd.title[..title_width.saturating_sub(3)])
+        let title_width =
+            width.saturating_sub(icon.chars().count() + 2 + keybind.chars().count() + 1);
+        let title_char_count = cmd.title.chars().count();
+        let title = if title_char_count > title_width {
+            let truncated: String = cmd
+                .title
+                .chars()
+                .take(title_width.saturating_sub(3))
+                .collect();
+            format!("{truncated}...")
         } else {
             cmd.title.to_string()
         };
