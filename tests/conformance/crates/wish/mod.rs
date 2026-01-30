@@ -550,8 +550,8 @@ fn test_public_key_fingerprint() {
     let fp = key.fingerprint();
 
     assert!(
-        fp.starts_with("SHA256:"),
-        "Fingerprint should start with SHA256:"
+        fp.starts_with("HASH:"),
+        "Fingerprint should start with HASH:"
     );
     assert!(fp.len() > 7, "Fingerprint should have content after prefix");
 }
