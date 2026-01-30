@@ -1,7 +1,7 @@
 //! Integration tests for huh forms with bubbletea event loop.
 //!
 //! These tests verify that huh forms work correctly within the bubbletea
-//! TUI context using ProgramSimulator.
+//! TUI context using `ProgramSimulator`.
 
 use bubbletea::key::KeyType;
 use bubbletea::simulator::ProgramSimulator;
@@ -500,11 +500,11 @@ fn test_form_processes_quit_command() {
     );
 
     // If a command was returned (quit), execute it
-    if let Some(cmd) = cmd {
-        if let Some(msg) = cmd.execute() {
-            sim.send(msg);
-            sim.run_until_empty();
-        }
+    if let Some(cmd) = cmd
+        && let Some(msg) = cmd.execute()
+    {
+        sim.send(msg);
+        sim.run_until_empty();
     }
 
     // Form should have handled the escape

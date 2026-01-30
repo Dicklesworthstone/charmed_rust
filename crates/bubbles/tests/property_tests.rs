@@ -478,7 +478,7 @@ proptest! {
         filter in "[a-z]{0,3}",
     ) {
         let items: Vec<TestItem> = (0..item_count)
-            .map(|i| TestItem(format!("item_{}", (b'a' + (i % 26) as u8) as char)))
+            .map(|i| TestItem(format!("item_{i}")))
             .collect();
 
         let mut list = List::new(items, DefaultDelegate::new(), 80, 24);
