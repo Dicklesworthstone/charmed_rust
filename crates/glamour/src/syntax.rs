@@ -15,6 +15,8 @@
 //! ```
 
 use lipgloss::{RgbColor, Style as LipglossStyle};
+use lru::LruCache;
+use std::num::NonZeroUsize;
 use std::sync::LazyLock;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{FontStyle as SynFontStyle, Style as SynStyle, Theme, ThemeSet};
@@ -553,6 +555,39 @@ impl Default for SyntaxTheme {
 /// Default capacity for the style cache.
 pub const DEFAULT_STYLE_CACHE_CAPACITY: usize = 256;
 
+/// Hashable key for caching syntect styles (bd-2oct).
+///
+/// SynStyle doesn't implement Hash, so we extract the relevant fields
+/// into a hashable struct. This enables O(1) LRU cache operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct StyleCacheKey {
+    fg_r: u8,
+    fg_g: u8,
+    fg_b: u8,
+    fg_a: u8,
+    bg_r: u8,
+    bg_g: u8,
+    bg_b: u8,
+    bg_a: u8,
+    font_style_bits: u8,
+}
+
+impl From<&SynStyle> for StyleCacheKey {
+    fn from(s: &SynStyle) -> Self {
+        Self {
+            fg_r: s.foreground.r,
+            fg_g: s.foreground.g,
+            fg_b: s.foreground.b,
+            fg_a: s.foreground.a,
+            bg_r: s.background.r,
+            bg_g: s.background.g,
+            bg_b: s.background.b,
+            bg_a: s.background.a,
+            font_style_bits: s.font_style.bits(),
+        }
+    }
+}
+
 /// A cache for converted lipgloss styles to avoid repeated conversions.
 ///
 /// Syntect styles are converted to lipgloss styles on-demand and cached
@@ -561,6 +596,8 @@ pub const DEFAULT_STYLE_CACHE_CAPACITY: usize = 256;
 /// This cache uses LRU (Least Recently Used) eviction to bound memory usage.
 /// When the cache reaches capacity, the least recently accessed style is
 /// evicted to make room for new entries.
+///
+/// Uses O(1) LRU operations via the `lru` crate (bd-2oct).
 ///
 /// # Example
 ///
@@ -574,12 +611,8 @@ pub const DEFAULT_STYLE_CACHE_CAPACITY: usize = 256;
 /// ```
 #[derive(Debug)]
 pub struct StyleCache {
-    /// Maps syntect styles to lipgloss styles.
-    /// Ordered by access time: most recently used at the end.
-    /// Note: SynStyle doesn't implement Hash, so we use a Vec with LRU ordering.
-    cache: Vec<(SynStyle, LipglossStyle)>,
-    /// Maximum number of entries to cache before evicting.
-    capacity: usize,
+    /// O(1) LRU cache mapping style keys to lipgloss styles.
+    cache: LruCache<StyleCacheKey, LipglossStyle>,
 }
 
 impl Default for StyleCache {
@@ -606,18 +639,16 @@ impl StyleCache {
     /// Panics if capacity is 0.
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
-        assert!(capacity > 0, "StyleCache capacity must be at least 1");
+        let cap = NonZeroUsize::new(capacity).expect("StyleCache capacity must be at least 1");
         Self {
-            cache: Vec::with_capacity(capacity.min(64)), // Pre-allocate reasonable initial size
-            capacity,
+            cache: LruCache::new(cap),
         }
     }
 
     /// Gets the lipgloss style for a syntect style, converting and caching if needed.
     ///
-    /// If the style is already cached, it is moved to the end of the cache
-    /// (marking it as most recently used). If the cache is at capacity when
-    /// adding a new style, the least recently used style is evicted.
+    /// Uses O(1) LRU operations: get() promotes to most-recently-used,
+    /// put() auto-evicts least-recently-used when at capacity.
     ///
     /// # Arguments
     ///
@@ -627,30 +658,11 @@ impl StyleCache {
     ///
     /// A reference to the cached lipgloss style.
     pub fn get_or_convert(&mut self, syn_style: SynStyle) -> &LipglossStyle {
-        // Check if we already have this style cached
-        let pos = self
-            .cache
-            .iter()
-            .position(|(s, _)| styles_equal(s, &syn_style));
+        let key = StyleCacheKey::from(&syn_style);
 
-        if let Some(idx) = pos {
-            // Move to end (most recently used) if not already there
-            if idx < self.cache.len() - 1 {
-                let entry = self.cache.remove(idx);
-                self.cache.push(entry);
-            }
-            &self.cache.last().unwrap().1
-        } else {
-            // Evict least recently used if at capacity
-            if self.cache.len() >= self.capacity {
-                self.cache.remove(0);
-            }
-
-            // Convert and cache at end (most recently used)
-            let lip_style = syntect_to_lipgloss(syn_style);
-            self.cache.push((syn_style, lip_style));
-            &self.cache.last().unwrap().1
-        }
+        // Use entry API pattern: get existing or insert new
+        // LruCache::get_or_insert handles LRU promotion and eviction automatically
+        self.cache.get_or_insert(key, || syntect_to_lipgloss(syn_style))
     }
 
     /// Clears the cache, freeing memory.
@@ -673,7 +685,7 @@ impl StyleCache {
     /// Returns the maximum capacity of the cache.
     #[must_use]
     pub fn capacity(&self) -> usize {
-        self.capacity
+        self.cache.cap().get()
     }
 }
 
