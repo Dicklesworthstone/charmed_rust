@@ -1255,7 +1255,8 @@ impl Style {
 
         let extra = target_height - current_height;
         let factor = self.align_vertical.factor();
-        let top_extra = (extra as f64 * factor).floor() as usize;
+        // Use round() to match join_horizontal/join_vertical behavior (bd-3vqi)
+        let top_extra = (extra as f64 * factor).round() as usize;
         let bottom_extra = extra - top_extra;
 
         // Pre-allocate result - avoid Vec<String> intermediate and clone()
@@ -1321,7 +1322,8 @@ impl Style {
                 result.push_str(line);
             } else {
                 let extra = target_width - line_width;
-                let left_pad = (extra as f64 * factor).floor() as usize;
+                // Use round() to match join_horizontal/join_vertical behavior (bd-3vqi)
+                let left_pad = (extra as f64 * factor).round() as usize;
                 let right_pad = extra - left_pad;
 
                 if has_ws_style {
