@@ -105,19 +105,20 @@ fn run_pager(content: &str) -> Message {
     // Try to get preferred pager from environment
     let pager = env::var("PAGER").ok();
 
-    let result = if let Some(pager_cmd) = pager {
-        // Use $PAGER if set
-        run_pager_command(&pager_cmd, content)
-    } else if command_exists("less") {
-        // Try less with ANSI color support
-        run_pager_command("less -R", content)
-    } else if command_exists("more") {
-        // Fall back to more
-        run_pager_command("more", content)
-    } else {
-        // Ultimate fallback: print and wait for Enter
-        run_fallback_prompt(content)
-    };
+    let result = pager.map_or_else(
+        || {
+            // Try pagers in order of preference
+            if command_exists("less") {
+                run_pager_command("less -R", content)
+            } else if command_exists("more") {
+                run_pager_command("more", content)
+            } else {
+                // Ultimate fallback: print and wait for Enter
+                run_fallback_prompt(content)
+            }
+        },
+        |pager_cmd| run_pager_command(&pager_cmd, content),
+    );
 
     match result {
         Ok(()) => ShellOutMsg::PagerCompleted(None).into_message(),
@@ -154,12 +155,11 @@ fn run_pager_command(pager_cmd: &str, content: &str) -> Result<(), String> {
             .map_err(|e| format!("failed to write to pager: {e}"))?;
     }
 
-    // Wait for pager to exit
-    let status = child
+    // Wait for pager to exit (non-zero exit is fine, e.g., user pressed 'q' in less)
+    child
         .wait()
         .map_err(|e| format!("failed to wait for pager: {e}"))?;
 
-    // Non-zero exit is usually fine (e.g., user pressed 'q' in less)
     Ok(())
 }
 
