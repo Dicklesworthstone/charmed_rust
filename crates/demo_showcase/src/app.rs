@@ -46,6 +46,7 @@ fn ansi_to_html(input: &str) -> String {
     html.push_str("</style>\n</head>\n<body>\n");
 
     let mut in_escape = false;
+    let mut in_csi = false;
     let mut escape_buf = String::new();
     let mut current_styles: Vec<&str> = Vec::new();
     let mut current_fg: Option<String> = None;
@@ -54,13 +55,22 @@ fn ansi_to_html(input: &str) -> String {
     for c in input.chars() {
         if c == '\x1b' {
             in_escape = true;
+            in_csi = false;
             escape_buf.clear();
             continue;
         }
 
         if in_escape {
+            if c == '[' && !in_csi {
+                in_csi = true;
+                escape_buf.push(c);
+                continue;
+            }
             escape_buf.push(c);
-            if c == 'm' {
+            // CSI sequences end with a byte in 0x40-0x7E ('@' through '~')
+            // Only process SGR sequences (ending in 'm') for styling
+            if in_csi && ('@'..='~').contains(&c) {
+                if c == 'm' {
                 // Parse the escape sequence
                 let seq = escape_buf.trim_start_matches('[').trim_end_matches('m');
                 for code in seq.split(';') {
@@ -149,25 +159,28 @@ fn ansi_to_html(input: &str) -> String {
                     }
                 }
 
-                // Open a new span if we have styles
-                if !current_styles.is_empty() || current_fg.is_some() || current_bg.is_some() {
-                    html.push_str("<span");
-                    let mut style_parts = Vec::new();
-                    if let Some(ref fg) = current_fg {
-                        style_parts.push(format!("color:{fg}"));
+                    // Open a new span if we have styles
+                    if !current_styles.is_empty() || current_fg.is_some() || current_bg.is_some() {
+                        html.push_str("<span");
+                        let mut style_parts = Vec::new();
+                        if let Some(ref fg) = current_fg {
+                            style_parts.push(format!("color:{fg}"));
+                        }
+                        if let Some(ref bg) = current_bg {
+                            style_parts.push(format!("background:{bg}"));
+                        }
+                        if !style_parts.is_empty() {
+                            let _ = write!(html, " style=\"{}\"", style_parts.join(";"));
+                        }
+                        if !current_styles.is_empty() {
+                            let _ = write!(html, " class=\"{}\"", current_styles.join(" "));
+                        }
+                        html.push('>');
                     }
-                    if let Some(ref bg) = current_bg {
-                        style_parts.push(format!("background:{bg}"));
-                    }
-                    if !style_parts.is_empty() {
-                        let _ = write!(html, " style=\"{}\"", style_parts.join(";"));
-                    }
-                    if !current_styles.is_empty() {
-                        let _ = write!(html, " class=\"{}\"", current_styles.join(" "));
-                    }
-                    html.push('>');
                 }
+                // Reset escape state for any CSI terminator (not just 'm')
                 in_escape = false;
+                in_csi = false;
             }
             continue;
         }
@@ -229,18 +242,37 @@ fn ansi256_to_hex(n: u8) -> String {
 }
 
 /// Strip ANSI escape codes from a string.
+///
+/// Handles all CSI (Control Sequence Introducer) sequences, not just SGR codes.
+/// CSI sequences start with ESC [ and end with a byte in the range 0x40-0x7E
+/// (characters '@' through '~'), which includes 'm' for SGR, 'H' for cursor
+/// positioning, 'J' for erase display, etc.
 fn strip_ansi(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     let mut in_escape = false;
+    let mut in_csi = false;
     for c in input.chars() {
         if c == '\x1b' {
             in_escape = true;
+            in_csi = false;
             continue;
         }
         if in_escape {
-            if c == 'm' {
-                in_escape = false;
+            if c == '[' {
+                in_csi = true;
+                continue;
             }
+            if in_csi {
+                // CSI sequences end with a byte in 0x40-0x7E ('@' through '~')
+                if ('@'..='~').contains(&c) {
+                    in_escape = false;
+                    in_csi = false;
+                }
+                continue;
+            }
+            // Non-CSI escape sequence (e.g., ESC followed by single char)
+            // After one character, exit escape mode
+            in_escape = false;
             continue;
         }
         result.push(c);
