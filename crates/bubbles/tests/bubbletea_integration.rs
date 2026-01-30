@@ -55,19 +55,19 @@ impl Model for FormApp {
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         // Handle global navigation
-        if let Some(key) = msg.downcast_ref::<KeyMsg>() {
-            if key.key_type == KeyType::Tab {
-                self.focus_index = (self.focus_index + 1) % 2;
+        if let Some(key) = msg.downcast_ref::<KeyMsg>()
+            && key.key_type == KeyType::Tab
+        {
+            self.focus_index = (self.focus_index + 1) % 2;
 
-                if self.focus_index == 0 {
-                    self.name_input.focus();
-                    self.bio_input.blur();
-                } else {
-                    self.name_input.blur();
-                    self.bio_input.focus();
-                }
-                return None;
+            if self.focus_index == 0 {
+                self.name_input.focus();
+                self.bio_input.blur();
+            } else {
+                self.name_input.blur();
+                self.bio_input.focus();
             }
+            return None;
         }
 
         // Route messages to focused component (only update the focused one)
@@ -134,7 +134,7 @@ impl AsyncApp {
     fn new() -> Self {
         Self {
             spinner: SpinnerModel::with_spinner(spinners::dot()),
-            timer: Timer::new(Duration::from_secs(60)), // Long timer to avoid early finish
+            timer: Timer::new(Duration::from_mins(1)), // Long timer to avoid early finish
             finished: false,
             last_msg_for_spinner: true, // Alternate between spinner and timer
         }
@@ -150,7 +150,7 @@ impl Model for AsyncApp {
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         // Route alternately to prevent both consuming the same message
         // In a real app, messages are typically specific to each component (by ID)
-        let cmd = if self.last_msg_for_spinner {
+        if self.last_msg_for_spinner {
             self.last_msg_for_spinner = false;
             self.spinner.update(msg)
         } else {
@@ -161,9 +161,7 @@ impl Model for AsyncApp {
                 self.finished = true;
             }
             cmd
-        };
-
-        cmd
+        }
     }
 
     fn view(&self) -> String {

@@ -1580,13 +1580,12 @@ mod tests {
     fn ascii_focused_box_uses_double_border() {
         let theme = Theme::dark();
         let focused = theme.box_focused_style_for_profile(ColorProfile::Ascii);
-        let rendered = focused.render("focus").to_string();
+        let rendered = focused.render("focus");
 
         // Double border uses '='
         assert!(
             rendered.contains('='),
-            "ASCII focused box should use double borders: {:?}",
-            rendered
+            "ASCII focused box should use double borders: {rendered:?}"
         );
     }
 
@@ -1594,12 +1593,11 @@ mod tests {
     fn ascii_modal_uses_double_border() {
         let theme = Theme::dark();
         let modal = theme.modal_style_for_profile(ColorProfile::Ascii);
-        let rendered = modal.render("dialog").to_string();
+        let rendered = modal.render("dialog");
 
         assert!(
             rendered.contains('='),
-            "ASCII modal should use double borders: {:?}",
-            rendered
+            "ASCII modal should use double borders: {rendered:?}"
         );
     }
 
@@ -1731,8 +1729,7 @@ mod tests {
                 let _ = theme.render_progress(50, 20, profile);
             }
 
-            // If we get here without panic, the theme is safe
-            assert!(true, "{name} style helpers should not panic");
+            // If we get here without panic, the theme is safe (test passes implicitly)
         }
     }
 
@@ -1771,8 +1768,7 @@ mod tests {
             let theme = Theme::from_preset(preset);
             assert_eq!(
                 theme.border_focus, theme.primary,
-                "{:?}: border_focus should match primary",
-                preset
+                "{preset:?}: border_focus should match primary"
             );
         }
     }
@@ -1971,8 +1967,7 @@ mod tests {
             .collect();
         assert!(
             contrast_warnings.is_empty(),
-            "Dracula theme should have good contrast, got: {:?}",
-            contrast_warnings
+            "Dracula theme should have good contrast, got: {contrast_warnings:?}"
         );
     }
 
