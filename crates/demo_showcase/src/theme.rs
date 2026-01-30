@@ -810,7 +810,7 @@ impl ColorProfile {
     /// Detection hierarchy (from ACCESSIBILITY.md):
     /// 1. `NO_COLOR` set → Ascii
     /// 2. `TERM=dumb` or empty → Ascii
-    /// 3. `COLORTERM=truecolor` or `24bit` → TrueColor
+    /// 3. `COLORTERM=truecolor` or `24bit` → `TrueColor`
     /// 4. `TERM` contains `256color` → Ansi256
     /// 5. Default → Ansi16
     #[must_use]
@@ -827,10 +827,10 @@ impl ColorProfile {
         }
 
         // Check for true color support
-        if let Ok(colorterm) = env::var("COLORTERM") {
-            if colorterm == "truecolor" || colorterm == "24bit" {
-                return Self::TrueColor;
-            }
+        if let Ok(colorterm) = env::var("COLORTERM")
+            && (colorterm == "truecolor" || colorterm == "24bit")
+        {
+            return Self::TrueColor;
         }
 
         // Check for 256-color support
@@ -901,7 +901,7 @@ impl Status {
         }
     }
 
-    /// Get the ASCII text indicator (for NO_COLOR mode).
+    /// Get the ASCII text indicator (for `NO_COLOR` mode).
     #[must_use]
     pub const fn ascii_text(&self) -> &'static str {
         match self {
@@ -923,7 +923,7 @@ impl Status {
     }
 }
 
-/// ASCII-safe border characters for NO_COLOR mode.
+/// ASCII-safe border characters for `NO_COLOR` mode.
 ///
 /// Maps Unicode box-drawing characters to ASCII equivalents.
 pub mod ascii_borders {
@@ -1110,7 +1110,7 @@ impl Theme {
                 Status::Error => self.error_style(),
                 Status::Unknown => self.muted_style(),
             };
-            style.render(&indicator).to_string()
+            style.render(&indicator)
         } else {
             indicator
         }
@@ -1129,9 +1129,8 @@ impl Theme {
         let filled = (usize::from(percent) * inner_width) / 100;
         let empty = inner_width.saturating_sub(filled);
 
-        let bar: String = std::iter::repeat(fill_char)
-            .take(filled)
-            .chain(std::iter::repeat(empty_char).take(empty))
+        let bar: String = std::iter::repeat_n(fill_char, filled)
+            .chain(std::iter::repeat_n(empty_char, empty))
             .collect();
 
         if has_color {

@@ -1552,7 +1552,7 @@ impl WizardPage {
             format!("{error_message} (Press b to go back)")
         };
 
-        let notification = Notification::error(id, notification_msg.clone());
+        let notification = Notification::error(id, notification_msg);
         let notification_cmd = Cmd::new(move || NotificationMsg::Show(notification).into_message());
 
         let failure_cmd =
@@ -1595,7 +1595,8 @@ impl PageModel for WizardPage {
         let mut result = format!("{indicator}\n{separator}\n\n{content}");
 
         if !error.is_empty() {
-            result.push_str(&format!("\n\n{error}"));
+            result.push_str("\n\n");
+            result.push_str(&error);
         }
 
         result
