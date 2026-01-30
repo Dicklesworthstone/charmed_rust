@@ -134,9 +134,6 @@ fn test_form_tab_advances_field() {
     let mut sim = ProgramSimulator::new(form);
     sim.init();
 
-    // Initial state
-    let _initial_view = sim.last_view().unwrap().to_string();
-
     // Press Tab to advance to next field
     sim.sim_key_type(KeyType::Tab);
     sim.step();
