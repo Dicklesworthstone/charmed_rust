@@ -520,13 +520,25 @@ impl JobsPage {
     /// Shows elapsed time for running jobs and total duration for completed jobs.
     fn format_duration_cell(job: &Job) -> String {
         match (job.started_at, job.ended_at, job.status) {
-            // Not started yet, or cancelled/other states with start but no end
-            (None, _, _) | (Some(_), None, _) => "—".to_string(),
+            // Not started yet
+            (None, _, _) => "—".to_string(),
             // Completed or failed: show total duration
             (Some(start), Some(end), _) => {
                 let duration = end.signed_duration_since(start);
                 Self::format_duration_short(duration.num_seconds())
             }
+            // Running: show elapsed time with running indicator
+            (Some(start), None, JobStatus::Running) => {
+                // For running jobs, use created_at as a deterministic reference
+                // This shows "simulated" elapsed time based on generation
+                let elapsed = job.created_at.signed_duration_since(start);
+                // Use absolute value since start might be after created_at in generated data
+                let secs = elapsed.num_seconds().abs();
+                let duration_str = Self::format_duration_short(secs);
+                format!("⏱ {duration_str}")
+            }
+            // Cancelled or other states with start but no end
+            (Some(_), None, _) => "—".to_string(),
         }
     }
 

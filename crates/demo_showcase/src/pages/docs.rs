@@ -611,14 +611,14 @@ impl PageModel for DocsPage {
                     return None;
                 }
 
-                // Enter to focus content when in list
-                KeyType::Enter if self.focus == DocsFocus::List => {
+                // Enter/Right to focus content when in list
+                KeyType::Enter | KeyType::Right if self.focus == DocsFocus::List => {
                     self.focus = DocsFocus::Content;
                     return None;
                 }
 
-                // Escape to return to list
-                KeyType::Esc if self.focus == DocsFocus::Content => {
+                // Escape/Left to return to list
+                KeyType::Esc | KeyType::Left if self.focus == DocsFocus::Content => {
                     self.focus = DocsFocus::List;
                     return None;
                 }
@@ -716,15 +716,6 @@ impl PageModel for DocsPage {
                     }
                     return None;
                 }
-                KeyType::Left if self.focus == DocsFocus::Content => {
-                    self.focus = DocsFocus::List;
-                    return None;
-                }
-                KeyType::Right if self.focus == DocsFocus::List => {
-                    self.focus = DocsFocus::Content;
-                    return None;
-                }
-
                 // Page navigation (content only)
                 KeyType::PgUp if self.focus == DocsFocus::Content => {
                     self.viewport.write().page_up();
@@ -815,10 +806,10 @@ impl PageModel for DocsPage {
         match self.focus {
             DocsFocus::List => "j/k nav  Tab focus  Enter select",
             DocsFocus::Content => {
-                if !self.search_matches.is_empty() {
-                    "j/k scroll  / search  n/N match  s syntax  # lines"
-                } else {
+                if self.search_matches.is_empty() {
                     "j/k scroll  / search  s syntax  # lines  Tab list"
+                } else {
+                    "j/k scroll  / search  n/N match  s syntax  # lines"
                 }
             }
             DocsFocus::Search => "type to search  Enter confirm  Esc cancel",
