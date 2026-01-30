@@ -14,7 +14,7 @@
 //!
 //! Recovery flows allow retrying or backing out safely.
 
-use bubbletea::{Cmd, KeyMsg, KeyType, Message, batch};
+use bubbletea::{batch, Cmd, KeyMsg, KeyType, Message};
 // Note: huh components would be used in a more complete implementation
 // For now, we implement a custom form UI to demonstrate the patterns
 use lipgloss::Style;
@@ -1203,14 +1203,10 @@ impl WizardPage {
         lines.push(String::new());
 
         if !self.state.env_vars.is_empty() {
-            lines.push(
-                theme
-                    .heading_style()
-                    .render(&format!(
-                        "Environment Variables ({}):",
-                        self.state.env_vars.len()
-                    )),
-            );
+            lines.push(theme.heading_style().render(&format!(
+                "Environment Variables ({}):",
+                self.state.env_vars.len()
+            )));
             for &idx in &self.state.env_vars {
                 if let Some(var) = ENV_VARS.get(idx) {
                     lines.push(format!("  - {}", var.name));
@@ -1308,11 +1304,7 @@ impl WizardPage {
                     lines.push(format!("  {icon} {step}"));
                 }
                 lines.push(String::new());
-                lines.push(
-                    theme
-                        .success_style()
-                        .render("Deployment complete!"),
-                );
+                lines.push(theme.success_style().render("Deployment complete!"));
                 lines.push(String::new());
                 lines.push(format!(
                     "Service '{}' is now running.",

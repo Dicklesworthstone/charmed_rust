@@ -71,10 +71,10 @@ fn ansi_to_html(input: &str) -> String {
             // Only process SGR sequences (ending in 'm') for styling
             if in_csi && ('@'..='~').contains(&c) {
                 if c == 'm' {
-                // Parse the escape sequence
-                let seq = escape_buf.trim_start_matches('[').trim_end_matches('m');
-                for code in seq.split(';') {
-                    match code {
+                    // Parse the escape sequence
+                    let seq = escape_buf.trim_start_matches('[').trim_end_matches('m');
+                    for code in seq.split(';') {
+                        match code {
                         "0" => {
                             // Reset
                             if !current_styles.is_empty()
@@ -181,6 +181,10 @@ fn ansi_to_html(input: &str) -> String {
                 // Reset escape state for any CSI terminator (not just 'm')
                 in_escape = false;
                 in_csi = false;
+            } else if !in_csi {
+                // Non-CSI escape sequence (e.g., ESC M, ESC D, ESC 7, etc.)
+                // These are single-character sequences, so exit escape mode
+                in_escape = false;
             }
             continue;
         }

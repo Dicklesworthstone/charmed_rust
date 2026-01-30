@@ -488,11 +488,13 @@ impl TextArea {
     }
 
     fn transpose_left(&mut self) {
-        if self.col == 0 || self.value[self.row].len() < 2 {
+        let len = self.value[self.row].len();
+        if self.col == 0 || len < 2 {
             return;
         }
-        if self.col >= self.value[self.row].len() {
-            self.set_cursor_col(self.col.saturating_sub(1));
+        // If cursor is at or past end of line, move to last valid position for transpose
+        if self.col >= len {
+            self.set_cursor_col(len - 1);
         }
         self.value[self.row].swap(self.col - 1, self.col);
         if self.col < self.value[self.row].len() {

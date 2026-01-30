@@ -621,19 +621,37 @@ impl OutputBackend for HtmlBackend {
 // Note: visible_width is imported from crate root (canonical implementation)
 
 /// Strip ANSI escape codes from a string.
+///
+/// Handles all CSI (Control Sequence Introducer) sequences, not just SGR codes.
+/// CSI sequences start with ESC [ and end with a byte in the range 0x40-0x7E
+/// (characters '@' through '~'), which includes 'm' for SGR, 'H' for cursor
+/// positioning, 'J' for erase display, etc.
 fn strip_ansi(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut in_escape = false;
+    let mut in_csi = false;
 
     for c in s.chars() {
         if c == '\x1b' {
             in_escape = true;
+            in_csi = false;
             continue;
         }
         if in_escape {
-            if c == 'm' {
-                in_escape = false;
+            if c == '[' {
+                in_csi = true;
+                continue;
             }
+            if in_csi {
+                // CSI sequences end with a byte in 0x40-0x7E ('@' through '~')
+                if ('@'..='~').contains(&c) {
+                    in_escape = false;
+                    in_csi = false;
+                }
+                continue;
+            }
+            // Non-CSI escape sequence (e.g., ESC followed by single char)
+            in_escape = false;
             continue;
         }
         result.push(c);

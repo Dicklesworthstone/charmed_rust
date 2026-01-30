@@ -1931,7 +1931,8 @@ mod tests {
 
     /// Helper to strip ANSI escape codes from a string for content verification.
     fn strip_ansi(s: &str) -> String {
-        // Matches ANSI escape sequences: ESC [ ... m (SGR sequences)
+        // Matches ANSI escape sequences: ESC [ ... <final> (CSI sequences)
+        // CSI sequences end with a byte in 0x40-0x7E ('@' through '~')
         let mut result = String::with_capacity(s.len());
         let mut chars = s.chars().peekable();
         while let Some(c) = chars.next() {
@@ -1939,16 +1940,15 @@ mod tests {
                 // Skip the escape sequence
                 if chars.peek() == Some(&'[') {
                     chars.next(); // consume '['
-                    // Skip until we hit 'm'
+                    // Skip until we hit a CSI final byte ('@' through '~')
                     while let Some(&next) = chars.peek() {
                         chars.next();
-                        if next == 'm' {
+                        if ('@'..='~').contains(&next) {
                             break;
                         }
                     }
-                } else {
-                    result.push(c);
                 }
+                // Non-CSI escapes (ESC followed by single char) are also consumed
             } else {
                 result.push(c);
             }

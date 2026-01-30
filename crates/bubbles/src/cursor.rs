@@ -361,16 +361,29 @@ mod tests {
     fn strip_ansi(s: &str) -> String {
         let mut result = String::with_capacity(s.len());
         let mut in_escape = false;
+        let mut in_csi = false;
 
         for c in s.chars() {
             if c == '\x1b' {
                 in_escape = true;
+                in_csi = false;
                 continue;
             }
             if in_escape {
-                if c == 'm' {
-                    in_escape = false;
+                if c == '[' {
+                    in_csi = true;
+                    continue;
                 }
+                if in_csi {
+                    // CSI sequences end with a byte in 0x40-0x7E ('@' through '~')
+                    if ('@'..='~').contains(&c) {
+                        in_escape = false;
+                        in_csi = false;
+                    }
+                    continue;
+                }
+                // Non-CSI escape sequence
+                in_escape = false;
                 continue;
             }
             result.push(c);
