@@ -91,7 +91,7 @@ fn test_form_receives_character_input() {
 
     // View should update - verify we processed input (view count increased)
     // Note: The actual text may be styled with ANSI codes, so we verify processing occurred
-    assert!(sim.stats().update_calls == 5, "Should have processed all 5 characters");
+    assert_eq!(sim.stats().update_calls, 5, "Should have processed all 5 characters");
     assert!(!sim.last_view().unwrap().is_empty(), "View should not be empty after input");
 }
 
