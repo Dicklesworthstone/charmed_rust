@@ -84,11 +84,10 @@ impl DashboardCard {
     #[must_use]
     pub const fn next(self) -> Self {
         match self {
-            Self::None => Self::Services,
+            Self::None | Self::Metrics => Self::Services,
             Self::Services => Self::Jobs,
             Self::Jobs => Self::Deployments,
             Self::Deployments => Self::Metrics,
-            Self::Metrics => Self::Services,
         }
     }
 
@@ -96,8 +95,7 @@ impl DashboardCard {
     #[must_use]
     pub const fn prev(self) -> Self {
         match self {
-            Self::None => Self::Metrics,
-            Self::Services => Self::Metrics,
+            Self::None | Self::Services => Self::Metrics,
             Self::Jobs => Self::Services,
             Self::Deployments => Self::Jobs,
             Self::Metrics => Self::Deployments,
@@ -130,8 +128,8 @@ pub struct DashboardPage {
     animator: Animator,
     /// Currently selected/focused card.
     selected_card: DashboardCard,
-    /// Last rendered card bounds for hit testing (y_start, y_end, x_start, x_end).
-    /// Uses RwLock for interior mutability since view() takes &self.
+    /// Last rendered card bounds for hit testing (`y_start`, `y_end`, `x_start`, `x_end`).
+    /// Uses `RwLock` for interior mutability since `view()` takes `&self`.
     card_bounds: RwLock<CardBounds>,
     /// Drill-down details panel state (bd-qkxb).
     details_panel: DetailsPanel,
@@ -143,7 +141,7 @@ pub struct DashboardPage {
 /// Bounds for dashboard cards used for mouse hit testing.
 #[derive(Debug, Clone, Default)]
 struct CardBounds {
-    /// Services card bounds (y_start, y_end, x_start, x_end).
+    /// Services card bounds (`y_start`, `y_end`, `x_start`, `x_end`).
     services: Option<(usize, usize, usize, usize)>,
     /// Jobs card bounds.
     jobs: Option<(usize, usize, usize, usize)>,
@@ -405,7 +403,7 @@ impl DashboardPage {
 
     /// Determine SLA urgency level based on remaining time (bd-39hl).
     #[allow(dead_code)]
-    fn sla_urgency(sla_seconds: u64) -> SlaUrgency {
+    const fn sla_urgency(sla_seconds: u64) -> SlaUrgency {
         if sla_seconds == 0 {
             SlaUrgency::Breached
         } else if sla_seconds < 15 * 60 {
@@ -427,7 +425,7 @@ impl DashboardPage {
 
     /// Set the incident SLA countdown (for testing).
     #[allow(dead_code)]
-    pub fn set_incident_sla(&mut self, seconds: Option<u64>) {
+    pub const fn set_incident_sla(&mut self, seconds: Option<u64>) {
         self.incident_sla_seconds = seconds;
     }
 
@@ -436,12 +434,12 @@ impl DashboardPage {
     // ========================================================================
 
     /// Select the next card (keyboard navigation).
-    fn select_next_card(&mut self) {
+    const fn select_next_card(&mut self) {
         self.selected_card = self.selected_card.next();
     }
 
     /// Select the previous card.
-    fn select_prev_card(&mut self) {
+    const fn select_prev_card(&mut self) {
         self.selected_card = self.selected_card.prev();
     }
 
@@ -468,26 +466,31 @@ impl DashboardPage {
     fn hit_test(&self, x: usize, y: usize) -> DashboardCard {
         let bounds = self.card_bounds.read();
 
+        // Copy bounds to allow early drop of RwLock guard
+        let (services, jobs, deployments, metrics) =
+            (bounds.services, bounds.jobs, bounds.deployments, bounds.metrics);
+        drop(bounds);
+
         // Check each card's bounds
-        if let Some((y1, y2, x1, x2)) = bounds.services {
-            if y >= y1 && y < y2 && x >= x1 && x < x2 {
-                return DashboardCard::Services;
-            }
+        if let Some((y1, y2, x1, x2)) = services
+            && y >= y1 && y < y2 && x >= x1 && x < x2
+        {
+            return DashboardCard::Services;
         }
-        if let Some((y1, y2, x1, x2)) = bounds.jobs {
-            if y >= y1 && y < y2 && x >= x1 && x < x2 {
-                return DashboardCard::Jobs;
-            }
+        if let Some((y1, y2, x1, x2)) = jobs
+            && y >= y1 && y < y2 && x >= x1 && x < x2
+        {
+            return DashboardCard::Jobs;
         }
-        if let Some((y1, y2, x1, x2)) = bounds.deployments {
-            if y >= y1 && y < y2 && x >= x1 && x < x2 {
-                return DashboardCard::Deployments;
-            }
+        if let Some((y1, y2, x1, x2)) = deployments
+            && y >= y1 && y < y2 && x >= x1 && x < x2
+        {
+            return DashboardCard::Deployments;
         }
-        if let Some((y1, y2, x1, x2)) = bounds.metrics {
-            if y >= y1 && y < y2 && x >= x1 && x < x2 {
-                return DashboardCard::Metrics;
-            }
+        if let Some((y1, y2, x1, x2)) = metrics
+            && y >= y1 && y < y2 && x >= x1 && x < x2
+        {
+            return DashboardCard::Metrics;
         }
 
         DashboardCard::None
@@ -515,7 +518,7 @@ impl DashboardPage {
     }
 
     /// Close the details panel.
-    fn close_details(&mut self) {
+    const fn close_details(&mut self) {
         self.details_panel.open = false;
     }
 
@@ -568,7 +571,7 @@ impl DashboardPage {
             // Apply selection highlight: bold first line (header) and subtle left border
             let lines: Vec<&str> = content.lines().collect();
             if lines.is_empty() {
-                return content.to_string();
+                return (*content).to_owned();
             }
 
             // Highlight the header with primary/accent color
@@ -621,7 +624,7 @@ impl DashboardPage {
         let uptime_styled = theme.muted_style().render(&uptime);
 
         // SLA countdown with visual emphasis (bd-39hl)
-        let sla_styled = if let Some(sla_secs) = self.incident_sla_seconds {
+        let sla_styled = self.incident_sla_seconds.map_or_else(String::new, |sla_secs| {
             let sla_text = format!("SLA: {}", Self::format_sla_countdown(sla_secs));
             let urgency = Self::sla_urgency(sla_secs);
             match urgency {
@@ -630,9 +633,7 @@ impl DashboardPage {
                 SlaUrgency::Warning => theme.warning_style().render(&sla_text),
                 SlaUrgency::Normal => theme.muted_style().render(&sla_text),
             }
-        } else {
-            String::new()
-        };
+        });
 
         // Compose status bar
         let content = if sla_styled.is_empty() {
@@ -930,8 +931,8 @@ impl DashboardPage {
     /// Shows a centered modal overlay with entity details, metrics, and actions.
     fn render_details_panel(&self, theme: &Theme, width: usize, height: usize) -> String {
         // Panel dimensions (centered, 70% width, 60% height)
-        let panel_width = (width * 70 / 100).max(40).min(80);
-        let panel_height = (height * 60 / 100).max(15).min(30);
+        let panel_width = (width * 70 / 100).clamp(40, 80);
+        let panel_height = (height * 60 / 100).clamp(15, 30);
 
         // Header based on card type
         let (title, icon) = match self.details_panel.card {
@@ -955,8 +956,7 @@ impl DashboardPage {
         let actions = match self.details_panel.card {
             DashboardCard::Services => "Enter: go to Services  j/k: navigate  Esc: close",
             DashboardCard::Jobs => "Enter: go to Jobs  j/k: navigate  Esc: close",
-            DashboardCard::Deployments => "j/k: navigate  Esc: close",
-            DashboardCard::Metrics => "j/k: navigate  Esc: close",
+            DashboardCard::Deployments | DashboardCard::Metrics => "j/k: navigate  Esc: close",
             DashboardCard::None => "",
         };
 
@@ -971,7 +971,7 @@ impl DashboardPage {
         let actions_styled = theme.muted_style().render(actions);
 
         // Compose panel content
-        let mut lines = vec![header.clone(), String::new()];
+        let mut lines = vec![header, String::new()];
         lines.extend(content.lines().take(panel_height - 5).map(String::from));
         lines.push(String::new());
         lines.push(actions_styled);
@@ -1006,7 +1006,7 @@ impl DashboardPage {
     fn render_service_details(&self, theme: &Theme, width: usize) -> String {
         let services: Vec<_> = self.services().iter().take(6).collect();
         if services.is_empty() {
-            return theme.muted_style().render("No services").to_string();
+            return theme.muted_style().render("No services");
         }
 
         let selected = self
@@ -1067,7 +1067,7 @@ impl DashboardPage {
     fn render_job_details(&self, theme: &Theme, width: usize) -> String {
         let jobs = self.recent_jobs();
         if jobs.is_empty() {
-            return theme.muted_style().render("No recent jobs").to_string();
+            return theme.muted_style().render("No recent jobs");
         }
 
         let selected = self
@@ -1122,10 +1122,7 @@ impl DashboardPage {
     fn render_deployment_details(&self, theme: &Theme, width: usize) -> String {
         let deployments = self.recent_deployments();
         if deployments.is_empty() {
-            return theme
-                .muted_style()
-                .render("No recent deployments")
-                .to_string();
+            return theme.muted_style().render("No recent deployments");
         }
 
         let selected = self
@@ -1235,7 +1232,7 @@ impl DashboardPage {
             MetricHealth::Warning => chip(theme, StatusLevel::Warning, "warning"),
             MetricHealth::Error => chip(theme, StatusLevel::Error, "error"),
         };
-        let name_styled = Style::new().foreground(theme.text).bold().render(*name);
+        let name_styled = Style::new().foreground(theme.text).bold().render(name);
         lines.push(format!("{name_styled}  {health_chip}"));
         lines.push(String::new());
 
@@ -1254,7 +1251,7 @@ impl DashboardPage {
         lines.push(format!("Trend: {}", trend.icon()));
         lines.push(format!(
             "Description: {}",
-            theme.muted_style().render(*description)
+            theme.muted_style().render(description)
         ));
         lines.push(String::new());
 
@@ -1268,9 +1265,9 @@ impl DashboardPage {
                 MetricHealth::Error => theme.error_style().render("●"),
             };
             let name_styled = if i == selected {
-                Style::new().foreground(theme.primary).render(*m_name)
+                Style::new().foreground(theme.primary).render(m_name)
             } else {
-                Style::new().foreground(theme.text).render(*m_name)
+                Style::new().foreground(theme.text).render(m_name)
             };
             lines.push(format!("{marker}{health_icon} {name_styled}"));
         }
@@ -1345,10 +1342,8 @@ impl PageModel for DashboardPage {
                         _ => {}
                     }
                 }
-                // Tab cycles through cards
-                KeyType::Tab => self.select_next_card(),
-                // Arrow keys for card navigation
-                KeyType::Down | KeyType::Right => self.select_next_card(),
+                // Tab and arrow keys for card navigation
+                KeyType::Tab | KeyType::Down | KeyType::Right => self.select_next_card(),
                 KeyType::Up | KeyType::Left => self.select_prev_card(),
                 // Enter opens the details panel for the selected card (bd-qkxb)
                 KeyType::Enter => {
@@ -1356,8 +1351,7 @@ impl PageModel for DashboardPage {
                         self.open_details();
                     }
                 }
-                // Esc does nothing when details are closed
-                KeyType::Esc => {}
+                // Esc and other keys do nothing when details are closed
                 _ => {}
             }
         }

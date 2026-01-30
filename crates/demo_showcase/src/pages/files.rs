@@ -1,6 +1,6 @@
 //! Files page - file browser with preview.
 //!
-//! This page integrates the bubbles FilePicker component to provide
+//! This page integrates the bubbles `FilePicker` component to provide
 //! directory navigation and file preview capabilities.
 //!
 //! # Modes
@@ -274,17 +274,16 @@ impl FilesPage {
                 .filter(|e| self.show_hidden || !e.is_hidden())
                 .collect();
 
-            if let Some(entry) = entries.get(self.selected) {
-                if let Some(children) = entry.children() {
-                    Some((entry.name, Some(children.to_vec()), None::<String>))
-                } else if let Some(content) = entry.content() {
-                    Some((entry.name, None, Some(content.to_string())))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+            entries.get(self.selected).and_then(|entry| {
+                entry.children().map_or_else(
+                    || {
+                        entry
+                            .content()
+                            .map(|content| (entry.name, None, Some(content.to_string())))
+                    },
+                    |children| Some((entry.name, Some(children.to_vec()), None::<String>)),
+                )
+            })
         };
 
         if let Some((name, children_opt, content_opt)) = action {
@@ -328,10 +327,12 @@ impl FilesPage {
         self.virtual_path.pop();
 
         for segment in &self.virtual_path {
-            if let Some(entry) = current_tree.iter().find(|e| e.name == *segment) {
-                if let Some(children) = entry.children() {
-                    current_tree = children;
-                }
+            if let Some(children) = current_tree
+                .iter()
+                .find(|e| e.name == *segment)
+                .and_then(VirtualEntry::children)
+            {
+                current_tree = children;
             }
         }
 
@@ -465,15 +466,16 @@ impl FilesPage {
                 .filter(|e| self.show_hidden || !e.is_hidden())
                 .collect();
 
-            if let Some(entry) = entries.get(self.selected) {
-                (
-                    entry.content().map(String::from),
-                    entry.name.to_string(),
-                    entry.is_dir(),
-                )
-            } else {
-                (None, String::new(), false)
-            }
+            entries.get(self.selected).map_or_else(
+                || (None, String::new(), false),
+                |entry| {
+                    (
+                        entry.content().map(String::from),
+                        entry.name.to_string(),
+                        entry.is_dir(),
+                    )
+                },
+            )
         };
 
         if !name.is_empty() {
@@ -481,7 +483,7 @@ impl FilesPage {
             self.is_markdown = !is_dir && Self::is_markdown_file(&name);
 
             self.preview_name = if is_dir {
-                Some(format!("{}/", name))
+                Some(format!("{name}/"))
             } else {
                 Some(name)
             };
@@ -501,7 +503,7 @@ impl FilesPage {
 
                 // Store raw content for markdown files (will be rendered in view)
                 if self.is_markdown {
-                    self.raw_content = Some(truncated_content.clone());
+                    self.raw_content = Some(truncated_content);
                     // Clear viewport - will be filled in render_preview with proper theme
                     self.preview_viewport.write().set_content("");
                     // Force re-render by clearing last dimensions
@@ -618,12 +620,13 @@ impl FilesPage {
         // Header with focus indicator and markdown indicator
         let focus_indicator = if self.preview_focused { "● " } else { "" };
         let md_indicator = if self.is_markdown { " [MD]" } else { "" };
-        let header = if let Some(ref name) = self.preview_name {
-            let header_text = format!("{}{}{}", focus_indicator, name, md_indicator);
-            theme.heading_style().render(&header_text)
-        } else {
-            theme.muted_style().render("(no selection)")
-        };
+        let header = self.preview_name.as_ref().map_or_else(
+            || theme.muted_style().render("(no selection)"),
+            |name| {
+                let header_text = format!("{focus_indicator}{name}{md_indicator}");
+                theme.heading_style().render(&header_text)
+            },
+        );
         lines.push(header);
         lines.push(theme.muted_style().render(&"─".repeat(width.min(40))));
 
@@ -634,25 +637,20 @@ impl FilesPage {
             // Error icon and type
             let icon = error.icon();
             let error_msg = error.message();
-            lines.push(
-                theme
-                    .error_style()
-                    .render(&format!("  {icon}  {error_msg}"))
-                    .to_string(),
-            );
+            lines.push(theme.error_style().render(&format!("  {icon}  {error_msg}")));
 
             lines.push(String::new());
 
             // Recovery hint
             let hint = error.recovery_hint();
-            lines.push(theme.muted_style().render(&format!("  {hint}")).to_string());
+            lines.push(theme.muted_style().render(&format!("  {hint}")));
 
             // For binary files, show partial content preview
             if let Some(ref binary) = self.binary_preview {
                 lines.push(String::new());
-                lines.push(theme.muted_style().render("  Hex preview:").to_string());
+                lines.push(theme.muted_style().render("  Hex preview:"));
                 for line in binary.lines().take(5) {
-                    lines.push(theme.muted_style().render(&format!("  {line}")).to_string());
+                    lines.push(theme.muted_style().render(&format!("  {line}")));
                 }
             }
 
@@ -665,18 +663,16 @@ impl FilesPage {
 
         // For markdown files, check if we need to re-render
         let theme_name = theme.preset.name().to_string();
-        if self.is_markdown {
-            if let Some(ref raw) = self.raw_content {
-                // Re-render if width or theme changed
-                let last_w = *self.last_width.read();
-                let last_t = self.last_theme.read().clone();
-                if last_w != width || last_t != theme_name {
-                    let content_width = width.saturating_sub(2);
-                    let rendered = self.render_markdown(raw, theme, content_width);
-                    self.preview_viewport.write().set_content(&rendered);
-                    *self.last_width.write() = width;
-                    *self.last_theme.write() = theme_name;
-                }
+        if let Some(raw) = self.raw_content.as_ref().filter(|_| self.is_markdown) {
+            // Re-render if width or theme changed
+            let last_w = *self.last_width.read();
+            let last_t = self.last_theme.read().clone();
+            if last_w != width || last_t != theme_name {
+                let content_width = width.saturating_sub(2);
+                let rendered = self.render_markdown(raw, theme, content_width);
+                self.preview_viewport.write().set_content(&rendered);
+                *self.last_width.write() = width;
+                *self.last_theme.write() = theme_name;
             }
         }
 
@@ -698,6 +694,7 @@ impl FilesPage {
 
             // Scroll position indicator
             let scroll_pct = viewport.scroll_percent();
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let scroll_indicator = if viewport.total_line_count() <= content_height {
                 String::new()
             } else if viewport.at_top() {
@@ -705,7 +702,8 @@ impl FilesPage {
             } else if viewport.at_bottom() {
                 "End".to_string()
             } else {
-                format!("{}%", (scroll_pct * 100.0) as usize)
+                let pct = (scroll_pct * 100.0) as usize;
+                format!("{pct}%")
             };
 
             let truncated_indicator = if self.preview_truncated {
@@ -718,15 +716,12 @@ impl FilesPage {
             let toggle_indicator = if self.is_markdown {
                 let syntax_char = if self.syntax_highlighting { "S" } else { "·" };
                 let line_char = if self.line_numbers { "#" } else { "·" };
-                format!(" [{}{}]", syntax_char, line_char)
+                format!(" [{syntax_char}{line_char}]")
             } else {
                 String::new()
             };
 
-            let status = format!(
-                "{}{}{}",
-                scroll_indicator, truncated_indicator, toggle_indicator
-            );
+            let status = format!("{scroll_indicator}{truncated_indicator}{toggle_indicator}");
             lines.push(theme.muted_style().render(&status));
         } else if self.preview_name.is_some() {
             lines.push(theme.muted_style().render("(directory)"));
@@ -741,7 +736,7 @@ impl FilesPage {
     }
 
     /// Toggle focus between file list and preview pane.
-    fn toggle_preview_focus(&mut self) {
+    const fn toggle_preview_focus(&mut self) {
         self.preview_focused = !self.preview_focused;
     }
 
@@ -755,12 +750,12 @@ impl FilesPage {
     }
 
     /// Toggle syntax highlighting on/off.
-    pub fn toggle_syntax_highlighting(&mut self) {
+    pub const fn toggle_syntax_highlighting(&mut self) {
         self.syntax_highlighting = !self.syntax_highlighting;
     }
 
     /// Toggle line numbers on/off.
-    pub fn toggle_line_numbers(&mut self) {
+    pub const fn toggle_line_numbers(&mut self) {
         self.line_numbers = !self.line_numbers;
     }
 
@@ -1021,10 +1016,8 @@ impl PageModel for FilesPage {
         self.update_preview();
 
         // For real mode, initialize the picker
-        if self.real_mode {
-            if let Some(picker) = &self.picker {
-                return picker.init();
-            }
+        if self.real_mode && self.picker.is_some() {
+            return self.picker.as_ref().and_then(FilePicker::init);
         }
 
         None

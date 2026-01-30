@@ -1247,8 +1247,7 @@ impl Model for App {
                     // Generate filename with timestamp
                     let timestamp = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
-                        .map(|d| d.as_secs())
-                        .unwrap_or(0);
+                        .map_or(0, |d| d.as_secs());
                     let page_name = self.current_page.name().to_lowercase();
                     let filename = format!("demo_{page_name}_{timestamp}.{ext}");
 
@@ -1428,6 +1427,7 @@ impl Model for App {
         None
     }
 
+    #[allow(clippy::option_if_let_else)]
     fn view(&self) -> String {
         if !self.ready {
             return "Loading...".to_string();
@@ -1532,7 +1532,7 @@ fn pad_lines_to_width(s: &str, target_width: usize) -> String {
         .join("\n")
 }
 
-/// Truncate each line of a string to max_width, handling ANSI escape sequences.
+/// Truncate each line of a string to `max_width`, handling ANSI escape sequences.
 ///
 /// This ensures the output fits within the terminal width and prevents unwanted
 /// line wrapping that can cause scrolling artifacts.
@@ -1554,7 +1554,7 @@ fn truncate_to_width(s: &str, max_width: usize) -> String {
         .join("\n")
 }
 
-/// Truncate a single line to max_width, preserving ANSI escape sequences.
+/// Truncate a single line to `max_width`, preserving ANSI escape sequences.
 fn truncate_line_ansi_aware(line: &str, max_width: usize) -> String {
     let mut result = String::new();
     let mut visible_count = 0;
@@ -1587,11 +1587,9 @@ fn truncate_line_ansi_aware(line: &str, max_width: usize) -> String {
                             if ch == '\x07' {
                                 break;
                             }
-                            if ch == '\x1b' {
-                                if let Some(&'\\') = chars.peek() {
-                                    result.push(chars.next().unwrap());
-                                    break;
-                                }
+                            if ch == '\x1b' && chars.peek() == Some(&'\\') {
+                                result.push(chars.next().unwrap());
+                                break;
                             }
                         }
                     }

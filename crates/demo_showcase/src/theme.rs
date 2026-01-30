@@ -1332,12 +1332,13 @@ mod tests {
     #[test]
     fn ansi16_codes_are_valid() {
         // Verify codes are in valid ANSI bright color range (90-97, 100-107)
-        assert!(ansi16::PRIMARY >= 90 && ansi16::PRIMARY <= 97);
-        assert!(ansi16::SUCCESS >= 90 && ansi16::SUCCESS <= 97);
-        assert!(ansi16::ERROR >= 90 && ansi16::ERROR <= 97);
-        assert!(ansi16::WARNING >= 90 && ansi16::WARNING <= 97);
-        assert!(ansi16::INFO >= 90 && ansi16::INFO <= 97);
-        assert!(ansi16::TEXT >= 90 && ansi16::TEXT <= 97);
+        // Using const blocks for compile-time validation
+        const { assert!(ansi16::PRIMARY >= 90 && ansi16::PRIMARY <= 97) };
+        const { assert!(ansi16::SUCCESS >= 90 && ansi16::SUCCESS <= 97) };
+        const { assert!(ansi16::ERROR >= 90 && ansi16::ERROR <= 97) };
+        const { assert!(ansi16::WARNING >= 90 && ansi16::WARNING <= 97) };
+        const { assert!(ansi16::INFO >= 90 && ansi16::INFO <= 97) };
+        const { assert!(ansi16::TEXT >= 90 && ansi16::TEXT <= 97) };
     }
 
     #[test]
@@ -1452,22 +1453,22 @@ mod tests {
         let light = Theme::light();
 
         // Render the same text with different themes — output should differ.
-        let dark_title = dark.title_style().render("Title").to_string();
-        let light_title = light.title_style().render("Title").to_string();
+        let dark_title = dark.title_style().render("Title");
+        let light_title = light.title_style().render("Title");
         assert_ne!(
             dark_title, light_title,
             "title_style should differ between dark and light"
         );
 
-        let dark_success = dark.success_style().render("OK").to_string();
-        let light_success = light.success_style().render("OK").to_string();
+        let dark_success = dark.success_style().render("OK");
+        let light_success = light.success_style().render("OK");
         assert_ne!(
             dark_success, light_success,
             "success_style should differ between dark and light"
         );
 
-        let dark_badge = dark.badge_primary_style().render("tag").to_string();
-        let light_badge = light.badge_primary_style().render("tag").to_string();
+        let dark_badge = dark.badge_primary_style().render("tag");
+        let light_badge = light.badge_primary_style().render("tag");
         assert_ne!(
             dark_badge, light_badge,
             "badge_primary_style should differ between dark and light"
@@ -1479,8 +1480,8 @@ mod tests {
         let dark = Theme::dark();
         let light = Theme::light();
 
-        let dark_card = dark.card_style().render("content").to_string();
-        let light_card = light.card_style().render("content").to_string();
+        let dark_card = dark.card_style().render("content");
+        let light_card = light.card_style().render("content");
 
         // Cards use bg_subtle which differs between themes
         assert_ne!(
@@ -1494,8 +1495,8 @@ mod tests {
         let dark = Theme::dark();
         let light = Theme::light();
 
-        let dark_panel = dark.panel_style().render("content").to_string();
-        let light_panel = light.panel_style().render("content").to_string();
+        let dark_panel = dark.panel_style().render("content");
+        let light_panel = light.panel_style().render("content");
 
         assert_ne!(
             dark_panel, light_panel,

@@ -35,7 +35,7 @@ pub enum ServiceType {
 impl ServiceType {
     /// Get the display name.
     #[must_use]
-    pub const fn name(&self) -> &'static str {
+    pub const fn name(self) -> &'static str {
         match self {
             Self::WebService => "Web Service",
             Self::BackgroundWorker => "Background Worker",
@@ -45,7 +45,7 @@ impl ServiceType {
 
     /// Get the description.
     #[must_use]
-    pub const fn description(&self) -> &'static str {
+    pub const fn description(self) -> &'static str {
         match self {
             Self::WebService => "HTTP server with port binding",
             Self::BackgroundWorker => "Queue processor, no external ports",
@@ -66,7 +66,7 @@ pub enum Environment {
 impl Environment {
     /// Get the display name.
     #[must_use]
-    pub const fn name(&self) -> &'static str {
+    pub const fn name(self) -> &'static str {
         match self {
             Self::Development => "development",
             Self::Staging => "staging",
@@ -76,19 +76,10 @@ impl Environment {
 }
 
 /// Environment variable options.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct EnvVar {
     pub name: &'static str,
     pub description: &'static str,
-}
-
-impl Default for EnvVar {
-    fn default() -> Self {
-        Self {
-            name: "",
-            description: "",
-        }
-    }
 }
 
 /// Available environment variables.
@@ -157,15 +148,14 @@ impl SimulatedError {
     #[must_use]
     pub const fn is_retryable(&self) -> bool {
         match self {
-            Self::PermissionDenied => false,
             Self::NetworkTimeout => true,
-            Self::Conflict(_) => false,
+            Self::PermissionDenied | Self::Conflict(_) => false,
         }
     }
 
     /// Get recovery hint for the user.
     #[must_use]
-    pub fn recovery_hint(&self) -> &'static str {
+    pub const fn recovery_hint(&self) -> &'static str {
         match self {
             Self::PermissionDenied => "Press b to go back and change environment",
             Self::NetworkTimeout => "Press Enter to retry or b to go back",
@@ -264,7 +254,7 @@ pub struct WizardPage {
     error: Option<String>,
     /// Whether the page is focused.
     focused: bool,
-    /// Field-level error hints (field_index -> hint).
+    /// Field-level error hints (`field_index` -> hint).
     field_errors: Vec<Option<String>>,
     /// Counter for pseudo-random error simulation (deterministic based on name hash).
     error_seed: u64,
@@ -385,7 +375,6 @@ impl WizardPage {
     /// Validate the current step.
     fn validate_current_step(&self) -> Option<String> {
         match self.state.step {
-            0 => None, // Service type always valid (has default)
             1 => {
                 // Basic configuration
                 if self.state.name.trim().is_empty() {
@@ -439,7 +428,6 @@ impl WizardPage {
                 }
                 None
             }
-            3 => None, // Environment variables are optional
             4 => {
                 // Review step - must confirm
                 if !self.state.confirmed {
@@ -447,6 +435,8 @@ impl WizardPage {
                 }
                 None
             }
+            // 0: Service type always valid (has default)
+            // 3: Environment variables are optional
             _ => None,
         }
     }
@@ -454,16 +444,9 @@ impl WizardPage {
     /// Get the number of fields in the current step.
     fn field_count(&self) -> usize {
         match self.state.step {
-            0 => 1, // Service type select
-            1 => 3, // Name, description, environment
-            2 => match self.state.service_type {
-                ServiceType::WebService => 3,       // Port, health check, replicas
-                ServiceType::BackgroundWorker => 3, // Queue name, concurrency, retries
-                ServiceType::ScheduledJob => 3,     // Schedule, timeout, run on deploy
-            },
-            3 => 1, // MultiSelect for env vars
-            4 => 1, // Confirm
-            5 => 0, // Deployment (no interactive fields)
+            0 | 3 | 4 => 1, // Service type select, MultiSelect for env vars, Confirm
+            1 | 2 => 3,     // Name/description/environment, or type-specific options
+            // 5: Deployment (no interactive fields), and default
             _ => 0,
         }
     }
@@ -506,7 +489,7 @@ impl WizardPage {
             KeyType::Esc => {
                 if in_failed_state && self.state.step == 5 {
                     // From failed state, go back to review step
-                    self.go_back_from_failure()
+                    Some(self.go_back_from_failure())
                 } else if self.state.step > 0 {
                     self.prev_step();
                     None
@@ -533,7 +516,7 @@ impl WizardPage {
                     [' '] => self.handle_space(),
                     ['b'] => {
                         if in_failed_state && self.state.step == 5 {
-                            return self.go_back_from_failure();
+                            return Some(self.go_back_from_failure());
                         } else if self.state.step > 0 {
                             self.prev_step();
                         }
@@ -554,7 +537,7 @@ impl WizardPage {
     }
 
     /// Go back from a failed deployment state to fix the issue.
-    fn go_back_from_failure(&mut self) -> Option<Cmd> {
+    fn go_back_from_failure(&mut self) -> Cmd {
         let error = match &self.state.deployment_status {
             DeploymentStatus::Failed(err) => Some(err.clone()),
             _ => None,
@@ -562,10 +545,8 @@ impl WizardPage {
 
         // Determine which step to go back to based on error type
         let target_step = match &error {
-            Some(SimulatedError::PermissionDenied) => 1, // Go to config to change env
-            Some(SimulatedError::Conflict(_)) => 1,      // Go to config to change name
-            Some(SimulatedError::NetworkTimeout) => 4,   // Go to review to retry
-            None => 4,                                   // Default to review
+            Some(SimulatedError::PermissionDenied | SimulatedError::Conflict(_)) => 1, // Go to config
+            Some(SimulatedError::NetworkTimeout) | None => 4, // Go to review to retry
         };
 
         self.state.step = target_step;
@@ -573,7 +554,7 @@ impl WizardPage {
         self.state.confirmed = false;
         self.field_index = match &error {
             Some(SimulatedError::PermissionDenied) => 2, // Focus on environment field
-            Some(SimulatedError::Conflict(_)) => 0,      // Focus on name field
+            // Conflict focuses on name field, others use default
             _ => 0,
         };
         self.error = None;
@@ -594,9 +575,7 @@ impl WizardPage {
         };
 
         let notification = Notification::info(id, message);
-        Some(Cmd::new(move || {
-            NotificationMsg::Show(notification).into_message()
-        }))
+        Cmd::new(move || NotificationMsg::Show(notification).into_message())
     }
 
     /// Handle Enter key.
@@ -694,9 +673,7 @@ impl WizardPage {
                 // Handle type-specific options
                 self.handle_type_options_up();
             }
-            3 => {
-                // Navigate env var selection (handled by MultiSelect logic)
-            }
+            // 3: Navigate env var selection (handled by MultiSelect logic)
             _ => {}
         }
     }
@@ -728,9 +705,7 @@ impl WizardPage {
                 // Handle type-specific options
                 self.handle_type_options_down();
             }
-            3 => {
-                // Navigate env var selection
-            }
+            // 3: Navigate env var selection
             _ => {}
         }
     }
@@ -806,7 +781,7 @@ impl WizardPage {
     }
 
     /// Get the env var index at current cursor.
-    fn env_var_cursor_index(&self) -> Option<usize> {
+    const fn env_var_cursor_index(&self) -> Option<usize> {
         if self.state.step == 3 && self.field_index < ENV_VARS.len() {
             Some(self.field_index)
         } else {
@@ -887,20 +862,16 @@ impl WizardPage {
         let mut parts: Vec<String> = Vec::new();
 
         for (i, name) in STEP_NAMES.iter().enumerate() {
-            let indicator = if i < self.state.step {
-                theme.success_style().render("*")
-            } else if i == self.state.step {
-                theme.info_style().render("@")
-            } else {
-                theme.muted_style().render("o")
+            let indicator = match i.cmp(&self.state.step) {
+                std::cmp::Ordering::Less => theme.success_style().render("*"),
+                std::cmp::Ordering::Equal => theme.info_style().render("@"),
+                std::cmp::Ordering::Greater => theme.muted_style().render("o"),
             };
 
-            let label = if i == self.state.step {
-                theme.info_style().render(name)
-            } else if i < self.state.step {
-                theme.success_style().render(name)
-            } else {
-                theme.muted_style().render(name)
+            let label = match i.cmp(&self.state.step) {
+                std::cmp::Ordering::Equal => theme.info_style().render(name),
+                std::cmp::Ordering::Less => theme.success_style().render(name),
+                std::cmp::Ordering::Greater => theme.muted_style().render(name),
             };
 
             parts.push(format!("{indicator} {label}"));
@@ -991,7 +962,7 @@ impl WizardPage {
         let desc_value = if self.field_index == 1 {
             format!("{}_", self.state.description)
         } else if self.state.description.is_empty() {
-            theme.muted_style().render("(optional)").to_string()
+            theme.muted_style().render("(optional)")
         } else {
             self.state.description.clone()
         };
@@ -1112,8 +1083,7 @@ impl WizardPage {
                 lines.push(
                     theme
                         .muted_style()
-                        .render("    (cron format: min hour day month weekday)")
-                        .to_string(),
+                        .render("    (cron format: min hour day month weekday)"),
                 );
 
                 // Timeout
@@ -1150,8 +1120,7 @@ impl WizardPage {
         lines.push(
             theme
                 .muted_style()
-                .render("Select variables to inject (Space to toggle)")
-                .to_string(),
+                .render("Select variables to inject (Space to toggle)"),
         );
         lines.push(String::new());
 
@@ -1204,7 +1173,7 @@ impl WizardPage {
         ));
 
         lines.push(String::new());
-        lines.push(theme.heading_style().render("Configuration:").to_string());
+        lines.push(theme.heading_style().render("Configuration:"));
 
         match self.state.service_type {
             ServiceType::WebService => {
@@ -1240,8 +1209,7 @@ impl WizardPage {
                     .render(&format!(
                         "Environment Variables ({}):",
                         self.state.env_vars.len()
-                    ))
-                    .to_string(),
+                    )),
             );
             for &idx in &self.state.env_vars {
                 if let Some(var) = ENV_VARS.get(idx) {
@@ -1269,8 +1237,7 @@ impl WizardPage {
             lines.push(
                 theme
                     .warning_style()
-                    .render("! This will deploy to PRODUCTION")
-                    .to_string(),
+                    .render("! This will deploy to PRODUCTION"),
             );
         }
 
@@ -1289,7 +1256,7 @@ impl WizardPage {
             DeploymentStatus::Complete => theme.success_style().render("Deployment Complete"),
             _ => theme.heading_style().render("Deploying..."),
         };
-        lines.push(title.to_string());
+        lines.push(title);
         lines.push(String::new());
 
         let steps = [
@@ -1305,28 +1272,25 @@ impl WizardPage {
                 lines.push(
                     theme
                         .muted_style()
-                        .render("Press Enter to begin deployment")
-                        .to_string(),
+                        .render("Press Enter to begin deployment"),
                 );
                 // Show retry attempt number if retrying
                 if self.retry_count > 0 {
+                    let retry_msg = self.retry_count + 1;
                     lines.push(String::new());
                     lines.push(
                         theme
                             .info_style()
-                            .render(&format!("(Retry attempt #{} ready)", self.retry_count + 1))
-                            .to_string(),
+                            .render(&format!("(Retry attempt #{retry_msg} ready)")),
                     );
                 }
             }
             DeploymentStatus::InProgress(current) => {
                 for (i, step) in steps.iter().enumerate() {
-                    let icon = if i < *current {
-                        theme.success_style().render("*")
-                    } else if i == *current {
-                        theme.info_style().render("@")
-                    } else {
-                        theme.muted_style().render("o")
+                    let icon = match i.cmp(current) {
+                        std::cmp::Ordering::Less => theme.success_style().render("*"),
+                        std::cmp::Ordering::Equal => theme.info_style().render("@"),
+                        std::cmp::Ordering::Greater => theme.muted_style().render("o"),
                     };
 
                     let label = if i <= *current {
@@ -1347,8 +1311,7 @@ impl WizardPage {
                 lines.push(
                     theme
                         .success_style()
-                        .render("Deployment complete!")
-                        .to_string(),
+                        .render("Deployment complete!"),
                 );
                 lines.push(String::new());
                 lines.push(format!(
@@ -1359,19 +1322,16 @@ impl WizardPage {
                 lines.push(
                     theme
                         .muted_style()
-                        .render("Press Enter to deploy another service")
-                        .to_string(),
+                        .render("Press Enter to deploy another service"),
                 );
             }
             DeploymentStatus::Failed(sim_error) => {
                 // Show progress steps with failure marker at step 2 (Provisioning)
                 for (i, step) in steps.iter().enumerate() {
-                    let icon = if i < 2 {
-                        theme.success_style().render("*")
-                    } else if i == 2 {
-                        theme.error_style().render("x")
-                    } else {
-                        theme.muted_style().render("o")
+                    let icon = match i.cmp(&2) {
+                        std::cmp::Ordering::Less => theme.success_style().render("*"),
+                        std::cmp::Ordering::Equal => theme.error_style().render("x"),
+                        std::cmp::Ordering::Greater => theme.muted_style().render("o"),
                     };
                     lines.push(format!("  {icon} {step}"));
                 }
@@ -1379,7 +1339,7 @@ impl WizardPage {
 
                 // Error box with border
                 let error_border = theme.error_style().render(&"─".repeat(50));
-                lines.push(error_border.to_string());
+                lines.push(error_border.clone());
                 lines.push(String::new());
 
                 // Error type indicator
@@ -1391,8 +1351,7 @@ impl WizardPage {
                 lines.push(
                     theme
                         .error_style()
-                        .render(&format!("  Error Type: {error_type}"))
-                        .to_string(),
+                        .render(&format!("  Error Type: {error_type}")),
                 );
 
                 // Error message
@@ -1410,35 +1369,30 @@ impl WizardPage {
                 lines.push(format!("  {} {hint}", hint_style.render(">")));
 
                 lines.push(String::new());
-                lines.push(error_border.to_string());
+                lines.push(error_border);
 
                 // Show retry count if there were attempts
                 if self.retry_count > 0 {
+                    let attempts = self.retry_count + 1;
                     lines.push(String::new());
                     lines.push(
                         theme
                             .muted_style()
-                            .render(&format!(
-                                "  Failed after {} attempt(s)",
-                                self.retry_count + 1
-                            ))
-                            .to_string(),
+                            .render(&format!("  Failed after {attempts} attempt(s)")),
                     );
                 }
             }
             DeploymentStatus::FailedGeneric(msg) => {
                 for (i, step) in steps.iter().enumerate() {
-                    let icon = if i < 2 {
-                        theme.success_style().render("*")
-                    } else if i == 2 {
-                        theme.error_style().render("x")
-                    } else {
-                        theme.muted_style().render("o")
+                    let icon = match i.cmp(&2) {
+                        std::cmp::Ordering::Less => theme.success_style().render("*"),
+                        std::cmp::Ordering::Equal => theme.error_style().render("x"),
+                        std::cmp::Ordering::Greater => theme.muted_style().render("o"),
                     };
                     lines.push(format!("  {icon} {step}"));
                 }
                 lines.push(String::new());
-                lines.push(theme.error_style().render("Deployment failed!").to_string());
+                lines.push(theme.error_style().render("Deployment failed!"));
                 lines.push(format!("Error: {msg}"));
             }
         }
@@ -1450,7 +1404,7 @@ impl WizardPage {
     fn render_error(&self, theme: &Theme) -> Option<String> {
         self.error
             .as_ref()
-            .map(|e| theme.error_style().render(&format!("! {e}")).to_string())
+            .map(|e| theme.error_style().render(&format!("! {e}")))
     }
 
     /// Create a deployment config from the current wizard state.
@@ -1471,7 +1425,7 @@ impl WizardPage {
         }
     }
 
-    /// Start the deployment and emit the DeploymentStarted message.
+    /// Start the deployment and emit the `DeploymentStarted` message.
     ///
     /// Returns a Cmd that emits `WizardMsg::DeploymentStarted`.
     pub fn start_deployment(&mut self) -> Option<Cmd> {
@@ -1497,16 +1451,16 @@ impl WizardPage {
         if let DeploymentStatus::InProgress(step) = self.state.deployment_status {
             // Check for simulated errors at step 2 (after initial progress)
             // This mimics "Provisioning resources" failing
-            if step == 2 {
-                if let Some(sim_error) = self.check_simulated_error() {
-                    return self.fail_deployment(sim_error);
-                }
+            if let (2, Some(sim_error)) = (step, self.check_simulated_error()) {
+                return self.fail_deployment(sim_error);
             }
 
             if step < 4 {
                 self.state.deployment_status = DeploymentStatus::InProgress(step + 1);
+                // step is 0..=3 here, so step + 1 fits in u8
+                let progress = u8::try_from(step + 1).unwrap_or(u8::MAX);
                 Some(Cmd::new(move || {
-                    WizardMsg::DeploymentProgress(step as u8 + 1).into_message()
+                    WizardMsg::DeploymentProgress(progress).into_message()
                 }))
             } else {
                 self.state.deployment_status = DeploymentStatus::Complete;

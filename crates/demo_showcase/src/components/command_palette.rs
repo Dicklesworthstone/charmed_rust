@@ -60,6 +60,7 @@ pub enum CommandCategory {
 
 impl CommandCategory {
     /// Get display name for the category.
+    #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
             Self::Navigation => "Navigation",
@@ -70,6 +71,7 @@ impl CommandCategory {
     }
 
     /// Get icon for the category.
+    #[must_use]
     pub const fn icon(self) -> &'static str {
         match self {
             Self::Navigation => "→",
@@ -102,8 +104,9 @@ pub enum CommandAction {
 }
 
 impl CommandAction {
-    /// Convert this action to an AppMsg.
-    pub fn to_app_msg(self) -> AppMsg {
+    /// Convert this action to an [`AppMsg`].
+    #[must_use]
+    pub const fn to_app_msg(self) -> AppMsg {
         match self {
             Self::Navigate(page) => AppMsg::Navigate(page),
             Self::ToggleSidebar => AppMsg::ToggleSidebar,
