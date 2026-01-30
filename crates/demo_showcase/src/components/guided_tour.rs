@@ -409,15 +409,16 @@ impl GuidedTour {
         // Top border with title
         let title = format!(" {} ", step.title);
         let title_char_count = title.chars().count();
-        let title_display = if title_char_count > modal_width - 4 {
-            let truncated: String = title.chars().take(modal_width - 7).collect();
+        let title_display = if title_char_count > modal_width.saturating_sub(4) {
+            let truncated: String = title.chars().take(modal_width.saturating_sub(7)).collect();
             format!("{truncated}...")
         } else {
             title
         };
         let display_char_count = title_display.chars().count();
-        let title_pad_left = (modal_width - 2 - display_char_count) / 2;
-        let title_pad_right = modal_width - 2 - title_pad_left - display_char_count;
+        let available = modal_width.saturating_sub(2).saturating_sub(display_char_count);
+        let title_pad_left = available / 2;
+        let title_pad_right = available.saturating_sub(title_pad_left);
         lines.push(format!(
             "{}{}",
             indent,
@@ -492,7 +493,7 @@ impl GuidedTour {
             let tip_text = format!("  {}", tip);
             let tip_char_count = tip_text.chars().count();
             let tip_padded = if tip_char_count > content_width {
-                let truncated: String = tip_text.chars().take(content_width - 3).collect();
+                let truncated: String = tip_text.chars().take(content_width.saturating_sub(3)).collect();
                 format!("{truncated}...")
             } else {
                 format!("{:width$}", tip_text, width = content_width)
