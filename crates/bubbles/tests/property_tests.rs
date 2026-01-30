@@ -363,7 +363,7 @@ proptest! {
     // =========================================================================
 
     #[test]
-    fn test_spinner_view_always_valid(
+    fn test_spinner_view_non_empty_after_ticks(
         tick_count in 0usize..500,
     ) {
         let spinner = spinners::dot();
@@ -375,24 +375,9 @@ proptest! {
             let _ = model.update(tick_msg);
         }
 
-        // Invariant: view() always returns a non-empty string
+        // Invariant: view() always returns a non-empty string regardless of tick count
         let view = model.view();
         prop_assert!(!view.is_empty(), "View should not be empty after {} ticks", tick_count);
-    }
-
-    #[test]
-    fn test_spinner_view_never_empty(
-        tick_count in 0usize..100,
-    ) {
-        let mut model = SpinnerModel::with_spinner(spinners::dot());
-
-        for _ in 0..tick_count {
-            let tick_msg = model.tick();
-            let _ = model.update(tick_msg);
-        }
-
-        let view = model.view();
-        prop_assert!(!view.is_empty(), "Spinner view should never be empty");
     }
 
     #[test]
