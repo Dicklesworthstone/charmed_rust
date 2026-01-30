@@ -17,7 +17,7 @@
 //!
 //! ## Fixtures
 //!
-//! Sample files for the FilePicker demo:
+//! Sample files for the `FilePicker` demo:
 //! - Config files (TOML, YAML)
 //! - Log files
 //! - Nested directories with hidden files
@@ -69,7 +69,7 @@ pub mod docs {
 // Fixture Assets
 // =============================================================================
 
-/// Sample files for the FilePicker demo.
+/// Sample files for the `FilePicker` demo.
 ///
 /// These represent a typical project structure with config files,
 /// logs, and nested directories.
@@ -144,7 +144,7 @@ pub mod fixtures {
 
         /// Create a directory entry.
         #[must_use]
-        pub const fn dir(name: &'static str, children: &'static [VirtualEntry]) -> Self {
+        pub const fn dir(name: &'static str, children: &'static [Self]) -> Self {
             Self {
                 name,
                 kind: EntryKind::Directory(children),
@@ -174,7 +174,7 @@ pub mod fixtures {
 
         /// Get children if this is a directory.
         #[must_use]
-        pub const fn children(&self) -> Option<&'static [VirtualEntry]> {
+        pub const fn children(&self) -> Option<&'static [Self]> {
             match self.kind {
                 EntryKind::File(_) => None,
                 EntryKind::Directory(c) => Some(c),
@@ -182,7 +182,7 @@ pub mod fixtures {
         }
     }
 
-    /// The complete fixture tree for FilePicker demos.
+    /// The complete fixture tree for `FilePicker` demos.
     ///
     /// This is a static representation of the fixtures directory
     /// that can be traversed without any runtime I/O.

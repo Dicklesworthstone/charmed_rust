@@ -734,7 +734,7 @@ mod tests {
             Err(ConfigError::ThemeFileNotFound(p)) => {
                 assert_eq!(p, PathBuf::from("/definitely/not/a/real/path.json"));
             }
-            other => panic!("expected ThemeFileNotFound, got {:?}", other),
+            other => panic!("expected ThemeFileNotFound, got {other:?}"),
         }
     }
 
@@ -748,8 +748,7 @@ mod tests {
         let err = config.validate();
         assert!(
             matches!(err, Err(ConfigError::FilesRootNotDirectory(_))),
-            "regular file as files_root should fail: {:?}",
-            err
+            "regular file as files_root should fail: {err:?}"
         );
     }
 

@@ -305,6 +305,7 @@ pub mod ascii_icons {
 /// format_uptime(3661)  // => "1h 1m"
 /// format_uptime(61)    // => "1m"
 /// ```
+#[must_use]
 pub fn format_uptime(seconds: u64) -> String {
     let days = seconds / 86400;
     let hours = (seconds % 86400) / 3600;
@@ -326,6 +327,7 @@ pub fn format_uptime(seconds: u64) -> String {
 /// ```ignore
 /// format_fraction(12, 15) // => "12/15"
 /// ```
+#[must_use]
 pub fn format_fraction(count: usize, total: usize) -> String {
     format!("{count}/{total}")
 }
@@ -337,6 +339,7 @@ pub fn format_fraction(count: usize, total: usize) -> String {
 /// ```ignore
 /// truncate_sha("a1b2c3d4e5f6") // => "a1b2c3d"
 /// ```
+#[must_use]
 pub fn truncate_sha(sha: &str) -> &str {
     if sha.len() > 7 { &sha[..7] } else { sha }
 }

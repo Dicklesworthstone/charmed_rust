@@ -222,7 +222,7 @@ mod tests {
         for page_type in Page::all() {
             let hints = pages.get(page_type).hints();
             // All pages should have some hints
-            assert!(!hints.is_empty(), "Page {:?} should have hints", page_type);
+            assert!(!hints.is_empty(), "Page {page_type:?} should have hints");
         }
     }
 
@@ -240,10 +240,7 @@ mod tests {
                 let view = pages.get(page_type).view(width, height, &theme);
                 assert!(
                     !view.is_empty(),
-                    "Page {:?} rendered empty at {}x{}",
-                    page_type,
-                    width,
-                    height
+                    "Page {page_type:?} rendered empty at {width}x{height}"
                 );
             }
         }

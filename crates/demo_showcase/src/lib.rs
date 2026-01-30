@@ -4,7 +4,7 @@
 //!
 //! Flagship demonstration of all `charmed_rust` TUI capabilities.
 //!
-//! This module exposes the core types and utilities for the demo_showcase
+//! This module exposes the core types and utilities for the `demo_showcase`
 //! application, enabling both the binary and integration tests to share code.
 //!
 //! ## Public Modules
