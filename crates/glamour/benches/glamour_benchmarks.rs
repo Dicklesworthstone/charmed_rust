@@ -206,12 +206,235 @@ fn benchmark_memory(c: &mut Criterion) {
     group.finish();
 }
 
+// === LRU Cache Benchmarks (bd-3h5r) ===
+
+#[cfg(feature = "syntax-highlighting")]
+fn benchmark_lru_cache(c: &mut Criterion) {
+    use glamour::syntax::StyleCache;
+
+    let mut group = c.benchmark_group("glamour/lru_cache");
+
+    // Benchmark 1: Cache hit performance
+    // Target: <100ns per hit (O(1) operation)
+    group.bench_function("cache_hit", |b| {
+        use syntect::highlighting::{Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle};
+
+        let mut cache = StyleCache::new();
+        let style = SynStyle {
+            foreground: SynColor {
+                r: 255,
+                g: 0,
+                b: 0,
+                a: 255,
+            },
+            background: SynColor {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            font_style: SynFontStyle::BOLD,
+        };
+
+        // Warm up
+        let _ = cache.get_or_convert(style);
+
+        b.iter(|| {
+            let result = cache.get_or_convert(style);
+            black_box(result as *const _)
+        });
+    });
+
+    // Benchmark 2: Cache miss (conversion + storage)
+    group.bench_function("cache_miss", |b| {
+        use syntect::highlighting::{Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle};
+
+        b.iter_custom(|iters| {
+            let mut total = std::time::Duration::ZERO;
+
+            for i in 0..iters {
+                let mut cache = StyleCache::new();
+                let style = SynStyle {
+                    foreground: SynColor {
+                        r: (i % 256) as u8,
+                        g: ((i * 7) % 256) as u8,
+                        b: ((i * 13) % 256) as u8,
+                        a: 255,
+                    },
+                    background: SynColor {
+                        r: 0,
+                        g: 0,
+                        b: 0,
+                        a: 0,
+                    },
+                    font_style: SynFontStyle::empty(),
+                };
+
+                let start = Instant::now();
+                let _ = black_box(cache.get_or_convert(style));
+                total += start.elapsed();
+            }
+
+            total
+        });
+    });
+
+    // Benchmark 3: Heavy style mixing (round-robin access pattern)
+    // Simulates real workload: 20 distinct styles accessed repeatedly
+    group.bench_function("heavy_mixing_20_styles", |b| {
+        use syntect::highlighting::{Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle};
+
+        let mut cache = StyleCache::with_capacity(50);
+
+        // Create 20 distinct styles
+        let styles: Vec<_> = (0..20)
+            .map(|i| SynStyle {
+                foreground: SynColor {
+                    r: (i * 10) as u8,
+                    g: ((i * 7) % 255) as u8,
+                    b: ((i * 13) % 255) as u8,
+                    a: 255,
+                },
+                background: SynColor {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: 0,
+                },
+                font_style: SynFontStyle::empty(),
+            })
+            .collect();
+
+        // Warm up
+        for style in &styles {
+            let _ = cache.get_or_convert(*style);
+        }
+
+        let mut idx = 0usize;
+        b.iter(|| {
+            let style = styles[idx % styles.len()];
+            idx = idx.wrapping_add(1);
+            let result = cache.get_or_convert(style);
+            black_box(result as *const _)
+        });
+    });
+
+    // Benchmark 4: LRU promotion (accessing existing entries)
+    // This is the key O(1) vs O(n) improvement
+    group.bench_function("lru_promotion", |b| {
+        use syntect::highlighting::{Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle};
+
+        let mut cache = StyleCache::with_capacity(256);
+
+        // Fill cache to capacity
+        for i in 0..256 {
+            let style = SynStyle {
+                foreground: SynColor {
+                    r: i as u8,
+                    g: 0,
+                    b: 0,
+                    a: 255,
+                },
+                background: SynColor {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: 0,
+                },
+                font_style: SynFontStyle::empty(),
+            };
+            let _ = cache.get_or_convert(style);
+        }
+
+        // Access the oldest entry (would be O(n) with Vec::remove, O(1) with LRU)
+        let oldest_style = SynStyle {
+            foreground: SynColor {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255,
+            },
+            background: SynColor {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            font_style: SynFontStyle::empty(),
+        };
+
+        b.iter(|| {
+            let result = cache.get_or_convert(oldest_style);
+            // Convert reference to pointer to avoid lifetime escape
+            black_box(result as *const _)
+        });
+    });
+
+    // Benchmark 5: Eviction under pressure
+    // Test performance when cache is at capacity and must evict
+    group.bench_function("eviction_pressure", |b| {
+        use syntect::highlighting::{Color as SynColor, FontStyle as SynFontStyle, Style as SynStyle};
+
+        let mut cache = StyleCache::with_capacity(100);
+
+        // Fill to capacity
+        for i in 0..100 {
+            let style = SynStyle {
+                foreground: SynColor {
+                    r: i as u8,
+                    g: 0,
+                    b: 0,
+                    a: 255,
+                },
+                background: SynColor {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: 0,
+                },
+                font_style: SynFontStyle::empty(),
+            };
+            let _ = cache.get_or_convert(style);
+        }
+
+        let mut idx = 100u16;
+        b.iter(|| {
+            let style = SynStyle {
+                foreground: SynColor {
+                    r: (idx % 256) as u8,
+                    g: ((idx >> 8) % 256) as u8,
+                    b: 255,
+                    a: 255,
+                },
+                background: SynColor {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: 0,
+                },
+                font_style: SynFontStyle::empty(),
+            };
+            idx = idx.wrapping_add(1);
+            let result = cache.get_or_convert(style);
+            black_box(result as *const _)
+        });
+    });
+
+    group.finish();
+}
+
+#[cfg(not(feature = "syntax-highlighting"))]
+fn benchmark_lru_cache(_c: &mut Criterion) {
+    // LRU cache benchmarks require syntax-highlighting feature
+}
+
 criterion_group!(
     glamour_benches,
     benchmark_parsing,
     benchmark_full_render,
     benchmark_elements,
     benchmark_config_impact,
-    benchmark_memory
+    benchmark_memory,
+    benchmark_lru_cache
 );
 criterion_main!(glamour_benches);

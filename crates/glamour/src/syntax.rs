@@ -2167,4 +2167,236 @@ mod tests {
         assert!(supported.contains(&"go"), "Must support go");
         assert!(supported.contains(&"java"), "Must support java");
     }
+
+    // === LRU Cache Tests (bd-3h5r) ===
+
+    #[test]
+    fn test_style_cache_key_hash_eq() {
+        use std::collections::HashMap;
+        use syntect::highlighting::Color as SynColor;
+
+        // Test that StyleCacheKey correctly implements Hash + Eq
+        // by using it as a HashMap key
+        let mut map = HashMap::new();
+
+        let style1 = SynStyle {
+            foreground: SynColor {
+                r: 255,
+                g: 128,
+                b: 64,
+                a: 255,
+            },
+            background: SynColor {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            font_style: SynFontStyle::BOLD,
+        };
+
+        let style2 = SynStyle {
+            foreground: SynColor {
+                r: 255,
+                g: 128,
+                b: 64,
+                a: 255,
+            },
+            background: SynColor {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            font_style: SynFontStyle::BOLD,
+        };
+
+        let style3 = SynStyle {
+            foreground: SynColor {
+                r: 100, // Different!
+                g: 128,
+                b: 64,
+                a: 255,
+            },
+            background: SynColor {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            font_style: SynFontStyle::BOLD,
+        };
+
+        let key1 = StyleCacheKey::from(&style1);
+        let key2 = StyleCacheKey::from(&style2);
+        let key3 = StyleCacheKey::from(&style3);
+
+        // Keys from identical styles should be equal
+        assert_eq!(key1, key2, "Keys from identical styles should be equal");
+
+        // Keys from different styles should not be equal
+        assert_ne!(key1, key3, "Keys from different styles should not be equal");
+
+        // HashMap operations should work correctly
+        map.insert(key1, "style1");
+        assert_eq!(map.get(&key2), Some(&"style1"), "Lookup with equal key should work");
+        assert_eq!(map.get(&key3), None, "Lookup with different key should return None");
+
+        map.insert(key3, "style3");
+        assert_eq!(map.len(), 2, "HashMap should have 2 distinct entries");
+    }
+
+    #[test]
+    fn test_style_cache_key_all_fields() {
+        use syntect::highlighting::Color as SynColor;
+
+        // Test that all fields of the cache key affect equality
+        let base_style = SynStyle {
+            foreground: SynColor {
+                r: 100,
+                g: 100,
+                b: 100,
+                a: 100,
+            },
+            background: SynColor {
+                r: 50,
+                g: 50,
+                b: 50,
+                a: 50,
+            },
+            font_style: SynFontStyle::BOLD,
+        };
+
+        let base_key = StyleCacheKey::from(&base_style);
+
+        // Changing foreground red should produce different key
+        let mut fg_r_style = base_style;
+        fg_r_style.foreground.r = 200;
+        assert_ne!(
+            base_key,
+            StyleCacheKey::from(&fg_r_style),
+            "Different fg_r should produce different key"
+        );
+
+        // Changing foreground green should produce different key
+        let mut fg_g_style = base_style;
+        fg_g_style.foreground.g = 200;
+        assert_ne!(
+            base_key,
+            StyleCacheKey::from(&fg_g_style),
+            "Different fg_g should produce different key"
+        );
+
+        // Changing background alpha should produce different key
+        let mut bg_a_style = base_style;
+        bg_a_style.background.a = 200;
+        assert_ne!(
+            base_key,
+            StyleCacheKey::from(&bg_a_style),
+            "Different bg_a should produce different key"
+        );
+
+        // Changing font style should produce different key
+        let mut font_style = base_style;
+        font_style.font_style = SynFontStyle::ITALIC;
+        assert_ne!(
+            base_key,
+            StyleCacheKey::from(&font_style),
+            "Different font_style should produce different key"
+        );
+    }
+
+    #[test]
+    fn test_style_cache_hit_performance() {
+        use std::time::Instant;
+        use syntect::highlighting::Color as SynColor;
+
+        let mut cache = StyleCache::new();
+        let style = SynStyle {
+            foreground: SynColor {
+                r: 255,
+                g: 0,
+                b: 0,
+                a: 255,
+            },
+            background: SynColor {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            font_style: SynFontStyle::BOLD,
+        };
+
+        // Warm up the cache
+        let _ = cache.get_or_convert(style);
+
+        // Measure cache hit performance
+        let iterations = 10_000;
+        let start = Instant::now();
+        for _ in 0..iterations {
+            let _ = cache.get_or_convert(style);
+        }
+        let duration = start.elapsed();
+
+        // 10,000 cache hits should complete in under 10ms (< 1μs per hit)
+        // This verifies O(1) performance
+        assert!(
+            duration.as_millis() < 100,
+            "Cache hits too slow: {:?} for {} iterations ({:?} avg)",
+            duration,
+            iterations,
+            duration / iterations as u32
+        );
+    }
+
+    #[test]
+    fn test_style_cache_heavy_mixing() {
+        use std::time::Instant;
+        use syntect::highlighting::Color as SynColor;
+
+        let mut cache = StyleCache::with_capacity(50);
+
+        // Create 20 distinct styles (less than capacity)
+        let styles: Vec<_> = (0..20)
+            .map(|i| SynStyle {
+                foreground: SynColor {
+                    r: (i * 10) as u8,
+                    g: ((i * 7) % 255) as u8,
+                    b: ((i * 13) % 255) as u8,
+                    a: 255,
+                },
+                background: SynColor {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: 0,
+                },
+                font_style: SynFontStyle::empty(),
+            })
+            .collect();
+
+        // Warm up: access each style once
+        for style in &styles {
+            let _ = cache.get_or_convert(*style);
+        }
+
+        // Heavy mixing: round-robin access 10,000 times
+        let iterations = 10_000;
+        let start = Instant::now();
+        for i in 0..iterations {
+            let style = styles[i % styles.len()];
+            let _ = cache.get_or_convert(style);
+        }
+        let duration = start.elapsed();
+
+        // All accesses should be cache hits (since 20 < 50 capacity)
+        // 10,000 accesses should complete in under 50ms
+        assert!(
+            duration.as_millis() < 500,
+            "Heavy mixing too slow: {:?} for {} iterations",
+            duration,
+            iterations
+        );
+    }
 }

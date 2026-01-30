@@ -37,6 +37,7 @@ criterion.workspace = true
 bubbles = { path = "../bubbles" }
 lipgloss = { path = "../lipgloss" }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+tokio-util = { version = "0.7", features = ["rt"] }
 proptest.workspace = true
 
 [[example]]

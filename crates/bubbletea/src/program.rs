@@ -1930,6 +1930,8 @@ fn replacement_message() -> Message {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio_util::sync::CancellationToken;
+    use tokio_util::task::TaskTracker;
 
     struct TestModel {
         count: i32,
@@ -2427,5 +2429,275 @@ mod tests {
             }
         }
         assert_eq!(received, vec![1, 2, 3], "All messages should be forwarded");
+    }
+
+    // === Async TaskTracker Integration Tests (bd-2i18) ===
+
+    #[test]
+    fn test_task_tracker_spawn_blocking_tracks_thread() {
+        // Verify that TaskTracker.spawn_blocking() actually tracks the spawned thread.
+        // The key behavior: task_tracker.wait() should block until the spawned thread completes.
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create runtime");
+
+        let thread_completed = Arc::new(AtomicBool::new(false));
+        let thread_completed_clone = Arc::clone(&thread_completed);
+
+        rt.block_on(async {
+            let task_tracker = TaskTracker::new();
+
+            // Spawn a blocking task that takes some time
+            task_tracker.spawn_blocking(move || {
+                thread::sleep(Duration::from_millis(50));
+                thread_completed_clone.store(true, Ordering::SeqCst);
+            });
+
+            // Close the tracker (prevents new tasks)
+            task_tracker.close();
+
+            // Wait for all tracked tasks - should block until thread completes
+            task_tracker.wait().await;
+
+            // After wait() returns, the thread should have completed
+            assert!(
+                thread_completed.load(Ordering::SeqCst),
+                "spawn_blocking task should complete before wait() returns"
+            );
+        });
+    }
+
+    #[test]
+    fn test_cancellation_token_stops_blocking_task() {
+        // Verify that CancellationToken properly signals spawn_blocking threads to exit.
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create runtime");
+
+        let task_exited = Arc::new(AtomicBool::new(false));
+        let task_exited_clone = Arc::clone(&task_exited);
+
+        rt.block_on(async {
+            let cancel_token = CancellationToken::new();
+            let task_tracker = TaskTracker::new();
+
+            let cancel_clone = cancel_token.clone();
+
+            // Spawn a task that polls the cancellation token
+            task_tracker.spawn_blocking(move || {
+                // Loop until cancelled (mimics event thread pattern)
+                loop {
+                    if cancel_clone.is_cancelled() {
+                        task_exited_clone.store(true, Ordering::SeqCst);
+                        break;
+                    }
+                    thread::sleep(Duration::from_millis(10));
+                }
+            });
+
+            // Task should be running
+            thread::sleep(Duration::from_millis(30));
+            assert!(
+                !task_exited.load(Ordering::SeqCst),
+                "Task should still be running before cancellation"
+            );
+
+            // Cancel and wait
+            cancel_token.cancel();
+            task_tracker.close();
+            task_tracker.wait().await;
+
+            assert!(
+                task_exited.load(Ordering::SeqCst),
+                "Task should exit after cancellation"
+            );
+        });
+    }
+
+    #[test]
+    fn test_graceful_shutdown_waits_for_all_blocking_tasks() {
+        // Verify that graceful shutdown waits for ALL spawn_blocking tasks.
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create runtime");
+
+        let completed_count = Arc::new(AtomicUsize::new(0));
+
+        rt.block_on(async {
+            let cancel_token = CancellationToken::new();
+            let task_tracker = TaskTracker::new();
+
+            // Spawn multiple blocking tasks with different durations
+            for i in 0..3 {
+                let count_clone = Arc::clone(&completed_count);
+                let cancel_clone = cancel_token.clone();
+                task_tracker.spawn_blocking(move || {
+                    // Wait for cancellation or work
+                    loop {
+                        if cancel_clone.is_cancelled() {
+                            break;
+                        }
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                    // Simulate different completion times
+                    thread::sleep(Duration::from_millis(10 * (i as u64 + 1)));
+                    count_clone.fetch_add(1, Ordering::SeqCst);
+                });
+            }
+
+            // All tasks should be running
+            thread::sleep(Duration::from_millis(30));
+            assert_eq!(
+                completed_count.load(Ordering::SeqCst),
+                0,
+                "No tasks should complete before shutdown"
+            );
+
+            // Initiate graceful shutdown (mimics Program::graceful_shutdown)
+            cancel_token.cancel();
+            task_tracker.close();
+
+            // Use timeout similar to graceful_shutdown
+            let timeout_result: std::result::Result<(), tokio::time::error::Elapsed> =
+                tokio::time::timeout(Duration::from_secs(2), task_tracker.wait()).await;
+
+            assert!(
+                timeout_result.is_ok(),
+                "All tasks should complete within timeout"
+            );
+
+            assert_eq!(
+                completed_count.load(Ordering::SeqCst),
+                3,
+                "All 3 tasks should complete during graceful shutdown"
+            );
+        });
+    }
+
+    #[test]
+    fn test_spawn_blocking_vs_spawn_difference() {
+        // Document why spawn_blocking is needed vs std::thread::spawn.
+        // With std::thread::spawn, TaskTracker.wait() doesn't wait for the thread.
+        // With spawn_blocking, it does.
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create runtime");
+
+        // Test 1: std::thread::spawn is NOT tracked
+        let untracked_done = Arc::new(AtomicBool::new(false));
+        let untracked_done_clone = Arc::clone(&untracked_done);
+
+        rt.block_on(async {
+            let task_tracker = TaskTracker::new();
+
+            // This thread is NOT spawned via task_tracker
+            let _handle = thread::spawn(move || {
+                thread::sleep(Duration::from_millis(100));
+                untracked_done_clone.store(true, Ordering::SeqCst);
+            });
+
+            task_tracker.close();
+            task_tracker.wait().await;
+
+            // wait() returns immediately because no tasks were tracked!
+            // The untracked thread may still be running
+            // (We don't assert here because timing is unpredictable)
+        });
+
+        // Test 2: spawn_blocking IS tracked
+        let tracked_done = Arc::new(AtomicBool::new(false));
+        let tracked_done_clone = Arc::clone(&tracked_done);
+
+        rt.block_on(async {
+            let task_tracker = TaskTracker::new();
+
+            // This thread IS tracked
+            task_tracker.spawn_blocking(move || {
+                thread::sleep(Duration::from_millis(50));
+                tracked_done_clone.store(true, Ordering::SeqCst);
+            });
+
+            task_tracker.close();
+            task_tracker.wait().await;
+
+            // wait() blocks until the tracked task completes
+            assert!(
+                tracked_done.load(Ordering::SeqCst),
+                "spawn_blocking task should complete before wait() returns"
+            );
+        });
+    }
+
+    #[test]
+    fn test_event_thread_pattern_with_poll_timeout() {
+        // Test the exact pattern used for the event thread:
+        // - spawn_blocking with CancellationToken
+        // - poll with timeout to check cancellation
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create runtime");
+
+        let poll_count = Arc::new(AtomicUsize::new(0));
+        let poll_count_clone = Arc::clone(&poll_count);
+
+        rt.block_on(async {
+            let cancel_token = CancellationToken::new();
+            let task_tracker = TaskTracker::new();
+
+            let cancel_clone = cancel_token.clone();
+
+            // Spawn event thread pattern
+            task_tracker.spawn_blocking(move || {
+                loop {
+                    if cancel_clone.is_cancelled() {
+                        break;
+                    }
+                    // Simulate poll with timeout (like event::poll(Duration::from_millis(100)))
+                    thread::sleep(Duration::from_millis(25));
+                    poll_count_clone.fetch_add(1, Ordering::SeqCst);
+                }
+            });
+
+            // Let the thread poll a few times
+            thread::sleep(Duration::from_millis(100));
+            let count_before_cancel = poll_count.load(Ordering::SeqCst);
+            assert!(
+                count_before_cancel >= 2,
+                "Thread should have polled multiple times: {}",
+                count_before_cancel
+            );
+
+            // Cancel and wait
+            cancel_token.cancel();
+            task_tracker.close();
+            task_tracker.wait().await;
+
+            // Thread should have exited
+            let final_count = poll_count.load(Ordering::SeqCst);
+            assert!(
+                final_count >= count_before_cancel,
+                "Poll count should not decrease"
+            );
+        });
     }
 }
