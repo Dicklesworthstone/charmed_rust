@@ -1563,13 +1563,12 @@ mod tests {
 
         // box_style_for_profile in ASCII mode still applies borders
         let ascii_box = theme.box_style_for_profile(ColorProfile::Ascii);
-        let rendered = ascii_box.render("test").to_string();
+        let rendered = ascii_box.render("test");
 
         // Should contain ASCII border characters
         assert!(
             rendered.contains('+') || rendered.contains('-') || rendered.contains('|'),
-            "ASCII box should use ASCII border chars: {:?}",
-            rendered
+            "ASCII box should use ASCII border chars: {rendered:?}"
         );
     }
 
