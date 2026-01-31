@@ -632,10 +632,10 @@ fn test_vt100_all_at_once_vs_chunked() {
                     continue;
                 }
             }
-            if b >= 0x20 && b < 0x7F {
+            if b.is_ascii_graphic() || b == b' ' {
                 print!("{}", b as char);
             } else {
-                print!("[0x{:02X}]", b);
+                print!("[0x{b:02X}]");
             }
             pos += 1;
         }
@@ -643,29 +643,27 @@ fn test_vt100_all_at_once_vs_chunked() {
 
         // Check for lines that are too long using lipgloss::width for accurate measurement
         let data_str = String::from_utf8_lossy(&all_data);
-        let mut line_num = 0;
+        let term_cols = usize::from(TERM_COLS);
         let mut lines_over_120 = 0;
-        for line in data_str.lines() {
+        for (line_num, line) in data_str.lines().enumerate() {
             let vlen = lipgloss::width(line);
-            if vlen > TERM_COLS as usize {
+            if vlen > term_cols {
                 lines_over_120 += 1;
                 if lines_over_120 <= 5 {
                     // Limit output
                     // Find visible content only
                     let visible: String = line
                         .chars()
-                        .filter(|&c| c != '\x1b' && c.is_ascii_graphic() || c == ' ')
+                        .filter(|&c| (c != '\x1b' && c.is_ascii_graphic()) || c == ' ')
                         .take(80)
                         .collect();
                     println!(
-                        "Line {} has {} visible chars (over {}): visible = {:?}",
-                        line_num, vlen, TERM_COLS, visible
+                        "Line {line_num} has {vlen} visible chars (over {term_cols}): visible = {visible:?}"
                     );
                 }
             }
-            line_num += 1;
         }
-        println!("Lines exceeding {} columns: {}", TERM_COLS, lines_over_120);
+        println!("Lines exceeding {term_cols} columns: {lines_over_120}");
 
         // Also check where newlines are in the raw data
         let newline_positions: Vec<usize> = all_data
@@ -675,7 +673,7 @@ fn test_vt100_all_at_once_vs_chunked() {
             .map(|(i, _)| i)
             .take(5)
             .collect();
-        println!("First 5 newline positions: {:?}", newline_positions);
+        println!("First 5 newline positions: {newline_positions:?}");
     }
 }
 
@@ -688,7 +686,7 @@ fn test_vt100_parser_escape_sequences() {
     parser.process(b"\x1b[1;1H\x1b[2JHello World");
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 40);
-    println!("Row 0: '{}'", row0);
+    println!("Row 0: '{row0}'");
     assert!(
         row0.contains("Hello World"),
         "Simple text should be visible"
@@ -700,7 +698,7 @@ fn test_vt100_parser_escape_sequences() {
     parser.process(b"\x1b[1;1H\x1b[2J\x1b[38;2;0;255;0mGreen\x1b[0m Text");
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 40);
-    println!("Row 0: '{}'", row0);
+    println!("Row 0: '{row0}'");
     assert!(
         row0.contains("Green Text"),
         "Colored text should be visible"
@@ -712,7 +710,7 @@ fn test_vt100_parser_escape_sequences() {
     parser.process(b"\x1b[1;1H\x1b[2JBefore\x1b]0;Title\x07After");
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 40);
-    println!("Row 0: '{}'", row0);
+    println!("Row 0: '{row0}'");
     assert!(
         row0.contains("Before") && row0.contains("After"),
         "OSC should be skipped, text before and after visible"
@@ -725,7 +723,7 @@ fn test_vt100_parser_escape_sequences() {
     parser.process(b"\x1b[1;1H\x1b[2JBefore\x1b]0;Title\x1b[0mAfter");
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 40);
-    println!("Row 0: '{}'", row0);
+    println!("Row 0: '{row0}'");
     // This might fail - OSC without terminator could eat subsequent text
     println!("(May show unexpected results if OSC not properly terminated)");
 
@@ -735,7 +733,7 @@ fn test_vt100_parser_escape_sequences() {
     parser.process(b"\x1b[1;1H\x1b[2JLoading...\x1b[1;1H\x1b[2JFinal Content");
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 120);
-    println!("Row 0: '{}'", row0);
+    println!("Row 0: '{row0}'");
     assert!(!row0.contains("Loading"), "First content should be cleared");
     assert!(
         row0.contains("Final Content"),
@@ -750,7 +748,7 @@ fn test_vt100_parser_escape_sequences() {
     parser.process(seq);
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 120);
-    println!("Row 0: '{}'", row0);
+    println!("Row 0: '{row0}'");
     assert!(row0.contains("Connected"), "Styled text should be visible");
     assert!(
         row0.contains("Rest of content"),
@@ -787,7 +785,7 @@ fn test_pty_app_starts() {
 
     // Wait for initial output
     let read = harness.read_output(Duration::from_secs(5));
-    println!("Read {} bytes", read);
+    println!("Read {read} bytes");
 
     // Dump the screen so we can see what's happening
     harness.dump_screen();
@@ -916,8 +914,7 @@ fn test_full_ui_verification() {
     }
     assert!(
         found_sidebar >= 4,
-        "Should find at least 4 sidebar items, found {}",
-        found_sidebar
+        "Should find at least 4 sidebar items, found {found_sidebar}"
     );
 
     // Verify footer
@@ -948,7 +945,7 @@ fn test_tmux_real_terminal() {
         .canonicalize()
         .unwrap_or_else(|_| {
             eprintln!("Binary not found - skipping test");
-            return std::path::PathBuf::new();
+            std::path::PathBuf::new()
         });
 
     if !binary_path.exists() {
@@ -979,7 +976,7 @@ fn test_tmux_real_terminal() {
         .output();
 
     if let Err(e) = result {
-        eprintln!("Failed to run script: {}", e);
+        eprintln!("Failed to run script: {e}");
         return;
     }
 
@@ -987,7 +984,7 @@ fn test_tmux_real_terminal() {
     let screen_content = match fs::read_to_string(&output_file) {
         Ok(content) => content,
         Err(e) => {
-            eprintln!("Failed to read output file: {}", e);
+            eprintln!("Failed to read output file: {e}");
             return;
         }
     };
@@ -1008,11 +1005,11 @@ fn test_tmux_real_terminal() {
     let has_footer = screen_content.contains("quit") || screen_content.contains("help");
 
     println!("Content checks:");
-    println!("  Has 'Charmed': {}", has_charmed);
-    println!("  Has 'Connected': {}", has_connected);
-    println!("  Has 'Dashboard': {}", has_dashboard);
-    println!("  Has sidebar items: {}", has_sidebar);
-    println!("  Has footer hints: {}", has_footer);
+    println!("  Has 'Charmed': {has_charmed}");
+    println!("  Has 'Connected': {has_connected}");
+    println!("  Has 'Dashboard': {has_dashboard}");
+    println!("  Has sidebar items: {has_sidebar}");
+    println!("  Has footer hints: {has_footer}");
 
     // Verify all expected content is present
     assert!(has_charmed, "Missing 'Charmed' in header");
@@ -1048,33 +1045,31 @@ fn test_tmux_real_terminal() {
             // Each content line should fit in 120 columns
             // (allowing 1 extra for edge cases)
             if visible_width > 121 {
+                let snippet: String = line
+                    .chars()
+                    .filter(|c| !c.is_control())
+                    .take(50)
+                    .collect();
                 println!(
-                    "WARNING: Line {} chars exceeds 120: {}...",
-                    visible_width,
-                    line.chars()
-                        .filter(|c| !c.is_control())
-                        .take(50)
-                        .collect::<String>()
+                    "WARNING: Line {visible_width} chars exceeds 120: {snippet}..."
                 );
             }
         }
     }
 
-    println!("\nContent lines checked: {}", content_lines_checked);
-    println!("Max content line width: {}", max_content_width);
+    println!("\nContent lines checked: {content_lines_checked}");
+    println!("Max content line width: {max_content_width}");
 
     // Ensure we checked some actual content
     assert!(
         content_lines_checked >= 30,
-        "Expected at least 30 content lines, got {}",
-        content_lines_checked
+        "Expected at least 30 content lines, got {content_lines_checked}"
     );
 
     // Allow up to 121 chars (terminal width + 1 for edge cases)
     assert!(
         max_content_width <= 121,
-        "Content line width {} exceeds terminal width 120",
-        max_content_width
+        "Content line width {max_content_width} exceeds terminal width 120"
     );
 
     println!("\n✓ PTY real terminal test passed!");
@@ -1156,8 +1151,7 @@ fn test_analyze_view_output() {
         if visible_width > 120 {
             problematic_lines += 1;
             println!(
-                "LINE {} OVERFLOW: visible={}, raw_bytes={}",
-                line_num, visible_width, raw_len
+                "LINE {line_num} OVERFLOW: visible={visible_width}, raw_bytes={raw_len}"
             );
 
             // Show start and end of line
@@ -1224,11 +1218,11 @@ fn test_analyze_view_output() {
     }
 
     println!("\n=== SUMMARY ===");
-    println!("Lines exceeding 120 visible columns: {}", problematic_lines);
+    println!("Lines exceeding 120 visible columns: {problematic_lines}");
 
     if problematic_lines > 0 {
         println!("\n!!! LAYOUT BUG CONFIRMED: Lines exceed terminal width !!!\n");
-        panic!("Found {} lines exceeding terminal width", problematic_lines);
+        panic!("Found {problematic_lines} lines exceeding terminal width");
     }
 
     println!("✓ All lines fit within 120 columns");
@@ -1260,10 +1254,9 @@ fn test_wezterm_mux() {
         .output();
 
     // If no mux server is running, try to spawn one
-    let needs_mux = match &wezterm_check {
-        Ok(output) => !output.status.success(),
-        Err(_) => true,
-    };
+    let needs_mux = wezterm_check
+        .as_ref()
+        .map_or(true, |output| !output.status.success());
 
     if needs_mux {
         eprintln!("WezTerm mux server not running - trying to start...");
@@ -1312,12 +1305,12 @@ fn test_wezterm_mux() {
             return;
         }
         Err(e) => {
-            eprintln!("Failed to run wezterm cli spawn: {}", e);
+            eprintln!("Failed to run wezterm cli spawn: {e}");
             return;
         }
     };
 
-    println!("Spawned pane: {}", pane_id);
+    println!("Spawned pane: {pane_id}");
 
     // Wait for render
     thread::sleep(Duration::from_secs(3));
@@ -1343,14 +1336,15 @@ fn test_wezterm_mux() {
             return;
         }
         Err(e) => {
-            eprintln!("Failed to get text: {}", e);
+            eprintln!("Failed to get text: {e}");
             return;
         }
     };
 
     println!("=== WezTerm captured screen ===");
     for (i, line) in screen_content.lines().take(45).enumerate() {
-        println!("{:2}: {}", i + 1, line);
+        let line_num = i + 1;
+        println!("{line_num:2}: {line}");
     }
     println!("=== End WezTerm capture ===\n");
 
@@ -1359,13 +1353,13 @@ fn test_wezterm_mux() {
         .args(["cli", "get-text", "--pane-id", &pane_id, "--escapes"])
         .output();
 
-    if let Ok(output) = get_escapes {
-        if output.status.success() {
-            let escaped = String::from_utf8_lossy(&output.stdout);
-            println!("=== WezTerm with escapes (first 2000 bytes) ===");
-            println!("{}", &escaped[..escaped.len().min(2000)]);
-            println!("=== End escapes ===\n");
-        }
+    if let Ok(output) = get_escapes
+        && output.status.success()
+    {
+        let escaped = String::from_utf8_lossy(&output.stdout);
+        println!("=== WezTerm with escapes (first 2000 bytes) ===");
+        println!("{}", &escaped[..escaped.len().min(2000)]);
+        println!("=== End escapes ===\n");
     }
 
     // Kill the pane
@@ -1379,9 +1373,9 @@ fn test_wezterm_mux() {
     let has_dashboard = screen_content.contains("Dashboard");
 
     println!("WezTerm content checks:");
-    println!("  Has 'Charmed': {}", has_charmed);
-    println!("  Has 'Connected': {}", has_connected);
-    println!("  Has 'Dashboard': {}", has_dashboard);
+    println!("  Has 'Charmed': {has_charmed}");
+    println!("  Has 'Connected': {has_connected}");
+    println!("  Has 'Dashboard': {has_dashboard}");
 
     if has_charmed || has_connected || has_dashboard {
         println!("\n✓ WezTerm mux test passed!");
