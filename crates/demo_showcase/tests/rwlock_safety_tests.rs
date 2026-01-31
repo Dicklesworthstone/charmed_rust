@@ -1,19 +1,19 @@
-//! Unit Tests: RwLock Poison Safety (bd-xnq2)
+//! Unit Tests: `RwLock` Poison Safety (bd-xnq2)
 //!
-//! These tests verify that the demo_showcase pages are safe from RwLock poisoning.
+//! These tests verify that the `demo_showcase` pages are safe from `RwLock` poisoning.
 //! Since we use `parking_lot::RwLock` (which never poisons), these tests confirm
 //! that behavior and ensure pages survive panic scenarios.
 //!
 //! # Test Categories
 //!
-//! ## parking_lot Never Poisons
-//! - Verify that parking_lot::RwLock remains accessible after a panic while holding lock
+//! ## `parking_lot` Never Poisons
+//! - Verify that `parking_lot::RwLock` remains accessible after a panic while holding lock
 //!
 //! ## Page Survival After Panic
-//! - Verify that pages using RwLock continue to work after catch_unwind
+//! - Verify that pages using `RwLock` continue to work after `catch_unwind`
 //!
-//! ## Comparison with std::sync::RwLock
-//! - Demonstrate that std::sync::RwLock DOES poison (for documentation)
+//! ## Comparison with `std::sync::RwLock`
+//! - Demonstrate that `std::sync::RwLock` DOES poison (for documentation)
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
@@ -21,7 +21,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 // TEST: parking_lot::RwLock Never Poisons
 // =============================================================================
 
-/// Verify that parking_lot::RwLock does not poison when a panic occurs
+/// Verify that `parking_lot::RwLock` does not poison when a panic occurs
 /// while holding a write lock.
 ///
 /// This is the core property we rely on for SSH session safety.
@@ -38,14 +38,14 @@ fn test_parking_lot_never_poisons_on_write_panic() {
     }));
 
     // With parking_lot, the lock is NOT poisoned - read should work
-    let value = lock.read();
     assert_eq!(
-        *value, 42,
+        *lock.read(),
+        42,
         "parking_lot lock should be readable after panic"
     );
 }
 
-/// Verify that parking_lot::RwLock allows writes after a panic.
+/// Verify that `parking_lot::RwLock` allows writes after a panic.
 #[test]
 fn test_parking_lot_write_after_panic() {
     use parking_lot::RwLock;
@@ -101,8 +101,8 @@ fn test_parking_lot_multiple_panic_cycles() {
 // TEST: std::sync::RwLock DOES Poison (Documentation/Comparison)
 // =============================================================================
 
-/// Demonstrate that std::sync::RwLock DOES poison on panic.
-/// This test documents WHY we use parking_lot instead.
+/// Demonstrate that `std::sync::RwLock` DOES poison on panic.
+/// This test documents WHY we use `parking_lot` instead.
 #[test]
 fn test_std_rwlock_does_poison() {
     use std::sync::RwLock;
@@ -122,20 +122,23 @@ fn test_std_rwlock_does_poison() {
         "std::sync::RwLock should be poisoned after panic"
     );
 
-    // The error is a PoisonError
+    // The error is a PoisonError.
+    // We can recover by calling `into_inner()`, but this is exactly what we want to avoid
+    // having to do throughout the codebase.
     let err = result.unwrap_err();
-    // We can recover by calling into_inner(), but this is exactly
-    // what we want to avoid having to do throughout the codebase
-    let recovered = err.into_inner();
-    assert_eq!(*recovered, 42, "poison recovery should still have the data");
+    assert_eq!(
+        *err.into_inner(),
+        42,
+        "poison recovery should still have the data"
+    );
 }
 
 // =============================================================================
 // TEST: Page Components with RwLock
 // =============================================================================
 
-/// Test that a Viewport wrapped in parking_lot::RwLock survives panics.
-/// This simulates the pattern used in LogsPage, DocsPage, FilesPage.
+/// Test that a `Viewport` wrapped in `parking_lot::RwLock` survives panics.
+/// This simulates the pattern used in `LogsPage`, `DocsPage`, `FilesPage`.
 #[test]
 fn test_viewport_rwlock_survives_panic() {
     use bubbles::viewport::Viewport;
@@ -149,21 +152,18 @@ fn test_viewport_rwlock_survives_panic() {
 
     // Simulate a panic during an update operation
     let _ = catch_unwind(AssertUnwindSafe(|| {
-        let mut vp = viewport.write();
-        vp.set_content("panic content");
+        viewport.write().set_content("panic content");
         panic!("simulated panic during update");
     }));
 
-    // The viewport should still be accessible
-    let vp = viewport.read();
-
+    // The viewport should still be accessible.
     // Note: The content may be "panic content" (if the write completed before panic)
     // or "Line 1\nLine 2\nLine 3" (if panic happened before write).
     // The key point is that we CAN read it - no poison.
-    let rendered = vp.view();
+    let rendered = viewport.read().view();
     assert!(
-        !rendered.is_empty() || rendered.is_empty(),
-        "should be able to read viewport after panic"
+        rendered.contains("panic content") || rendered.contains("Line 1"),
+        "expected viewport to be readable after panic"
     );
 }
 
@@ -180,8 +180,7 @@ fn test_concurrent_readers_survive_writer_panic() {
     // Spawn a writer that will panic
     let writer = thread::spawn(move || {
         let _ = catch_unwind(AssertUnwindSafe(|| {
-            let mut guard = lock2.write();
-            guard.push(4);
+            lock2.write().push(4);
             panic!("writer panic");
         }));
     });
@@ -211,7 +210,7 @@ fn test_concurrent_readers_survive_writer_panic() {
     let sum = reader2.join().expect("reader2 should complete");
 
     // The data may have 3 or 4 elements depending on when the panic occurred
-    assert!(len >= 3 && len <= 4, "length should be 3 or 4, got {len}");
+    assert!((3..=4).contains(&len), "length should be 3 or 4, got {len}");
     assert!(sum >= 6, "sum should be at least 6, got {sum}");
 }
 
@@ -219,8 +218,8 @@ fn test_concurrent_readers_survive_writer_panic() {
 // TEST: Integration - Page Model Pattern
 // =============================================================================
 
-/// Simulate the LogsPage pattern: RwLock<Viewport> + RwLock<String> for cached content.
-/// Verify the page can continue rendering after a panic in update().
+/// Simulate the `LogsPage` pattern: `RwLock<Viewport>` + `RwLock<String>` for cached content.
+/// Verify the page can continue rendering after a panic in `update()`.
 #[test]
 fn test_page_pattern_survives_update_panic() {
     use bubbles::viewport::Viewport;
@@ -241,41 +240,21 @@ fn test_page_pattern_survives_update_panic() {
 
     // Simulate update() that panics while holding locks
     let _ = catch_unwind(AssertUnwindSafe(|| {
-        let mut vp = page.viewport.write();
-        let mut content = page.formatted_content.write();
-        let mut needs = page.needs_reformat.write();
-
-        // Partial update before panic
-        *content = String::from("new content");
-        *needs = true;
-        vp.set_content(&*content);
-
+        let new_content = String::from("new content");
+        *page.formatted_content.write() = new_content.clone();
+        *page.needs_reformat.write() = true;
+        page.viewport.write().set_content(&new_content);
         panic!("panic in update()");
     }));
 
     // Simulate view() - should be able to read all state
-    let viewport_rendered = {
-        let vp = page.viewport.read();
-        vp.view()
-    };
-
+    let viewport_rendered = page.viewport.read().view();
     let formatted = page.formatted_content.read().clone();
     let needs_reformat = *page.needs_reformat.read();
 
-    // All reads should succeed (no poison)
-    // Content may reflect partial or no update depending on panic timing
-    assert!(
-        formatted == "initial content" || formatted == "new content",
-        "formatted_content should be readable"
-    );
-    assert!(
-        !needs_reformat || needs_reformat,
-        "needs_reformat should be readable"
-    );
-    assert!(
-        viewport_rendered.is_empty() || !viewport_rendered.is_empty(),
-        "viewport should be readable"
-    );
+    assert_eq!(formatted, "new content");
+    assert!(needs_reformat);
+    assert!(viewport_rendered.contains("new content"));
 }
 
 /// Verify that a page can recover and process new updates after a panic.
@@ -299,12 +278,13 @@ fn test_page_continues_after_panic() {
     let _ = catch_unwind(AssertUnwindSafe(|| {
         let mut v = counter.value.write();
         *v += 1;
+        drop(v);
         panic!("panic after increment");
     }));
 
     // Value may be 1 or 2 depending on panic timing
     let after_panic = *counter.value.read();
-    assert!(after_panic >= 1 && after_panic <= 2);
+    assert!((1..=2).contains(&after_panic));
 
     // Third update should work fine
     *counter.value.write() += 10;
@@ -312,7 +292,7 @@ fn test_page_continues_after_panic() {
 
     // Should be either 11 or 12
     assert!(
-        final_value >= 11 && final_value <= 12,
+        (11..=12).contains(&final_value),
         "counter should continue working, got {final_value}"
     );
 }
@@ -321,7 +301,7 @@ fn test_page_continues_after_panic() {
 // TEST: Performance Characteristics
 // =============================================================================
 
-/// Verify that parking_lot has no performance degradation after panic recovery.
+/// Verify that `parking_lot` has no performance degradation after panic recovery.
 #[test]
 fn test_no_performance_degradation_after_panic() {
     use parking_lot::RwLock;
@@ -355,8 +335,6 @@ fn test_no_performance_degradation_after_panic() {
     // (Allow 3x variance for test stability)
     assert!(
         after_panic_duration < before_panic_duration * 3,
-        "performance should not degrade significantly after panic: before={:?}, after={:?}",
-        before_panic_duration,
-        after_panic_duration
+        "performance should not degrade significantly after panic: before={before_panic_duration:?}, after={after_panic_duration:?}"
     );
 }
