@@ -711,14 +711,14 @@ pub fn place(width: usize, height: usize, h_pos: Position, v_pos: Position, s: &
     let content_width = self::width(s);
     let content_height = self::height(s);
 
-    // Horizontal padding - use round() to match join_horizontal/join_vertical (bd-3vqi)
+    // Horizontal padding - use floor() to match Go lipgloss Place() behavior
     let h_extra = width.saturating_sub(content_width);
-    let left_pad = (h_extra as f64 * h_pos.factor()).round() as usize;
+    let left_pad = (h_extra as f64 * h_pos.factor()).floor() as usize;
     let _right_pad = h_extra.saturating_sub(left_pad);
 
-    // Vertical padding - use round() to match join_horizontal/join_vertical (bd-3vqi)
+    // Vertical padding - use floor() to match Go lipgloss Place() behavior
     let v_extra = height.saturating_sub(content_height);
-    let top_pad = (v_extra as f64 * v_pos.factor()).round() as usize;
+    let top_pad = (v_extra as f64 * v_pos.factor()).floor() as usize;
     let bottom_pad = v_extra.saturating_sub(top_pad);
 
     // Pre-compute alignment factor once for content lines
@@ -747,8 +747,8 @@ pub fn place(width: usize, height: usize, h_pos: Position, v_pos: Position, s: &
 
         let line_width = visible_width(line);
         let line_extra = width.saturating_sub(line_width);
-        // Use round() to match join_horizontal/join_vertical (bd-3vqi)
-        let line_left = (line_extra as f64 * h_factor).round() as usize;
+        // Use floor() to match Go lipgloss Place() behavior
+        let line_left = (line_extra as f64 * h_factor).floor() as usize;
         let line_right = line_extra.saturating_sub(line_left);
 
         // Use slices of blank_line for padding (no allocation)
