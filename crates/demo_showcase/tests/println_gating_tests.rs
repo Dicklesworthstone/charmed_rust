@@ -1,29 +1,29 @@
 //! Tests for bubbletea println/printf gating (bd-39te)
 //!
-//! These tests verify that the demo_showcase correctly uses bubbletea's println/printf
+//! These tests verify that the `demo_showcase` correctly uses `bubbletea`'s println/printf
 //! for lifecycle events, and document the gating behavior.
 //!
 //! # Architecture
 //!
 //! The println/printf gating works at two levels:
 //!
-//! 1. **App Level**: The demo_showcase App emits println commands for key lifecycle
+//! 1. **App Level**: The `demo_showcase` App emits println commands for key lifecycle
 //!    events (deployments starting/completing, job status changes).
 //!
-//! 2. **Runtime Level**: bubbletea's Program runtime gates the actual output based
-//!    on `options.alt_screen`. When alt_screen is true (default), PrintLineMsg is
-//!    silently ignored. When alt_screen is false (--no-alt-screen), the message is
+//! 2. **Runtime Level**: `bubbletea`'s Program runtime gates the actual output based
+//!    on `options.alt_screen`. When `alt_screen` is true (default), `PrintLineMsg` is
+//!    silently ignored. When `alt_screen` is false (`--no-alt-screen`), the message is
 //!    printed above the TUI.
 //!
 //! # Policy
 //!
-//! The demo_showcase always emits println commands for lifecycle events. The
-//! bubbletea runtime is responsible for deciding whether to actually print them.
+//! The `demo_showcase` always emits println commands for lifecycle events. The
+//! `bubbletea` runtime is responsible for deciding whether to actually print them.
 //! This keeps the app logic simple and testable.
 //!
 //! # What These Tests Verify
 //!
-//! 1. Deployment events produce commands (via WizardMsg)
+//! 1. Deployment events produce commands (via `WizardMsg`)
 //! 2. Job events produce commands (via action notifications)
 //! 3. The commands are non-None (actual println execution is bubbletea's job)
 
@@ -36,7 +36,7 @@ use demo_showcase::messages::{WizardDeploymentConfig, WizardMsg};
 // DEPLOYMENT EVENT TESTS
 // =============================================================================
 
-/// Verify that DeploymentStarted produces a println command.
+/// Verify that `DeploymentStarted` produces a println command.
 #[test]
 fn deployment_started_produces_println_command() {
     let mut app = App::from_config(&Config::default());
@@ -56,7 +56,7 @@ fn deployment_started_produces_println_command() {
     );
 }
 
-/// Verify that DeploymentCompleted produces a println command.
+/// Verify that `DeploymentCompleted` produces a println command.
 #[test]
 fn deployment_completed_produces_println_command() {
     let mut app = App::from_config(&Config::default());
@@ -76,7 +76,7 @@ fn deployment_completed_produces_println_command() {
     );
 }
 
-/// Verify that DeploymentFailed produces a println command.
+/// Verify that `DeploymentFailed` produces a println command.
 #[test]
 fn deployment_failed_produces_println_command() {
     let mut app = App::from_config(&Config::default());
@@ -91,7 +91,7 @@ fn deployment_failed_produces_println_command() {
     );
 }
 
-/// Verify that DeploymentProgress does NOT produce a command (progress updates are UI-only).
+/// Verify that `DeploymentProgress` does NOT produce a command (progress updates are UI-only).
 #[test]
 fn deployment_progress_does_not_produce_command() {
     let mut app = App::from_config(&Config::default());
@@ -108,13 +108,13 @@ fn deployment_progress_does_not_produce_command() {
 // BUBBLETEA RUNTIME GATING DOCUMENTATION
 // =============================================================================
 
-/// This test documents the bubbletea runtime gating behavior.
+/// This test documents the `bubbletea` runtime gating behavior.
 ///
-/// The println command produces a PrintLineMsg, which bubbletea handles as follows:
-/// - When alt_screen is true (default): message is silently ignored
-/// - When alt_screen is false (--no-alt-screen): message is printed above TUI
+/// The println command produces a `PrintLineMsg`, which `bubbletea` handles as follows:
+/// - When `alt_screen` is true (default): message is silently ignored
+/// - When `alt_screen` is false (--no-alt-screen): message is printed above TUI
 ///
-/// This behavior is tested in bubbletea's own test suite (command.rs).
+/// This behavior is tested in `bubbletea`'s own test suite (`command.rs`).
 /// We document it here for clarity.
 #[test]
 fn document_bubbletea_gating_behavior() {

@@ -1022,7 +1022,7 @@ mod tests {
             let entry = &entries[idx];
             let matches = entry.message.to_lowercase().contains("request")
                 || entry.target.to_lowercase().contains("request");
-            assert!(matches, "Entry should match 'request': {:?}", entry);
+            assert!(matches, "Entry should match 'request': {entry:?}");
         }
     }
 
@@ -1262,8 +1262,7 @@ mod tests {
         ];
         assert!(
             valid_paths.contains(&dir),
-            "Export dir should be a valid path: {:?}",
-            dir
+            "Export dir should be a valid path: {dir:?}"
         );
     }
 

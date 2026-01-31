@@ -1,7 +1,7 @@
 //! E2E Tests: Mouse scroll + click-to-select (bd-6wkl)
 //!
 //! End-to-end tests for mouse scroll and click-to-select behavior.
-//! Tests bubbletea mouse plumbing + demo_showcase hit-testing/mapping.
+//! Tests `bubbletea` mouse plumbing + `demo_showcase` hit-testing/mapping.
 //!
 //! # Test Categories
 //!

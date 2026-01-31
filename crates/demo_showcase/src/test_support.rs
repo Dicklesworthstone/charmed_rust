@@ -1565,7 +1565,7 @@ mod e2e_runner_tests {
     #[test]
     fn e2e_runner_creates_and_initializes() {
         let runner = E2ERunner::new("init_test");
-        assert!(runner.view().len() > 0);
+        assert!(!runner.view().is_empty());
         runner.finish().expect("should pass");
     }
 
@@ -2089,7 +2089,7 @@ mod e2e_smoke_tour_tests {
         ];
 
         for (key, expected_page, name) in pages {
-            runner.step(&format!("Navigate to {} page", name));
+            runner.step(format!("Navigate to {name} page"));
             runner.press_key(key);
             runner.assert_page(expected_page);
             runner.assert_view_not_empty();
@@ -2633,9 +2633,8 @@ mod e2e_navigation_tests {
         ];
 
         for (shortcut, expected_page) in pages {
-            runner.step(&format!(
-                "Navigate to {:?} with '{}'",
-                expected_page, shortcut
+            runner.step(format!(
+                "Navigate to {expected_page:?} with '{shortcut}'"
             ));
             runner.press_key(shortcut);
             runner.assert_page(expected_page);
@@ -3424,11 +3423,11 @@ mod e2e_wizard_tests {
         ];
 
         for (key, page) in pages {
-            runner.step(&format!("Navigate to {:?}", page));
+            runner.step(format!("Navigate to {page:?}"));
             runner.press_key(key);
             runner.assert_page(page);
 
-            runner.step(&format!("Navigate to Wizard from {:?}", page));
+            runner.step(format!("Navigate to Wizard from {page:?}"));
             runner.press_key('7');
             runner.assert_page(Page::Wizard);
             runner.assert_view_not_empty();
@@ -4081,11 +4080,11 @@ mod e2e_logs_tests {
         ];
 
         for (key, page) in pages {
-            runner.step(&format!("Navigate to {:?}", page));
+            runner.step(format!("Navigate to {page:?}"));
             runner.press_key(key);
             runner.assert_page(page);
 
-            runner.step(&format!("Navigate to Logs from {:?}", page));
+            runner.step(format!("Navigate to Logs from {page:?}"));
             runner.press_key('4');
             runner.assert_page(Page::Logs);
             runner.assert_view_not_empty();
@@ -4600,11 +4599,11 @@ mod e2e_settings_page_tests {
         ];
 
         for (key, page) in pages {
-            runner.step(&format!("Navigate to {:?}", page));
+            runner.step(format!("Navigate to {page:?}"));
             runner.press_key(key);
             runner.assert_page(page);
 
-            runner.step(&format!("Navigate to Settings from {:?}", page));
+            runner.step(format!("Navigate to Settings from {page:?}"));
             runner.press_key('8');
             runner.assert_page(Page::Settings);
             runner.assert_view_not_empty();

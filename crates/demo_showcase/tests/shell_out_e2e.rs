@@ -79,14 +79,14 @@ fn e2e_shell_out_d_key_from_all_pages() {
     ];
 
     for (key, page, name) in pages {
-        runner.step(&format!("Navigate to {} page", name));
+        runner.step(format!("Navigate to {name} page"));
         runner.press_key(key);
         runner.assert_page(page);
 
-        runner.step(&format!("Press 'D' on {} page", name));
+        runner.step(format!("Press 'D' on {name} page"));
         runner.press_key('D');
 
-        runner.step(&format!("Verify still on {} page after D", name));
+        runner.step(format!("Verify still on {name} page after D"));
         runner.assert_page(page);
         runner.assert_view_not_empty();
     }

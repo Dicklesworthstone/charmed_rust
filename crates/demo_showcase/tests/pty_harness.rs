@@ -1,8 +1,8 @@
 //! PTY-based headless TUI testing harness.
 //!
 //! This module provides a real terminal emulator environment for testing the
-//! demo_showcase application. It uses portable-pty to spawn the app in a real
-//! pseudo-terminal and vt100 to parse the terminal output into an inspectable
+//! `demo_showcase` application. It uses `portable-pty` to spawn the app in a real
+//! pseudo-terminal and `vt100` to parse the terminal output into an inspectable
 //! screen buffer.
 
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
@@ -16,7 +16,7 @@ use vt100::Parser;
 const TERM_COLS: u16 = 120;
 const TERM_ROWS: u16 = 40;
 
-/// PTY harness for testing the demo_showcase TUI.
+/// PTY harness for testing the `demo_showcase` TUI.
 struct PtyHarness {
     /// Receiver for output from the reader thread.
     output_rx: Receiver<Vec<u8>>,
@@ -31,7 +31,7 @@ struct PtyHarness {
 }
 
 impl PtyHarness {
-    /// Spawn the demo_showcase app in a PTY.
+    /// Spawn the `demo_showcase` app in a PTY.
     fn spawn() -> anyhow::Result<Self> {
         let pty_system = NativePtySystem::default();
 
@@ -71,13 +71,12 @@ impl PtyHarness {
             let mut buf = [0u8; 4096];
             loop {
                 match reader.read(&mut buf) {
-                    Ok(0) => break, // EOF
+                    Ok(0) | Err(_) => break,
                     Ok(n) => {
                         if output_tx.send(buf[..n].to_vec()).is_err() {
                             break; // Receiver dropped
                         }
                     }
-                    Err(_) => break,
                 }
             }
         });
@@ -120,10 +119,9 @@ impl PtyHarness {
         // Debug: Print raw output and escape sequence analysis
         if total_read > 0 {
             let preview_len = std::cmp::min(2000, all_data.len());
+            let total_bytes = all_data.len();
             println!(
-                "=== Raw output preview (first {} of {} bytes) ===",
-                preview_len,
-                all_data.len()
+                "=== Raw output preview (first {preview_len} of {total_bytes} bytes) ==="
             );
             println!("{}", String::from_utf8_lossy(&all_data[..preview_len]));
             println!("=== End raw preview ===");
@@ -140,7 +138,7 @@ impl PtyHarness {
                     let mut params = String::new();
                     while pos < all_data.len() {
                         let c = all_data[pos];
-                        if c >= b'0' && c <= b'9' || c == b';' {
+                        if c.is_ascii_digit() || c == b';' {
                             params.push(c as char);
                             pos += 1;
                         } else {
@@ -151,18 +149,17 @@ impl PtyHarness {
                         let cmd = all_data[pos] as char;
                         match cmd {
                             'H' | 'f' => {
-                                println!("  @{}: CUP (cursor position) params={}", start, params)
+                                println!("  @{start}: CUP (cursor position) params={params}");
                             }
-                            'A' => println!("  @{}: CUU (cursor up) params={}", start, params),
-                            'B' => println!("  @{}: CUD (cursor down) params={}", start, params),
-                            'C' => println!("  @{}: CUF (cursor forward) params={}", start, params),
-                            'D' => println!("  @{}: CUB (cursor back) params={}", start, params),
+                            'A' => println!("  @{start}: CUU (cursor up) params={params}"),
+                            'B' => println!("  @{start}: CUD (cursor down) params={params}"),
+                            'C' => println!("  @{start}: CUF (cursor forward) params={params}"),
+                            'D' => println!("  @{start}: CUB (cursor back) params={params}"),
                             'G' => println!(
-                                "  @{}: CHA (cursor horizontal absolute) params={}",
-                                start, params
+                                "  @{start}: CHA (cursor horizontal absolute) params={params}"
                             ),
-                            'K' => println!("  @{}: EL (erase line) params={}", start, params),
-                            'J' => println!("  @{}: ED (erase display) params={}", start, params),
+                            'K' => println!("  @{start}: EL (erase line) params={params}"),
+                            'J' => println!("  @{start}: ED (erase display) params={params}"),
                             _ => {}
                         }
                         pos += 1;
@@ -208,10 +205,11 @@ impl PtyHarness {
 
     /// Print the current screen to stdout for debugging.
     fn dump_screen(&self) {
-        println!("=== Screen ({} x {}) ===", TERM_COLS, TERM_ROWS);
+        println!("=== Screen ({TERM_COLS} x {TERM_ROWS}) ===");
         let screen = self.screen_text();
         for (i, line) in screen.lines().enumerate() {
-            println!("{:2}: {}", i + 1, line);
+            let line_num = i + 1;
+            println!("{line_num:2}: {line}");
         }
         println!("=== End Screen ===");
     }
@@ -222,7 +220,7 @@ impl PtyHarness {
     }
 }
 
-/// Test vt100 parser with the EXACT output from demo_showcase to isolate the issue.
+/// Test `vt100` parser with the EXACT output from `demo_showcase` to isolate the issue.
 #[test]
 fn test_vt100_with_real_output() {
     // This is a simplified version of what demo_showcase outputs
@@ -241,7 +239,7 @@ fn test_vt100_with_real_output() {
     {
         let screen = parser.screen();
         let row0 = screen.contents_between(0, 0, 0, 40);
-        println!("After 'Loading...': row0 = '{}'", row0);
+        println!("After 'Loading...': row0 = '{row0}'");
         assert!(
             row0.contains("Loading"),
             "Should see Loading... after first render"
@@ -255,7 +253,7 @@ fn test_vt100_with_real_output() {
     {
         let screen = parser.screen();
         let row0 = screen.contents_between(0, 0, 0, 40);
-        println!("After OSC (no terminator yet): row0 = '{}'", row0);
+        println!("After OSC (no terminator yet): row0 = '{row0}'");
     }
 
     // 4. Second render: clear and show main content
@@ -265,7 +263,7 @@ fn test_vt100_with_real_output() {
     {
         let screen = parser.screen();
         let row0 = screen.contents_between(0, 0, 0, 40);
-        println!("After second clear: row0 = '{}'", row0);
+        println!("After second clear: row0 = '{row0}'");
     }
 
     // 5. Now add the styled content
@@ -279,7 +277,7 @@ fn test_vt100_with_real_output() {
     {
         let screen = parser.screen();
         let row0 = screen.contents_between(0, 0, 0, 60);
-        println!("After styled content: row0 = '{}'", row0);
+        println!("After styled content: row0 = '{row0}'");
         assert!(
             row0.contains("Connected"),
             "Should see 'Connected' in output"
@@ -304,7 +302,7 @@ fn test_vt100_with_real_output() {
 
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 30);
-    println!("Split CSI result: row0 = '{}'", row0);
+    println!("Split CSI result: row0 = '{row0}'");
 
     // Test 2: Split in the middle of OSC sequence
     let mut parser = Parser::new(5, 60, 0);
@@ -314,7 +312,7 @@ fn test_vt100_with_real_output() {
 
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 30);
-    println!("Split OSC result: row0 = '{}'", row0);
+    println!("Split OSC result: row0 = '{row0}'");
     assert!(
         row0.contains("New Content"),
         "New content should be visible after split OSC"
@@ -328,7 +326,7 @@ fn test_vt100_with_real_output() {
 
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 30);
-    println!("Split RGB result: row0 = '{}'", row0);
+    println!("Split RGB result: row0 = '{row0}'");
     assert!(
         row0.contains("GreenText"),
         "Green text should be visible after split RGB"
@@ -339,6 +337,7 @@ fn test_vt100_with_real_output() {
 
 /// Test to see if feeding data in one shot vs chunks matters.
 #[test]
+#[allow(clippy::too_many_lines)]
 fn test_vt100_all_at_once_vs_chunked() {
     let binary_path = std::env::current_dir()
         .unwrap()
@@ -377,14 +376,15 @@ fn test_vt100_all_at_once_vs_chunked() {
         }
     }
 
-    println!("Captured {} bytes", all_data.len());
+    let captured_bytes = all_data.len();
+    println!("Captured {captured_bytes} bytes");
 
     // Now feed to a fresh parser ALL AT ONCE
     let mut parser_once = Parser::new(TERM_ROWS, TERM_COLS, 0);
     parser_once.process(&all_data);
     let screen_once = parser_once.screen();
     let row0_once = screen_once.contents_between(0, 0, 0, 60);
-    println!("Parser (all at once) row 0: '{}'", row0_once);
+    println!("Parser (all at once) row 0: '{row0_once}'");
 
     // Compare with feeding in 1000-byte chunks
     let mut parser_chunked = Parser::new(TERM_ROWS, TERM_COLS, 0);
@@ -393,7 +393,7 @@ fn test_vt100_all_at_once_vs_chunked() {
     }
     let screen_chunked = parser_chunked.screen();
     let row0_chunked = screen_chunked.contents_between(0, 0, 0, 60);
-    println!("Parser (1000-byte chunks) row 0: '{}'", row0_chunked);
+    println!("Parser (1000-byte chunks) row 0: '{row0_chunked}'");
 
     // Compare with feeding in smaller chunks (like the PTY reader might)
     let mut parser_small = Parser::new(TERM_ROWS, TERM_COLS, 0);
@@ -402,7 +402,7 @@ fn test_vt100_all_at_once_vs_chunked() {
     }
     let screen_small = parser_small.screen();
     let row0_small = screen_small.contents_between(0, 0, 0, 60);
-    println!("Parser (100-byte chunks) row 0: '{}'", row0_small);
+    println!("Parser (100-byte chunks) row 0: '{row0_small}'");
 
     // All should match
     assert_eq!(
@@ -421,28 +421,24 @@ fn test_vt100_all_at_once_vs_chunked() {
         println!("Dumping first 5 rows:");
         for r in 0..5 {
             let content = screen_once.contents_between(r, 0, r, 80);
-            println!("  Row {}: '{}'", r, content);
+            println!("  Row {r}: '{content}'");
         }
 
         // Analyze the raw data for control characters
         println!("\n=== Control character analysis in first 500 bytes ===");
         for (i, &b) in all_data.iter().take(500).enumerate() {
             match b {
-                0x08 => println!("  @{}: BACKSPACE (BS)", i),
-                0x0D => println!("  @{}: CARRIAGE RETURN (CR)", i),
-                0x7F => println!("  @{}: DELETE (DEL)", i),
-                0x00..=0x07 => println!("  @{}: Control char 0x{:02x}", i, b),
-                0x0E..=0x1A => println!("  @{}: Control char 0x{:02x}", i, b),
+                0x08 => println!("  @{i}: BACKSPACE (BS)"),
+                0x0D => println!("  @{i}: CARRIAGE RETURN (CR)"),
+                0x7F => println!("  @{i}: DELETE (DEL)"),
+                0x00..=0x07 | 0x0E..=0x1A => println!("  @{i}: Control char 0x{b:02x}"),
                 _ => {}
             }
         }
 
         // Check parser cursor position
-        let cursor = screen_once.cursor_position();
-        println!(
-            "\nParser cursor position: row={}, col={}",
-            cursor.0, cursor.1
-        );
+        let (cursor_row, cursor_col) = screen_once.cursor_position();
+        println!("\nParser cursor position: row={cursor_row}, col={cursor_col}");
         println!("Parser screen size: {:?}", screen_once.size());
 
         // Try processing first part only (before second clear)
@@ -1091,6 +1087,7 @@ fn test_tmux_real_terminal() {
 /// Debug test to analyze the raw output line-by-line.
 /// This helps identify where lines exceed terminal width.
 #[test]
+#[allow(clippy::too_many_lines)]
 fn test_analyze_view_output() {
     use std::process::Command;
 
@@ -1241,10 +1238,11 @@ fn test_analyze_view_output() {
     println!("✓ All lines fit within 120 columns");
 }
 
-/// Test with WezTerm's mux server for the most accurate reproduction.
-/// This requires wezterm to be installed.
+/// Test with the `WezTerm` mux server for the most accurate reproduction.
+/// This requires `wezterm` to be installed.
 #[test]
 #[ignore = "Requires WezTerm installation - run with --ignored for manual testing"]
+#[allow(clippy::too_many_lines)]
 fn test_wezterm_mux() {
     use std::process::{Command, Stdio};
 

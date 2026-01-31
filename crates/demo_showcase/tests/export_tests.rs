@@ -450,8 +450,8 @@ fn ansi_to_html_test(input: &str) -> String {
     let mut in_escape = false;
     let mut escape_buf = String::new();
     let mut current_styles: Vec<&str> = Vec::new();
-    let mut current_fg: Option<String> = None;
-    let mut current_bg: Option<String> = None;
+    let mut current_foreground: Option<String> = None;
+    let mut current_background: Option<String> = None;
 
     for c in input.chars() {
         if c == '\x1b' {
@@ -469,46 +469,46 @@ fn ansi_to_html_test(input: &str) -> String {
                     match code {
                         "0" => {
                             if !current_styles.is_empty()
-                                || current_fg.is_some()
-                                || current_bg.is_some()
+                                || current_foreground.is_some()
+                                || current_background.is_some()
                             {
                                 html.push_str("</span>");
                             }
                             current_styles.clear();
-                            current_fg = None;
-                            current_bg = None;
+                            current_foreground = None;
+                            current_background = None;
                         }
                         "1" => current_styles.push("bold"),
                         "2" => current_styles.push("dim"),
                         "3" => current_styles.push("italic"),
                         "4" => current_styles.push("underline"),
                         "9" => current_styles.push("strikethrough"),
-                        "30" => current_fg = Some("#000000".to_string()),
-                        "31" => current_fg = Some("#cc0000".to_string()),
-                        "32" => current_fg = Some("#00cc00".to_string()),
-                        "33" => current_fg = Some("#cccc00".to_string()),
-                        "34" => current_fg = Some("#0000cc".to_string()),
-                        "35" => current_fg = Some("#cc00cc".to_string()),
-                        "36" => current_fg = Some("#00cccc".to_string()),
-                        "37" => current_fg = Some("#cccccc".to_string()),
-                        "40" => current_bg = Some("#000000".to_string()),
-                        "41" => current_bg = Some("#cc0000".to_string()),
-                        "42" => current_bg = Some("#00cc00".to_string()),
-                        "43" => current_bg = Some("#cccc00".to_string()),
-                        "44" => current_bg = Some("#0000cc".to_string()),
-                        "45" => current_bg = Some("#cc00cc".to_string()),
-                        "46" => current_bg = Some("#00cccc".to_string()),
-                        "47" => current_bg = Some("#cccccc".to_string()),
+                        "30" => current_foreground = Some("#000000".to_string()),
+                        "31" => current_foreground = Some("#cc0000".to_string()),
+                        "32" => current_foreground = Some("#00cc00".to_string()),
+                        "33" => current_foreground = Some("#cccc00".to_string()),
+                        "34" => current_foreground = Some("#0000cc".to_string()),
+                        "35" => current_foreground = Some("#cc00cc".to_string()),
+                        "36" => current_foreground = Some("#00cccc".to_string()),
+                        "37" => current_foreground = Some("#cccccc".to_string()),
+                        "40" => current_background = Some("#000000".to_string()),
+                        "41" => current_background = Some("#cc0000".to_string()),
+                        "42" => current_background = Some("#00cc00".to_string()),
+                        "43" => current_background = Some("#cccc00".to_string()),
+                        "44" => current_background = Some("#0000cc".to_string()),
+                        "45" => current_background = Some("#cc00cc".to_string()),
+                        "46" => current_background = Some("#00cccc".to_string()),
+                        "47" => current_background = Some("#cccccc".to_string()),
                         _ => {
                             // Handle 256-color and RGB
                             if let Some(rest) = seq.strip_prefix("38;5;")
                                 && rest.parse::<u8>().is_ok()
                             {
-                                current_fg = Some("#ff0000".to_string()); // Placeholder
+                                current_foreground = Some("#ff0000".to_string()); // Placeholder
                             } else if let Some(rest) = seq.strip_prefix("48;5;")
                                 && rest.parse::<u8>().is_ok()
                             {
-                                current_bg = Some("#0000ff".to_string()); // Placeholder
+                                current_background = Some("#0000ff".to_string()); // Placeholder
                             } else if let Some(rest) = seq.strip_prefix("38;2;") {
                                 let parts: Vec<&str> = rest.split(';').collect();
                                 if parts.len() == 3
@@ -518,7 +518,7 @@ fn ansi_to_html_test(input: &str) -> String {
                                         parts[2].parse::<u8>(),
                                     )
                                 {
-                                    current_fg = Some(format!("#{r:02x}{g:02x}{b:02x}"));
+                                    current_foreground = Some(format!("#{r:02x}{g:02x}{b:02x}"));
                                 }
                             } else if let Some(rest) = seq.strip_prefix("48;2;") {
                                 let parts: Vec<&str> = rest.split(';').collect();
@@ -529,7 +529,7 @@ fn ansi_to_html_test(input: &str) -> String {
                                         parts[2].parse::<u8>(),
                                     )
                                 {
-                                    current_bg = Some(format!("#{r:02x}{g:02x}{b:02x}"));
+                                    current_background = Some(format!("#{r:02x}{g:02x}{b:02x}"));
                                 }
                             }
                         }
@@ -537,13 +537,16 @@ fn ansi_to_html_test(input: &str) -> String {
                 }
 
                 // Open a new span if we have styles
-                if !current_styles.is_empty() || current_fg.is_some() || current_bg.is_some() {
+                if !current_styles.is_empty()
+                    || current_foreground.is_some()
+                    || current_background.is_some()
+                {
                     html.push_str("<span");
                     let mut style_parts = Vec::new();
-                    if let Some(ref fg) = current_fg {
+                    if let Some(ref fg) = current_foreground {
                         style_parts.push(format!("color:{fg}"));
                     }
-                    if let Some(ref bg) = current_bg {
+                    if let Some(ref bg) = current_background {
                         style_parts.push(format!("background:{bg}"));
                     }
                     if !style_parts.is_empty() {
@@ -571,7 +574,7 @@ fn ansi_to_html_test(input: &str) -> String {
     }
 
     // Close any remaining span
-    if !current_styles.is_empty() || current_fg.is_some() || current_bg.is_some() {
+    if !current_styles.is_empty() || current_foreground.is_some() || current_background.is_some() {
         html.push_str("</span>");
     }
 
