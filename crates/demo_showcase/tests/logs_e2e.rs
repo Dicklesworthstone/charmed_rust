@@ -80,18 +80,16 @@ fn count_log_exports() -> usize {
         return 0;
     }
 
-    fs::read_dir(&dir)
-        .map(|entries| {
-            entries
-                .filter_map(Result::ok)
-                .filter(|e| {
-                    e.path()
-                        .file_name()
-                        .is_some_and(|n| n.to_string_lossy().starts_with("logs_"))
-                })
-                .count()
-        })
-        .unwrap_or(0)
+    fs::read_dir(&dir).map_or(0, |entries| {
+        entries
+            .filter_map(Result::ok)
+            .filter(|e| {
+                e.path()
+                    .file_name()
+                    .is_some_and(|n| n.to_string_lossy().starts_with("logs_"))
+            })
+            .count()
+    })
 }
 
 /// Find the most recent log export file.
@@ -366,8 +364,8 @@ fn e2e_logs_clear_multiple_times() {
     runner.assert_page(Page::Logs);
 
     runner.step("Clear logs multiple times");
-    for i in 0..3 {
-        runner.step(&format!("Clear attempt {}", i + 1));
+    for attempt in 1..=3 {
+        runner.step(format!("Clear attempt {attempt}"));
         runner.press_key('X');
         runner.drain();
         runner.assert_view_not_empty();

@@ -115,17 +115,13 @@ fn test_std_rwlock_does_poison() {
         panic!("intentional panic");
     }));
 
-    // std::sync::RwLock IS poisoned - read returns Err
-    let result = lock.read();
-    assert!(
-        result.is_err(),
-        "std::sync::RwLock should be poisoned after panic"
-    );
-
-    // The error is a PoisonError.
-    // We can recover by calling `into_inner()`, but this is exactly what we want to avoid
-    // having to do throughout the codebase.
-    let err = result.unwrap_err();
+    // `std::sync::RwLock` IS poisoned - read returns Err.
+    //
+    // The error is a PoisonError. We can recover by calling `into_inner()`, but this is
+    // exactly what we want to avoid having to do throughout the codebase.
+    let err = lock
+        .read()
+        .expect_err("std::sync::RwLock should be poisoned after panic");
     assert_eq!(
         *err.into_inner(),
         42,

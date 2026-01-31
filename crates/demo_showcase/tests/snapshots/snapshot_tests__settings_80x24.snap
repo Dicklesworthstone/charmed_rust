@@ -55,7 +55,7 @@ expression: view
                                                                                
                   charmed_rust  v0.1.0                                         
                                                                                
-                  Terminal: xterm-256color (truecolor) | 80x24                 
+                  Terminal: [TERM]  | 80x24                                    
                   Features:  syntax                                            
                                                                                
                                                                                

@@ -51,12 +51,14 @@ fn strip_ansi(input: &str) -> String {
 
 /// Create a test runner with fixed size and no-color mode.
 fn create_snapshot_runner(name: &str, width: u16, height: u16) -> E2ERunner {
-    let mut config = Config::default();
-    config.color_mode = ColorMode::Never;
-    config.animations = AnimationMode::Disabled;
-    config.alt_screen = false;
-    // Use fixed seed for deterministic output
-    config.seed = Some(12345);
+    let config = Config {
+        color_mode: ColorMode::Never,
+        animations: AnimationMode::Disabled,
+        alt_screen: false,
+        // Use fixed seed for deterministic output
+        seed: Some(12345),
+        ..Config::default()
+    };
 
     let mut runner = E2ERunner::with_config(name, config);
     runner.resize(width, height);
@@ -66,19 +68,64 @@ fn create_snapshot_runner(name: &str, width: u16, height: u16) -> E2ERunner {
 /// Redact dynamic time-based values that would cause snapshot flakiness.
 /// Replaces Duration patterns like "19371h 34m" with "[DURATION]".
 fn redact_dynamic_times(input: &str) -> String {
-    // Pattern: Duration field shows elapsed time like "19371h 34m" or "2m 30s"
-    // We redact the hours+minutes or minutes+seconds pattern after "Duration:"
-    let re = regex::Regex::new(r"Duration:\s*\d+h\s*\d+m").unwrap();
-    let result = re.replace_all(input, "Duration: [REDACTED]");
+    fn redact_line_with_prefix(caps: &regex::Captures<'_>) -> String {
+        let matched = caps.get(0).expect("match exists").as_str();
+        let total_len = matched.len();
 
-    // Also handle shorter durations (minutes only)
-    let re2 = regex::Regex::new(r"Duration:\s*\d+m\s*\d*s?").unwrap();
-    re2.replace_all(&result, "Duration: [REDACTED]").to_string()
+        let prefix = caps.name("prefix").expect("prefix exists").as_str();
+        let mut content = format!("{prefix}[REDACTED]");
+
+        if content.len() > total_len {
+            content.truncate(total_len);
+            return content;
+        }
+
+        let pad_len = total_len - content.len();
+        content.push_str(&" ".repeat(pad_len));
+        content
+    }
+
+    // Preserve line length to avoid snapshot flakiness:
+    //
+    // The rendered output pads lines to a fixed width, but the time value's *string length*
+    // can vary run-to-run (e.g. "2m 3s" vs "12m 34s"). If we replace the time value with a
+    // fixed string and keep the original padding, the line length changes, causing flaky
+    // diffs that are purely whitespace.
+    let re_hm = regex::Regex::new(r"(?m)^(?P<prefix>.*Duration:\s*)\d+h\s*\d+m\s*$").unwrap();
+    let result = re_hm.replace_all(input, redact_line_with_prefix);
+
+    let re_ms = regex::Regex::new(r"(?m)^(?P<prefix>.*Duration:\s*)\d+m\s*\d*s?\s*$").unwrap();
+    re_ms
+        .replace_all(&result, redact_line_with_prefix)
+        .to_string()
+}
+
+/// Normalize diagnostics fields that depend on the test environment.
+fn normalize_terminal_diagnostics(input: &str) -> String {
+    // Keep the size and alignment, but normalize environment-dependent terminal text.
+    //
+    // This prevents snapshot flakiness across environments like `TERM=dumb`.
+    let re = regex::Regex::new(r"Terminal:\s*[^|]*\|").unwrap();
+    re.replace_all(input, |caps: &regex::Captures<'_>| {
+        let matched = caps.get(0).expect("match exists").as_str();
+        let total_len = matched.len();
+
+        let base = "Terminal: [TERM]";
+        let mut content = base.to_string();
+
+        // Ensure `content` leaves room for the trailing `|`.
+        let max_content_len = total_len.saturating_sub(1);
+        content.truncate(max_content_len);
+
+        let pad_len = total_len.saturating_sub(1 + content.len());
+        format!("{content}{}|", " ".repeat(pad_len))
+    })
+    .to_string()
 }
 
 /// Get a clean snapshot-ready view from the runner.
 fn snapshot_view(runner: &E2ERunner) -> String {
-    redact_dynamic_times(&strip_ansi(&runner.view()))
+    normalize_terminal_diagnostics(&redact_dynamic_times(&strip_ansi(&runner.view())))
 }
 
 // =============================================================================

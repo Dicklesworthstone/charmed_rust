@@ -34,12 +34,14 @@ use demo_showcase::test_support::E2ERunner;
 
 /// Create a test runner configured for docs testing.
 fn create_docs_runner(name: &str) -> E2ERunner {
-    let mut config = Config::default();
-    config.color_mode = ColorMode::Never; // No ANSI escapes for easier assertions
-    config.animations = AnimationMode::Disabled;
-    config.alt_screen = false;
-    config.mouse = true;
-    config.seed = Some(42424);
+    let config = Config {
+        color_mode: ColorMode::Never, // No ANSI escapes for easier assertions
+        animations: AnimationMode::Disabled,
+        alt_screen: false,
+        mouse: true,
+        seed: Some(42424),
+        ..Config::default()
+    };
 
     let mut runner = E2ERunner::with_config(name, config);
     runner.resize(120, 40);
@@ -513,9 +515,9 @@ fn e2e_docs_rapid_resize() {
     runner.assert_page(Page::Docs);
 
     runner.step("Rapid resize events");
-    for i in 0..10 {
-        let width = 80 + (i * 5) as u16;
-        let height = 24 + (i * 2) as u16;
+    for i in 0u16..10 {
+        let width = 80u16 + i * 5;
+        let height = 24u16 + i * 2;
         runner.resize(width, height);
     }
     runner.drain();

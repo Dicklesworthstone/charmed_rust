@@ -32,12 +32,14 @@ use demo_showcase::test_support::E2ERunner;
 
 /// Create a test runner with mouse enabled.
 fn create_mouse_runner(name: &str) -> E2ERunner {
-    let mut config = Config::default();
-    config.color_mode = ColorMode::Never;
-    config.animations = AnimationMode::Disabled;
-    config.alt_screen = false;
-    config.mouse = true;
-    config.seed = Some(12345);
+    let config = Config {
+        color_mode: ColorMode::Never,
+        animations: AnimationMode::Disabled,
+        alt_screen: false,
+        mouse: true,
+        seed: Some(12345),
+        ..Config::default()
+    };
 
     let mut runner = E2ERunner::with_config(name, config);
     runner.resize(120, 40);
@@ -332,7 +334,7 @@ fn e2e_mouse_all_pages_no_panic() {
     ];
 
     for (key, page, name) in pages {
-        runner.step(&format!("Test mouse on {} page", name));
+        runner.step(format!("Test mouse on {name} page"));
         runner.press_key(key);
         runner.assert_page(page);
 

@@ -149,7 +149,7 @@ fn document_bubbletea_gating_behavior() {
 
 /// Helper to check if a command produces any message when executed.
 fn command_produces_message(cmd: Option<Cmd>) -> bool {
-    cmd.and_then(|c| c.execute()).is_some()
+    cmd.and_then(Cmd::execute).is_some()
 }
 
 /// Verify that deployment println commands execute and produce messages.
@@ -176,7 +176,7 @@ fn deployment_println_commands_are_executable() {
 // ALT-SCREEN CONFIG TESTS
 // =============================================================================
 
-/// Verify that Config correctly tracks alt_screen setting.
+/// Verify that `Config` correctly tracks `alt_screen` setting.
 #[test]
 fn config_alt_screen_default_is_true() {
     let config = Config::default();
@@ -186,11 +186,13 @@ fn config_alt_screen_default_is_true() {
     );
 }
 
-/// Verify that Config can be set to alt_screen = false.
+/// Verify that `Config` can be set to `alt_screen = false`.
 #[test]
 fn config_alt_screen_can_be_disabled() {
-    let mut config = Config::default();
-    config.alt_screen = false;
+    let config = Config {
+        alt_screen: false,
+        ..Config::default()
+    };
     assert!(
         !config.alt_screen,
         "Config should allow alt_screen = false (--no-alt-screen)"

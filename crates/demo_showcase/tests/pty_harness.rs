@@ -120,9 +120,7 @@ impl PtyHarness {
         if total_read > 0 {
             let preview_len = std::cmp::min(2000, all_data.len());
             let total_bytes = all_data.len();
-            println!(
-                "=== Raw output preview (first {preview_len} of {total_bytes} bytes) ==="
-            );
+            println!("=== Raw output preview (first {preview_len} of {total_bytes} bytes) ===");
             println!("{}", String::from_utf8_lossy(&all_data[..preview_len]));
             println!("=== End raw preview ===");
 
@@ -547,8 +545,9 @@ fn test_vt100_all_at_once_vs_chunked() {
         }
 
         // Count newlines in the data (avoid `filter().count()` to keep clippy happy)
-        let newline_count =
-            all_data.iter().fold(0usize, |count, &b| count + usize::from(b == b'\n'));
+        let newline_count = all_data
+            .iter()
+            .fold(0usize, |count, &b| count + usize::from(b == b'\n'));
         let term_rows = usize::from(TERM_ROWS);
         println!("\n=== Newline analysis ===");
         println!("Total newlines in output: {newline_count}");
@@ -570,9 +569,7 @@ fn test_vt100_all_at_once_vs_chunked() {
 
         // If more than expected newlines, the terminal will scroll
         if newline_count > term_rows {
-            println!(
-                "\n!!! SCROLL DETECTED: {newline_count} newlines > {term_rows} rows !!!"
-            );
+            println!("\n!!! SCROLL DETECTED: {newline_count} newlines > {term_rows} rows !!!");
             println!("Extra newlines will cause content to scroll off screen");
         }
 
@@ -1045,14 +1042,8 @@ fn test_tmux_real_terminal() {
             // Each content line should fit in 120 columns
             // (allowing 1 extra for edge cases)
             if visible_width > 121 {
-                let snippet: String = line
-                    .chars()
-                    .filter(|c| !c.is_control())
-                    .take(50)
-                    .collect();
-                println!(
-                    "WARNING: Line {visible_width} chars exceeds 120: {snippet}..."
-                );
+                let snippet: String = line.chars().filter(|c| !c.is_control()).take(50).collect();
+                println!("WARNING: Line {visible_width} chars exceeds 120: {snippet}...");
             }
         }
     }
@@ -1150,9 +1141,7 @@ fn test_analyze_view_output() {
 
         if visible_width > 120 {
             problematic_lines += 1;
-            println!(
-                "LINE {line_num} OVERFLOW: visible={visible_width}, raw_bytes={raw_len}"
-            );
+            println!("LINE {line_num} OVERFLOW: visible={visible_width}, raw_bytes={raw_len}");
 
             // Show start and end of line
             let start: String = line.chars().take(80).collect();
