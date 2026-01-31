@@ -465,24 +465,21 @@ fn test_vt100_all_at_once_vs_chunked() {
             chunk_parser.process(&all_data[processed..end]);
             let screen = chunk_parser.screen();
             let row0 = screen.contents_between(0, 0, 0, 40);
+            let row0_trimmed = row0.trim();
             let cursor = screen.cursor_position();
 
             // Print when row 0 changes
-            if processed == 0 || row0.trim() != "" {
+            if processed == 0 || !row0_trimmed.is_empty() {
                 println!(
-                    "\nAfter bytes {}..{}: row0='{}', cursor={:?}",
-                    processed,
-                    end,
-                    row0.trim(),
-                    cursor
+                    "\nAfter bytes {processed}..{end}: row0='{row0_trimmed}', cursor={cursor:?}"
                 );
             }
             processed = end;
 
             // Check if row 0 content changed unexpectedly
-            if processed > 400 && !row0.contains("Charmed") && row0.trim().len() > 0 {
-                println!("!!! Row 0 content changed at byte {} !!!", processed);
-                println!("    Now: '{}'", row0.trim());
+            if processed > 400 && !row0.contains("Charmed") && !row0_trimmed.is_empty() {
+                println!("!!! Row 0 content changed at byte {processed} !!!");
+                println!("    Now: '{row0_trimmed}'");
                 // Dump bytes around this point
                 let context_start = processed.saturating_sub(100);
                 let context = &all_data[context_start..processed];
@@ -512,14 +509,12 @@ fn test_vt100_all_at_once_vs_chunked() {
                     .char_indices()
                     .take_while(|(i, _)| *i < 30)
                     .last()
-                    .map(|(i, c)| i + c.len_utf8())
-                    .unwrap_or(last_row0.len());
+                    .map_or(last_row0.len(), |(i, c)| i + c.len_utf8());
                 let safe_row0 = row0
                     .char_indices()
                     .take_while(|(i, _)| *i < 30)
                     .last()
-                    .map(|(i, c)| i + c.len_utf8())
-                    .unwrap_or(row0.len());
+                    .map_or(row0.len(), |(i, c)| i + c.len_utf8());
                 println!(
                     "Bytes {}-{}: Row0 changed from '{}' to '{}', cursor={:?}",
                     processed,
@@ -540,8 +535,7 @@ fn test_vt100_all_at_once_vs_chunked() {
                         .char_indices()
                         .take_while(|(i, _)| *i < 300)
                         .last()
-                        .map(|(i, c)| i + c.len_utf8())
-                        .unwrap_or(context_str.len());
+                        .map_or(context_str.len(), |(i, c)| i + c.len_utf8());
                     println!(
                         "  Context (first ~300 chars): {:?}",
                         context_str[..safe_end].replace('\x1b', "ESC")
@@ -552,31 +546,32 @@ fn test_vt100_all_at_once_vs_chunked() {
             processed = end;
         }
 
-        // Count newlines in the data
-        let newline_count = all_data.iter().filter(|&&b| b == 0x0A).count();
+        // Count newlines in the data (avoid `filter().count()` to keep clippy happy)
+        let newline_count =
+            all_data.iter().fold(0usize, |count, &b| count + usize::from(b == b'\n'));
+        let term_rows = usize::from(TERM_ROWS);
         println!("\n=== Newline analysis ===");
-        println!("Total newlines in output: {}", newline_count);
-        println!("Screen height: {} rows", TERM_ROWS);
+        println!("Total newlines in output: {newline_count}");
+        println!("Screen height: {TERM_ROWS} rows");
 
         // Count clear sequences
         let data_str = String::from_utf8_lossy(&all_data);
         let clear_count = data_str.matches("\x1b[2J").count() + data_str.matches("\x1b[J").count();
         let moveto_count =
             data_str.matches("\x1b[1;1H").count() + data_str.matches("\x1b[H").count();
-        println!("Clear sequences (ESC[2J/ESC[J): {}", clear_count);
-        println!("MoveTo(0,0) sequences: {}", moveto_count);
+        println!("Clear sequences (ESC[2J/ESC[J): {clear_count}");
+        println!("MoveTo(0,0) sequences: {moveto_count}");
 
         // Find "Loading" and "Charmed" occurrences to detect multiple renders
         let loading_count = data_str.matches("Loading").count();
         let charmed_count = data_str.matches("Charmed").count();
-        println!("'Loading' occurrences: {}", loading_count);
-        println!("'Charmed' occurrences: {}", charmed_count);
+        println!("'Loading' occurrences: {loading_count}");
+        println!("'Charmed' occurrences: {charmed_count}");
 
         // If more than expected newlines, the terminal will scroll
-        if newline_count > usize::from(TERM_ROWS) {
+        if newline_count > term_rows {
             println!(
-                "\n!!! SCROLL DETECTED: {} newlines > {} rows !!!",
-                newline_count, TERM_ROWS
+                "\n!!! SCROLL DETECTED: {newline_count} newlines > {term_rows} rows !!!"
             );
             println!("Extra newlines will cause content to scroll off screen");
         }
@@ -590,8 +585,9 @@ fn test_vt100_all_at_once_vs_chunked() {
             .unwrap_or(first_400.len());
         let line0_bytes = &first_400[..first_nl];
 
-        println!("Line 0 ends at byte {}", first_nl);
-        println!("Line 0 bytes ({}):", line0_bytes.len());
+        let line0_len = line0_bytes.len();
+        println!("Line 0 ends at byte {first_nl}");
+        println!("Line 0 bytes ({line0_len}):");
 
         // Show bytes with escape sequences marked
         let mut pos = 0;
