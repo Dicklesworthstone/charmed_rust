@@ -9,16 +9,16 @@ expression: view
    # Logs                                                                      
    ? Docs                                                                      
   <> Files                                                                     
-   * Wizard                                                                    
-   @ Settings        ╭───────────────────────────────────────────────────╮     
-                     │                                                   │     
+   * Wizard         ╭───────────────────────────────────────────────────╮      
+   @ Settings       │                                                   │      
                                          │ Services │                          
                                              │  │                              
-                     │ Service catalog with filtering and quick actions. │     
+                    │ Service catalog with filtering and quick actions. │      
                                              │  │                              
                                       │ Coming soon... │                       
-                     │                                                   │     
-                     ╰───────────────────────────────────────────────────╯     
+                    │                                                   │      
+                    ╰───────────────────────────────────────────────────╯      
+                                                                               
                                                                                
                                                                                
                                                                                
