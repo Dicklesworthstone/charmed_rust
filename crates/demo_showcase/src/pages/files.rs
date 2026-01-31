@@ -639,7 +639,11 @@ impl FilesPage {
             // Error icon and type
             let icon = error.icon();
             let error_msg = error.message();
-            lines.push(theme.error_style().render(&format!("  {icon}  {error_msg}")));
+            lines.push(
+                theme
+                    .error_style()
+                    .render(&format!("  {icon}  {error_msg}")),
+            );
 
             lines.push(String::new());
 

@@ -341,6 +341,37 @@ impl Sidebar {
 mod tests {
     use super::*;
 
+    fn strip_ansi(input: &str) -> String {
+        let mut result = String::with_capacity(input.len());
+        let mut in_escape = false;
+        let mut in_csi = false;
+        for c in input.chars() {
+            if c == '\x1b' {
+                in_escape = true;
+                in_csi = false;
+                continue;
+            }
+            if in_escape {
+                if c == '[' {
+                    in_csi = true;
+                    continue;
+                }
+                if in_csi {
+                    // CSI sequences end with '@' through '~'
+                    if ('@'..='~').contains(&c) {
+                        in_escape = false;
+                        in_csi = false;
+                    }
+                    continue;
+                }
+                in_escape = false;
+                continue;
+            }
+            result.push(c);
+        }
+        result
+    }
+
     #[test]
     fn sidebar_default_state() {
         let sidebar = Sidebar::new();
@@ -427,49 +458,14 @@ mod tests {
         let view = sidebar.view(22, &theme, 0.0);
 
         // Strip ANSI codes for counting
-        fn strip_ansi(input: &str) -> String {
-            let mut result = String::with_capacity(input.len());
-            let mut in_escape = false;
-            let mut in_csi = false;
-            for c in input.chars() {
-                if c == '\x1b' {
-                    in_escape = true;
-                    in_csi = false;
-                    continue;
-                }
-                if in_escape {
-                    if c == '[' {
-                        in_csi = true;
-                        continue;
-                    }
-                    if in_csi {
-                        // CSI sequences end with '@' through '~'
-                        if ('@'..='~').contains(&c) {
-                            in_escape = false;
-                            in_csi = false;
-                        }
-                        continue;
-                    }
-                    in_escape = false;
-                    continue;
-                }
-                result.push(c);
-            }
-            result
-        }
-
         let stripped = strip_ansi(&view);
         let line_count = stripped.lines().count();
 
-        eprintln!("Sidebar view line count: {}", line_count);
+        eprintln!("Sidebar view line count: {line_count}");
         eprintln!("First 5 lines:");
         for (i, line) in stripped.lines().take(5).enumerate() {
-            eprintln!(
-                "  Line {}: {:?} (width={})",
-                i,
-                line,
-                lipgloss::visible_width(line)
-            );
+            let width = lipgloss::visible_width(line);
+            eprintln!("  Line {i}: {line:?} (width={width})");
         }
 
         // The sidebar should have exactly 22 lines for height 22
@@ -490,13 +486,13 @@ mod tests {
         eprintln!("=== Sidebar item widths ===");
         for (i, line) in sidebar_view.lines().take(10).enumerate() {
             let visible_w = lipgloss::visible_width(line);
-            eprintln!("  Line {}: visible_width={}", i, visible_w);
+            eprintln!("  Line {i}: visible_width={visible_w}");
         }
 
         // Simple content (simulate page content)
         let mut content_lines = vec![];
         for i in 0..22 {
-            content_lines.push(format!("Content line {:02}", i));
+            content_lines.push(format!("Content line {i:02}"));
         }
         let content = content_lines.join("\n");
 
@@ -504,44 +500,13 @@ mod tests {
         let joined = join_horizontal(Position::Top, &[&sidebar_view, &content]);
 
         // Strip ANSI codes for counting
-        fn strip_ansi(input: &str) -> String {
-            let mut result = String::with_capacity(input.len());
-            let mut in_escape = false;
-            let mut in_csi = false;
-            for c in input.chars() {
-                if c == '\x1b' {
-                    in_escape = true;
-                    in_csi = false;
-                    continue;
-                }
-                if in_escape {
-                    if c == '[' {
-                        in_csi = true;
-                        continue;
-                    }
-                    if in_csi {
-                        // CSI sequences end with '@' through '~'
-                        if ('@'..='~').contains(&c) {
-                            in_escape = false;
-                            in_csi = false;
-                        }
-                        continue;
-                    }
-                    in_escape = false;
-                    continue;
-                }
-                result.push(c);
-            }
-            result
-        }
-
         let stripped = strip_ansi(&joined);
         let line_count = stripped.lines().count();
 
-        eprintln!("Joined view line count: {}", line_count);
+        eprintln!("Joined view line count: {line_count}");
         eprintln!("First 10 lines:");
         for (i, line) in stripped.lines().take(10).enumerate() {
-            eprintln!("  Line {}: {:?}", i, line);
+            eprintln!("  Line {i}: {line:?}");
         }
 
         // The joined output should have exactly 22 lines
@@ -551,15 +516,13 @@ mod tests {
         let first_line = stripped.lines().next().unwrap();
         assert!(
             first_line.starts_with("> [] Dashboard"),
-            "First line should start with Dashboard, got: {:?}",
-            first_line
+            "First line should start with Dashboard, got: {first_line:?}"
         );
 
         let second_line = stripped.lines().nth(1).unwrap();
         assert!(
             second_line.starts_with("  >_ Services"),
-            "Second line should start with Services, got: {:?}",
-            second_line
+            "Second line should start with Services, got: {second_line:?}"
         );
     }
 }

@@ -1290,8 +1290,8 @@ mod tests {
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].id, 4);
 
-        let warn_and_above: Vec<_> = stream.filter_by_level(LogLevel::Warn).collect();
-        assert_eq!(warn_and_above.len(), 2);
+        let warn_and_above = stream.filter_by_level(LogLevel::Warn).count();
+        assert_eq!(warn_and_above, 2);
     }
 
     #[test]
@@ -1302,12 +1302,12 @@ mod tests {
         stream.push(LogEntry::new(3, LogLevel::Info, "db::postgres", "query"));
 
         // Exact match
-        let api_handlers: Vec<_> = stream.filter_by_target("api::handlers").collect();
-        assert_eq!(api_handlers.len(), 1);
+        let api_handlers = stream.filter_by_target("api::handlers").count();
+        assert_eq!(api_handlers, 1);
 
         // Prefix match
-        let api_all: Vec<_> = stream.filter_by_target_prefix("api::").collect();
-        assert_eq!(api_all.len(), 2);
+        let api_all = stream.filter_by_target_prefix("api::").count();
+        assert_eq!(api_all, 2);
     }
 
     #[test]
@@ -1318,8 +1318,8 @@ mod tests {
         stream.push(LogEntry::new(3, LogLevel::Info, "job", "other").with_job_id(99));
         stream.push(LogEntry::new(4, LogLevel::Info, "system", "no job")); // No job_id
 
-        let job_42: Vec<_> = stream.filter_by_job(42).collect();
-        assert_eq!(job_42.len(), 2);
+        let job_42 = stream.filter_by_job(42).count();
+        assert_eq!(job_42, 2);
     }
 
     #[test]
@@ -1329,8 +1329,8 @@ mod tests {
         stream.push(LogEntry::new(2, LogLevel::Info, "deploy", "finished").with_deployment_id(100));
         stream.push(LogEntry::new(3, LogLevel::Info, "system", "other"));
 
-        let deploy_100: Vec<_> = stream.filter_by_deployment(100).collect();
-        assert_eq!(deploy_100.len(), 2);
+        let deploy_100 = stream.filter_by_deployment(100).count();
+        assert_eq!(deploy_100, 2);
     }
 
     #[test]
@@ -1340,12 +1340,12 @@ mod tests {
         stream.push(LogEntry::new(2, LogLevel::Info, "b", "Request processed"));
         stream.push(LogEntry::new(3, LogLevel::Info, "c", "User logged out"));
 
-        let user_msgs: Vec<_> = stream.search("user").collect();
-        assert_eq!(user_msgs.len(), 2);
+        let user_msgs = stream.search("user").count();
+        assert_eq!(user_msgs, 2);
 
         // Case insensitive
-        let user_msgs_upper: Vec<_> = stream.search("USER").collect();
-        assert_eq!(user_msgs_upper.len(), 2);
+        let user_msgs_upper = stream.search("USER").count();
+        assert_eq!(user_msgs_upper, 2);
     }
 
     #[test]

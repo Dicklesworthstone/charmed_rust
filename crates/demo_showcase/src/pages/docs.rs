@@ -449,7 +449,11 @@ impl DocsPage {
         let offset = viewport.y_offset();
         drop(viewport);
 
-        #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[allow(
+            clippy::cast_precision_loss,
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss
+        )]
         let percent = if total <= visible {
             100
         } else {

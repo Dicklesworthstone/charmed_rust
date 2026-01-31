@@ -2633,9 +2633,7 @@ mod e2e_navigation_tests {
         ];
 
         for (shortcut, expected_page) in pages {
-            runner.step(format!(
-                "Navigate to {expected_page:?} with '{shortcut}'"
-            ));
+            runner.step(format!("Navigate to {expected_page:?} with '{shortcut}'"));
             runner.press_key(shortcut);
             runner.assert_page(expected_page);
         }

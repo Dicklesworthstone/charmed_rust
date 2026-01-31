@@ -75,89 +75,89 @@ fn ansi_to_html(input: &str) -> String {
                     let seq = escape_buf.trim_start_matches('[').trim_end_matches('m');
                     for code in seq.split(';') {
                         match code {
-                        "0" => {
-                            // Reset
-                            if !current_styles.is_empty()
-                                || current_fg.is_some()
-                                || current_bg.is_some()
-                            {
-                                html.push_str("</span>");
-                            }
-                            current_styles.clear();
-                            current_fg = None;
-                            current_bg = None;
-                        }
-                        "1" => current_styles.push("bold"),
-                        "2" => current_styles.push("dim"),
-                        "3" => current_styles.push("italic"),
-                        "4" => current_styles.push("underline"),
-                        "9" => current_styles.push("strikethrough"),
-                        // Basic foreground colors (30-37)
-                        "30" => current_fg = Some("#000000".to_string()),
-                        "31" => current_fg = Some("#cc0000".to_string()),
-                        "32" => current_fg = Some("#00cc00".to_string()),
-                        "33" => current_fg = Some("#cccc00".to_string()),
-                        "34" => current_fg = Some("#0000cc".to_string()),
-                        "35" => current_fg = Some("#cc00cc".to_string()),
-                        "36" => current_fg = Some("#00cccc".to_string()),
-                        "37" => current_fg = Some("#cccccc".to_string()),
-                        // Bright foreground colors (90-97)
-                        "90" => current_fg = Some("#666666".to_string()),
-                        "91" => current_fg = Some("#ff0000".to_string()),
-                        "92" => current_fg = Some("#00ff00".to_string()),
-                        "93" => current_fg = Some("#ffff00".to_string()),
-                        "94" => current_fg = Some("#0000ff".to_string()),
-                        "95" => current_fg = Some("#ff00ff".to_string()),
-                        "96" => current_fg = Some("#00ffff".to_string()),
-                        "97" => current_fg = Some("#ffffff".to_string()),
-                        // Basic background colors (40-47)
-                        "40" => current_bg = Some("#000000".to_string()),
-                        "41" => current_bg = Some("#cc0000".to_string()),
-                        "42" => current_bg = Some("#00cc00".to_string()),
-                        "43" => current_bg = Some("#cccc00".to_string()),
-                        "44" => current_bg = Some("#0000cc".to_string()),
-                        "45" => current_bg = Some("#cc00cc".to_string()),
-                        "46" => current_bg = Some("#00cccc".to_string()),
-                        "47" => current_bg = Some("#cccccc".to_string()),
-                        // 256-color and RGB handled via 38;5;N or 38;2;R;G;B
-                        _ => {
-                            // Handle 256-color: 38;5;N or 48;5;N
-                            if let Some(rest) = seq.strip_prefix("38;5;") {
-                                if let Ok(n) = rest.parse::<u8>() {
-                                    current_fg = Some(ansi256_to_hex(n));
+                            "0" => {
+                                // Reset
+                                if !current_styles.is_empty()
+                                    || current_fg.is_some()
+                                    || current_bg.is_some()
+                                {
+                                    html.push_str("</span>");
                                 }
-                            } else if let Some(rest) = seq.strip_prefix("48;5;") {
-                                if let Ok(n) = rest.parse::<u8>() {
-                                    current_bg = Some(ansi256_to_hex(n));
-                                }
+                                current_styles.clear();
+                                current_fg = None;
+                                current_bg = None;
                             }
-                            // Handle RGB: 38;2;R;G;B or 48;2;R;G;B
-                            else if let Some(rest) = seq.strip_prefix("38;2;") {
-                                let parts: Vec<&str> = rest.split(';').collect();
-                                if parts.len() == 3 {
-                                    if let (Ok(r), Ok(g), Ok(b)) = (
-                                        parts[0].parse::<u8>(),
-                                        parts[1].parse::<u8>(),
-                                        parts[2].parse::<u8>(),
-                                    ) {
-                                        current_fg = Some(format!("#{r:02x}{g:02x}{b:02x}"));
+                            "1" => current_styles.push("bold"),
+                            "2" => current_styles.push("dim"),
+                            "3" => current_styles.push("italic"),
+                            "4" => current_styles.push("underline"),
+                            "9" => current_styles.push("strikethrough"),
+                            // Basic foreground colors (30-37)
+                            "30" => current_fg = Some("#000000".to_string()),
+                            "31" => current_fg = Some("#cc0000".to_string()),
+                            "32" => current_fg = Some("#00cc00".to_string()),
+                            "33" => current_fg = Some("#cccc00".to_string()),
+                            "34" => current_fg = Some("#0000cc".to_string()),
+                            "35" => current_fg = Some("#cc00cc".to_string()),
+                            "36" => current_fg = Some("#00cccc".to_string()),
+                            "37" => current_fg = Some("#cccccc".to_string()),
+                            // Bright foreground colors (90-97)
+                            "90" => current_fg = Some("#666666".to_string()),
+                            "91" => current_fg = Some("#ff0000".to_string()),
+                            "92" => current_fg = Some("#00ff00".to_string()),
+                            "93" => current_fg = Some("#ffff00".to_string()),
+                            "94" => current_fg = Some("#0000ff".to_string()),
+                            "95" => current_fg = Some("#ff00ff".to_string()),
+                            "96" => current_fg = Some("#00ffff".to_string()),
+                            "97" => current_fg = Some("#ffffff".to_string()),
+                            // Basic background colors (40-47)
+                            "40" => current_bg = Some("#000000".to_string()),
+                            "41" => current_bg = Some("#cc0000".to_string()),
+                            "42" => current_bg = Some("#00cc00".to_string()),
+                            "43" => current_bg = Some("#cccc00".to_string()),
+                            "44" => current_bg = Some("#0000cc".to_string()),
+                            "45" => current_bg = Some("#cc00cc".to_string()),
+                            "46" => current_bg = Some("#00cccc".to_string()),
+                            "47" => current_bg = Some("#cccccc".to_string()),
+                            // 256-color and RGB handled via 38;5;N or 38;2;R;G;B
+                            _ => {
+                                // Handle 256-color: 38;5;N or 48;5;N
+                                if let Some(rest) = seq.strip_prefix("38;5;") {
+                                    if let Ok(n) = rest.parse::<u8>() {
+                                        current_fg = Some(ansi256_to_hex(n));
+                                    }
+                                } else if let Some(rest) = seq.strip_prefix("48;5;") {
+                                    if let Ok(n) = rest.parse::<u8>() {
+                                        current_bg = Some(ansi256_to_hex(n));
                                     }
                                 }
-                            } else if let Some(rest) = seq.strip_prefix("48;2;") {
-                                let parts: Vec<&str> = rest.split(';').collect();
-                                if parts.len() == 3 {
-                                    if let (Ok(r), Ok(g), Ok(b)) = (
-                                        parts[0].parse::<u8>(),
-                                        parts[1].parse::<u8>(),
-                                        parts[2].parse::<u8>(),
-                                    ) {
-                                        current_bg = Some(format!("#{r:02x}{g:02x}{b:02x}"));
+                                // Handle RGB: 38;2;R;G;B or 48;2;R;G;B
+                                else if let Some(rest) = seq.strip_prefix("38;2;") {
+                                    let parts: Vec<&str> = rest.split(';').collect();
+                                    if parts.len() == 3 {
+                                        if let (Ok(r), Ok(g), Ok(b)) = (
+                                            parts[0].parse::<u8>(),
+                                            parts[1].parse::<u8>(),
+                                            parts[2].parse::<u8>(),
+                                        ) {
+                                            current_fg = Some(format!("#{r:02x}{g:02x}{b:02x}"));
+                                        }
+                                    }
+                                } else if let Some(rest) = seq.strip_prefix("48;2;") {
+                                    let parts: Vec<&str> = rest.split(';').collect();
+                                    if parts.len() == 3 {
+                                        if let (Ok(r), Ok(g), Ok(b)) = (
+                                            parts[0].parse::<u8>(),
+                                            parts[1].parse::<u8>(),
+                                            parts[2].parse::<u8>(),
+                                        ) {
+                                            current_bg = Some(format!("#{r:02x}{g:02x}{b:02x}"));
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
 
                     // Open a new span if we have styles
                     if !current_styles.is_empty() || current_fg.is_some() || current_bg.is_some() {
@@ -1171,7 +1171,11 @@ impl Model for App {
         ])
     }
 
-    #[allow(clippy::too_many_lines, clippy::items_after_statements, clippy::option_if_let_else)]
+    #[allow(
+        clippy::too_many_lines,
+        clippy::items_after_statements,
+        clippy::option_if_let_else
+    )]
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         // Handle window resize.
         // Cap width at max_width (explicit CLI flag) or AUTO_MAX_WIDTH (200)
@@ -2362,12 +2366,10 @@ mod tests {
         }))]);
 
         // Execute the batch command to get BatchMsg
-        if let Some(cmd) = batch_cmd {
-            if let Some(batch_msg) = cmd.execute() {
-                // Send the BatchMsg (or the SetTheme message directly for single command)
-                sim.send(batch_msg);
-                sim.run_until_empty();
-            }
+        if let Some(batch_msg) = batch_cmd.and_then(bubbletea::Cmd::execute) {
+            // Send the BatchMsg (or the SetTheme message directly for single command)
+            sim.send(batch_msg);
+            sim.run_until_empty();
         }
 
         assert_eq!(sim.model().theme_preset(), ThemePreset::Light);
@@ -2407,12 +2409,10 @@ mod tests {
         ]);
 
         // Execute the batch command to get BatchMsg
-        if let Some(cmd) = batch_cmd {
-            if let Some(batch_msg) = cmd.execute() {
-                // BatchMsg contains the two commands
-                sim.send(batch_msg);
-                sim.run_until_empty();
-            }
+        if let Some(batch_msg) = batch_cmd.and_then(bubbletea::Cmd::execute) {
+            // BatchMsg contains the two commands
+            sim.send(batch_msg);
+            sim.run_until_empty();
         }
 
         // Both should have been processed
@@ -2443,17 +2443,14 @@ mod tests {
             height: 40,
         }));
         let init_processed = sim.run_until_empty();
-        eprintln!("After init: processed {} messages", init_processed);
+        eprintln!("After init: processed {init_processed} messages");
 
         assert_eq!(sim.model().theme_preset(), ThemePreset::Dark);
 
         // Navigate to Settings page with '8' key
         sim.send(Message::new(KeyMsg::from_char('8')));
         let nav_processed = sim.run_until_empty();
-        eprintln!(
-            "After nav to Settings: processed {} messages",
-            nav_processed
-        );
+        eprintln!("After nav to Settings: processed {nav_processed} messages");
         assert_eq!(sim.model().current_page(), Page::Settings);
 
         // Tab to switch to Themes section
@@ -2464,12 +2461,12 @@ mod tests {
             paste: false,
         }));
         let tab_processed = sim.run_until_empty();
-        eprintln!("After Tab: processed {} messages", tab_processed);
+        eprintln!("After Tab: processed {tab_processed} messages");
 
         // 'j' to move down to Light theme
         sim.send(Message::new(KeyMsg::from_char('j')));
         let j_processed = sim.run_until_empty();
-        eprintln!("After j: processed {} messages", j_processed);
+        eprintln!("After j: processed {j_processed} messages");
 
         // Enter to apply theme - this returns a batch command!
         sim.send(Message::new(KeyMsg {
@@ -2493,10 +2490,7 @@ mod tests {
 
         // Process all remaining messages
         let final_processed = sim.run_until_empty();
-        eprintln!(
-            "After run_until_empty: processed {} messages",
-            final_processed
-        );
+        eprintln!("After run_until_empty: processed {final_processed} messages");
 
         // Theme should now be Light
         assert_eq!(
@@ -2598,8 +2592,8 @@ mod tests {
         }
 
         let total_lines = view.lines().count();
-        println!("Total lines: {}", total_lines);
-        println!("Max visible width: {}", max_visible_width);
+        println!("Total lines: {total_lines}");
+        println!("Max visible width: {max_visible_width}");
 
         if !problematic_lines.is_empty() {
             println!("\n!!! LINES EXCEEDING 119 COLUMNS !!!\n");
@@ -2627,14 +2621,11 @@ mod tests {
         );
         assert!(view.contains("Dashboard"), "Sidebar should be visible");
 
-        println!(
-            "✓ All {} lines fit within 119 columns (max: {})",
-            total_lines, max_visible_width
-        );
+        println!("✓ All {total_lines} lines fit within 119 columns (max: {max_visible_width})");
 
         // Check for trailing newline
         let has_trailing_newline = view.ends_with('\n');
-        println!("Has trailing newline: {}", has_trailing_newline);
+        println!("Has trailing newline: {has_trailing_newline}");
 
         // Count actual newlines in the view
         let newline_count = view.chars().filter(|&c| c == '\n').count();
@@ -2651,8 +2642,9 @@ mod tests {
         }
     }
 
-    /// Debug test: Analyze the internal components of view() (bd-pty1)
+    /// Debug test: Analyze the internal components of `view()` (bd-pty1)
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn debug_view_component_widths() {
         let mut app = App::new();
         app.width = 120;
@@ -2681,11 +2673,7 @@ mod tests {
         println!("=== COMPONENT WIDTH ANALYSIS ===\n");
 
         // Header
-        let header_max_width = header
-            .lines()
-            .map(|l| lipgloss::width(l))
-            .max()
-            .unwrap_or(0);
+        let header_max_width = header.lines().map(lipgloss::width).max().unwrap_or(0);
         println!(
             "Header: {} lines, max width = {} (expected ~{})",
             header.lines().count(),
@@ -2694,11 +2682,7 @@ mod tests {
         );
 
         // Footer
-        let footer_max_width = footer
-            .lines()
-            .map(|l| lipgloss::width(l))
-            .max()
-            .unwrap_or(0);
+        let footer_max_width = footer.lines().map(lipgloss::width).max().unwrap_or(0);
         println!(
             "Footer: {} lines, max width = {} (expected ~{})",
             footer.lines().count(),
@@ -2707,11 +2691,7 @@ mod tests {
         );
 
         // Sidebar
-        let sidebar_max_width = sidebar
-            .lines()
-            .map(|l| lipgloss::width(l))
-            .max()
-            .unwrap_or(0);
+        let sidebar_max_width = sidebar.lines().map(lipgloss::width).max().unwrap_or(0);
         println!(
             "Sidebar: {} lines, max width = {} (expected {})",
             sidebar.lines().count(),
@@ -2720,11 +2700,7 @@ mod tests {
         );
 
         // Page content
-        let page_max_width = page_content
-            .lines()
-            .map(|l| lipgloss::width(l))
-            .max()
-            .unwrap_or(0);
+        let page_max_width = page_content.lines().map(lipgloss::width).max().unwrap_or(0);
         println!(
             "Page content: {} lines, max width = {} (expected {})",
             page_content.lines().count(),
@@ -2734,11 +2710,7 @@ mod tests {
 
         // Join horizontal: sidebar + page_content
         let main_area = lipgloss::join_horizontal(Position::Top, &[&sidebar, &page_content]);
-        let main_area_max_width = main_area
-            .lines()
-            .map(|l| lipgloss::width(l))
-            .max()
-            .unwrap_or(0);
+        let main_area_max_width = main_area.lines().map(lipgloss::width).max().unwrap_or(0);
         println!(
             "Main area (sidebar + content): {} lines, max width = {} (expected {})",
             main_area.lines().count(),
@@ -2750,8 +2722,7 @@ mod tests {
         let safe_width = app.width.saturating_sub(1);
         if main_area_max_width > safe_width {
             println!(
-                "\n!!! MAIN AREA EXCEEDS SAFE WIDTH ({} > {}) !!!",
-                main_area_max_width, safe_width
+                "\n!!! MAIN AREA EXCEEDS SAFE WIDTH ({main_area_max_width} > {safe_width}) !!!"
             );
 
             // Find offending lines
@@ -2765,11 +2736,7 @@ mod tests {
 
         // Final join
         let base_view = lipgloss::join_vertical(Position::Left, &[&header, &main_area, &footer]);
-        let base_max_width = base_view
-            .lines()
-            .map(|l| lipgloss::width(l))
-            .max()
-            .unwrap_or(0);
+        let base_max_width = base_view.lines().map(lipgloss::width).max().unwrap_or(0);
         println!(
             "\nBefore truncation: {} lines, max width = {}",
             base_view.lines().count(),
@@ -2778,22 +2745,13 @@ mod tests {
 
         // After truncation
         let final_view = truncate_to_width(&base_view, safe_width);
-        let final_max_width = final_view
-            .lines()
-            .map(|l| lipgloss::width(l))
-            .max()
-            .unwrap_or(0);
-        println!(
-            "After truncation to {}: max width = {}",
-            safe_width, final_max_width
-        );
+        let final_max_width = final_view.lines().map(lipgloss::width).max().unwrap_or(0);
+        println!("After truncation to {safe_width}: max width = {final_max_width}");
 
         // Assertions
         assert!(
             final_max_width <= safe_width,
-            "Final view width {} exceeds safe width {}",
-            final_max_width,
-            safe_width
+            "Final view width {final_max_width} exceeds safe width {safe_width}"
         );
     }
 }

@@ -76,7 +76,7 @@ pub struct Cli {
     /// Force color output off (ASCII mode)
     ///
     /// Respects `NO_COLOR` environment variable per spec
-    #[arg(long, env = "NO_COLOR")]
+    #[arg(long)]
     pub no_color: bool,
 
     /// Force color output on (overrides `NO_COLOR`)

@@ -1689,7 +1689,7 @@ mod tests {
         let first_job_id = page.jobs[0].id;
 
         // Filter by ID
-        page.query = format!("#{}", first_job_id);
+        page.query = format!("#{first_job_id}");
         page.apply_filter_and_sort();
 
         // Should find the job with that ID
@@ -2152,8 +2152,7 @@ mod tests {
         let cell = JobsPage::format_progress_cell(&job);
         assert!(
             cell.contains("queued"),
-            "Queued job should show 'queued': {}",
-            cell
+            "Queued job should show 'queued': {cell}"
         );
     }
 
@@ -2174,8 +2173,7 @@ mod tests {
         let cell = JobsPage::format_progress_cell(&job);
         assert!(
             cell.contains("50%"),
-            "Running job should show percentage: {}",
-            cell
+            "Running job should show percentage: {cell}"
         );
     }
 
@@ -2196,8 +2194,7 @@ mod tests {
         let cell = JobsPage::format_progress_cell(&job);
         assert!(
             cell.contains("done"),
-            "Completed job should show 'done': {}",
-            cell
+            "Completed job should show 'done': {cell}"
         );
     }
 
@@ -2218,8 +2215,7 @@ mod tests {
         let cell = JobsPage::format_progress_cell(&job);
         assert!(
             cell.contains("error"),
-            "Failed job should show 'error': {}",
-            cell
+            "Failed job should show 'error': {cell}"
         );
     }
 
@@ -2240,8 +2236,7 @@ mod tests {
         let cell = JobsPage::format_progress_cell(&job);
         assert!(
             cell.contains("cancel"),
-            "Cancelled job should show 'cancel': {}",
-            cell
+            "Cancelled job should show 'cancel': {cell}"
         );
     }
 
@@ -2282,8 +2277,7 @@ mod tests {
         let eta_str = eta.unwrap();
         assert!(
             eta_str.starts_with('~'),
-            "ETA should start with ~: {}",
-            eta_str
+            "ETA should start with ~: {eta_str}"
         );
     }
 
@@ -2371,8 +2365,7 @@ mod tests {
         let bar = JobsPage::render_progress_bar(0, 25, &theme);
         assert!(
             bar.contains("0%"),
-            "Zero progress bar should show 0%: {}",
-            bar
+            "Zero progress bar should show 0%: {bar}"
         );
     }
 
@@ -2382,8 +2375,7 @@ mod tests {
         let bar = JobsPage::render_progress_bar(50, 25, &theme);
         assert!(
             bar.contains("50%"),
-            "50% progress bar should show 50%: {}",
-            bar
+            "50% progress bar should show 50%: {bar}"
         );
     }
 
@@ -2393,8 +2385,7 @@ mod tests {
         let bar = JobsPage::render_progress_bar(100, 25, &theme);
         assert!(
             bar.contains("100%"),
-            "100% progress bar should show 100%: {}",
-            bar
+            "100% progress bar should show 100%: {bar}"
         );
     }
 
@@ -2404,8 +2395,7 @@ mod tests {
         let bar = JobsPage::render_progress_bar(150, 25, &theme);
         assert!(
             bar.contains("100%"),
-            "Over 100% should clamp to 100%: {}",
-            bar
+            "Over 100% should clamp to 100%: {bar}"
         );
     }
 
@@ -2416,8 +2406,7 @@ mod tests {
         // Very narrow bar should still show percentage
         assert!(
             bar.contains("50"),
-            "Narrow bar should show percentage: {}",
-            bar
+            "Narrow bar should show percentage: {bar}"
         );
     }
 
@@ -2439,8 +2428,7 @@ mod tests {
         let inline = JobsPage::render_inline_progress(&job, &theme);
         assert!(
             inline.contains("queue") || inline.contains("◌"),
-            "Queued should show queue indicator: {}",
-            inline
+            "Queued should show queue indicator: {inline}"
         );
     }
 
@@ -2462,8 +2450,7 @@ mod tests {
         let inline = JobsPage::render_inline_progress(&job, &theme);
         assert!(
             inline.contains("50%") || inline.contains("█") || inline.contains("░"),
-            "Running should show progress bar: {}",
-            inline
+            "Running should show progress bar: {inline}"
         );
     }
 
@@ -2485,8 +2472,7 @@ mod tests {
         let inline = JobsPage::render_inline_progress(&job, &theme);
         assert!(
             inline.contains("✓") || inline.contains("Completed"),
-            "Completed should show success: {}",
-            inline
+            "Completed should show success: {inline}"
         );
     }
 
@@ -2508,8 +2494,7 @@ mod tests {
         let inline = JobsPage::render_inline_progress(&job, &theme);
         assert!(
             inline.contains("✕") || inline.contains("Database error"),
-            "Failed should show error: {}",
-            inline
+            "Failed should show error: {inline}"
         );
     }
 
@@ -2744,8 +2729,7 @@ mod tests {
         let duration = JobsPage::format_duration_cell(&job);
         assert!(
             duration.starts_with("⏱"),
-            "Running job should have timer icon: {}",
-            duration
+            "Running job should have timer icon: {duration}"
         );
     }
 

@@ -916,7 +916,7 @@ mod tests {
     #[test]
     fn animate_to_very_close_value_no_animation() {
         let mut value = AnimatedValue::new(50.0);
-        value.animate_to(50.0 + REST_THRESHOLD * 0.5); // Within threshold
+        value.animate_to(REST_THRESHOLD.mul_add(0.5, 50.0)); // Within threshold
         assert!(
             !value.is_animating(),
             "should not animate for sub-threshold difference"

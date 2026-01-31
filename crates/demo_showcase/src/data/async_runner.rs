@@ -732,7 +732,10 @@ mod tests {
         ) = (&result1, &result2)
         {
             // Different seeds should produce different metrics
-            assert_ne!(m1.0, m2.0);
+            assert!(
+                (m1.0 - m2.0).abs() > f64::EPSILON,
+                "Different seeds should produce different metrics"
+            );
         } else {
             panic!("Expected MetricsFetched");
         }

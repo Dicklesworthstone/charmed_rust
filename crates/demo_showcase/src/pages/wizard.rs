@@ -14,7 +14,7 @@
 //!
 //! Recovery flows allow retrying or backing out safely.
 
-use bubbletea::{batch, Cmd, KeyMsg, KeyType, Message};
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, batch};
 // Note: huh components would be used in a more complete implementation
 // For now, we implement a custom form UI to demonstrate the patterns
 use lipgloss::Style;

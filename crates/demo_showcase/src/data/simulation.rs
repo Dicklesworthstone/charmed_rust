@@ -1546,7 +1546,7 @@ mod tests {
     fn live_metric_history_limited_to_10() {
         let mut metric = LiveMetric::new(100.0, 80.0, 50.0, true);
         for i in 0..20 {
-            metric.update(i as f64);
+            metric.update(f64::from(i));
         }
         // History should be exactly 10 (initial + 9 updates that fit)
         // Actually it starts with 1 and grows to 10 max
@@ -1558,7 +1558,7 @@ mod tests {
         let mut metric = LiveMetric::new(10.0, 50.0, 100.0, false);
         // Steadily increasing values
         for i in 0..10 {
-            metric.update(10.0 + i as f64 * 5.0);
+            metric.update(f64::from(i).mul_add(5.0, 10.0));
         }
         assert_eq!(metric.trend, MetricTrend::Up);
     }
@@ -1568,7 +1568,7 @@ mod tests {
         let mut metric = LiveMetric::new(100.0, 50.0, 20.0, true);
         // Steadily decreasing values
         for i in 0..10 {
-            metric.update(100.0 - i as f64 * 5.0);
+            metric.update(f64::from(i).mul_add(-5.0, 100.0));
         }
         assert_eq!(metric.trend, MetricTrend::Down);
     }
@@ -1644,7 +1644,10 @@ mod tests {
         }
 
         // Value should have changed (very unlikely to be exactly the same)
-        assert_ne!(sim.metrics.requests_per_sec.value, initial_value);
+        assert!(
+            (sim.metrics.requests_per_sec.value - initial_value).abs() > f64::EPSILON,
+            "requests_per_sec should change after ticks"
+        );
     }
 
     #[test]

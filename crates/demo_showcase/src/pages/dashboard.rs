@@ -467,28 +467,44 @@ impl DashboardPage {
         let bounds = self.card_bounds.read();
 
         // Copy bounds to allow early drop of RwLock guard
-        let (services, jobs, deployments, metrics) =
-            (bounds.services, bounds.jobs, bounds.deployments, bounds.metrics);
+        let (services, jobs, deployments, metrics) = (
+            bounds.services,
+            bounds.jobs,
+            bounds.deployments,
+            bounds.metrics,
+        );
         drop(bounds);
 
         // Check each card's bounds
         if let Some((y1, y2, x1, x2)) = services
-            && y >= y1 && y < y2 && x >= x1 && x < x2
+            && y >= y1
+            && y < y2
+            && x >= x1
+            && x < x2
         {
             return DashboardCard::Services;
         }
         if let Some((y1, y2, x1, x2)) = jobs
-            && y >= y1 && y < y2 && x >= x1 && x < x2
+            && y >= y1
+            && y < y2
+            && x >= x1
+            && x < x2
         {
             return DashboardCard::Jobs;
         }
         if let Some((y1, y2, x1, x2)) = deployments
-            && y >= y1 && y < y2 && x >= x1 && x < x2
+            && y >= y1
+            && y < y2
+            && x >= x1
+            && x < x2
         {
             return DashboardCard::Deployments;
         }
         if let Some((y1, y2, x1, x2)) = metrics
-            && y >= y1 && y < y2 && x >= x1 && x < x2
+            && y >= y1
+            && y < y2
+            && x >= x1
+            && x < x2
         {
             return DashboardCard::Metrics;
         }
@@ -624,16 +640,20 @@ impl DashboardPage {
         let uptime_styled = theme.muted_style().render(&uptime);
 
         // SLA countdown with visual emphasis (bd-39hl)
-        let sla_styled = self.incident_sla_seconds.map_or_else(String::new, |sla_secs| {
-            let sla_text = format!("SLA: {}", Self::format_sla_countdown(sla_secs));
-            let urgency = Self::sla_urgency(sla_secs);
-            match urgency {
-                SlaUrgency::Breached => theme.error_style().bold().render(&format!("⚠ {sla_text}")),
-                SlaUrgency::Critical => theme.error_style().render(&format!("⚠ {sla_text}")),
-                SlaUrgency::Warning => theme.warning_style().render(&sla_text),
-                SlaUrgency::Normal => theme.muted_style().render(&sla_text),
-            }
-        });
+        let sla_styled = self
+            .incident_sla_seconds
+            .map_or_else(String::new, |sla_secs| {
+                let sla_text = format!("SLA: {}", Self::format_sla_countdown(sla_secs));
+                let urgency = Self::sla_urgency(sla_secs);
+                match urgency {
+                    SlaUrgency::Breached => {
+                        theme.error_style().bold().render(&format!("⚠ {sla_text}"))
+                    }
+                    SlaUrgency::Critical => theme.error_style().render(&format!("⚠ {sla_text}")),
+                    SlaUrgency::Warning => theme.warning_style().render(&sla_text),
+                    SlaUrgency::Normal => theme.muted_style().render(&sla_text),
+                }
+            });
 
         // Compose status bar
         let content = if sla_styled.is_empty() {
@@ -1716,7 +1736,7 @@ mod tests {
         let _ = page.view(100, 40, &theme);
 
         // Card bounds should now be populated
-        let bounds = page.card_bounds.read();
+        let bounds = page.card_bounds.read().clone();
         assert!(bounds.services.is_some(), "Services bounds should be set");
         assert!(bounds.jobs.is_some(), "Jobs bounds should be set");
         assert!(
