@@ -8,6 +8,7 @@ authors.workspace = true
 description = "Common TUI components for bubbletea applications"
 keywords = ["tui", "terminal", "widgets", "components", "cli"]
 categories = ["command-line-interface"]
+autoexamples = false
 
 [dependencies]
 bubbletea = { path = "../bubbletea" }
@@ -25,6 +26,14 @@ proptest.workspace = true
 [[bench]]
 name = "bubbles_benchmarks"
 harness = false
+
+[[example]]
+name = "bubbles_spinner"
+path = "examples/spinner.rs"
+
+[[example]]
+name = "bubbles_textinput"
+path = "examples/textinput.rs"
 
 [lints]
 workspace = true
