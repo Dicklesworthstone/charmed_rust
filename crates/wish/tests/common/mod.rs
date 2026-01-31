@@ -53,7 +53,7 @@ impl TestServer {
 
     pub async fn stop(self) {
         self.handle.abort();
-        let _ = self.handle.await;
+        let _ = timeout(DEFAULT_TIMEOUT, self.handle).await;
     }
 }
 
