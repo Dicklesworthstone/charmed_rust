@@ -398,6 +398,105 @@ impl TextArea {
         self.row
     }
 
+    /// Returns the current cursor column (0-indexed, in characters).
+    #[must_use]
+    pub fn cursor_col(&self) -> usize {
+        self.col
+    }
+
+    /// Returns the current cursor position (row, col) in character indices.
+    #[must_use]
+    pub fn cursor_pos(&self) -> (usize, usize) {
+        (self.row, self.col)
+    }
+
+    /// Returns the cursor position as a byte offset into the string returned by [`Self::value`].
+    #[must_use]
+    pub fn cursor_byte_offset(&self) -> usize {
+        if self.value.is_empty() {
+            return 0;
+        }
+
+        let row = self.row.min(self.value.len().saturating_sub(1));
+        let col = self.col.min(self.value[row].len());
+
+        let mut offset = 0usize;
+
+        for line in &self.value[..row] {
+            offset = offset.saturating_add(line.iter().map(|c| c.len_utf8()).sum::<usize>());
+            offset = offset.saturating_add(1); // '\n'
+        }
+
+        offset.saturating_add(
+            self.value[row][..col]
+                .iter()
+                .map(|c| c.len_utf8())
+                .sum::<usize>(),
+        )
+    }
+
+    /// Sets the cursor position based on a byte offset into the string returned by [`Self::value`].
+    ///
+    /// If the offset points to the newline separator between lines, the cursor is placed at the end
+    /// of the preceding line. Offsets beyond the end of the buffer clamp to the end.
+    pub fn set_cursor_byte_offset(&mut self, offset: usize) {
+        if self.value.is_empty() {
+            self.value = vec![Vec::new()];
+        }
+
+        fn col_for_byte_offset(line: &[char], byte_offset: usize) -> usize {
+            let mut col = 0usize;
+            let mut used = 0usize;
+
+            for c in line {
+                let len = c.len_utf8();
+                if used.saturating_add(len) > byte_offset {
+                    break;
+                }
+                used = used.saturating_add(len);
+                col = col.saturating_add(1);
+            }
+
+            col
+        }
+
+        let mut remaining = offset;
+
+        for (idx, line) in self.value.iter().enumerate() {
+            let line_bytes = line.iter().map(|c| c.len_utf8()).sum::<usize>();
+
+            if remaining <= line_bytes {
+                self.row = idx;
+                let col = col_for_byte_offset(line, remaining);
+                self.set_cursor_col(col);
+                return;
+            }
+
+            remaining = remaining.saturating_sub(line_bytes);
+
+            if idx + 1 < self.value.len() {
+                // Consume the '\n' separator between lines.
+                if remaining == 0 {
+                    self.row = idx;
+                    self.set_cursor_col(line.len());
+                    return;
+                }
+
+                remaining = remaining.saturating_sub(1);
+                if remaining == 0 {
+                    self.row = idx + 1;
+                    self.set_cursor_col(0);
+                    return;
+                }
+            }
+        }
+
+        // Clamp to end.
+        self.row = self.value.len().saturating_sub(1);
+        let last_len = self.value[self.row].len();
+        self.set_cursor_col(last_len);
+    }
+
     /// Moves cursor down one line.
     pub fn cursor_down(&mut self) {
         if self.row < self.value.len() - 1 {
