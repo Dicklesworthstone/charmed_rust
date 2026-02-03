@@ -281,6 +281,12 @@ pub enum KeyType {
     F19 = -52,
     /// F20.
     F20 = -53,
+    /// Shift+Enter.
+    ShiftEnter = -54,
+    /// Ctrl+Enter.
+    CtrlEnter = -55,
+    /// Ctrl+Shift+Enter.
+    CtrlShiftEnter = -56,
 }
 
 impl fmt::Display for KeyType {
@@ -372,6 +378,9 @@ impl fmt::Display for KeyType {
             KeyType::F18 => "f18",
             KeyType::F19 => "f19",
             KeyType::F20 => "f20",
+            KeyType::ShiftEnter => "shift+enter",
+            KeyType::CtrlEnter => "ctrl+enter",
+            KeyType::CtrlShiftEnter => "ctrl+shift+enter",
         };
         write!(f, "{}", name)
     }
@@ -505,6 +514,9 @@ pub fn from_crossterm_key(
         }
         KeyCode::Char(' ') => (KeyType::Space, Vec::new()),
         KeyCode::Char(c) => (KeyType::Runes, vec![c]),
+        KeyCode::Enter if ctrl && shift => (KeyType::CtrlShiftEnter, Vec::new()),
+        KeyCode::Enter if ctrl => (KeyType::CtrlEnter, Vec::new()),
+        KeyCode::Enter if shift => (KeyType::ShiftEnter, Vec::new()),
         KeyCode::Enter => (KeyType::Enter, Vec::new()),
         KeyCode::Backspace => (KeyType::Backspace, Vec::new()),
         KeyCode::Tab if shift => (KeyType::ShiftTab, Vec::new()),
