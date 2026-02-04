@@ -18,6 +18,14 @@
 //! - **Spring**: A damped harmonic oscillator for smooth, realistic motion
 //! - **Projectile**: A simple projectile simulator for particles and projectiles
 //!
+//! ## Role in `charmed_rust`
+//!
+//! Harmonica is a foundational crate that supplies physics-based motion used across
+//! the ecosystem:
+//! - **bubbletea** uses it for time-based animation helpers.
+//! - **bubbles** uses it to animate components like progress bars.
+//! - **demo_showcase** uses it to demonstrate smooth, springy UI motion.
+//!
 //! ## Spring Example
 //!
 //! ```rust

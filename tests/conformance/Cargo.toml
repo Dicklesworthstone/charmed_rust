@@ -8,15 +8,15 @@ description = "Conformance testing harness for charmed_rust crates"
 
 [dependencies]
 # Internal crates under test
-harmonica = { path = "../../crates/harmonica" }
-lipgloss = { path = "../../crates/lipgloss" }
-bubbletea = { path = "../../crates/bubbletea" }
-bubbles = { path = "../../crates/bubbles" }
-charmed_log = { path = "../../crates/charmed_log" }
-glamour = { path = "../../crates/glamour", features = ["syntax-highlighting"] }
-huh = { path = "../../crates/huh" }
-glow = { path = "../../crates/glow" }
-wish = { path = "../../crates/wish", optional = true }
+harmonica = { package = "charmed-harmonica", path = "../../crates/harmonica" }
+lipgloss = { package = "charmed-lipgloss", path = "../../crates/lipgloss" }
+bubbletea = { package = "charmed-bubbletea", path = "../../crates/bubbletea" }
+bubbles = { package = "charmed-bubbles", path = "../../crates/bubbles" }
+charmed_log = { package = "charmed-log", path = "../../crates/charmed_log" }
+glamour = { package = "charmed-glamour", path = "../../crates/glamour", features = ["syntax-highlighting"] }
+huh = { package = "charmed-huh", path = "../../crates/huh" }
+glow = { package = "charmed-glow", path = "../../crates/glow" }
+wish = { package = "charmed-wish", path = "../../crates/wish", optional = true }
 
 # Test infrastructure
 serde = { version = "1", features = ["derive"] }

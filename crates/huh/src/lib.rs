@@ -14,6 +14,14 @@
 //! - Grouped form fields
 //! - Accessible, keyboard-navigable interfaces
 //!
+//! ## Role in `charmed_rust`
+//!
+//! Huh is the form and prompt layer built on bubbletea and bubbles:
+//! - **bubbletea** provides the runtime and update loop.
+//! - **bubbles** supplies reusable widgets (text input, list, etc.).
+//! - **lipgloss** handles consistent styling and themes.
+//! - **demo_showcase** uses huh to demonstrate multi-step workflows.
+//!
 //! ## Example
 //!
 //! ```rust,ignore

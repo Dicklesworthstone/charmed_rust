@@ -22,22 +22,23 @@ edition = "2024"
 rust-version = "1.85"
 license = "MIT"
 repository = "https://github.com/Dicklesworthstone/charmed_rust"
+homepage = "https://github.com/Dicklesworthstone/charmed_rust"
 authors = ["Jeffrey Emanuel"]
 
 [workspace.dependencies]
 # Internal crates (for workspace members to depend on each other)
-harmonica = { path = "crates/harmonica" }
-lipgloss = { path = "crates/lipgloss" }
-charmed_log = { path = "crates/charmed_log" }
-bubbletea-macros = { path = "crates/bubbletea-macros" }
-bubbletea = { path = "crates/bubbletea" }
-glamour = { path = "crates/glamour" }
-bubbles = { path = "crates/bubbles" }
-huh = { path = "crates/huh" }
-wish = { path = "crates/wish" }
-glow = { path = "crates/glow" }
-charmed-wasm = { path = "crates/charmed-wasm" }
-demo_showcase = { path = "crates/demo_showcase" }
+harmonica = { package = "charmed-harmonica", path = "crates/harmonica", version = "0.1.0" }
+lipgloss = { package = "charmed-lipgloss", path = "crates/lipgloss", version = "0.1.0" }
+charmed_log = { package = "charmed-log", path = "crates/charmed_log", version = "0.1.0" }
+bubbletea-macros = { package = "charmed-bubbletea-macros", path = "crates/bubbletea-macros", version = "0.1.0" }
+bubbletea = { package = "charmed-bubbletea", path = "crates/bubbletea", version = "0.1.0" }
+glamour = { package = "charmed-glamour", path = "crates/glamour", version = "0.1.0" }
+bubbles = { package = "charmed-bubbles", path = "crates/bubbles", version = "0.1.0" }
+huh = { package = "charmed-huh", path = "crates/huh", version = "0.1.0" }
+wish = { package = "charmed-wish", path = "crates/wish", version = "0.1.0" }
+glow = { package = "charmed-glow", path = "crates/glow", version = "0.1.0" }
+charmed-wasm = { path = "crates/charmed-wasm", version = "0.1.0" }
+demo_showcase = { package = "charmed-demo-showcase", path = "crates/demo_showcase", version = "0.1.0" }
 
 # Terminal & TUI
 crossterm = "0.29"

@@ -1,19 +1,25 @@
 [package]
-name = "bubbles"
+name = "charmed-bubbles"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/charmed-bubbles"
 description = "Common TUI components for bubbletea applications"
 keywords = ["tui", "terminal", "widgets", "components", "cli"]
 categories = ["command-line-interface"]
 autoexamples = false
 
+[lib]
+name = "bubbles"
+
 [dependencies]
-bubbletea = { path = "../bubbletea" }
-lipgloss = { path = "../lipgloss" }
-harmonica = { path = "../harmonica" }
+bubbletea = { workspace = true }
+lipgloss = { workspace = true }
+harmonica = { workspace = true }
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
 parking_lot = "0.12"

@@ -26,13 +26,13 @@ publish = false
 
 [workspace.dependencies]
 # Internal crates from parent project
-bubbletea = { path = "../crates/bubbletea" }
-bubbles = { path = "../crates/bubbles" }
-lipgloss = { path = "../crates/lipgloss" }
-glamour = { path = "../crates/glamour" }
-huh = { path = "../crates/huh" }
-wish = { path = "../crates/wish" }
-harmonica = { path = "../crates/harmonica" }
+bubbletea = { package = "charmed-bubbletea", path = "../crates/bubbletea" }
+bubbles = { package = "charmed-bubbles", path = "../crates/bubbles" }
+lipgloss = { package = "charmed-lipgloss", path = "../crates/lipgloss" }
+glamour = { package = "charmed-glamour", path = "../crates/glamour" }
+huh = { package = "charmed-huh", path = "../crates/huh" }
+wish = { package = "charmed-wish", path = "../crates/wish" }
+harmonica = { package = "charmed-harmonica", path = "../crates/harmonica" }
 
 # Common dependencies
 anyhow = "1.0"

@@ -4,10 +4,15 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/charmed-wasm"
 description = "Terminal UI components for the web - lipgloss styling compiled to WebAssembly"
+keywords = ["wasm", "web", "terminal", "tui", "lipgloss"]
 
 [lib]
+name = "charmed_wasm"
 crate-type = ["cdylib", "rlib"]
 
 [features]
@@ -32,7 +37,7 @@ web-sys = { version = "0.3", features = [
 ]}
 
 # Re-export lipgloss with wasm feature
-lipgloss = { path = "../lipgloss", default-features = false, features = ["wasm"] }
+lipgloss = { package = "charmed-lipgloss", path = "../lipgloss", version = "0.1.0", default-features = false, features = ["wasm"] }
 
 # Better error messages in browser
 console_error_panic_hook = { version = "0.1", optional = true }

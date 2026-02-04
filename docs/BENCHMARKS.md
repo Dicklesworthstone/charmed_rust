@@ -81,16 +81,16 @@ Run benchmarks for a specific crate:
 
 ```bash
 # Lipgloss (style and layout)
-cargo bench -p lipgloss
+cargo bench -p charmed-lipgloss
 
 # Bubbletea (runtime and messages)
-cargo bench -p bubbletea
+cargo bench -p charmed-bubbletea
 
 # Glamour (markdown rendering)
-cargo bench -p glamour
+cargo bench -p charmed-glamour
 
 # Bubbles (TUI components)
-cargo bench -p bubbles
+cargo bench -p charmed-bubbles
 ```
 
 ### Specific Benchmark

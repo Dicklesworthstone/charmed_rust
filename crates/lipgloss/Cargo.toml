@@ -1,11 +1,19 @@
 [package]
-name = "lipgloss"
+name = "charmed-lipgloss"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/charmed-lipgloss"
 description = "Style definitions for terminal applications with support for colors, borders, and layout"
+keywords = ["tui", "terminal", "style", "ansi", "css"]
+categories = ["command-line-interface", "text-processing"]
+
+[lib]
+name = "lipgloss"
 
 [dependencies]
 # Core dependencies (always included)

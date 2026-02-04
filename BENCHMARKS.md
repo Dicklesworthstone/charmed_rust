@@ -6,7 +6,7 @@ results here when running benches locally or in CI.
 ## Running
 
 ```bash
-cargo bench -p lipgloss --bench lipgloss_benchmarks
+cargo bench -p charmed-lipgloss --bench lipgloss_benchmarks
 ```
 
 ## lipgloss

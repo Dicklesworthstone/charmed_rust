@@ -318,53 +318,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bubbles"
-version = "0.1.0"
-dependencies = [
- "bubbletea",
- "criterion",
- "harmonica",
- "lipgloss",
- "parking_lot",
- "proptest",
- "regex",
- "unicode-segmentation",
- "unicode-width 0.2.2",
-]
-
-[[package]]
-name = "bubbletea"
-version = "0.1.0"
-dependencies = [
- "bubbles",
- "bubbletea-macros",
- "criterion",
- "crossterm",
- "futures",
- "lipgloss",
- "parking_lot",
- "proptest",
- "rayon",
- "thiserror 2.0.18",
- "tokio",
- "tokio-util",
- "tracing",
-]
-
-[[package]]
-name = "bubbletea-macros"
-version = "0.1.0"
-dependencies = [
- "bubbletea",
- "darling",
- "proc-macro-error2",
- "proc-macro2",
- "quote",
- "syn",
- "trybuild",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -437,12 +390,183 @@ dependencies = [
 ]
 
 [[package]]
+name = "charmed-bubbles"
+version = "0.1.0"
+dependencies = [
+ "charmed-bubbletea",
+ "charmed-harmonica",
+ "charmed-lipgloss",
+ "criterion",
+ "parking_lot",
+ "proptest",
+ "regex",
+ "unicode-segmentation",
+ "unicode-width 0.2.2",
+]
+
+[[package]]
+name = "charmed-bubbletea"
+version = "0.1.0"
+dependencies = [
+ "charmed-bubbles",
+ "charmed-bubbletea-macros",
+ "charmed-lipgloss",
+ "criterion",
+ "crossterm",
+ "futures",
+ "parking_lot",
+ "proptest",
+ "rayon",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "charmed-bubbletea-macros"
+version = "0.1.0"
+dependencies = [
+ "charmed-bubbletea",
+ "darling",
+ "proc-macro-error2",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "trybuild",
+]
+
+[[package]]
+name = "charmed-demo-showcase"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_cmd",
+ "charmed-bubbles",
+ "charmed-bubbletea",
+ "charmed-glamour",
+ "charmed-harmonica",
+ "charmed-huh",
+ "charmed-lipgloss",
+ "charmed-log",
+ "charmed-wish",
+ "chrono",
+ "clap",
+ "crossterm",
+ "insta",
+ "parking_lot",
+ "portable-pty 0.8.1",
+ "predicates",
+ "rand 0.9.2",
+ "rand_pcg",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "unicode-width 0.2.2",
+ "vt100",
+]
+
+[[package]]
+name = "charmed-glamour"
+version = "0.1.0"
+dependencies = [
+ "charmed-lipgloss",
+ "criterion",
+ "lru",
+ "proptest",
+ "pulldown-cmark",
+ "serde",
+ "stats_alloc",
+ "syntect",
+ "tracing",
+ "unicode-width 0.1.14",
+]
+
+[[package]]
+name = "charmed-glow"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "charmed-bubbles",
+ "charmed-bubbletea",
+ "charmed-glamour",
+ "charmed-lipgloss",
+ "clap",
+ "directories",
+ "predicates",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "unicode-width 0.2.2",
+]
+
+[[package]]
+name = "charmed-harmonica"
+version = "0.1.0"
+dependencies = [
+ "libm",
+ "proptest",
+]
+
+[[package]]
+name = "charmed-huh"
+version = "0.1.0"
+dependencies = [
+ "charmed-bubbles",
+ "charmed-bubbletea",
+ "charmed-lipgloss",
+ "proptest",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "charmed-lipgloss"
+version = "0.1.0"
+dependencies = [
+ "bitflags 2.10.0",
+ "colored",
+ "console_error_panic_hook",
+ "criterion",
+ "crossterm",
+ "js-sys",
+ "proptest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror 2.0.18",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
+ "unicode-width 0.1.14",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "charmed-log"
+version = "0.1.0"
+dependencies = [
+ "backtrace",
+ "charmed-lipgloss",
+ "chrono",
+ "thiserror 2.0.18",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "charmed-wasm"
 version = "0.1.0"
 dependencies = [
+ "charmed-lipgloss",
  "console_error_panic_hook",
  "js-sys",
- "lipgloss",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
@@ -451,19 +575,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "charmed-wish"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "charmed-bubbletea",
+ "charmed-lipgloss",
+ "charmed-log",
+ "futures",
+ "lru",
+ "parking_lot",
+ "portable-pty 0.9.0",
+ "russh",
+ "russh-keys",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-test",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "charmed_conformance"
 version = "0.1.0"
 dependencies = [
- "bubbles",
- "bubbletea",
- "charmed_log",
+ "charmed-bubbles",
+ "charmed-bubbletea",
+ "charmed-glamour",
+ "charmed-glow",
+ "charmed-harmonica",
+ "charmed-huh",
+ "charmed-lipgloss",
+ "charmed-log",
+ "charmed-wish",
  "chrono",
  "criterion",
- "glamour",
- "glow",
- "harmonica",
- "huh",
- "lipgloss",
  "once_cell",
  "parking_lot",
  "proptest",
@@ -475,19 +623,6 @@ dependencies = [
  "termcolor",
  "thiserror 2.0.18",
  "unicode-normalization",
- "wish",
-]
-
-[[package]]
-name = "charmed_log"
-version = "0.1.0"
-dependencies = [
- "backtrace",
- "chrono",
- "lipgloss",
- "thiserror 2.0.18",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -891,41 +1026,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "demo_showcase"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "assert_cmd",
- "bubbles",
- "bubbletea",
- "charmed_log",
- "chrono",
- "clap",
- "crossterm",
- "glamour",
- "harmonica",
- "huh",
- "insta",
- "lipgloss",
- "parking_lot",
- "portable-pty 0.8.1",
- "predicates",
- "rand 0.9.2",
- "rand_pcg",
- "regex",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "unicode-width 0.2.2",
- "vt100",
- "wish",
 ]
 
 [[package]]
@@ -1409,46 +1509,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
-name = "glamour"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "lipgloss",
- "lru",
- "proptest",
- "pulldown-cmark",
- "serde",
- "stats_alloc",
- "syntect",
- "tracing",
- "unicode-width 0.1.14",
-]
-
-[[package]]
 name = "glob"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
-
-[[package]]
-name = "glow"
-version = "0.1.0"
-dependencies = [
- "assert_cmd",
- "bubbles",
- "bubbletea",
- "clap",
- "directories",
- "glamour",
- "lipgloss",
- "predicates",
- "reqwest",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.18",
- "unicode-width 0.2.2",
-]
 
 [[package]]
 name = "group"
@@ -1489,14 +1553,6 @@ dependencies = [
  "cfg-if 1.0.4",
  "crunchy",
  "zerocopy",
-]
-
-[[package]]
-name = "harmonica"
-version = "0.1.0"
-dependencies = [
- "libm",
- "proptest",
 ]
 
 [[package]]
@@ -1594,17 +1650,6 @@ name = "httpdate"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
-
-[[package]]
-name = "huh"
-version = "0.1.0"
-dependencies = [
- "bubbles",
- "bubbletea",
- "lipgloss",
- "proptest",
- "thiserror 2.0.18",
-]
 
 [[package]]
 name = "hyper"
@@ -1907,28 +1952,6 @@ name = "linux-raw-sys"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df1d3c3b53da64cf5760482273a98e575c651a67eec7f77df96b5b642de8f039"
-
-[[package]]
-name = "lipgloss"
-version = "0.1.0"
-dependencies = [
- "bitflags 2.10.0",
- "colored",
- "console_error_panic_hook",
- "criterion",
- "crossterm",
- "js-sys",
- "proptest",
- "serde",
- "serde_json",
- "serde_yaml",
- "thiserror 2.0.18",
- "tokio",
- "toml 0.8.23",
- "tracing",
- "unicode-width 0.1.14",
- "wasm-bindgen",
-]
 
 [[package]]
 name = "litemap"
@@ -4752,29 +4775,6 @@ checksum = "524e57b2c537c0f9b1e69f1965311ec12182b4122e45035b1508cd24d2adadb1"
 dependencies = [
  "cfg-if 1.0.4",
  "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "wish"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bubbletea",
- "bytes",
- "charmed_log",
- "futures",
- "lipgloss",
- "lru",
- "parking_lot",
- "portable-pty 0.9.0",
- "russh",
- "russh-keys",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "tokio-test",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

@@ -1,13 +1,18 @@
 [package]
-name = "bubbletea-macros"
+name = "charmed-bubbletea-macros"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/charmed-bubbletea-macros"
 description = "Procedural macros for bubbletea TUI framework"
+keywords = ["proc-macro", "tui", "bubbletea", "derive", "macro"]
 
 [lib]
+name = "bubbletea_macros"
 proc-macro = true
 
 [dependencies]
@@ -19,7 +24,7 @@ proc-macro-error2 = "2.0"
 
 [dev-dependencies]
 trybuild = "1.0"
-bubbletea = { path = "../bubbletea", features = ["macros"] }
+bubbletea = { workspace = true, features = ["macros"] }
 
 [lints]
 workspace = true

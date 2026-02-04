@@ -1,13 +1,19 @@
 [package]
-name = "harmonica"
+name = "charmed-harmonica"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/charmed-harmonica"
 description = "Physics-based animation tools: spring oscillator and projectile motion"
 keywords = ["animation", "spring", "physics", "tui", "terminal"]
 categories = ["game-development", "simulation", "no-std"]
+
+[lib]
+name = "harmonica"
 
 [features]
 default = ["std"]

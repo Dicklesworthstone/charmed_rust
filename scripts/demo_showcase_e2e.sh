@@ -135,7 +135,7 @@ show_artifacts() {
 # Run the tests
 run_tests() {
     local filter="${1:-}"
-    local cargo_args="-p demo_showcase --lib"
+    local cargo_args="-p charmed-demo-showcase --lib"
     local test_filter=""
 
     # Map friendly names to test patterns

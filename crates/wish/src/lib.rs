@@ -15,6 +15,13 @@
 //! - Multi-user terminal experiences
 //! - Secure remote access tools
 //!
+//! ## Role in `charmed_rust`
+//!
+//! Wish is the SSH application layer for bubbletea programs:
+//! - **bubbletea** provides the program runtime served over SSH.
+//! - **charmed_log** supplies structured logging for sessions.
+//! - **demo_showcase** includes an SSH mode to demonstrate remote TUIs.
+//!
 //! ## Features
 //!
 //! - **Middleware pattern**: Compose handlers with chainable middleware

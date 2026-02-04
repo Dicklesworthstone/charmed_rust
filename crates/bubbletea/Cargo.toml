@@ -1,13 +1,19 @@
 [package]
-name = "bubbletea"
+name = "charmed-bubbletea"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/charmed-bubbletea"
 description = "A powerful TUI framework based on The Elm Architecture"
 keywords = ["tui", "terminal", "elm", "framework", "cli"]
 categories = ["command-line-interface", "asynchronous"]
+
+[lib]
+name = "bubbletea"
 
 [dependencies]
 crossterm = "0.29"
@@ -24,7 +30,7 @@ futures = { version = "0.3", optional = true }
 rayon = { workspace = true, optional = true }
 
 # Optional: derive macros for Model trait
-bubbletea-macros = { path = "../bubbletea-macros", optional = true }
+bubbletea-macros = { workspace = true, optional = true }
 
 [features]
 default = ["macros"]
@@ -34,8 +40,8 @@ thread-pool = ["dep:rayon"]
 
 [dev-dependencies]
 criterion.workspace = true
-bubbles = { path = "../bubbles" }
-lipgloss = { path = "../lipgloss" }
+bubbles = { workspace = true }
+lipgloss = { workspace = true }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 proptest.workspace = true

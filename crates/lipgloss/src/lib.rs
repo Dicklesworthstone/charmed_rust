@@ -46,6 +46,15 @@
 //! - **Layout**: Padding, margins, borders, and alignment
 //! - **Word wrapping** and **text truncation**
 //!
+//! ## Role in `charmed_rust`
+//!
+//! Lipgloss is the styling foundation for the entire stack:
+//! - **bubbletea** renders views using lipgloss styles.
+//! - **bubbles** components expose styling hooks via lipgloss.
+//! - **glamour** uses lipgloss for Markdown theming.
+//! - **charmed_log** formats log output with lipgloss styles.
+//! - **demo_showcase** centralizes themes and visual identity with lipgloss.
+//!
 //! ## Quick Start
 //!
 //! ```rust

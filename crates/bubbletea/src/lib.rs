@@ -18,6 +18,15 @@
 //! - Full **keyboard and mouse** support
 //! - **Frame-rate limited** rendering (60 FPS default)
 //!
+//! ## Role in `charmed_rust`
+//!
+//! Bubbletea is the core runtime and event loop for the entire ecosystem:
+//! - **bubbles** builds reusable widgets on top of the Model/Msg/Cmd pattern.
+//! - **huh** composes form flows using bubbletea models.
+//! - **wish** serves bubbletea programs over SSH.
+//! - **glow** uses bubbletea for pager-style Markdown viewing.
+//! - **demo_showcase** is the flagship multi-page bubbletea app.
+//!
 //! ## The Elm Architecture
 //!
 //! Bubbletea follows the Elm Architecture pattern:

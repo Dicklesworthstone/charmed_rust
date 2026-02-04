@@ -1,16 +1,24 @@
 [package]
-name = "huh"
+name = "charmed-huh"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/charmed-huh"
 description = "Build interactive forms and prompts for terminal applications"
+keywords = ["forms", "prompts", "tui", "terminal", "cli"]
+categories = ["command-line-interface"]
+
+[lib]
+name = "huh"
 
 [dependencies]
-bubbletea = { path = "../bubbletea" }
-lipgloss = { path = "../lipgloss" }
-bubbles = { path = "../bubbles" }
+bubbletea = { workspace = true }
+lipgloss = { workspace = true }
+bubbles = { workspace = true }
 thiserror.workspace = true
 
 [dev-dependencies]

@@ -61,7 +61,7 @@ jobs:
           key: release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build release binary
-        run: cargo build --release --package glow --target ${{ matrix.target }} --locked
+        run: cargo build --release --package charmed-glow --target ${{ matrix.target }} --locked
 
       - name: Prepare artifact (Unix)
         if: runner.os != 'Windows'
@@ -166,43 +166,51 @@ jobs:
           # Publish crates in dependency order with delay between publishes
           # to allow crates.io index to update
 
-          echo "Publishing harmonica..."
-          cargo publish -p harmonica --allow-dirty --locked || true
+          echo "Publishing charmed-harmonica..."
+          cargo publish -p charmed-harmonica --allow-dirty --locked || true
           sleep 30
 
-          echo "Publishing lipgloss..."
-          cargo publish -p lipgloss --allow-dirty --locked || true
+          echo "Publishing charmed-lipgloss..."
+          cargo publish -p charmed-lipgloss --allow-dirty --locked || true
           sleep 30
 
-          echo "Publishing charmed_log..."
-          cargo publish -p charmed_log --allow-dirty --locked || true
+          echo "Publishing charmed-log..."
+          cargo publish -p charmed-log --allow-dirty --locked || true
           sleep 30
 
-          echo "Publishing bubbletea-macros..."
-          cargo publish -p bubbletea-macros --allow-dirty --locked || true
+          echo "Publishing charmed-bubbletea-macros..."
+          cargo publish -p charmed-bubbletea-macros --allow-dirty --locked || true
           sleep 30
 
-          echo "Publishing bubbletea..."
-          cargo publish -p bubbletea --allow-dirty --locked || true
+          echo "Publishing charmed-bubbletea..."
+          cargo publish -p charmed-bubbletea --allow-dirty --locked || true
           sleep 30
 
-          echo "Publishing glamour..."
-          cargo publish -p glamour --allow-dirty --locked || true
+          echo "Publishing charmed-glamour..."
+          cargo publish -p charmed-glamour --allow-dirty --locked || true
           sleep 30
 
-          echo "Publishing bubbles..."
-          cargo publish -p bubbles --allow-dirty --locked || true
+          echo "Publishing charmed-bubbles..."
+          cargo publish -p charmed-bubbles --allow-dirty --locked || true
           sleep 30
 
-          echo "Publishing huh..."
-          cargo publish -p huh --allow-dirty --locked || true
+          echo "Publishing charmed-huh..."
+          cargo publish -p charmed-huh --allow-dirty --locked || true
           sleep 30
 
-          echo "Publishing wish..."
-          cargo publish -p wish --allow-dirty --locked || true
+          echo "Publishing charmed-wish..."
+          cargo publish -p charmed-wish --allow-dirty --locked || true
           sleep 30
 
-          echo "Publishing glow..."
-          cargo publish -p glow --allow-dirty --locked || true
+          echo "Publishing charmed-wasm..."
+          cargo publish -p charmed-wasm --allow-dirty --locked || true
+          sleep 30
+
+          echo "Publishing charmed-glow..."
+          cargo publish -p charmed-glow --allow-dirty --locked || true
+          sleep 30
+
+          echo "Publishing charmed-demo-showcase..."
+          cargo publish -p charmed-demo-showcase --allow-dirty --locked || true
 
           echo "All crates published successfully!"

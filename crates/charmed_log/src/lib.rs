@@ -13,6 +13,13 @@
 //! - Multiple output formatters (text, JSON, logfmt)
 //! - Integration with lipgloss for styled output
 //!
+//! ## Role in `charmed_rust`
+//!
+//! Charmed Log is the logging spine for TUI applications in this repo:
+//! - **wish** uses it for SSH session logging and diagnostics.
+//! - **demo_showcase** uses it for traceable, styled logs in tests and demos.
+//! - **lipgloss** supplies the styling used in human-readable formatters.
+//!
 //! ## Example
 //!
 //! ```rust

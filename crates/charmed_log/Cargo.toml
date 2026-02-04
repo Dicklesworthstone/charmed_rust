@@ -1,14 +1,22 @@
 [package]
-name = "charmed_log"
+name = "charmed-log"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/charmed-log"
 description = "Beautiful, colorful logging for terminal applications"
+keywords = ["logging", "terminal", "tui", "structured", "cli"]
+categories = ["command-line-interface"]
+
+[lib]
+name = "charmed_log"
 
 [dependencies]
-lipgloss = { path = "../lipgloss" }
+lipgloss = { workspace = true }
 thiserror.workspace = true
 tracing = "0.1"
 tracing-subscriber = "0.3"

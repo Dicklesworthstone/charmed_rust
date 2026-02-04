@@ -16,8 +16,8 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-bubbletea = "0.1"
-bubbletea-macros = "0.1"
+bubbletea = { package = "charmed-bubbletea", version = "0.1.0" }
+bubbletea-macros = { package = "charmed-bubbletea-macros", version = "0.1.0" }
 ```
 
 Or use the re-export from bubbletea:
@@ -207,7 +207,7 @@ See the [examples directory](../../examples/) for complete runnable examples:
 
 ## Documentation
 
-See the [API documentation](https://docs.rs/bubbletea-macros) for complete details.
+See the [API documentation](https://docs.rs/charmed-bubbletea-macros) for complete details.
 
 ## License
 

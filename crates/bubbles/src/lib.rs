@@ -27,6 +27,14 @@
 //! - **list** - Feature-rich filterable list
 //! - **filepicker** - File system browser
 //!
+//! ## Role in `charmed_rust`
+//!
+//! Bubbles is the component layer that sits on top of bubbletea and lipgloss:
+//! - **bubbletea** provides the runtime and message loop.
+//! - **lipgloss** provides styling used by every component.
+//! - **huh** and **glow** embed bubbles components directly.
+//! - **demo_showcase** uses bubbles to demonstrate real-world UI composition.
+//!
 //! ## Example
 //!
 //! ```rust,ignore

@@ -317,7 +317,7 @@ charmed_rust/
    - Width/height calculation
    - Renderer with color profile detection
 
-**Deliverable:** `cargo test -p harmonica -p lipgloss` passes
+**Deliverable:** `cargo test -p charmed-harmonica -p charmed-lipgloss` passes
 
 ### Phase 2: Core Runtime (bubbletea + charmed_log)
 

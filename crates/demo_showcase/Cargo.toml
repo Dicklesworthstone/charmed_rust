@@ -1,11 +1,19 @@
 [package]
-name = "demo_showcase"
+name = "charmed-demo-showcase"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/charmed-demo-showcase"
 description = "Flagship showcase demonstrating all charmed_rust capabilities"
+keywords = ["tui", "terminal", "showcase", "demo", "cli"]
+categories = ["command-line-interface"]
+
+[lib]
+name = "demo_showcase"
 
 [features]
 default = ["syntax-highlighting"]
@@ -16,18 +24,18 @@ async = ["bubbletea/async"]
 
 [dependencies]
 # Core TUI framework
-bubbletea = { path = "../bubbletea", features = ["macros"] }
-lipgloss = { path = "../lipgloss" }
-bubbles = { path = "../bubbles" }
+bubbletea = { workspace = true, features = ["macros"] }
+lipgloss = { workspace = true }
+bubbles = { workspace = true }
 
 # Additional charmed_rust crates
-glamour = { path = "../glamour" }
-harmonica = { path = "../harmonica" }
-huh = { path = "../huh" }
-charmed_log = { path = "../charmed_log" }
+glamour = { workspace = true }
+harmonica = { workspace = true }
+huh = { workspace = true }
+charmed_log = { workspace = true }
 
 # Optional SSH support
-wish = { path = "../wish", optional = true }
+wish = { workspace = true, optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 
@@ -63,6 +71,10 @@ insta.workspace = true
 portable-pty = "0.8"
 vt100 = "0.15"
 regex = "1"
+
+[[bin]]
+name = "demo_showcase"
+path = "src/main.rs"
 
 [[bin]]
 name = "run_e2e"

@@ -21,14 +21,14 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-glow = { version = "0.1", path = "../glow" }
+glow = { package = "charmed-glow", version = "0.1.0" }
 ```
 
 For GitHub README fetching:
 
 ```toml
 [dependencies]
-glow = { version = "0.1", path = "../glow", features = ["github"] }
+glow = { package = "charmed-glow", version = "0.1.0", features = ["github"] }
 ```
 
 ## Quick Start

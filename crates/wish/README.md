@@ -22,8 +22,8 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-wish = { version = "0.1", path = "../wish" }
-bubbletea = { version = "0.1", path = "../bubbletea" }
+wish = { package = "charmed-wish", version = "0.1.0" }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.0" }
 tokio = { version = "1", features = ["full"] }
 ```
 

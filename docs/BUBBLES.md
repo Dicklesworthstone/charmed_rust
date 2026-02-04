@@ -846,9 +846,9 @@ crates/bubbles/
 
 ```toml
 [dependencies]
-bubbletea = { path = "../bubbletea" }
-lipgloss = { path = "../lipgloss" }
-harmonica = { path = "../harmonica" }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.0" }
+lipgloss = { package = "charmed-lipgloss", version = "0.1.0" }
+harmonica = { package = "charmed-harmonica", version = "0.1.0" }
 unicode-segmentation = "1.10"
 unicode-width = "0.1"
 parking_lot = "0.12"

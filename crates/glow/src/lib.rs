@@ -14,6 +14,14 @@
 //! - Stash and organize documents
 //! - Customizable pager controls
 //!
+//! ## Role in `charmed_rust`
+//!
+//! Glow is the application-layer Markdown reader:
+//! - **glamour** renders Markdown content.
+//! - **bubbletea** powers the pager UI and input handling.
+//! - **bubbles** provides reusable viewport components.
+//! - **lipgloss** styles the output and chrome.
+//!
 //! ## Quick start (library)
 //!
 //! ```rust,no_run

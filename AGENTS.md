@@ -130,8 +130,8 @@ cargo test --workspace
 cargo test --workspace -- --nocapture
 
 # Run specific crate tests
-cargo test -p lipgloss
-cargo test -p bubbletea
+cargo test -p charmed-lipgloss
+cargo test -p charmed-bubbletea
 ```
 
 ### Test Categories

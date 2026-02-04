@@ -23,10 +23,14 @@
 ```toml
 # Add to Cargo.toml
 [dependencies]
-bubbletea = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
-lipgloss = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
-bubbles = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.0" }
+lipgloss = { package = "charmed-lipgloss", version = "0.1.0" }
+bubbles = { package = "charmed-bubbles", version = "0.1.0" }
 ```
+
+Crates are published under the `charmed-*` package names on crates.io, while the Rust
+crate names remain `bubbletea`, `lipgloss`, `bubbles`, etc. Use `package = "charmed-…"`
+to keep the idiomatic crate names in your code.
 
 ---
 
@@ -155,6 +159,26 @@ Press `+` to increment, `-` to decrement, `q` to quit. That's it.
 | **charmed_log** | Structured logging with styled output | ~1,000 |
 | **glow** | Markdown reader CLI | ~160 |
 
+### Crates.io Package Names
+
+Crates are published with a `charmed-` prefix on crates.io to avoid name
+collisions, while the Rust crate names remain the same:
+
+| Rust Crate | crates.io Package |
+|------------|-------------------|
+| `bubbletea` | `charmed-bubbletea` |
+| `bubbletea_macros` | `charmed-bubbletea-macros` |
+| `lipgloss` | `charmed-lipgloss` |
+| `harmonica` | `charmed-harmonica` |
+| `glamour` | `charmed-glamour` |
+| `bubbles` | `charmed-bubbles` |
+| `huh` | `charmed-huh` |
+| `wish` | `charmed-wish` |
+| `charmed_log` | `charmed-log` |
+| `glow` | `charmed-glow` |
+| `demo_showcase` | `charmed-demo-showcase` |
+| `charmed_wasm` | `charmed-wasm` |
+
 ---
 
 ## Design Philosophy
@@ -257,25 +281,40 @@ Same inputs → same outputs as Go Charm. Migration is seamless. Conformance tes
 
 ## Installation
 
-### From Git (Current)
+### From crates.io (Recommended)
 
 ```toml
 # Cargo.toml
 [dependencies]
-bubbletea = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
-lipgloss = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
-bubbles = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
-glamour = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
-harmonica = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
-wish = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
-huh = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
-charmed_log = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.0" }
+lipgloss = { package = "charmed-lipgloss", version = "0.1.0" }
+bubbles = { package = "charmed-bubbles", version = "0.1.0" }
+glamour = { package = "charmed-glamour", version = "0.1.0" }
+harmonica = { package = "charmed-harmonica", version = "0.1.0" }
+wish = { package = "charmed-wish", version = "0.1.0" }
+huh = { package = "charmed-huh", version = "0.1.0" }
+charmed_log = { package = "charmed-log", version = "0.1.0" }
+```
+
+### From Git (Bleeding Edge)
+
+```toml
+# Cargo.toml
+[dependencies]
+bubbletea = { package = "charmed-bubbletea", git = "https://github.com/Dicklesworthstone/charmed_rust" }
+lipgloss = { package = "charmed-lipgloss", git = "https://github.com/Dicklesworthstone/charmed_rust" }
+bubbles = { package = "charmed-bubbles", git = "https://github.com/Dicklesworthstone/charmed_rust" }
+glamour = { package = "charmed-glamour", git = "https://github.com/Dicklesworthstone/charmed_rust" }
+harmonica = { package = "charmed-harmonica", git = "https://github.com/Dicklesworthstone/charmed_rust" }
+wish = { package = "charmed-wish", git = "https://github.com/Dicklesworthstone/charmed_rust" }
+huh = { package = "charmed-huh", git = "https://github.com/Dicklesworthstone/charmed_rust" }
+charmed_log = { package = "charmed-log", git = "https://github.com/Dicklesworthstone/charmed_rust" }
 ```
 
 ### With Async Support
 
 ```toml
-bubbletea = { git = "https://github.com/Dicklesworthstone/charmed_rust", features = ["async"] }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.0", features = ["async"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -287,7 +326,7 @@ cd charmed_rust
 cargo build --release
 
 # Run the Markdown reader
-cargo run -p glow -- README.md
+cargo run -p charmed-glow -- README.md
 ```
 
 ### Requirements
@@ -309,8 +348,8 @@ cargo new my-tui && cd my-tui
 
 ```toml
 [dependencies]
-bubbletea = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
-lipgloss = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.0" }
+lipgloss = { package = "charmed-lipgloss", version = "0.1.0" }
 ```
 
 ### 3. Implement Model
@@ -720,7 +759,7 @@ Enable tokio-based async for non-blocking I/O:
 
 ```toml
 [dependencies]
-bubbletea = { git = "https://github.com/Dicklesworthstone/charmed_rust", features = ["async"] }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.0", features = ["async"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -777,7 +816,7 @@ async fn main() {
 The flagship demo shows off all functionality in charmed_rust:
 
 ```bash
-cargo run -p demo_showcase
+cargo run -p charmed-demo-showcase
 ```
 
 ### Options
@@ -794,13 +833,13 @@ cargo run -p demo_showcase
 
 ```bash
 # Run with Nord theme
-cargo run -p demo_showcase -- --theme nord
+cargo run -p charmed-demo-showcase -- --theme nord
 
 # Run with Dracula theme
-cargo run -p demo_showcase -- --theme dracula
+cargo run -p charmed-demo-showcase -- --theme dracula
 
 # Reproducible demo state
-cargo run -p demo_showcase -- --seed 42
+cargo run -p charmed-demo-showcase -- --seed 42
 ```
 
 ### What It Demonstrates
@@ -822,16 +861,16 @@ cargo run -p demo_showcase -- --seed 42
 
 ```bash
 # Read a file
-cargo run -p glow -- README.md
+cargo run -p charmed-glow -- README.md
 
 # Read from stdin
-cat README.md | cargo run -p glow
+cat README.md | cargo run -p charmed-glow
 
 # With specific theme
-cargo run -p glow -- --theme dracula README.md
+cargo run -p charmed-glow -- --theme dracula README.md
 
 # Pager mode (for long documents)
-cargo run -p glow -- --pager README.md
+cargo run -p charmed-glow -- --pager README.md
 ```
 
 ### Options
@@ -876,14 +915,14 @@ let renderer = Renderer::new()
 
 ### "failed to select a version for `bubbletea`"
 
-Use git dependency, not crates.io (not published yet):
+Use the published package name and alias it to the `bubbletea` crate:
 
 ```toml
 # ❌ Wrong
 bubbletea = "0.1"
 
 # ✅ Correct
-bubbletea = { git = "https://github.com/Dicklesworthstone/charmed_rust" }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.0" }
 ```
 
 ### Terminal not restoring after crash
@@ -954,7 +993,7 @@ chmod 644 ./host_key.pub
 
 | Capability | Status | Notes |
 |------------|--------|-------|
-| **crates.io** | ❌ Not yet | Git install only |
+| **crates.io** | ✅ Published | Install via `charmed-*` packages |
 | **Nightly Rust** | Required | Edition 2024 |
 | **SSH (wish)** | ⚠️ Beta | Framework ready, deps maturing |
 | **Mouse drag** | ⚠️ Limited | Click/scroll work, selection needs terminal support |
@@ -1087,8 +1126,8 @@ Memory: Typical TUI app uses 2-5MB RSS.
 Run benchmarks:
 
 ```bash
-cargo bench -p bubbletea
-cargo bench -p lipgloss
+cargo bench -p charmed-bubbletea
+cargo bench -p charmed-lipgloss
 ```
 
 ---

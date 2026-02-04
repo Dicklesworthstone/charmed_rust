@@ -15,6 +15,13 @@
 //! - Link and image handling
 //! - Customizable themes (Dark, Light, ASCII, Pink)
 //!
+//! ## Role in `charmed_rust`
+//!
+//! Glamour is the Markdown renderer for the ecosystem:
+//! - **glow** is the CLI reader built directly on glamour.
+//! - **demo_showcase** uses glamour for in-app documentation pages.
+//! - **lipgloss** provides the styling primitives that glamour applies.
+//!
 //! ## Example
 //!
 //! ```rust

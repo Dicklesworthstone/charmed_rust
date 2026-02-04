@@ -1,14 +1,22 @@
 [package]
-name = "glamour"
+name = "charmed-glamour"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/charmed-glamour"
 description = "Stylesheet-based markdown rendering for terminal applications"
+keywords = ["markdown", "terminal", "tui", "rendering", "cli"]
+categories = ["command-line-interface", "text-processing"]
+
+[lib]
+name = "glamour"
 
 [dependencies]
-lipgloss = { path = "../lipgloss" }
+lipgloss = { workspace = true }
 lru = "0.12"  # O(1) LRU cache for StyleCache (bd-cnqe, bd-2oct)
 pulldown-cmark = "0.13"
 tracing.workspace = true
@@ -34,7 +42,7 @@ serde = ["dep:serde"]
 
 [dev-dependencies]
 criterion.workspace = true
-lipgloss = { path = "../lipgloss" }
+lipgloss = { workspace = true }
 proptest.workspace = true
 stats_alloc = "0.1.10"
 

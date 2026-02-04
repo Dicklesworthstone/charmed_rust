@@ -9,6 +9,12 @@
 //! This crate provides the `#[derive(Model)]` macro which reduces boilerplate
 //! when implementing the `Model` trait for your TUI applications.
 //!
+//! ## Role in `charmed_rust`
+//!
+//! bubbletea-macros is an optional ergonomic layer for the core framework:
+//! - **bubbletea** re-exports the derive macro when the `macros` feature is enabled.
+//! - **demo_showcase** uses the derive macro for concise models in examples and tests.
+//!
 //! ## Quick Start
 //!
 //! ```rust,ignore

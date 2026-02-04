@@ -6,16 +6,16 @@ A comprehensive demonstration of charmed_rust capabilities—showcasing bubblete
 
 ```bash
 # Run the showcase
-cargo run -p demo_showcase
+cargo run -p charmed-demo-showcase
 
 # Run with a specific theme
-cargo run -p demo_showcase -- --theme dracula
+cargo run -p charmed-demo-showcase -- --theme dracula
 
 # Run with deterministic data (same seed = same demo data)
-cargo run -p demo_showcase -- --seed 42
+cargo run -p charmed-demo-showcase -- --seed 42
 
 # Run headless self-check (for CI)
-cargo run -p demo_showcase -- --self-check
+cargo run -p charmed-demo-showcase -- --self-check
 ```
 
 ## CLI Options
@@ -45,7 +45,7 @@ Run the showcase as an SSH server, allowing remote connections to your TUI appli
 ssh-keygen -t ed25519 -f ./demo_host_key -N ""
 
 # 2. Start the SSH server with password authentication
-cargo run -p demo_showcase --features ssh -- ssh \
+cargo run -p charmed-demo-showcase --features ssh -- ssh \
   --host-key ./demo_host_key \
   --password demo123
 
@@ -70,12 +70,12 @@ ssh -p 2222 -o StrictHostKeyChecking=no localhost
 **Password Authentication** (recommended for demos):
 ```bash
 # Any username, specific password
-cargo run -p demo_showcase --features ssh -- ssh \
+cargo run -p charmed-demo-showcase --features ssh -- ssh \
   --host-key ./demo_host_key \
   --password secret123
 
 # Specific username + password
-cargo run -p demo_showcase --features ssh -- ssh \
+cargo run -p charmed-demo-showcase --features ssh -- ssh \
   --host-key ./demo_host_key \
   --username demo \
   --password secret123
@@ -85,13 +85,13 @@ cargo run -p demo_showcase --features ssh -- ssh \
 ```bash
 export DEMO_SSH_PASSWORD=secret123
 export DEMO_SSH_USERNAME=demo  # optional
-cargo run -p demo_showcase --features ssh -- ssh --host-key ./demo_host_key
+cargo run -p charmed-demo-showcase --features ssh -- ssh --host-key ./demo_host_key
 ```
 
 **No Authentication** (development only):
 ```bash
 # WARNING: Accepts ALL connections!
-cargo run -p demo_showcase --features ssh -- ssh \
+cargo run -p charmed-demo-showcase --features ssh -- ssh \
   --host-key ./demo_host_key \
   --no-auth
 ```
@@ -224,12 +224,12 @@ The showcase includes 7 interactive pages:
 
 ```bash
 # Run all demo_showcase tests
-cargo test -p demo_showcase
+cargo test -p charmed-demo-showcase
 
 # Run specific page tests
-cargo test -p demo_showcase -- jobs
-cargo test -p demo_showcase -- logs
-cargo test -p demo_showcase -- docs
+cargo test -p charmed-demo-showcase -- jobs
+cargo test -p charmed-demo-showcase -- logs
+cargo test -p charmed-demo-showcase -- docs
 ```
 
 ### Self-Check Mode
@@ -240,7 +240,7 @@ The `--self-check` flag runs a headless validation that:
 - Verifies no panics occur
 
 ```bash
-cargo run -p demo_showcase -- --self-check
+cargo run -p charmed-demo-showcase -- --self-check
 ```
 
 Output on success:
@@ -261,10 +261,10 @@ E2E tests use the `E2ETestRunner` harness for scenario-based testing:
 
 ```bash
 # Run E2E smoke tour
-cargo test -p demo_showcase -- e2e_smoke_tour
+cargo test -p charmed-demo-showcase -- e2e_smoke_tour
 
 # Run with verbose output
-cargo test -p demo_showcase -- e2e_smoke_tour --nocapture
+cargo test -p charmed-demo-showcase -- e2e_smoke_tour --nocapture
 ```
 
 Artifacts are written to `target/demo_showcase_e2e/<scenario>/<run_id>/`:

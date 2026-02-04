@@ -51,7 +51,7 @@ Add the `syntax-highlighting` feature:
 
 ```toml
 [dependencies]
-glamour = { version = "0.1", features = ["syntax-highlighting"] }
+glamour = { package = "charmed-glamour", version = "0.1.0", features = ["syntax-highlighting"] }
 ```
 
 > **Note**: This adds ~2MB to binary size due to embedded syntax definitions for ~60 languages.

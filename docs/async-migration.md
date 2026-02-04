@@ -18,7 +18,7 @@ In your `Cargo.toml`:
 
 ```toml
 [dependencies]
-bubbletea = { version = "0.1", features = ["async"] }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.0", features = ["async"] }
 ```
 
 ### 2. Use run_async() instead of run()

@@ -5,6 +5,12 @@
 //! This crate provides WebAssembly bindings for the `charmed_rust` library,
 //! allowing you to use lipgloss styling in web applications.
 //!
+//! ## Role in `charmed_rust`
+//!
+//! charmed-wasm is the web-facing bridge for the ecosystem:
+//! - **lipgloss** is re-exported with WASM-friendly APIs.
+//! - It enables sharing the same styling model between terminal and web UI.
+//!
 //! ## Quick Start (JavaScript)
 //!
 //! ```javascript
