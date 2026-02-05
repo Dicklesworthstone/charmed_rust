@@ -19,7 +19,28 @@
 // Allow let_unit_value: NoStateModel.__snapshot_state() returns ()
 #![allow(clippy::let_unit_value)]
 
-use bubbletea::{Cmd, Message, Model};
+extern crate self as bubbletea;
+
+pub use bubbletea_macros::Model;
+
+#[derive(Clone, Debug)]
+pub struct Cmd;
+
+#[derive(Clone, Debug)]
+pub struct Message;
+
+impl Message {
+    #[must_use]
+    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
+        None
+    }
+}
+
+pub trait Model {
+    fn init(&self) -> Option<Cmd>;
+    fn update(&mut self, msg: Message) -> Option<Cmd>;
+    fn view(&self) -> String;
+}
 
 /// Helper to create approximate float equality
 fn float_eq(a: &f64, b: &f64) -> bool {

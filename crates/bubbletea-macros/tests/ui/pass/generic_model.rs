@@ -1,6 +1,27 @@
 //! Test that a generic model derives correctly.
 
-use bubbletea::{Cmd, Message, Model};
+extern crate self as bubbletea;
+
+pub use bubbletea_macros::Model;
+
+#[derive(Clone, Debug)]
+pub struct Cmd;
+
+#[derive(Clone, Debug)]
+pub struct Message;
+
+impl Message {
+    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
+        None
+    }
+}
+
+pub trait Model {
+    fn init(&self) -> Option<Cmd>;
+    fn update(&mut self, msg: Message) -> Option<Cmd>;
+    fn view(&self) -> String;
+}
+
 use std::fmt::Display;
 
 #[derive(Model)]

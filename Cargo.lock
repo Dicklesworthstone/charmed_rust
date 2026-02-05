@@ -427,7 +427,6 @@ dependencies = [
 name = "charmed-bubbletea-macros"
 version = "0.1.0"
 dependencies = [
- "charmed-bubbletea",
  "darling",
  "proc-macro-error2",
  "proc-macro2",

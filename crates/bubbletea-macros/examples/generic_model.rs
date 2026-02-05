@@ -11,9 +11,67 @@
 #![allow(clippy::missing_const_for_fn)]
 #![allow(clippy::needless_pass_by_value)]
 
-use std::fmt::Display;
+extern crate self as bubbletea;
 
-use bubbletea::{Cmd, KeyMsg, KeyType, Message, Program, quit};
+pub use bubbletea_macros::Model;
+
+#[derive(Clone, Debug)]
+pub struct Cmd;
+
+#[derive(Clone, Debug)]
+pub struct Message;
+
+impl Message {
+    #[must_use]
+    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
+        None
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum KeyType {
+    Runes,
+    CtrlC,
+    Esc,
+    Other,
+}
+
+#[derive(Clone, Debug)]
+pub struct KeyMsg {
+    pub key_type: KeyType,
+    pub runes: Vec<char>,
+}
+
+pub struct Program<M>(M);
+
+impl<M> Program<M> {
+    pub fn new(model: M) -> Self {
+        Self(model)
+    }
+
+    /// # Errors
+    ///
+    /// This stub never returns an error.
+    pub fn run(self) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct Error;
+
+#[must_use]
+pub fn quit() -> Cmd {
+    Cmd
+}
+
+pub trait Model {
+    fn init(&self) -> Option<Cmd>;
+    fn update(&mut self, msg: Message) -> Option<Cmd>;
+    fn view(&self) -> String;
+}
+
+use std::fmt::Display;
 
 /// Generic container model that can hold any displayable value.
 ///
@@ -56,7 +114,7 @@ where
                     }
                 }
                 KeyType::CtrlC | KeyType::Esc => return Some(quit()),
-                _ => {}
+                KeyType::Other => {}
             }
         }
         None

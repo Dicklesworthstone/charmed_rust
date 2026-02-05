@@ -2,9 +2,29 @@
 //!
 //! This verifies the macro handles Vec, HashMap, Option, and other complex types.
 
-use std::collections::HashMap;
+extern crate self as bubbletea;
 
-use bubbletea::{Cmd, Message, Model};
+pub use bubbletea_macros::Model;
+
+#[derive(Clone, Debug)]
+pub struct Cmd;
+
+#[derive(Clone, Debug)]
+pub struct Message;
+
+impl Message {
+    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
+        None
+    }
+}
+
+pub trait Model {
+    fn init(&self) -> Option<Cmd>;
+    fn update(&mut self, msg: Message) -> Option<Cmd>;
+    fn view(&self) -> String;
+}
+
+use std::collections::HashMap;
 
 #[derive(Model)]
 struct ComplexApp {
