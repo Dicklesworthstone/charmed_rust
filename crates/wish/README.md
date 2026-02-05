@@ -33,8 +33,8 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-wish = { package = "charmed-wish", version = "0.1.0" }
-bubbletea = { package = "charmed-bubbletea", version = "0.1.0" }
+wish = { package = "charmed-wish", version = "0.1.1" }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.1" }
 tokio = { version = "1", features = ["full"] }
 ```
 

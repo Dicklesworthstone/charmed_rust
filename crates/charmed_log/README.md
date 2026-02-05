@@ -27,7 +27,7 @@ Library crate name: `charmed_log`
 use charmed_log::Logger;
 
 let logger = Logger::new();
-logger.info("Application started", &[("version", "0.1.0")]);
+logger.info("Application started", &[("version", "0.1.1")]);
 ```
 
 ## Where to look next

@@ -34,7 +34,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-glow = { package = "charmed-glow", version = "0.1.0" }
+glow = { package = "charmed-glow", version = "0.1.1" }
 ```
 
 Or install the CLI directly:
@@ -47,7 +47,7 @@ For GitHub README fetching:
 
 ```toml
 [dependencies]
-glow = { package = "charmed-glow", version = "0.1.0", features = ["github"] }
+glow = { package = "charmed-glow", version = "0.1.1", features = ["github"] }
 ```
 
 ## Quick Start

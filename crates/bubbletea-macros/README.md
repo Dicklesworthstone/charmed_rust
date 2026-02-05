@@ -28,9 +28,9 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-bubbletea = { package = "charmed-bubbletea", version = "0.1.0", features = ["macros"] }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.1", features = ["macros"] }
 # Optional direct dependency if you want to use the crate explicitly:
-bubbletea-macros = { package = "charmed-bubbletea-macros", version = "0.1.0" }
+bubbletea-macros = { package = "charmed-bubbletea-macros", version = "0.1.1" }
 ```
 
 Or use the re-export from bubbletea:
