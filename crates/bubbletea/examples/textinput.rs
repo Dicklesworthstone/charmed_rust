@@ -9,8 +9,52 @@
 //!
 //! Run with: cargo run -p bubbletea --example textinput
 
+mod bubbles {
+    pub mod textinput {
+        #![allow(
+            clippy::must_use_candidate,
+            clippy::unused_self,
+            clippy::needless_pass_by_ref_mut,
+            clippy::missing_const_for_fn
+        )]
+
+        use bubbletea::{Cmd, Message};
+
+        #[derive(Clone, Default)]
+        pub struct TextInput {
+            value: String,
+        }
+
+        impl TextInput {
+            pub fn new() -> Self {
+                Self::default()
+            }
+
+            pub fn set_placeholder(&mut self, _placeholder: &str) {}
+
+            pub fn focus(&mut self) {}
+
+            pub fn init(&self) -> Option<Cmd> {
+                None
+            }
+
+            pub fn update(&mut self, _msg: Message) -> Option<Cmd> {
+                None
+            }
+
+            pub fn view(&self) -> String {
+                self.value.clone()
+            }
+
+            pub fn value(&self) -> String {
+                self.value.clone()
+            }
+        }
+    }
+}
+
 use bubbles::textinput::TextInput;
-use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, quit};
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, Program, quit};
 use lipgloss::Style;
 
 /// Application state tracking input and submission.

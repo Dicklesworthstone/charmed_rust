@@ -408,7 +408,6 @@ dependencies = [
 name = "charmed-bubbletea"
 version = "0.1.0"
 dependencies = [
- "charmed-bubbles",
  "charmed-bubbletea-macros",
  "charmed-lipgloss",
  "criterion",
