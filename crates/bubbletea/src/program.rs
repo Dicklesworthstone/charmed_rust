@@ -4,7 +4,8 @@
 //! including terminal setup, event handling, and rendering.
 
 use std::io::{self, Read, Write};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -668,6 +669,7 @@ impl<M: Model> Program<M> {
         // Thread handles for clean shutdown (bd-3dmx, bd-3azk)
         let mut external_forwarder_handle: Option<thread::JoinHandle<()>> = None;
         let mut input_parser_handle: Option<thread::JoinHandle<()>> = None;
+        let external_shutdown = Arc::new(AtomicBool::new(false));
 
         // Track command execution threads for graceful shutdown (bd-zyb8)
         let command_threads: Arc<Mutex<Vec<thread::JoinHandle<()>>>> =
@@ -676,12 +678,24 @@ impl<M: Model> Program<M> {
         // Forward external messages
         if let Some(ext_rx) = self.external_rx.take() {
             let tx_clone = tx.clone();
+            let shutdown_clone = Arc::clone(&external_shutdown);
             debug!(target: "bubbletea::thread", "Spawning external forwarder thread");
             external_forwarder_handle = Some(thread::spawn(move || {
-                while let Ok(msg) = ext_rx.recv() {
-                    if tx_clone.send(msg).is_err() {
-                        debug!(target: "bubbletea::event", "external message dropped — receiver disconnected");
+                const POLL_INTERVAL: Duration = Duration::from_millis(50);
+                loop {
+                    if shutdown_clone.load(Ordering::Relaxed) {
                         break;
+                    }
+
+                    match ext_rx.recv_timeout(POLL_INTERVAL) {
+                        Ok(msg) => {
+                            if tx_clone.send(msg).is_err() {
+                                debug!(target: "bubbletea::event", "external message dropped — receiver disconnected");
+                                break;
+                            }
+                        }
+                        Err(RecvTimeoutError::Timeout) => {}
+                        Err(RecvTimeoutError::Disconnected) => break,
                     }
                 }
             }));
@@ -936,6 +950,7 @@ impl<M: Model> Program<M> {
         }
 
         // Clean shutdown: drop sender to signal threads, then join them (bd-3azk)
+        external_shutdown.store(true, Ordering::Relaxed);
         drop(tx);
         debug!(target: "bubbletea::thread", "Sender dropped, waiting for threads to exit");
 
