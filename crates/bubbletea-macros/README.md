@@ -1,42 +1,39 @@
 # bubbletea-macros
 
-Procedural macros for the [bubbletea](../bubbletea) TUI framework.
+Procedural macros that make `bubbletea` models ergonomic and efficient.
+
+## TL;DR
+
+**The Problem:** Writing boilerplate `Model` implementations and state tracking
+logic by hand is noisy and error-prone.
+
+**The Solution:** `bubbletea-macros` derives `Model` and generates efficient
+state snapshotting for change detection.
+
+**Why bubbletea-macros**
+
+- **Less boilerplate**: derive `Model` directly on your struct.
+- **Efficient rendering**: `#[state]` tracking enables change detection.
+- **Customizable**: control equality, logging, and tracking behavior.
 
 ## Role in the charmed_rust (FrankenTUI) stack
 
-This crate provides derive macros that make `bubbletea` models more ergonomic.
-It is an optional dependency that `bubbletea` re-exports via its `macros`
-feature. Most applications should depend on `bubbletea` and enable the feature
-instead of importing this crate directly.
+This crate is an optional ergonomic layer for `bubbletea`. Most users should
+enable the `macros` feature on `bubbletea` instead of depending on this crate
+directly.
 
 ## Crates.io package
 
 Package name: `charmed-bubbletea-macros`  
 Library crate name: `bubbletea_macros`
 
-## Features
-
-- **`#[derive(Model)]`** - Automatically implement the `Model` trait
-- **`#[state]`** - Track fields for optimized change detection
-- **Custom equality** - Use custom comparison functions with `#[state(eq = "fn")]`
-- **Debug logging** - Log state changes with `#[state(debug)]`
-- **Generic support** - Works with generic structs
-
 ## Installation
-
-Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-bubbletea = { package = "charmed-bubbletea", version = "0.1.1", features = ["macros"] }
-# Optional direct dependency if you want to use the crate explicitly:
-bubbletea-macros = { package = "charmed-bubbletea-macros", version = "0.1.1" }
-```
-
-Or use the re-export from bubbletea:
-
-```rust
-use bubbletea::Model;  // Re-exported from bubbletea-macros
+bubbletea = { package = "charmed-bubbletea", version = "0.1.2", features = ["macros"] }
+# Optional direct dependency:
+bubbletea-macros = { package = "charmed-bubbletea-macros", version = "0.1.2" }
 ```
 
 ## Quick Start
@@ -51,9 +48,7 @@ struct Counter {
 }
 
 impl Counter {
-    fn init(&self) -> Option<Cmd> {
-        None
-    }
+    fn init(&self) -> Option<Cmd> { None }
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         if let Some(&delta) = msg.downcast_ref::<i32>() {
@@ -68,160 +63,72 @@ impl Counter {
 }
 ```
 
-## State Tracking
+## State Tracking Attributes
 
-The `#[state]` attribute enables optimized re-rendering:
+- `#[state]`: include the field in change detection.
+- `#[state(eq = "fn")]`: use a custom equality function.
+- `#[state(skip)]`: ignore the field for change detection.
+- `#[state(debug)]`: log changes in debug builds.
+
+Example:
 
 ```rust
 #[derive(Model)]
 struct App {
-    #[state]                           // Basic tracking (uses PartialEq)
+    #[state]
     counter: i32,
 
-    #[state(eq = "float_approx_eq")]   // Custom equality function
+    #[state(eq = "float_eq")]
     progress: f64,
 
-    #[state(skip)]                     // Excluded from tracking
+    #[state(skip)]
     last_tick: std::time::Instant,
-
-    #[state(debug)]                    // Log changes (debug builds)
-    selected: usize,
-
-    cache: String,                     // Not tracked (no #[state])
 }
 ```
 
-## How It Works
+## Generated Methods
 
-The derive macro generates:
+The macro generates a `Model` impl that delegates to your inherent methods and
+adds internal helpers:
 
-1. **Model trait implementation** - Delegates to your inherent `init`, `update`, `view` methods
-2. **State snapshot struct** - Stores clones of `#[state]` fields for comparison
-3. **Change detection methods** - `__snapshot_state()` and `__state_changed()`
+- `__snapshot_state()`
+- `__state_changed()`
+
+These support efficient re-rendering by comparing snapshots of `#[state]` fields.
 
 ## Requirements
 
-Your struct must implement these inherent methods:
+Your struct must define these inherent methods:
 
-| Method | Signature |
-|--------|-----------|
-| `init` | `fn init(&self) -> Option<Cmd>` |
-| `update` | `fn update(&mut self, msg: Message) -> Option<Cmd>` |
-| `view` | `fn view(&self) -> String` |
-
-## Generic Structs
-
-The macro fully supports generic type parameters and where clauses:
-
-```rust
-#[derive(bubbletea::Model)]
-struct DataView<T>
-where
-    T: std::fmt::Display + Clone + Send + 'static,
-{
-    #[state]
-    data: T,
-}
-
-impl<T> DataView<T>
-where
-    T: std::fmt::Display + Clone + PartialEq + Send + 'static,
-{
-    fn init(&self) -> Option<Cmd> { None }
-    fn update(&mut self, _msg: Message) -> Option<Cmd> { None }
-    fn view(&self) -> String { format!("{}", self.data) }
-}
-```
-
-## Migration from Manual Implementation
-
-**Before (manual trait implementation):**
-
-```rust
-struct Counter { count: i32 }
-
-impl bubbletea::Model for Counter {
-    fn init(&self) -> Option<Cmd> { None }
-
-    fn update(&mut self, msg: Message) -> Option<Cmd> {
-        if let Some(&n) = msg.downcast_ref::<i32>() {
-            self.count += n;
-        }
-        None
-    }
-
-    fn view(&self) -> String {
-        format!("Count: {}", self.count)
-    }
-}
-```
-
-**After (using derive macro):**
-
-```rust
-#[derive(bubbletea::Model)]
-struct Counter { count: i32 }
-
-impl Counter {
-    fn init(&self) -> Option<Cmd> { None }
-
-    fn update(&mut self, msg: Message) -> Option<Cmd> {
-        if let Some(&n) = msg.downcast_ref::<i32>() {
-            self.count += n;
-        }
-        None
-    }
-
-    fn view(&self) -> String {
-        format!("Count: {}", self.count)
-    }
-}
-```
-
-The key benefits are:
-- Use `#[state]` for optimized rendering
-- Cleaner separation between struct definition and behavior
-- Type-safe state change detection
-
-## Limitations
-
-- Only works with named structs (not enums, unions, or tuple structs)
-- `#[state]` fields must implement `Clone` and `PartialEq` (unless using custom eq)
-
-## Troubleshooting
-
-### Error: "expected method `init`, found none"
-
-Ensure your struct has all three required inherent methods with the exact signatures:
 - `fn init(&self) -> Option<Cmd>`
 - `fn update(&mut self, msg: Message) -> Option<Cmd>`
 - `fn view(&self) -> String`
 
-### Error: "conflicting implementations of trait `Model`"
+## Limitations
 
-You can't both derive `Model` and implement it manually. Remove one or the other.
+- The macro inspects your struct at compile time and will error on missing
+  methods or incompatible types.
+- State comparison requires `Clone` and `PartialEq` unless you provide a custom
+  equality function.
 
-### Error: "the trait bound `T: Clone` is not satisfied"
+## Troubleshooting
 
-Fields marked with `#[state]` must implement `Clone` for snapshot generation.
-Add the bound to your generic, or remove `#[state]` from the field.
+- **Derive error about missing methods**: implement `init`, `update`, and `view`.
+- **State field not tracked**: add `#[state]` to the field.
+- **Unexpected re-renders**: supply a custom equality function via `eq = "fn"`.
 
-### Error: "the trait bound `T: PartialEq` is not satisfied"
+## FAQ
 
-Fields marked with `#[state]` must implement `PartialEq` for change detection.
-Either add the bound, use `#[state(eq = "custom_fn")]`, or remove `#[state]`.
+**Do I need this crate to use bubbletea?**  
+No. It’s optional and only provides ergonomics.
 
-## Examples
+**Can I use it with generic structs?**  
+Yes, generics and where-clauses are supported.
 
-See the [examples directory](../../examples/) for complete runnable examples:
-- `example-counter` - Basic counter with increment/decrement
-- `example-todo-list` - Complex state with input modes
-- `example-progress` - Timer-based progress with tick commands
+## About Contributions
 
-## Documentation
-
-See the [API documentation](https://docs.rs/charmed-bubbletea-macros) for complete details.
+Please don't take this the wrong way, but I do not accept outside contributions for any of my projects. I simply don't have the mental bandwidth to review anything, and it's my name on the thing, so I'm responsible for any problems it causes; thus, the risk-reward is highly asymmetric from my perspective. I'd also have to worry about other "stakeholders," which seems unwise for tools I mostly make for myself for free. Feel free to submit issues, and even PRs if you want to illustrate a proposed fix, but know I won't merge them directly. Instead, I'll have Claude or Codex review submissions via `gh` and independently decide whether and how to address them. Bug reports in particular are welcome. Sorry if this offends, but I want to avoid wasted time and hurt feelings. I understand this isn't in sync with the prevailing open-source ethos that seeks community contributions, but it's the only way I can move at this velocity and keep my sanity.
 
 ## License
 
-MIT License - see [LICENSE](../../LICENSE)
+MIT. See `LICENSE` at the repository root.

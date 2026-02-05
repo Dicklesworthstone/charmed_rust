@@ -1,46 +1,41 @@
 # Wish
 
-SSH apps for Rust, powered by BubbleTea.
+SSH server framework for serving bubbletea-based TUIs.
 
-Wish makes it easy to build SSH servers that serve interactive terminal applications.
-Based on the [Charm wish library](https://github.com/charmbracelet/wish) for Go,
-this Rust port provides a middleware-based API for handling SSH connections with full
-BubbleTea TUI integration.
+## TL;DR
+
+**The Problem:** Shipping a TUI over SSH usually requires a lot of protocol and
+session management boilerplate.
+
+**The Solution:** Wish provides a middleware-based SSH server API that embeds
+bubbletea programs per session.
+
+**Why Wish**
+
+- **SSH-first**: built on `russh`.
+- **Middleware pipeline**: composable session handling.
+- **Bubbletea integration**: serve TUIs per SSH connection.
 
 ## Role in the charmed_rust (FrankenTUI) stack
 
-Wish is the SSH deployment layer for the ecosystem. It embeds `bubbletea`
-programs inside SSH sessions so you can serve TUIs remotely. It pairs with
-`lipgloss` for styling and `charmed_log` for structured logging and diagnostics.
+Wish is the deployment layer for remote TUIs. It uses `bubbletea` for session
+programs, `lipgloss` for styling, and `charmed_log` for structured logging.
 
 ## Crates.io package
 
 Package name: `charmed-wish`  
 Library crate name: `wish`
 
-## Features
-
-- **SSH Server**: Full SSH server implementation using russh
-- **Authentication**: Password, public key, and keyboard-interactive auth
-- **BubbleTea Integration**: Serve interactive TUI apps over SSH
-- **Middleware Pattern**: Composable request processing pipeline
-- **Session Management**: Track and manage connected sessions
-- **PTY Support**: Full pseudo-terminal emulation
-
 ## Installation
-
-Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-wish = { package = "charmed-wish", version = "0.1.1" }
-bubbletea = { package = "charmed-bubbletea", version = "0.1.1" }
+wish = { package = "charmed-wish", version = "0.1.2" }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.2" }
 tokio = { version = "1", features = ["full"] }
 ```
 
 ## Quick Start
-
-### Basic Echo Server
 
 ```rust
 use wish::{ServerBuilder, println};
@@ -51,7 +46,6 @@ async fn main() -> Result<(), wish::Error> {
         .address("0.0.0.0:2222")
         .handler(|session| async move {
             println(&session, "Hello from Wish!");
-            println(&session, format!("User: {}", session.user()));
             let _ = session.exit(0);
         })
         .build()?;
@@ -60,50 +54,30 @@ async fn main() -> Result<(), wish::Error> {
 }
 ```
 
-Connect with: `ssh -p 2222 localhost`
+Connect with:
 
-### Serving a BubbleTea Application
+```bash
+ssh -p 2222 localhost
+```
+
+## Bubbletea Integration
 
 ```rust
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model};
 use wish::{ServerBuilder, Session};
 use wish::middleware::logging;
 
-struct Counter {
-    count: i32,
-    user: String,
-}
+struct Counter { count: i32, user: String }
 
 impl Model for Counter {
-    fn init(&self) -> Option<Cmd> {
-        None
-    }
-
+    fn init(&self) -> Option<Cmd> { None }
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
-            match key.key_type {
-                KeyType::Runes => {
-                    if key.runes == vec!['+'] || key.runes == vec!['k'] {
-                        self.count += 1;
-                    } else if key.runes == vec!['-'] || key.runes == vec!['j'] {
-                        self.count -= 1;
-                    } else if key.runes == vec!['q'] {
-                        return Some(bubbletea::quit());
-                    }
-                }
-                KeyType::CtrlC => return Some(bubbletea::quit()),
-                _ => {}
-            }
+            if matches!(key.key_type, KeyType::CtrlC) { return Some(bubbletea::quit()); }
         }
         None
     }
-
-    fn view(&self) -> String {
-        format!(
-            "Hello, {}!\n\nCount: {}\n\n[+/k] increment  [-/j] decrement  [q] quit",
-            self.user, self.count
-        )
-    }
+    fn view(&self) -> String { format!("Hello {}", self.user) }
 }
 
 #[tokio::main]
@@ -111,11 +85,9 @@ async fn main() -> Result<(), wish::Error> {
     let server = ServerBuilder::new()
         .address("0.0.0.0:2222")
         .with_middleware(logging::middleware())
-        .with_middleware(wish::tea::middleware(|session: &Session| {
-            Counter {
-                count: 0,
-                user: session.user().to_string(),
-            }
+        .with_middleware(wish::tea::middleware(|session: &Session| Counter {
+            count: 0,
+            user: session.user().to_string(),
         }))
         .build()?;
 
@@ -125,185 +97,32 @@ async fn main() -> Result<(), wish::Error> {
 
 ## Authentication
 
-### Accept All (Development Only)
+Wish supports multiple auth modes (password, public key, keyboard-interactive).
+See `wish::auth` for helpers and policies.
 
-```rust
-use wish::auth::AcceptAllAuth;
+## Troubleshooting
 
-let server = ServerBuilder::new()
-    .auth_handler(AcceptAllAuth::new())
-    // ...
-```
+- **Connection refused**: ensure port is open and `address` is correct.
+- **Key errors**: confirm host key permissions and file paths.
+- **No TUI output**: ensure the session handler runs a bubbletea program.
 
-### Public Key Authentication
+## Limitations
 
-```rust
-use wish::auth::AuthorizedKeysAuth;
+- SSH depends on `russh` and its evolving API surface.
+- Production deployments require robust auth and host key management.
 
-let auth = AuthorizedKeysAuth::new("~/.ssh/authorized_keys")?;
-let server = ServerBuilder::new()
-    .auth_handler(auth)
-    // ...
-```
+## FAQ
 
-### Password Authentication
+**Can I serve multiple apps?**  
+Yes. Route by user or session and spawn different models.
 
-```rust
-use wish::auth::{PasswordAuth, AuthContext};
+**Does it support PTY?**  
+Yes, through the session integration in `russh`.
 
-let auth = PasswordAuth::new(|ctx: &AuthContext, password: &str| {
-    ctx.username() == "admin" && password == "secret"
-});
-let server = ServerBuilder::new()
-    .auth_handler(auth)
-    // ...
-```
+## About Contributions
 
-### Composite Authentication
-
-```rust
-use wish::auth::{CompositeAuth, AuthorizedKeysAuth, PasswordAuth};
-
-let auth = CompositeAuth::new()
-    .add(AuthorizedKeysAuth::new("~/.ssh/authorized_keys")?)
-    .add(PasswordAuth::new(|ctx, pw| ctx.username() == "guest" && pw == "guest"));
-
-let server = ServerBuilder::new()
-    .auth_handler(auth)
-    // ...
-```
-
-## Built-in Middleware
-
-### Logging
-
-```rust
-use wish::middleware::logging;
-
-// Basic logging
-ServerBuilder::new()
-    .with_middleware(logging::middleware())
-
-// Structured logging
-ServerBuilder::new()
-    .with_middleware(logging::structured_middleware())
-```
-
-### Active Terminal Check
-
-```rust
-use wish::middleware::activeterm;
-
-// Require PTY allocation
-ServerBuilder::new()
-    .with_middleware(activeterm::middleware())
-```
-
-### Access Control
-
-```rust
-use wish::middleware::accesscontrol;
-
-// Restrict allowed commands
-ServerBuilder::new()
-    .with_middleware(accesscontrol::middleware(vec![
-        "git-receive-pack".to_string(),
-        "git-upload-pack".to_string(),
-    ]))
-```
-
-### Rate Limiting
-
-```rust
-use wish::middleware::ratelimiter;
-
-// Token-bucket rate limiter
-let limiter = ratelimiter::new_rate_limiter(1.0, 10, 1000);
-ServerBuilder::new()
-    .with_middleware(ratelimiter::middleware(limiter))
-```
-
-## Session API
-
-The `Session` object provides access to connection information:
-
-```rust
-session.user()          // Username
-session.remote_addr()   // Client address
-session.local_addr()    // Server address
-session.pty()           // PTY info (terminal type, window size)
-session.command()       // Command being executed
-session.public_key()    // Authentication public key
-session.environ()       // Environment variables
-session.window()        // Current window dimensions
-```
-
-## Output Functions
-
-```rust
-use wish::{print, println, error, errorln, fatal};
-
-println(&session, "Hello, world!");           // stdout with newline
-print(&session, "No newline");                // stdout without newline
-errorln(&session, "Error message");           // stderr with newline
-fatal(&session, "Fatal error, exiting...");   // stderr + exit(1)
-```
-
-## Server Configuration
-
-```rust
-use std::time::Duration;
-
-let server = ServerBuilder::new()
-    .address("0.0.0.0:2222")                    // Listen address
-    .version("SSH-2.0-MyApp")                   // SSH version string
-    .banner("Welcome to MyApp!")               // Auth banner
-    .host_key_path("/path/to/host_key")        // Persistent host key
-    .idle_timeout(Duration::from_secs(300))    // Connection timeout
-    .max_auth_attempts(3)                      // Auth attempt limit
-    .auth_rejection_delay(100)                 // Timing attack mitigation
-    .build()?;
-```
-
-## Examples
-
-See the `examples/` directory for complete examples:
-
-- `echo_server.rs` - Basic SSH server with greeting message
-- `bubbletea_counter.rs` - Interactive counter app over SSH
-- `authenticated_server.rs` - Server with public key authentication
-- `middleware_example.rs` - Custom middleware demonstration
-
-## Architecture
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                     SSH Client                              │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Wish Server                               │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐                  │
-│  │   Auth   │→ │Middleware│→ │ Handler  │                  │
-│  └──────────┘  └──────────┘  └──────────┘                  │
-│                                    │                        │
-│                                    ▼                        │
-│                          ┌──────────────┐                   │
-│                          │  BubbleTea   │                   │
-│                          │   Program    │                   │
-│                          └──────────────┘                   │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Security Considerations
-
-- **Never use `AcceptAllAuth` in production** - it accepts any credentials
-- Use public key authentication for production deployments
-- Consider rate limiting to prevent brute-force attacks
-- Set appropriate timeouts to prevent resource exhaustion
-- Use persistent host keys for production (prevents host key warnings)
+Please don't take this the wrong way, but I do not accept outside contributions for any of my projects. I simply don't have the mental bandwidth to review anything, and it's my name on the thing, so I'm responsible for any problems it causes; thus, the risk-reward is highly asymmetric from my perspective. I'd also have to worry about other "stakeholders," which seems unwise for tools I mostly make for myself for free. Feel free to submit issues, and even PRs if you want to illustrate a proposed fix, but know I won't merge them directly. Instead, I'll have Claude or Codex review submissions via `gh` and independently decide whether and how to address them. Bug reports in particular are welcome. Sorry if this offends, but I want to avoid wasted time and hurt feelings. I understand this isn't in sync with the prevailing open-source ethos that seeks community contributions, but it's the only way I can move at this velocity and keep my sanity.
 
 ## License
 
-MIT
+MIT. See `LICENSE` at the repository root.

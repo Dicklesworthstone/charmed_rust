@@ -23,9 +23,9 @@
 ```toml
 # Add to Cargo.toml
 [dependencies]
-bubbletea = { package = "charmed-bubbletea", version = "0.1.1" }
-lipgloss = { package = "charmed-lipgloss", version = "0.1.1" }
-bubbles = { package = "charmed-bubbles", version = "0.1.1" }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.2" }
+lipgloss = { package = "charmed-lipgloss", version = "0.1.2" }
+bubbles = { package = "charmed-bubbles", version = "0.1.2" }
 ```
 
 Crates are published under the `charmed-*` package names on crates.io, while the Rust
@@ -286,14 +286,14 @@ Same inputs → same outputs as Go Charm. Migration is seamless. Conformance tes
 ```toml
 # Cargo.toml
 [dependencies]
-bubbletea = { package = "charmed-bubbletea", version = "0.1.1" }
-lipgloss = { package = "charmed-lipgloss", version = "0.1.1" }
-bubbles = { package = "charmed-bubbles", version = "0.1.1" }
-glamour = { package = "charmed-glamour", version = "0.1.1" }
-harmonica = { package = "charmed-harmonica", version = "0.1.1" }
-wish = { package = "charmed-wish", version = "0.1.1" }
-huh = { package = "charmed-huh", version = "0.1.1" }
-charmed_log = { package = "charmed-log", version = "0.1.1" }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.2" }
+lipgloss = { package = "charmed-lipgloss", version = "0.1.2" }
+bubbles = { package = "charmed-bubbles", version = "0.1.2" }
+glamour = { package = "charmed-glamour", version = "0.1.2" }
+harmonica = { package = "charmed-harmonica", version = "0.1.2" }
+wish = { package = "charmed-wish", version = "0.1.2" }
+huh = { package = "charmed-huh", version = "0.1.2" }
+charmed_log = { package = "charmed-log", version = "0.1.2" }
 ```
 
 ### From Git (Bleeding Edge)
@@ -314,7 +314,7 @@ charmed_log = { package = "charmed-log", git = "https://github.com/Dicklesworths
 ### With Async Support
 
 ```toml
-bubbletea = { package = "charmed-bubbletea", version = "0.1.1", features = ["async"] }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.2", features = ["async"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -348,8 +348,8 @@ cargo new my-tui && cd my-tui
 
 ```toml
 [dependencies]
-bubbletea = { package = "charmed-bubbletea", version = "0.1.1" }
-lipgloss = { package = "charmed-lipgloss", version = "0.1.1" }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.2" }
+lipgloss = { package = "charmed-lipgloss", version = "0.1.2" }
 ```
 
 ### 3. Implement Model
@@ -759,7 +759,7 @@ Enable tokio-based async for non-blocking I/O:
 
 ```toml
 [dependencies]
-bubbletea = { package = "charmed-bubbletea", version = "0.1.1", features = ["async"] }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.2", features = ["async"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -922,7 +922,7 @@ Use the published package name and alias it to the `bubbletea` crate:
 bubbletea = "0.1"
 
 # ✅ Correct
-bubbletea = { package = "charmed-bubbletea", version = "0.1.1" }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.2" }
 ```
 
 ### Terminal not restoring after crash

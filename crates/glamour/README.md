@@ -1,19 +1,28 @@
 # Glamour
 
-A markdown rendering library for terminal applications, ported from the [Go glamour](https://github.com/charmbracelet/glamour) library.
+Markdown rendering for terminal applications, ported from the Charm ecosystem.
 
-Glamour transforms markdown into beautifully styled terminal output with:
-- Styled headings, lists, and tables
-- Code block formatting with optional syntax highlighting
-- Link and image handling
-- Customizable themes (Dark, Light, ASCII, Pink)
+Glamour transforms Markdown into styled terminal output with theme support,
+word-wrapping, and optional syntax highlighting.
+
+## TL;DR
+
+**The Problem:** Raw Markdown is hard to read in a terminal, especially with
+tables and code blocks.
+
+**The Solution:** Glamour renders Markdown into a styled, readable TUI output
+using lipgloss-based themes.
+
+**Why Glamour**
+
+- **Beautiful output**: headings, lists, tables, and code blocks are styled.
+- **Themeable**: built-in presets plus custom styles.
+- **Composable**: use as a library or in CLI apps like `glow`.
 
 ## Role in the charmed_rust (FrankenTUI) stack
 
-Glamour is the Markdown rendering engine in the ecosystem. It uses `lipgloss`
-for styling and is embedded in `glow` (the Markdown reader) and the demo
-showcase. It can also be used standalone as a library to render Markdown in any
-terminal-based application.
+Glamour is the Markdown renderer used by `glow` and the demo showcase. It builds
+on `lipgloss` for theme-aware styling.
 
 ## Crates.io package
 
@@ -22,191 +31,71 @@ Library crate name: `glamour`
 
 ## Installation
 
-Add to your `Cargo.toml`:
-
 ```toml
 [dependencies]
-glamour = { package = "charmed-glamour", version = "0.1.1" }
+glamour = { package = "charmed-glamour", version = "0.1.2" }
 ```
 
-## Basic Usage
-
-```rust
-use glamour::{render, Renderer, Style};
-
-// Quick render with default dark style
-let output = render("# Hello\n\nThis is **bold** text.", Style::Dark).unwrap();
-println!("{}", output);
-
-// Custom renderer with word wrap
-let renderer = Renderer::new()
-    .with_style(Style::Light)
-    .with_word_wrap(80);
-let output = renderer.render("# Heading\n\nParagraph text.");
-```
-
-## Table Rendering
-
-Glamour supports Markdown tables out of the box. For advanced table rendering
-APIs (parsing, low-level rendering, and styling), see:
-
-- `crates/glamour/docs/tables/README.md`
-- `crates/glamour/src/table.rs` (API docs)
-
-## Syntax Highlighting
-
-Glamour supports syntax highlighting for code blocks using [syntect](https://crates.io/crates/syntect).
-
-### Enabling
-
-Add the `syntax-highlighting` feature:
+Enable syntax highlighting:
 
 ```toml
-[dependencies]
-glamour = { package = "charmed-glamour", version = "0.1.1", features = ["syntax-highlighting"] }
+glamour = { package = "charmed-glamour", version = "0.1.2", features = ["syntax-highlighting"] }
 ```
 
-> **Note**: This adds ~2MB to binary size due to embedded syntax definitions for ~60 languages.
-
-### Basic Usage
+## Quick Start
 
 ```rust
 use glamour::{render, Style};
 
-let markdown = r#"
-```rust
-fn main() {
-    println!("Hello, world!");
-}
-```
-"#;
-
-// Code blocks with language hints are automatically highlighted
+let markdown = "# Hello\n\nThis is **bold**.";
 let output = render(markdown, Style::Dark).unwrap();
 println!("{}", output);
 ```
 
-### Theme Selection
+## Rendering Modes
 
-```rust
-use glamour::{Renderer, StyleConfig};
+- **Quick render**: `render(markdown, style)`.
+- **Configurable**: `Renderer::new().with_style(...).with_word_wrap(...)`.
 
-// Using StyleConfig builder
-let config = StyleConfig::default()
-    .syntax_theme("Solarized (dark)")
-    .with_line_numbers(true);
+## Themes
 
-let renderer = Renderer::new()
-    .with_style_config(config);
+Glamour ships with multiple themes (dark, light, ascii, etc.) and allows custom
+styles for full control. See `crates/glamour/src/style.rs` and
+`crates/glamour/docs/README.md` for advanced theming and table styling.
 
-// Or modify at runtime
-let mut renderer = Renderer::new();
-renderer.set_syntax_theme("Solarized (light)").unwrap();
-renderer.set_line_numbers(true);
-```
+## Tables
 
-### Available Themes
+Markdown tables are supported. For advanced table APIs, see:
 
-| Theme | Description |
-|-------|-------------|
-| `base16-ocean.dark` | Default, blue-toned dark theme |
-| `base16-eighties.dark` | Retro 80s color palette |
-| `base16-mocha.dark` | Warm brown-toned dark theme |
-| `InspiredGitHub` | GitHub-style colors |
-| `Solarized (dark)` | Popular dark theme |
-| `Solarized (light)` | Light theme variant |
-
-### Language Aliases
-
-Map custom language identifiers:
-
-```rust
-use glamour::StyleConfig;
-
-let config = StyleConfig::default()
-    .language_alias("dockerfile", "docker")
-    .language_alias("jsonc", "json")
-    .language_alias("rs", "rust");
-```
-
-### Disabling for Specific Languages
-
-```rust
-use glamour::StyleConfig;
-
-let config = StyleConfig::default()
-    .disable_language("plaintext")
-    .disable_language("text");
-```
-
-### Supported Languages
-
-Over 60 languages are supported including:
-
-- **Systems**: Rust, C, C++, Go, Assembly
-- **Web**: JavaScript, TypeScript, HTML, CSS, JSON
-- **Scripting**: Python, Ruby, Perl, Bash, PowerShell
-- **JVM**: Java, Kotlin, Scala, Groovy
-- **Markup**: Markdown, YAML, TOML, XML
-- **Others**: SQL, GraphQL, Dockerfile, Makefile
-
-Use `LanguageDetector::supported_languages()` for the full list.
-
-## Built-in Styles
-
-| Style | Description |
-|-------|-------------|
-| `Style::Dark` | Dark terminal background (default) |
-| `Style::Light` | Light terminal background |
-| `Style::Ascii` | ASCII-only, no special characters |
-| `Style::Pink` | Pink accent colors |
-| `Style::NoTty` | Plain output for non-terminals |
-| `Style::Auto` | Auto-detect from terminal |
-
-## API Reference
-
-### Quick Functions
-
-- `render(markdown, style)` - Render with built-in style
-- `render_bytes(bytes, style)` - Render from bytes
-
-### Renderer
-
-```rust
-let renderer = Renderer::new()
-    .with_style(Style::Dark)
-    .with_word_wrap(80)
-    .with_style_config(custom_config);
-
-let output = renderer.render("# Hello");
-```
-
-### StyleConfig
-
-Full control over rendering styles including:
-- Document, paragraph, blockquote styles
-- Heading styles (H1-H6)
-- List and code block styles
-- Syntax highlighting configuration
+- `crates/glamour/docs/tables/README.md`
+- `crates/glamour/src/table.rs`
 
 ## Feature Flags
 
-| Feature | Description | Size Impact |
-|---------|-------------|-------------|
-| `syntax-highlighting` | Syntax highlighting via syntect | ~2MB |
-| `serde` | Serialize/deserialize configs | Minimal |
+- `syntax-highlighting`: enables syntect-based code highlighting.
 
-## Terminal Compatibility
+## Troubleshooting
 
-For best results:
-- **TrueColor terminals**: iTerm2, Kitty, Alacritty, Windows Terminal
-- **256-color terminals**: Most modern terminals
-- **tmux/screen**: Set `TERM=xterm-256color` or `tmux-256color`
+- **No code highlighting**: enable the `syntax-highlighting` feature.
+- **Lines wrap oddly**: set an explicit wrap width on the `Renderer`.
+
+## Limitations
+
+- Syntax highlighting increases binary size.
+- Rendering is terminal-only; no HTML output.
+
+## FAQ
+
+**Can I use Glamour without bubbletea?**  
+Yes, it’s a standalone Markdown renderer.
+
+**Does it support custom themes?**  
+Yes, via style configuration and theme presets.
+
+## About Contributions
+
+Please don't take this the wrong way, but I do not accept outside contributions for any of my projects. I simply don't have the mental bandwidth to review anything, and it's my name on the thing, so I'm responsible for any problems it causes; thus, the risk-reward is highly asymmetric from my perspective. I'd also have to worry about other "stakeholders," which seems unwise for tools I mostly make for myself for free. Feel free to submit issues, and even PRs if you want to illustrate a proposed fix, but know I won't merge them directly. Instead, I'll have Claude or Codex review submissions via `gh` and independently decide whether and how to address them. Bug reports in particular are welcome. Sorry if this offends, but I want to avoid wasted time and hurt feelings. I understand this isn't in sync with the prevailing open-source ethos that seeks community contributions, but it's the only way I can move at this velocity and keep my sanity.
 
 ## License
 
-MIT License - see LICENSE file for details.
-
-## Credits
-
-Port of [github.com/charmbracelet/glamour](https://github.com/charmbracelet/glamour) to Rust.
+MIT. See `LICENSE` at the repository root.
