@@ -2,6 +2,18 @@
 
 Procedural macros for the [bubbletea](../bubbletea) TUI framework.
 
+## Role in the charmed_rust (FrankenTUI) stack
+
+This crate provides derive macros that make `bubbletea` models more ergonomic.
+It is an optional dependency that `bubbletea` re-exports via its `macros`
+feature. Most applications should depend on `bubbletea` and enable the feature
+instead of importing this crate directly.
+
+## Crates.io package
+
+Package name: `charmed-bubbletea-macros`  
+Library crate name: `bubbletea_macros`
+
 ## Features
 
 - **`#[derive(Model)]`** - Automatically implement the `Model` trait
@@ -16,7 +28,8 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-bubbletea = { package = "charmed-bubbletea", version = "0.1.0" }
+bubbletea = { package = "charmed-bubbletea", version = "0.1.0", features = ["macros"] }
+# Optional direct dependency if you want to use the crate explicitly:
 bubbletea-macros = { package = "charmed-bubbletea-macros", version = "0.1.0" }
 ```
 

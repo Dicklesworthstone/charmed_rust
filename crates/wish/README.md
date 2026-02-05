@@ -7,6 +7,17 @@ Based on the [Charm wish library](https://github.com/charmbracelet/wish) for Go,
 this Rust port provides a middleware-based API for handling SSH connections with full
 BubbleTea TUI integration.
 
+## Role in the charmed_rust (FrankenTUI) stack
+
+Wish is the SSH deployment layer for the ecosystem. It embeds `bubbletea`
+programs inside SSH sessions so you can serve TUIs remotely. It pairs with
+`lipgloss` for styling and `charmed_log` for structured logging and diagnostics.
+
+## Crates.io package
+
+Package name: `charmed-wish`  
+Library crate name: `wish`
+
 ## Features
 
 - **SSH Server**: Full SSH server implementation using russh

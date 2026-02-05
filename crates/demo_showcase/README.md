@@ -2,6 +2,18 @@
 
 A comprehensive demonstration of charmed_rust capabilities—showcasing bubbletea, lipgloss, bubbles, glamour, huh, harmonica, and charmed_log in a single multi-page TUI application.
 
+## Role in the charmed_rust (FrankenTUI) stack
+
+The demo showcase is the integration test and visual reference application for
+the entire ecosystem. It wires together nearly every crate in the stack to prove
+real-world composition, exercise themes, and validate behavior under actual
+interaction. It is the fastest way to see how the pieces fit together.
+
+## Crates.io package
+
+Package name: `charmed-demo-showcase`  
+Binary name: `charmed-demo-showcase`
+
 ## Quick Start
 
 ```bash

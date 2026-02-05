@@ -5,6 +5,19 @@ A terminal-based markdown reader and browser, powered by `glamour`.
 Glow makes it easy to read and browse markdown files directly in the terminal,
 with beautiful rendering and an intuitive pager interface.
 
+## Role in the charmed_rust (FrankenTUI) stack
+
+Glow is the reference CLI application in the ecosystem. It composes `glamour`
+for Markdown rendering with `bubbletea`, `bubbles`, and `lipgloss` for the TUI
+shell and styling. It demonstrates how the lower-level crates are combined into
+a complete end-user application.
+
+## Crates.io package
+
+Package name: `charmed-glow`  
+Library crate name: `glow`  
+Binary name: `glow`
+
 ## Features
 
 - **Markdown Rendering**: Beautiful terminal rendering via `glamour`
@@ -22,6 +35,12 @@ Add to your `Cargo.toml`:
 ```toml
 [dependencies]
 glow = { package = "charmed-glow", version = "0.1.0" }
+```
+
+Or install the CLI directly:
+
+```bash
+cargo install charmed-glow
 ```
 
 For GitHub README fetching:

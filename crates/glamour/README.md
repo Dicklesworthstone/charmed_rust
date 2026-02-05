@@ -8,13 +8,25 @@ Glamour transforms markdown into beautifully styled terminal output with:
 - Link and image handling
 - Customizable themes (Dark, Light, ASCII, Pink)
 
+## Role in the charmed_rust (FrankenTUI) stack
+
+Glamour is the Markdown rendering engine in the ecosystem. It uses `lipgloss`
+for styling and is embedded in `glow` (the Markdown reader) and the demo
+showcase. It can also be used standalone as a library to render Markdown in any
+terminal-based application.
+
+## Crates.io package
+
+Package name: `charmed-glamour`  
+Library crate name: `glamour`
+
 ## Installation
 
 Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-glamour = "0.1"
+glamour = { package = "charmed-glamour", version = "0.1.0" }
 ```
 
 ## Basic Usage
