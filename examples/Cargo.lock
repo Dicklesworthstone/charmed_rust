@@ -3,10 +3,16 @@
 version = 4
 
 [[package]]
-name = "anyhow"
-version = "1.0.100"
+name = "allocator-api2"
+version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
+checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
+
+[[package]]
+name = "anyhow"
+version = "1.0.101"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 
 [[package]]
 name = "bitflags"
@@ -15,30 +21,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
 
 [[package]]
-name = "bubbles"
-version = "0.1.0"
+name = "cfg-if"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+
+[[package]]
+name = "charmed-bubbles"
+version = "0.1.2"
 dependencies = [
- "bubbletea",
- "harmonica",
- "lipgloss",
+ "charmed-bubbletea",
+ "charmed-harmonica",
+ "charmed-lipgloss",
  "parking_lot",
  "unicode-segmentation",
  "unicode-width 0.2.2",
 ]
 
 [[package]]
-name = "bubbletea"
-version = "0.1.0"
+name = "charmed-bubbletea"
+version = "0.1.2"
 dependencies = [
- "bubbletea-macros",
+ "charmed-bubbletea-macros",
  "crossterm",
  "parking_lot",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
-name = "bubbletea-macros"
-version = "0.1.0"
+name = "charmed-bubbletea-macros"
+version = "0.1.2"
 dependencies = [
  "darling",
  "proc-macro-error2",
@@ -48,10 +61,44 @@ dependencies = [
 ]
 
 [[package]]
-name = "cfg-if"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+name = "charmed-glamour"
+version = "0.1.2"
+dependencies = [
+ "charmed-lipgloss",
+ "lru",
+ "pulldown-cmark",
+ "tracing",
+ "unicode-width 0.1.14",
+]
+
+[[package]]
+name = "charmed-harmonica"
+version = "0.1.2"
+
+[[package]]
+name = "charmed-huh"
+version = "0.1.2"
+dependencies = [
+ "charmed-bubbles",
+ "charmed-bubbletea",
+ "charmed-lipgloss",
+ "thiserror",
+]
+
+[[package]]
+name = "charmed-lipgloss"
+version = "0.1.2"
+dependencies = [
+ "bitflags",
+ "colored",
+ "crossterm",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "toml",
+ "tracing",
+ "unicode-width 0.1.14",
+]
 
 [[package]]
 name = "colored"
@@ -202,7 +249,7 @@ name = "example-counter"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bubbletea",
+ "charmed-bubbletea",
 ]
 
 [[package]]
@@ -210,10 +257,10 @@ name = "example-form"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bubbles",
- "bubbletea",
- "huh",
- "lipgloss",
+ "charmed-bubbles",
+ "charmed-bubbletea",
+ "charmed-huh",
+ "charmed-lipgloss",
 ]
 
 [[package]]
@@ -221,10 +268,10 @@ name = "example-markdown-viewer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bubbles",
- "bubbletea",
- "glamour",
- "lipgloss",
+ "charmed-bubbles",
+ "charmed-bubbletea",
+ "charmed-glamour",
+ "charmed-lipgloss",
 ]
 
 [[package]]
@@ -232,9 +279,9 @@ name = "example-multi-component"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bubbles",
- "bubbletea",
- "lipgloss",
+ "charmed-bubbles",
+ "charmed-bubbletea",
+ "charmed-lipgloss",
 ]
 
 [[package]]
@@ -242,9 +289,9 @@ name = "example-progress"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bubbles",
- "bubbletea",
- "lipgloss",
+ "charmed-bubbles",
+ "charmed-bubbletea",
+ "charmed-lipgloss",
 ]
 
 [[package]]
@@ -252,9 +299,9 @@ name = "example-spinner"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bubbles",
- "bubbletea",
- "lipgloss",
+ "charmed-bubbles",
+ "charmed-bubbletea",
+ "charmed-lipgloss",
 ]
 
 [[package]]
@@ -262,9 +309,9 @@ name = "example-textinput"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bubbles",
- "bubbletea",
- "lipgloss",
+ "charmed-bubbles",
+ "charmed-bubbletea",
+ "charmed-lipgloss",
 ]
 
 [[package]]
@@ -272,7 +319,7 @@ name = "example-theme-preview"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "lipgloss",
+ "charmed-lipgloss",
 ]
 
 [[package]]
@@ -280,8 +327,8 @@ name = "example-theme-switcher"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bubbletea",
- "lipgloss",
+ "charmed-bubbletea",
+ "charmed-lipgloss",
 ]
 
 [[package]]
@@ -289,8 +336,8 @@ name = "example-themed-counter"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bubbletea",
- "lipgloss",
+ "charmed-bubbletea",
+ "charmed-lipgloss",
 ]
 
 [[package]]
@@ -298,9 +345,9 @@ name = "example-todo-list"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bubbles",
- "bubbletea",
- "lipgloss",
+ "charmed-bubbles",
+ "charmed-bubbletea",
+ "charmed-lipgloss",
 ]
 
 [[package]]
@@ -308,9 +355,9 @@ name = "example-viewport"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bubbles",
- "bubbletea",
- "lipgloss",
+ "charmed-bubbles",
+ "charmed-bubbletea",
+ "charmed-lipgloss",
 ]
 
 [[package]]
@@ -324,6 +371,12 @@ name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
+
+[[package]]
+name = "foldhash"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
 name = "getopts"
@@ -347,33 +400,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "glamour"
-version = "0.1.0"
+name = "hashbrown"
+version = "0.15.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
- "lipgloss",
- "pulldown-cmark",
- "unicode-width 0.1.14",
+ "allocator-api2",
+ "equivalent",
+ "foldhash",
 ]
-
-[[package]]
-name = "harmonica"
-version = "0.1.0"
 
 [[package]]
 name = "hashbrown"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
-
-[[package]]
-name = "huh"
-version = "0.1.0"
-dependencies = [
- "bubbles",
- "bubbletea",
- "lipgloss",
- "thiserror",
-]
 
 [[package]]
 name = "ident_case"
@@ -388,7 +429,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7714e70437a7dc3ac8eb7e6f8df75fd8eb422675fc7678aff7364301092b1017"
 dependencies = [
  "equivalent",
- "hashbrown",
+ "hashbrown 0.16.1",
 ]
 
 [[package]]
@@ -416,21 +457,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df1d3c3b53da64cf5760482273a98e575c651a67eec7f77df96b5b642de8f039"
 
 [[package]]
-name = "lipgloss"
-version = "0.1.0"
-dependencies = [
- "bitflags",
- "colored",
- "crossterm",
- "serde",
- "serde_json",
- "thiserror",
- "toml",
- "tracing",
- "unicode-width 0.1.14",
-]
-
-[[package]]
 name = "litrs"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -450,6 +476,15 @@ name = "log"
 version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
+
+[[package]]
+name = "lru"
+version = "0.12.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "234cf4f4a04dc1f57e24b96cc0cd600cf2af460d4161ac5ecdd0af8e1f3b2a38"
+dependencies = [
+ "hashbrown 0.15.5",
+]
 
 [[package]]
 name = "memchr"
@@ -657,11 +692,11 @@ dependencies = [
 
 [[package]]
 name = "serde_spanned"
-version = "0.6.9"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf41e0cfaf7226dca15e8197172c295a782857fcb97fad1808a166870dee75a3"
+checksum = "f8bbf91e5a4d6315eee45e704372590b30e260ee83af6639d64557f51b067776"
 dependencies = [
- "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -753,44 +788,42 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.8.23"
+version = "0.9.11+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc1beb996b9d83529a9e75c17a1686767d148d70663143c7854d8b4a09ced362"
-dependencies = [
- "serde",
- "serde_spanned",
- "toml_datetime",
- "toml_edit",
-]
-
-[[package]]
-name = "toml_datetime"
-version = "0.6.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22cddaf88f4fbc13c51aebbf5f8eceb5c7c5a9da2ac40a13519eb5b0a0e8f11c"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "toml_edit"
-version = "0.22.27"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41fe8c660ae4257887cf66394862d21dbca4a6ddd26f04a3560410406a2f819a"
+checksum = "f3afc9a848309fe1aaffaed6e1546a7a14de1f935dc9d89d32afd9a44bab7c46"
 dependencies = [
  "indexmap",
- "serde",
+ "serde_core",
  "serde_spanned",
  "toml_datetime",
- "toml_write",
+ "toml_parser",
+ "toml_writer",
  "winnow",
 ]
 
 [[package]]
-name = "toml_write"
-version = "0.1.2"
+name = "toml_datetime"
+version = "0.7.5+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d99f8c9a7727884afe522e9bd5edbfc91a3312b36a77b5fb8926e4c31a41801"
+checksum = "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
+name = "toml_parser"
+version = "1.0.6+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3198b4b0a8e11f09dd03e133c0280504d0801269e9afa46362ffde1cbeebf44"
+dependencies = [
+ "winnow",
+]
+
+[[package]]
+name = "toml_writer"
+version = "1.0.6+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab16f14aed21ee8bfd8ec22513f7287cd4a91aa92e44edfe2c17ddd004e92607"
 
 [[package]]
 name = "tracing"
@@ -983,9 +1016,6 @@ name = "winnow"
 version = "0.7.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a5364e9d77fcdeeaa6062ced926ee3381faa2ee02d3eb83a5c27a8825540829"
-dependencies = [
- "memchr",
-]
 
 [[package]]
 name = "wit-bindgen"
