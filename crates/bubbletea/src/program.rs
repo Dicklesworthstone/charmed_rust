@@ -2482,8 +2482,8 @@ mod tests {
         // Verify we can inspect the panic payload
         let e = result.expect_err("Join should return Err when thread panics");
         // The panic payload is available for logging
-        let _panic_info = format!("{:?}", e);
-        // In production code, this would be logged with tracing::warn!
+        let panic_info = format!("{e:?}");
+        tracing::warn!(panic = %panic_info, "Thread panicked during join");
     }
 
     #[test]
