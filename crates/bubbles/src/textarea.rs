@@ -20,7 +20,7 @@ use crate::key::{Binding, matches};
 use crate::runeutil::Sanitizer;
 use crate::viewport::Viewport;
 use bubbletea::{Cmd, KeyMsg, Message, Model};
-use lipgloss::{Color, Style};
+use lipgloss::Style;
 
 const MIN_HEIGHT: usize = 1;
 const DEFAULT_HEIGHT: usize = 6;
@@ -175,11 +175,12 @@ impl Default for Styles {
         Self {
             base: Style::new(),
             cursor_line: Style::new(),
-            cursor_line_number: Style::new().foreground_color(Color::from("240")),
-            end_of_buffer: Style::new().foreground_color(Color::from("240")),
-            line_number: Style::new().foreground_color(Color::from("240")),
-            placeholder: Style::new().foreground_color(Color::from("240")),
-            prompt: Style::new().foreground_color(Color::from("7")),
+            // Match Go bubbles textarea defaults: no color styling unless explicitly configured.
+            cursor_line_number: Style::new(),
+            end_of_buffer: Style::new(),
+            line_number: Style::new(),
+            placeholder: Style::new(),
+            prompt: Style::new(),
             text: Style::new(),
         }
     }
@@ -1054,7 +1055,7 @@ impl TextArea {
 
             // Line content
             let line_str: String = line.iter().collect();
-            if is_cursor_line {
+            if is_cursor_line && self.focus {
                 let before: String = line[..self.col.min(line.len())].iter().collect();
                 s.push_str(&line_style.render(&before));
 
@@ -1080,7 +1081,7 @@ impl TextArea {
                 .iter()
                 .map(|c| unicode_width::UnicodeWidthChar::width(*c).unwrap_or(0))
                 .sum();
-            if is_cursor_line && self.col >= line.len() {
+            if is_cursor_line && self.focus && self.col >= line.len() {
                 current_line_width += 1; // Cursor at end adds a space
             }
 
@@ -1122,6 +1123,8 @@ impl TextArea {
         let mut lines = Vec::new();
 
         let placeholder_lines: Vec<&str> = self.placeholder.lines().collect();
+        let reserved = self.prompt_width + if self.show_line_numbers { 4 } else { 0 };
+        let total_width = reserved + self.width;
 
         for i in 0..self.height {
             let mut s = String::new();
@@ -1131,7 +1134,7 @@ impl TextArea {
 
             // Line numbers
             if self.show_line_numbers {
-                let ln_style = if i == 0 {
+                let ln_style = if i == 0 && self.focus {
                     &style.cursor_line_number
                 } else {
                     &style.line_number
@@ -1145,7 +1148,7 @@ impl TextArea {
 
             if i < placeholder_lines.len() {
                 let line = placeholder_lines[i];
-                if i == 0 && !line.is_empty() {
+                if i == 0 && self.focus && !line.is_empty() {
                     // First char as cursor
                     let first: String = line.chars().take(1).collect();
                     let rest: String = line.chars().skip(1).collect();
@@ -1164,6 +1167,12 @@ impl TextArea {
                         .end_of_buffer
                         .render(&format!("{}", self.end_of_buffer_character)),
                 );
+            }
+
+            // Pad each rendered line to the same visible width as Go bubbles.
+            let line_width = lipgloss::width(&s);
+            if line_width < total_width {
+                s.push_str(&" ".repeat(total_width - line_width));
             }
 
             lines.push(s);

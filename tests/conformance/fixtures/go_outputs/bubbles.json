@@ -3,7 +3,7 @@
     "crate": "bubbles",
     "go_version": "1.24",
     "library_version": "0.20.0",
-    "captured_at": "2026-01-18T08:46:16Z"
+    "captured_at": "2026-02-10T17:30:25Z"
   },
   "tests": [
     {
@@ -229,6 +229,98 @@
       "expected_output": {
         "after_blur": false,
         "after_focus": true
+      }
+    },
+    {
+      "name": "textarea_new",
+      "category": "unit",
+      "input": {
+        "height": 6,
+        "width": 40
+      },
+      "expected_output": {
+        "focused": false,
+        "height": 6,
+        "length": 0,
+        "line": 0,
+        "line_count": 1,
+        "placeholder": "",
+        "value": "",
+        "width": 34
+      }
+    },
+    {
+      "name": "textarea_set_value",
+      "category": "unit",
+      "input": {
+        "height": 6,
+        "value": "Line 1\nLine 2\nLine 3",
+        "width": 40
+      },
+      "expected_output": {
+        "length": 20,
+        "line": 2,
+        "line_count": 3,
+        "value": "Line 1\nLine 2\nLine 3"
+      }
+    },
+    {
+      "name": "textarea_cursor_navigation",
+      "category": "unit",
+      "input": {
+        "value": "A\nBB\nCCC"
+      },
+      "expected_output": {
+        "after_down": 2,
+        "after_end": 2,
+        "after_start": 2,
+        "after_up": 1
+      }
+    },
+    {
+      "name": "textarea_focus_blur",
+      "category": "unit",
+      "input": {},
+      "expected_output": {
+        "blurred": false,
+        "focused": true
+      }
+    },
+    {
+      "name": "textarea_placeholder_view",
+      "category": "unit",
+      "input": {
+        "height": 6,
+        "placeholder": "Enter text...",
+        "width": 40
+      },
+      "expected_output": {
+        "view": "┃   1 Enter text...                     \n┃                                       \n┃                                       \n┃                                       \n┃                                       \n┃                                       "
+      }
+    },
+    {
+      "name": "textarea_line_numbers",
+      "category": "unit",
+      "input": {
+        "height": 6,
+        "show_line_numbers": true,
+        "value": "one\ntwo",
+        "width": 40
+      },
+      "expected_output": {
+        "view": "┃   1 one                               \n┃   2 two                               \n┃                                       \n┃                                       \n┃                                       \n┃                                       "
+      }
+    },
+    {
+      "name": "textarea_char_limit",
+      "category": "unit",
+      "input": {
+        "char_limit": 5,
+        "insert": "123456789"
+      },
+      "expected_output": {
+        "length": 5,
+        "value": "12345"
       }
     },
     {

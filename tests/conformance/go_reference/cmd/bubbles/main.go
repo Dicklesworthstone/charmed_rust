@@ -20,6 +20,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/stopwatch"
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/timer"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -36,6 +37,9 @@ func main() {
 
 	// Capture textinput behaviors
 	captureTextInputTests(fixtures)
+
+	// Capture textarea behaviors
+	captureTextAreaTests(fixtures)
 
 	// Capture progress behaviors
 	captureProgressTests(fixtures)
@@ -73,6 +77,175 @@ func main() {
 	if err := fixtures.WriteToFile(*outputDir); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+func captureTextAreaTests(fs *capture.FixtureSet) {
+	// Keep dimensions wide/tall enough to avoid soft-wrap affecting cursor math.
+	const width = 40
+	const height = 6
+
+	// Test 1: Basic textarea creation
+	{
+		ta := textarea.New()
+		ta.SetWidth(width)
+		ta.SetHeight(height)
+		ta.Blur() // Ensure no cursor rendering variability in View()
+
+		fs.AddTestWithCategory("textarea_new", "unit",
+			map[string]interface{}{
+				"width":  width,
+				"height": height,
+			},
+			map[string]interface{}{
+				"value":       ta.Value(),
+				"focused":     ta.Focused(),
+				"width":       ta.Width(),
+				"height":      ta.Height(),
+				"line":        ta.Line(),
+				"line_count":  ta.LineCount(),
+				"length":      ta.Length(),
+				"placeholder": ta.Placeholder,
+			},
+		)
+	}
+
+	// Test 2: SetValue with multiple lines
+	{
+		ta := textarea.New()
+		ta.SetWidth(width)
+		ta.SetHeight(height)
+		ta.SetValue("Line 1\nLine 2\nLine 3")
+		ta.Blur()
+
+		fs.AddTestWithCategory("textarea_set_value", "unit",
+			map[string]interface{}{
+				"value":  "Line 1\nLine 2\nLine 3",
+				"width":  width,
+				"height": height,
+			},
+			map[string]interface{}{
+				"value":      ta.Value(),
+				"line_count": ta.LineCount(),
+				"length":     ta.Length(),
+				"line":       ta.Line(),
+			},
+		)
+	}
+
+	// Test 3: Cursor navigation (down/up, start/end)
+	{
+		ta := textarea.New()
+		ta.SetWidth(width)
+		ta.SetHeight(height)
+		ta.SetValue("A\nBB\nCCC")
+
+		ta.CursorDown()
+		afterDown := ta.Line()
+		ta.CursorEnd()
+		afterEnd := ta.Line()
+		ta.CursorStart()
+		afterStart := ta.Line()
+		ta.CursorUp()
+		afterUp := ta.Line()
+
+		ta.Blur()
+
+		fs.AddTestWithCategory("textarea_cursor_navigation", "unit",
+			map[string]interface{}{
+				"value": "A\nBB\nCCC",
+			},
+			map[string]interface{}{
+				"after_down":  afterDown,
+				"after_end":   afterEnd,
+				"after_start": afterStart,
+				"after_up":    afterUp,
+			},
+		)
+	}
+
+	// Test 4: Focus + blur toggles focused state
+	{
+		ta := textarea.New()
+		ta.SetWidth(width)
+		ta.SetHeight(height)
+
+		_, _ = ta.Update(textarea.Blink()) // Initialize cursor internals
+		_ = ta.Focus()
+		focused := ta.Focused()
+		ta.Blur()
+		blurred := ta.Focused()
+
+		fs.AddTestWithCategory("textarea_focus_blur", "unit",
+			map[string]interface{}{},
+			map[string]interface{}{
+				"focused": focused,
+				"blurred": blurred,
+			},
+		)
+	}
+
+	// Test 5: Placeholder view renders placeholder when empty
+	{
+		ta := textarea.New()
+		ta.SetWidth(width)
+		ta.SetHeight(height)
+		ta.Placeholder = "Enter text..."
+		ta.Blur()
+
+		fs.AddTestWithCategory("textarea_placeholder_view", "unit",
+			map[string]interface{}{
+				"placeholder": "Enter text...",
+				"width":       width,
+				"height":      height,
+			},
+			map[string]interface{}{
+				"view": ta.View(),
+			},
+		)
+	}
+
+	// Test 6: Line numbers toggle affects view
+	{
+		ta := textarea.New()
+		ta.SetWidth(width)
+		ta.SetHeight(height)
+		ta.SetValue("one\ntwo")
+		ta.ShowLineNumbers = true
+		ta.Blur()
+
+		fs.AddTestWithCategory("textarea_line_numbers", "unit",
+			map[string]interface{}{
+				"value":             "one\ntwo",
+				"show_line_numbers": true,
+				"width":             width,
+				"height":            height,
+			},
+			map[string]interface{}{
+				"view": ta.View(),
+			},
+		)
+	}
+
+	// Test 7: Char limit is enforced for inserts
+	{
+		ta := textarea.New()
+		ta.SetWidth(width)
+		ta.SetHeight(height)
+		ta.CharLimit = 5
+		ta.InsertString("123456789")
+		ta.Blur()
+
+		fs.AddTestWithCategory("textarea_char_limit", "unit",
+			map[string]interface{}{
+				"char_limit": 5,
+				"insert":     "123456789",
+			},
+			map[string]interface{}{
+				"value":  ta.Value(),
+				"length": ta.Length(),
+			},
+		)
 	}
 }
 

@@ -4,11 +4,8 @@
 //! implementation of TUI components matches the behavior of the
 //! original Go library.
 //!
-//! Currently implemented conformance areas:
-//! - Progress bar (progress_*)
-//! - Spinner (spinner_*)
-//!
-//! Other fixture tests are marked as skipped until implemented.
+//! Fixture-driven component conformance suite. Missing fixture handlers must
+//! fail CI (no silent skipping).
 
 // Allow dead code and unused imports in test fixture structures
 #![allow(dead_code)]
@@ -27,6 +24,7 @@ use bubbles::stopwatch::{
     TickMsg as StopwatchTickMsg,
 };
 use bubbles::table::{Column, Table};
+use bubbles::textarea::TextArea;
 use bubbles::textinput::{EchoMode, TextInput};
 use bubbles::timer::{TickMsg as TimerTickMsg, Timer};
 use bubbles::viewport::Viewport;
@@ -286,6 +284,58 @@ struct TextInputOutput {
     after_focus: Option<bool>,
     #[serde(default)]
     after_blur: Option<bool>,
+}
+
+// ===== TextArea Conformance Structs =====
+
+#[derive(Debug, Deserialize)]
+struct TextAreaInput {
+    #[serde(default)]
+    width: Option<usize>,
+    #[serde(default)]
+    height: Option<usize>,
+    #[serde(default)]
+    value: Option<String>,
+    #[serde(default)]
+    placeholder: Option<String>,
+    #[serde(default)]
+    show_line_numbers: Option<bool>,
+    #[serde(default)]
+    char_limit: Option<usize>,
+    #[serde(default)]
+    insert: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TextAreaOutput {
+    #[serde(default)]
+    value: Option<String>,
+    #[serde(default)]
+    focused: Option<bool>,
+    #[serde(default)]
+    blurred: Option<bool>,
+    #[serde(default)]
+    width: Option<usize>,
+    #[serde(default)]
+    height: Option<usize>,
+    #[serde(default)]
+    line: Option<usize>,
+    #[serde(default)]
+    line_count: Option<usize>,
+    #[serde(default)]
+    length: Option<usize>,
+    #[serde(default)]
+    placeholder: Option<String>,
+    #[serde(default)]
+    view: Option<String>,
+    #[serde(default)]
+    after_down: Option<usize>,
+    #[serde(default)]
+    after_end: Option<usize>,
+    #[serde(default)]
+    after_start: Option<usize>,
+    #[serde(default)]
+    after_up: Option<usize>,
 }
 
 // ===== List Conformance Structs =====
@@ -2744,6 +2794,218 @@ fn run_textinput_test(fixture: &TestFixture) -> Result<(), String> {
     Ok(())
 }
 
+fn run_textarea_test(fixture: &TestFixture) -> Result<(), String> {
+    let input: TextAreaInput = fixture
+        .input_as()
+        .map_err(|e| format!("Failed to parse input: {}", e))?;
+
+    let expected: TextAreaOutput = fixture
+        .expected_as()
+        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+
+    let mut textarea = TextArea::new();
+
+    // Apply input configurations that affect layout before sizing.
+    if let Some(show) = input.show_line_numbers {
+        textarea.show_line_numbers = show;
+    }
+
+    if let Some(limit) = input.char_limit {
+        textarea.char_limit = limit;
+    }
+
+    if let Some(ref placeholder) = input.placeholder {
+        textarea.placeholder = placeholder.clone();
+    }
+
+    if let Some(width) = input.width {
+        textarea.set_width(width);
+    }
+
+    if let Some(height) = input.height {
+        textarea.set_height(height);
+    }
+
+    if let Some(ref value) = input.value {
+        textarea.set_value(value);
+    }
+
+    match fixture.name.as_str() {
+        "textarea_new" => {}
+        "textarea_set_value" => {}
+        "textarea_cursor_navigation" => {
+            textarea.cursor_down();
+            let after_down = textarea.line();
+
+            textarea.cursor_end();
+            let after_end = textarea.line();
+
+            textarea.cursor_start();
+            let after_start = textarea.line();
+
+            textarea.cursor_up();
+            let after_up = textarea.line();
+
+            if let Some(expected_after_down) = expected.after_down {
+                if after_down != expected_after_down {
+                    return Err(format!(
+                        "After down mismatch: expected {}, got {}",
+                        expected_after_down, after_down
+                    ));
+                }
+            }
+            if let Some(expected_after_end) = expected.after_end {
+                if after_end != expected_after_end {
+                    return Err(format!(
+                        "After end mismatch: expected {}, got {}",
+                        expected_after_end, after_end
+                    ));
+                }
+            }
+            if let Some(expected_after_start) = expected.after_start {
+                if after_start != expected_after_start {
+                    return Err(format!(
+                        "After start mismatch: expected {}, got {}",
+                        expected_after_start, after_start
+                    ));
+                }
+            }
+            if let Some(expected_after_up) = expected.after_up {
+                if after_up != expected_after_up {
+                    return Err(format!(
+                        "After up mismatch: expected {}, got {}",
+                        expected_after_up, after_up
+                    ));
+                }
+            }
+        }
+        "textarea_focus_blur" => {
+            let _ = textarea.focus();
+            let focused = textarea.focused();
+            textarea.blur();
+            let blurred = textarea.focused();
+
+            if let Some(expected_focused) = expected.focused {
+                if focused != expected_focused {
+                    return Err(format!(
+                        "Focused mismatch: expected {}, got {}",
+                        expected_focused, focused
+                    ));
+                }
+            }
+            if let Some(expected_blurred) = expected.blurred {
+                if blurred != expected_blurred {
+                    return Err(format!(
+                        "Blurred mismatch: expected {}, got {}",
+                        expected_blurred, blurred
+                    ));
+                }
+            }
+        }
+        "textarea_placeholder_view" | "textarea_line_numbers" => {
+            textarea.blur();
+        }
+        "textarea_char_limit" => {
+            if let Some(ref s) = input.insert {
+                textarea.insert_string(s);
+            }
+        }
+        _ => return Err(format!("Unhandled textarea fixture: {}", fixture.name)),
+    }
+
+    if let Some(ref expected_value) = expected.value {
+        let actual = textarea.value();
+        if &actual != expected_value {
+            return Err(format!(
+                "Value mismatch: expected {:?}, got {:?}",
+                expected_value, actual
+            ));
+        }
+    }
+
+    if let Some(expected_focused) = expected.focused {
+        // For textarea_focus_blur, focused is validated above against the focused-after-focus value.
+        if fixture.name != "textarea_focus_blur" && textarea.focused() != expected_focused {
+            return Err(format!(
+                "Focused mismatch: expected {}, got {}",
+                expected_focused,
+                textarea.focused()
+            ));
+        }
+    }
+
+    if let Some(expected_width) = expected.width {
+        if textarea.width() != expected_width {
+            return Err(format!(
+                "Width mismatch: expected {}, got {}",
+                expected_width,
+                textarea.width()
+            ));
+        }
+    }
+
+    if let Some(expected_height) = expected.height {
+        if textarea.height() != expected_height {
+            return Err(format!(
+                "Height mismatch: expected {}, got {}",
+                expected_height,
+                textarea.height()
+            ));
+        }
+    }
+
+    if let Some(expected_line) = expected.line {
+        if textarea.line() != expected_line {
+            return Err(format!(
+                "Line mismatch: expected {}, got {}",
+                expected_line,
+                textarea.line()
+            ));
+        }
+    }
+
+    if let Some(expected_line_count) = expected.line_count {
+        if textarea.line_count() != expected_line_count {
+            return Err(format!(
+                "Line count mismatch: expected {}, got {}",
+                expected_line_count,
+                textarea.line_count()
+            ));
+        }
+    }
+
+    if let Some(expected_length) = expected.length {
+        if textarea.length() != expected_length {
+            return Err(format!(
+                "Length mismatch: expected {}, got {}",
+                expected_length,
+                textarea.length()
+            ));
+        }
+    }
+
+    if let Some(ref expected_placeholder) = expected.placeholder {
+        if textarea.placeholder != *expected_placeholder {
+            return Err(format!(
+                "Placeholder mismatch: expected {:?}, got {:?}",
+                expected_placeholder, textarea.placeholder
+            ));
+        }
+    }
+
+    if let Some(ref expected_view) = expected.view {
+        let actual = textarea.view();
+        if &actual != expected_view {
+            return Err(format!(
+                "View mismatch: expected {:?}, got {:?}",
+                expected_view, actual
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 fn run_test(fixture: &TestFixture) -> Result<(), String> {
     if let Some(reason) = fixture.should_skip() {
         return Err(format!("SKIPPED: {}", reason));
@@ -2769,6 +3031,8 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
         run_viewport_test(fixture)
     } else if fixture.name.starts_with("textinput_") {
         run_textinput_test(fixture)
+    } else if fixture.name.starts_with("textarea_") {
+        run_textarea_test(fixture)
     } else if fixture.name.starts_with("filepicker_") {
         run_filepicker_test(fixture)
     } else if fixture.name.starts_with("cursor_") {

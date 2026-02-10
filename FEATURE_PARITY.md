@@ -27,7 +27,7 @@ Result summary:
 
 | Crate        | Tests | Pass | Fail | Skip | Notes |
 |--------------|-------|------|------|------|-------|
-| bubbles      | 83    | 83   | 0    | 0    | All fixtures pass, full component coverage |
+| bubbles      | 90    | 90   | 0    | 0    | All fixtures pass, full component coverage |
 | bubbletea    | 168   | 168  | 0    | 0    | All fixtures pass |
 | charmed_log  | 67    | 67   | 0    | 0    | All fixtures pass |
 | harmonica    | 24    | 24   | 0    | 0    | All fixtures pass |
@@ -105,11 +105,12 @@ Result summary:
 ## Fixture Coverage Notes
 
 ### Bubbles (100% Coverage)
-All 83 bubbles fixtures have full test implementations:
+All 90 bubbles fixtures have full test implementations:
 - **viewport** (7): new, with_content, scroll_down, goto_top, goto_bottom, half_page_down, page_navigation
 - **list** (7): empty, with_items, cursor_movement, goto_top_bottom, pagination, title, selection
 - **table** (8): empty, with_data, cursor_movement, goto_top_bottom, focus, set_cursor, dimensions, cursor_bounds
 - **textinput** (10): new, with_value, char_limit, width, cursor_set/start/end, password, echo_none, focus_blur
+- **textarea** (7): new, set_value, cursor_navigation, focus_blur, placeholder_view, line_numbers, char_limit
 - **filepicker** (11): new, set_directory, allowed_types, show_hidden, height, dir_allowed, keybindings, format_size, cursor, sort_order, empty_view
 - **spinner** (12): line, dot, minidot, jump, pulse, points, globe, moon, monkey, meter, hamburger, model_view
 - **progress** (6): basic, zero, full, custom_width, no_percent, solid_fill
