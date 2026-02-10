@@ -18,6 +18,14 @@
 //!     fn filter_value(&self) -> &str {
 //!         &self.title
 //!     }
+//!
+//!     fn title(&self) -> &str {
+//!         &self.title
+//!     }
+//!
+//!     fn description(&self) -> &str {
+//!         &self.description
+//!     }
 //! }
 //!
 //! let items = vec![
@@ -30,17 +38,32 @@
 
 use crate::help::Help;
 use crate::key::{Binding, matches};
-use crate::paginator::Paginator;
+use crate::paginator::{Paginator, Type as PaginatorType};
 use crate::spinner::{SpinnerModel, TickMsg};
 use crate::textinput::TextInput;
 use bubbletea::{Cmd, KeyMsg, Message, Model, MouseAction, MouseButton, MouseMsg};
-use lipgloss::{Color, Style};
+use lipgloss::{Color, Style, height as lipgloss_height};
 use std::time::Duration;
 
 /// Trait for items that can be displayed in a list.
 pub trait Item: Clone + Send + 'static {
     /// Returns the value used for filtering.
     fn filter_value(&self) -> &str;
+
+    /// Returns the item's title (used by the default delegate).
+    ///
+    /// Matches Go bubbles list semantics where filtering is usually based on the title.
+    fn title(&self) -> &str {
+        self.filter_value()
+    }
+
+    /// Returns the item's description (used by the default delegate).
+    ///
+    /// Default is empty, which renders as a two-line item with a blank second line
+    /// when the default delegate is configured to show descriptions.
+    fn description(&self) -> &str {
+        ""
+    }
 }
 
 /// Trait for rendering list items.
@@ -63,6 +86,8 @@ pub trait ItemDelegate<I: Item>: Clone + Send + 'static {
 /// Default delegate for simple item rendering.
 #[derive(Debug, Clone)]
 pub struct DefaultDelegate {
+    /// Whether to show item descriptions (two-line items).
+    pub show_description: bool,
     /// Style for normal items.
     pub normal_style: Style,
     /// Style for selected items.
@@ -84,10 +109,12 @@ impl DefaultDelegate {
     #[must_use]
     pub fn new() -> Self {
         Self {
+            show_description: true,
             normal_style: Style::new(),
             selected_style: Style::new().foreground_color(Color::from("212")).bold(),
-            item_height: 1,
-            item_spacing: 0,
+            // Match Go bubbles list.NewDefaultDelegate defaults (height=2, spacing=1).
+            item_height: 2,
+            item_spacing: 1,
         }
     }
 
@@ -104,10 +131,20 @@ impl DefaultDelegate {
         self.item_spacing = s;
         self
     }
+
+    /// Sets whether to show descriptions (two-line items).
+    #[must_use]
+    pub fn with_show_description(mut self, v: bool) -> Self {
+        self.show_description = v;
+        self
+    }
 }
 
 impl<I: Item> ItemDelegate<I> for DefaultDelegate {
     fn height(&self) -> usize {
+        if !self.show_description {
+            return 1;
+        }
         self.item_height
     }
 
@@ -116,10 +153,11 @@ impl<I: Item> ItemDelegate<I> for DefaultDelegate {
     }
 
     fn render(&self, item: &I, _index: usize, selected: bool, width: usize) -> String {
-        let value = item.filter_value();
+        let title = item.title();
+        let desc = item.description();
 
         // Truncate based on display width
-        let truncated = {
+        let truncate = |value: &str| {
             use unicode_width::UnicodeWidthStr;
             if UnicodeWidthStr::width(value) <= width {
                 value.to_string()
@@ -142,10 +180,29 @@ impl<I: Item> ItemDelegate<I> for DefaultDelegate {
             }
         };
 
+        let title_trunc = truncate(title);
+        let desc_trunc = truncate(desc);
+
         if selected {
-            self.selected_style.render(&truncated)
+            if self.show_description {
+                format!(
+                    "{}\n{}",
+                    self.selected_style.render(&title_trunc),
+                    self.selected_style.render(&desc_trunc)
+                )
+            } else {
+                self.selected_style.render(&title_trunc)
+            }
         } else {
-            self.normal_style.render(&truncated)
+            if self.show_description {
+                format!(
+                    "{}\n{}",
+                    self.normal_style.render(&title_trunc),
+                    self.normal_style.render(&desc_trunc)
+                )
+            } else {
+                self.normal_style.render(&title_trunc)
+            }
         }
     }
 }
@@ -298,19 +355,33 @@ pub struct Styles {
 
 impl Default for Styles {
     fn default() -> Self {
+        // Match Go bubbles list.DefaultStyles() as closely as we can.
         Self {
-            title: Style::new().bold(),
-            title_bar: Style::new(),
-            filter_prompt: Style::new(),
-            filter_cursor: Style::new(),
-            status_bar: Style::new().foreground_color(Color::from("240")),
+            title_bar: Style::new().padding((0u16, 0u16, 1u16, 2u16)),
+            title: Style::new()
+                .background_color(Color::from("62"))
+                .foreground_color(Color::from("230"))
+                .padding((0u16, 1u16)),
+            filter_prompt: Style::new().foreground_color(Color::from("#ECFD65")),
+            filter_cursor: Style::new().foreground_color(Color::from("#EE6FF8")),
+            status_bar: Style::new()
+                .foreground_color(Color::from("240"))
+                .padding((0u16, 0u16, 1u16, 2u16)),
             status_empty: Style::new().foreground_color(Color::from("240")),
             no_items: Style::new().foreground_color(Color::from("240")),
-            pagination: Style::new(),
-            help: Style::new().foreground_color(Color::from("240")),
-            active_pagination_dot: Style::new().foreground_color(Color::from("212")),
-            inactive_pagination_dot: Style::new().foreground_color(Color::from("240")),
-            divider_dot: Style::new().foreground_color(Color::from("240")),
+            pagination: Style::new().padding_left(2),
+            help: Style::new()
+                .foreground_color(Color::from("240"))
+                .padding((1u16, 0u16, 0u16, 2u16)),
+            active_pagination_dot: Style::new()
+                .foreground_color(Color::from("240"))
+                .set_string("•"),
+            inactive_pagination_dot: Style::new()
+                .foreground_color(Color::from("240"))
+                .set_string("•"),
+            divider_dot: Style::new()
+                .foreground_color(Color::from("240"))
+                .set_string(" • "),
         }
     }
 }
@@ -390,9 +461,12 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
 
         let mut filter_input = TextInput::new();
         filter_input.prompt = "Filter: ".to_string();
+        // In Go, the filter input is focused by default (even when not shown).
+        filter_input.focus();
 
         let mut list = Self {
-            title: String::new(),
+            // Match Go's default title.
+            title: "List".to_string(),
             show_title: true,
             show_filter: true,
             show_status_bar: true,
@@ -409,7 +483,7 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
             mouse_wheel_delta: 1,
             mouse_click_enabled: true,
             spinner: SpinnerModel::new(),
-            paginator: Paginator::new(),
+            paginator: Paginator::new().display_type(PaginatorType::Dots),
             help: Help::new(),
             filter_input,
             items,
@@ -647,35 +721,30 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         &self.paginator
     }
 
-    /// Updates pagination based on height and delegate.
+    /// Updates pagination to match the Go bubbles list Model.updatePagination logic.
     fn update_pagination(&mut self) {
-        let item_height = self.delegate.height() + self.delegate.spacing();
         let items_len = self.filtered_indices.len();
+        let item_height = (self.delegate.height() + self.delegate.spacing()).max(1);
 
-        // Chrome is everything that isn't an item row. Unlike an earlier fixed "4 line"
-        // approximation, this matches the view's actual sections and therefore matches
-        // the Go implementation's dynamic layout more closely.
-        let chrome_base = self.chrome_lines_without_pagination();
+        // Compute available height by subtracting heights of chrome sections.
+        // Note: lipgloss height of "" is 1 (matches Go lipgloss), and the Go list
+        // includes sections even when they render empty strings.
+        let mut avail_height = self.height;
 
-        let mut pagination_line = 0usize;
-        let mut per_page = 1usize;
-
-        // Pagination visibility depends on total_pages, which depends on per_page.
-        // Iterate to a stable point (at most 2 transitions).
-        for _ in 0..3 {
-            let chrome_lines = chrome_base + pagination_line;
-            let available = self.height.saturating_sub(chrome_lines);
-            let candidate = (available / item_height.max(1)).max(1);
-
-            per_page = candidate;
-            let total_pages = total_pages_from_items(items_len, per_page);
-            let want_pagination = usize::from(self.show_pagination && total_pages > 1);
-
-            if want_pagination == pagination_line {
-                break;
-            }
-            pagination_line = want_pagination;
+        if self.show_title || (self.show_filter && self.filtering_enabled) {
+            avail_height = avail_height.saturating_sub(lipgloss_height(&self.title_view()));
         }
+        if self.show_status_bar {
+            avail_height = avail_height.saturating_sub(lipgloss_height(&self.status_view()));
+        }
+        if self.show_pagination {
+            avail_height = avail_height.saturating_sub(lipgloss_height(&self.pagination_view()));
+        }
+        if self.show_help {
+            avail_height = avail_height.saturating_sub(lipgloss_height(&self.help_view()));
+        }
+
+        let per_page = (avail_height / item_height).max(1);
 
         let current_page = self.paginator.page();
         let mut paginator = Paginator::new().per_page(per_page);
@@ -683,37 +752,6 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         let max_page = paginator.get_total_pages().saturating_sub(1);
         paginator.set_page(current_page.min(max_page));
         self.paginator = paginator;
-    }
-
-    fn chrome_lines_without_pagination(&self) -> usize {
-        let mut lines = 0usize;
-
-        // Title (top)
-        if self.show_title && !self.title.is_empty() {
-            lines += 1;
-        }
-
-        // Filter input (top, only when actively filtering)
-        if self.show_filter && self.filter_state == FilterState::Filtering {
-            lines += 1;
-        }
-
-        // Spinner (bottom)
-        if self.show_spinner {
-            lines += 1;
-        }
-
-        // Status bar (bottom)
-        if self.show_status_bar {
-            lines += 1;
-        }
-
-        // Help (bottom)
-        if self.show_help {
-            lines += 1;
-        }
-
-        lines
     }
 
     /// Updates the list based on messages.
@@ -848,78 +886,171 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         None
     }
 
-    /// Renders the list.
-    #[must_use]
-    pub fn view(&self) -> String {
-        let mut sections = Vec::new();
+    fn title_view(&self) -> String {
+        let mut view = String::new();
 
-        // Title
-        if self.show_title && !self.title.is_empty() {
-            sections.push(self.styles.title.render(&self.title));
-        }
-
-        // Filter input
+        // If the filter is showing, draw that. Otherwise draw the title.
         if self.show_filter && self.filter_state == FilterState::Filtering {
-            sections.push(self.filter_input.view());
+            view.push_str(&self.filter_input.view());
+        } else if self.show_title {
+            view.push_str(&self.styles.title.render(&self.title));
+
+            // Status message (displayed in the title bar in the Go implementation).
+            if self.filter_state != FilterState::Filtering
+                && let Some(msg) = self.status_message.as_deref()
+            {
+                view.push_str("  ");
+                view.push_str(msg);
+            }
         }
 
-        // Items
-        if self.filtered_indices.is_empty() {
-            sections.push(self.styles.no_items.render("No items."));
-        } else {
-            let per_page = self.paginator.get_per_page();
-            let start = self.paginator.page() * per_page;
-            let end = (start + per_page).min(self.filtered_indices.len());
-
-            for (view_idx, &item_idx) in self.filtered_indices[start..end].iter().enumerate() {
-                let global_idx = start + view_idx;
-                let selected = global_idx == self.cursor;
-
-                if let Some(item) = self.items.get(item_idx) {
-                    let rendered = self.delegate.render(item, global_idx, selected, self.width);
-                    sections.push(rendered);
+        // Spinner (in-title, does not consume vertical space)
+        if self.show_spinner {
+            let spinner_view = self.spinner.view();
+            // Keep this simple: append to the right with a gap if we have room.
+            let gap = " ";
+            if self.width > 0 {
+                let current_w = lipgloss::width(&view);
+                let spinner_w = lipgloss::width(&spinner_view);
+                if current_w + lipgloss::width(gap) + spinner_w <= self.width {
+                    view.push_str(gap);
+                    view.push_str(&spinner_view);
                 }
             }
         }
 
-        // Spinner
-        if self.show_spinner {
-            sections.push(self.spinner.view());
+        if view.is_empty() {
+            return view;
         }
+        self.styles.title_bar.render(&view)
+    }
 
-        // Status bar
-        if self.show_status_bar {
-            let status = if let Some(status) = self.status_message.as_deref() {
-                status.to_string()
+    fn status_view(&self) -> String {
+        let total_items = self.items.len();
+        let visible_items = self.filtered_indices.len();
+
+        let item_name = if visible_items == 1 {
+            &self.item_name_singular
+        } else {
+            &self.item_name_plural
+        };
+
+        let items_display = format!("{visible_items} {item_name}");
+
+        let mut status = String::new();
+        if self.filter_state == FilterState::Filtering {
+            if visible_items == 0 {
+                status = self.styles.status_empty.render("Nothing matched");
             } else {
-                let count = self.filtered_indices.len();
-                if count == 1 {
-                    format!("1 {}", self.item_name_singular)
-                } else {
-                    format!("{} {}", count, self.item_name_plural)
+                status = items_display;
+            }
+        } else if total_items == 0 {
+            status = self
+                .styles
+                .status_empty
+                .render(&format!("No {}", self.item_name_plural));
+        } else {
+            if self.filter_state == FilterState::FilterApplied {
+                let mut f = self.filter_input.value();
+                f = f.trim().to_string();
+                // Keep it short (Go truncates to 10 with an ellipsis).
+                if f.chars().count() > 10 {
+                    f = f.chars().take(10).collect::<String>() + "…";
                 }
-            };
-            sections.push(self.styles.status_bar.render(&status));
+                status.push('“');
+                status.push_str(&f);
+                status.push_str("” ");
+            }
+            status.push_str(&items_display);
         }
 
-        // Pagination
-        if self.show_pagination && self.paginator.get_total_pages() > 1 {
-            sections.push(self.paginator.view());
+        let num_filtered = total_items.saturating_sub(visible_items);
+        if num_filtered > 0 {
+            status.push_str(&self.styles.divider_dot.render(" • "));
+            status.push_str(&format!("{num_filtered} filtered"));
         }
 
-        // Help
+        self.styles.status_bar.render(&status)
+    }
+
+    fn pagination_view(&self) -> String {
+        if self.paginator.get_total_pages() < 2 {
+            return String::new();
+        }
+        self.styles.pagination.render(&self.paginator.view())
+    }
+
+    fn help_view(&self) -> String {
+        let bindings: Vec<&Binding> = vec![
+            &self.key_map.cursor_up,
+            &self.key_map.cursor_down,
+            &self.key_map.filter,
+            &self.key_map.quit,
+        ];
+        self.styles
+            .help
+            .render(&self.help.short_help_view(&bindings))
+    }
+
+    fn populated_view(&self) -> String {
+        if self.filtered_indices.is_empty() {
+            if self.filter_state == FilterState::Filtering {
+                return String::new();
+            }
+            return self
+                .styles
+                .no_items
+                .render(&format!("No {}.", self.item_name_plural));
+        }
+
+        let total_visible = self.filtered_indices.len();
+        let per_page = self.paginator.get_per_page();
+        let (start, end) = self.paginator.get_slice_bounds(total_visible);
+
+        let mut out = String::new();
+        for (i, &item_idx) in self.filtered_indices[start..end].iter().enumerate() {
+            let global_idx = start + i;
+            let selected = global_idx == self.cursor;
+            if let Some(item) = self.items.get(item_idx) {
+                out.push_str(&self.delegate.render(item, global_idx, selected, self.width));
+                if i != (end - start).saturating_sub(1) {
+                    out.push_str(&"\n".repeat(self.delegate.spacing() + 1));
+                }
+            }
+        }
+
+        // If there aren't enough items to fill up this page, add trailing newlines
+        // to fill the space where items would have been (matches Go behavior).
+        let items_on_page = end.saturating_sub(start);
+        if items_on_page < per_page {
+            let n = (per_page - items_on_page) * (self.delegate.height() + self.delegate.spacing());
+            out.push_str(&"\n".repeat(n));
+        }
+
+        out
+    }
+
+    /// Renders the list.
+    #[must_use]
+    pub fn view(&self) -> String {
+        let mut sections: Vec<String> = Vec::new();
+
+        if self.show_title || (self.show_filter && self.filtering_enabled) {
+            sections.push(self.title_view());
+        }
+
+        sections.push(self.populated_view());
+
+        if self.show_status_bar {
+            sections.push(self.status_view());
+        }
+
+        if self.show_pagination {
+            sections.push(self.pagination_view());
+        }
+
         if self.show_help {
-            let bindings: Vec<&Binding> = vec![
-                &self.key_map.cursor_up,
-                &self.key_map.cursor_down,
-                &self.key_map.filter,
-                &self.key_map.quit,
-            ];
-            sections.push(
-                self.styles
-                    .help
-                    .render(&self.help.short_help_view(&bindings)),
-            );
+            sections.push(self.help_view());
         }
 
         sections.join("\n")
@@ -933,13 +1064,6 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
     pub fn init(&self) -> Option<Cmd> {
         None
     }
-}
-
-fn total_pages_from_items(items_len: usize, per_page: usize) -> usize {
-    if items_len == 0 {
-        return 1;
-    }
-    items_len.div_ceil(per_page.max(1))
 }
 
 /// Implement the Model trait for standalone bubbletea usage.
