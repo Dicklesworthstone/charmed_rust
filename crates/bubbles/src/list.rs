@@ -747,7 +747,7 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         let per_page = (avail_height / item_height).max(1);
 
         let current_page = self.paginator.page();
-        let mut paginator = Paginator::new().per_page(per_page);
+        let mut paginator = self.paginator.clone().per_page(per_page);
         paginator.set_total_pages_from_items(items_len);
         let max_page = paginator.get_total_pages().saturating_sub(1);
         paginator.set_page(current_page.min(max_page));
@@ -1187,7 +1187,9 @@ mod tests {
 
     #[test]
     fn test_cancel_filter_resets_pagination() {
-        let mut list = List::new(test_items(), DefaultDelegate::new(), 80, 6);
+        // Use a height that yields 2 items per page with the default delegate
+        // (Go-default delegate: height=2, spacing=1 => item_height=3; chrome=4 => height=10 gives per_page=2).
+        let mut list = List::new(test_items(), DefaultDelegate::new(), 80, 10);
 
         list.filter_state = FilterState::Filtering;
         list.filtered_indices = vec![0];
@@ -1375,7 +1377,12 @@ mod tests {
         // Note: Rust uses a fixed 4-line chrome overhead (title, status, help, pagination)
         // while Go dynamically calculates actual rendered heights of each section.
         // This may result in different items_per_page values between implementations.
-        let list = List::new(test_items(), DefaultDelegate::new(), 80, 10);
+        // Use a 1-line delegate so per-page math stays simple/deterministic.
+        let delegate = DefaultDelegate::new()
+            .with_show_description(false)
+            .with_spacing(0)
+            .with_height(1);
+        let list = List::new(test_items(), delegate, 80, 10);
         // With height=10, chrome=4, available=6, item_height=1, per_page=6
         assert_eq!(list.paginator().get_per_page(), 6);
     }
@@ -1395,7 +1402,11 @@ mod tests {
                 name: format!("Item {}", i),
             })
             .collect();
-        let list = List::new(items, DefaultDelegate::new(), 80, 10);
+        let delegate = DefaultDelegate::new()
+            .with_show_description(false)
+            .with_spacing(0)
+            .with_height(1);
+        let list = List::new(items, delegate, 80, 10);
         // With 50 items, per_page=6, total_pages should be 9 (50/6 rounded up)
         assert_eq!(list.paginator().get_total_pages(), 9);
     }
