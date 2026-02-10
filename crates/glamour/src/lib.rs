@@ -226,8 +226,8 @@ pub struct StyleBlock {
     pub style: StylePrimitive,
     /// Indentation level.
     pub indent: Option<usize>,
-    /// Token used for indentation.
-    pub indent_token: Option<String>,
+    /// Prefix used for indentation.
+    pub indent_prefix: Option<String>,
     /// Margin around the block.
     pub margin: Option<usize>,
 }
@@ -250,9 +250,9 @@ impl StyleBlock {
         self
     }
 
-    /// Sets the indent token.
-    pub fn indent_token(mut self, t: impl Into<String>) -> Self {
-        self.indent_token = Some(t.into());
+    /// Sets the indent prefix.
+    pub fn indent_prefix(mut self, s: impl Into<String>) -> Self {
+        self.indent_prefix = Some(s.into());
         self
     }
 
@@ -833,7 +833,7 @@ pub fn ascii_style() -> StyleConfig {
         document: StyleBlock::new()
             .style(StylePrimitive::new().block_prefix("\n").block_suffix("\n"))
             .margin(DEFAULT_MARGIN),
-        block_quote: StyleBlock::new().indent(1).indent_token("| "),
+        block_quote: StyleBlock::new().indent(1).indent_prefix("| "),
         paragraph: StyleBlock::new(),
         list: StyleList::new().level_indent(DEFAULT_LIST_LEVEL_INDENT),
         heading: StyleBlock::new().style(StylePrimitive::new().block_suffix("\n")),
@@ -870,7 +870,8 @@ pub fn dark_style() -> StyleConfig {
                     .color("252"),
             )
             .margin(DEFAULT_MARGIN),
-        block_quote: StyleBlock::new().indent(1).indent_token("│ "),
+        block_quote: StyleBlock::new().indent(1).indent_prefix("│ "),
+        paragraph: StyleBlock::new().style(StylePrimitive::new().color("252")),
         list: StyleList::new().level_indent(DEFAULT_LIST_INDENT),
         heading: StyleBlock::new().style(
             StylePrimitive::new()
@@ -937,7 +938,8 @@ pub fn light_style() -> StyleConfig {
                     .color("234"),
             )
             .margin(DEFAULT_MARGIN),
-        block_quote: StyleBlock::new().indent(1).indent_token("│ "),
+        block_quote: StyleBlock::new().indent(1).indent_prefix("│ "),
+        paragraph: StyleBlock::new().style(StylePrimitive::new().color("234")),
         list: StyleList::new().level_indent(DEFAULT_LIST_INDENT),
         heading: StyleBlock::new().style(
             StylePrimitive::new()
@@ -992,7 +994,7 @@ pub fn light_style() -> StyleConfig {
 pub fn pink_style() -> StyleConfig {
     StyleConfig {
         document: StyleBlock::new().margin(DEFAULT_MARGIN),
-        block_quote: StyleBlock::new().indent(1).indent_token("│ "),
+        block_quote: StyleBlock::new().indent(1).indent_prefix("│ "),
         list: StyleList::new().level_indent(DEFAULT_LIST_INDENT),
         heading: StyleBlock::new().style(
             StylePrimitive::new()
@@ -1110,7 +1112,7 @@ pub fn tokyo_night_style() -> StyleConfig {
                     .color("#a9b1d6"),
             )
             .margin(DEFAULT_MARGIN),
-        block_quote: StyleBlock::new().indent(1).indent_token("│ "),
+        block_quote: StyleBlock::new().indent(1).indent_prefix("│ "),
         list: StyleList::new()
             .block(StyleBlock::new().style(StylePrimitive::new().color("#a9b1d6")))
             .level_indent(DEFAULT_LIST_INDENT),
@@ -1468,14 +1470,14 @@ impl<'a> RenderContext<'a> {
                 if let Some(depth) = self.block_quote_pending_separator.take()
                     && depth > 0
                 {
-                    let indent_token = self
+                    let indent_prefix = self
                         .options
                         .styles
                         .block_quote
-                        .indent_token
+                        .indent_prefix
                         .as_deref()
                         .unwrap_or("│ ");
-                    let prefix = indent_token.repeat(depth);
+                    let prefix = indent_prefix.repeat(depth);
                     self.output.push_str(&prefix);
                     self.output.push('\n');
                 }
@@ -1621,6 +1623,10 @@ impl<'a> RenderContext<'a> {
             // Inline elements
             Event::Start(Tag::Emphasis) => {
                 self.in_emphasis = true;
+                if self.options.styles.emph.italic == Some(true) && !self.in_table {
+                    // SGR italic on
+                    self.text_buffer.push_str("\x1b[3m");
+                }
                 if !self.in_table {
                     self.text_buffer
                         .push_str(&self.options.styles.emph.block_prefix);
@@ -1634,6 +1640,10 @@ impl<'a> RenderContext<'a> {
                 if !self.in_table {
                     self.text_buffer
                         .push_str(&self.options.styles.emph.block_suffix);
+                    if self.options.styles.emph.italic == Some(true) {
+                        // SGR italic off
+                        self.text_buffer.push_str("\x1b[23m");
+                    }
                 } else {
                     self.current_cell
                         .push_str(&self.options.styles.emph.block_suffix);
@@ -1642,6 +1652,10 @@ impl<'a> RenderContext<'a> {
 
             Event::Start(Tag::Strong) => {
                 self.in_strong = true;
+                if self.options.styles.strong.bold == Some(true) && !self.in_table {
+                    // SGR bold on
+                    self.text_buffer.push_str("\x1b[1m");
+                }
                 if !self.in_table {
                     self.text_buffer
                         .push_str(&self.options.styles.strong.block_prefix);
@@ -1655,6 +1669,10 @@ impl<'a> RenderContext<'a> {
                 if !self.in_table {
                     self.text_buffer
                         .push_str(&self.options.styles.strong.block_suffix);
+                    if self.options.styles.strong.bold == Some(true) {
+                        // SGR bold off (normal intensity)
+                        self.text_buffer.push_str("\x1b[22m");
+                    }
                 } else {
                     self.current_cell
                         .push_str(&self.options.styles.strong.block_suffix);
@@ -1663,6 +1681,10 @@ impl<'a> RenderContext<'a> {
 
             Event::Start(Tag::Strikethrough) => {
                 self.in_strikethrough = true;
+                if self.options.styles.strikethrough.crossed_out == Some(true) && !self.in_table {
+                    // SGR strikethrough on
+                    self.text_buffer.push_str("\x1b[9m");
+                }
                 if !self.in_table {
                     self.text_buffer
                         .push_str(&self.options.styles.strikethrough.block_prefix);
@@ -1676,6 +1698,10 @@ impl<'a> RenderContext<'a> {
                 if !self.in_table {
                     self.text_buffer
                         .push_str(&self.options.styles.strikethrough.block_suffix);
+                    if self.options.styles.strikethrough.crossed_out == Some(true) {
+                        // SGR strikethrough off
+                        self.text_buffer.push_str("\x1b[29m");
+                    }
                 } else {
                     self.current_cell
                         .push_str(&self.options.styles.strikethrough.block_suffix);
@@ -1840,14 +1866,14 @@ impl<'a> RenderContext<'a> {
 
             // Add block quote indent if needed
             if self.block_quote_depth > 0 {
-                let indent_token = self
+                let indent_prefix = self
                     .options
                     .styles
                     .block_quote
-                    .indent_token
+                    .indent_prefix
                     .as_deref()
                     .unwrap_or("│ ");
-                let prefix = indent_token.repeat(self.block_quote_depth);
+                let prefix = indent_prefix.repeat(self.block_quote_depth);
                 let indented = rendered
                     .lines()
                     .map(|line| format!("{}{}", prefix, line))
@@ -1898,9 +1924,9 @@ impl<'a> RenderContext<'a> {
             prefix = marker;
         }
 
-        self.output.push_str(&indent_str);
-        self.output.push_str(&prefix);
-        self.output.push_str(text.trim());
+        let line = format!("{}{}{}", indent_str, prefix, text.trim());
+        let doc_style = self.options.styles.document.style.to_lipgloss();
+        self.output.push_str(&doc_style.render(&line));
         self.output.push('\n');
     }
 
@@ -2464,11 +2490,11 @@ mod tests {
 
     #[test]
     fn test_style_block_builder() {
-        let block = StyleBlock::new().margin(4).indent(2).indent_token("  ");
+        let block = StyleBlock::new().margin(4).indent(2).indent_prefix("  ");
 
         assert_eq!(block.margin, Some(4));
         assert_eq!(block.indent, Some(2));
-        assert_eq!(block.indent_token, Some("  ".to_string()));
+        assert_eq!(block.indent_prefix, Some("  ".to_string()));
     }
 
     #[test]

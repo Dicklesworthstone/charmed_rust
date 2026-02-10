@@ -1354,7 +1354,7 @@ pub struct StylePrimitive {
 pub struct StyleBlock {
     pub primitive: StylePrimitive,
     pub indent: Option<usize>,
-    pub indent_token: Option<String>,
+    pub indent_prefix: Option<String>,
     pub margin: Option<usize>,
 }
 

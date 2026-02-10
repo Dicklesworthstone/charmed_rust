@@ -204,7 +204,8 @@ impl Reader {
     /// Renders markdown text using the configured renderer.
     pub fn render_markdown(&self, markdown: &str) -> io::Result<String> {
         let renderer = self.config.renderer()?;
-        Ok(renderer.render(markdown))
+        // Match Go glow: trim leading/trailing whitespace on each rendered line.
+        Ok(trim_rendered_output(&renderer.render(markdown)))
     }
 }
 
@@ -246,6 +247,18 @@ impl Stash {
 pub mod prelude {
     pub use crate::browser::{BrowserConfig, Entry, FileBrowser, FileSelectedMsg};
     pub use crate::{Config, Reader, Stash};
+}
+
+fn trim_rendered_output(s: &str) -> String {
+    let mut out = String::new();
+    let mut iter = s.split('\n').peekable();
+    while let Some(line) = iter.next() {
+        out.push_str(line.trim());
+        if iter.peek().is_some() {
+            out.push('\n');
+        }
+    }
+    out
 }
 
 fn parse_style(style: &str) -> Option<GlamourStyle> {

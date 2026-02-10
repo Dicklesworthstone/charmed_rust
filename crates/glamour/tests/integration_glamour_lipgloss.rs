@@ -261,12 +261,12 @@ fn ordered_list_has_numbers() {
 }
 
 #[test]
-fn blockquote_has_indent_token() {
+fn blockquote_has_indent_prefix() {
     let output = render_with("> Quoted text", Style::Ascii, 80);
     let plain = strip_ansi(&output);
     assert!(
         plain.contains("| Quoted text") || plain.contains("│ Quoted text"),
-        "Blockquote should have indent token: {:?}",
+        "Blockquote should have indent prefix: {:?}",
         plain
     );
 }
@@ -448,9 +448,9 @@ fn custom_heading_style_overrides_default() {
 }
 
 #[test]
-fn custom_blockquote_indent_token() {
+fn custom_blockquote_indent_prefix() {
     let mut config = ascii_style();
-    config.block_quote.indent_token = Some("> ".to_string());
+    config.block_quote.indent_prefix = Some("> ".to_string());
 
     let renderer = Renderer::new().with_style_config(config).with_word_wrap(80);
     let output = renderer.render("> Quoted");
@@ -458,7 +458,7 @@ fn custom_blockquote_indent_token() {
 
     assert!(
         plain.contains("> Quoted"),
-        "Custom blockquote indent token should be used: {:?}",
+        "Custom blockquote indent prefix should be used: {:?}",
         plain
     );
 }

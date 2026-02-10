@@ -6,6 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
+
+	"github.com/charmbracelet/glamour"
 )
 
 // Note: The Go glow library is primarily a CLI application that uses glamour
@@ -92,8 +95,10 @@ func captureConfigTests(fs *capture.FixtureSet) {
 }
 
 func captureReaderTests(fs *capture.FixtureSet) {
-	// Reader rendering tests - these would need glamour to actually render
-	// For now, we capture the expected behavior patterns
+	// Reader rendering tests - render markdown via glamour and record the output.
+	//
+	// Note: Go glow trims whitespace on each rendered line before printing.
+	// We mirror that behavior in capture so Rust can match it precisely.
 
 	readerTests := []struct {
 		name     string
@@ -119,12 +124,16 @@ func captureReaderTests(fs *capture.FixtureSet) {
 			Width:    tc.width,
 			Pager:    false,
 		}
-		// Note: actual output would be captured by running glamour
-		// For now, mark as needing Go runtime capture
+
+		width := 80
+		if tc.width != nil {
+			width = *tc.width
+		}
+
+		out, err := renderMarkdown(tc.markdown, tc.style, width)
 		output := map[string]interface{}{
-			"output":      "[needs Go capture]",
-			"error":       false,
-			"needs_runtime": true,
+			"output": out,
+			"error":  err != nil,
 		}
 		fs.AddTestWithCategory(tc.name, "unit", input, output)
 	}
@@ -160,4 +169,31 @@ func captureStyleTests(fs *capture.FixtureSet) {
 
 func intPtr(i int) *int {
 	return &i
+}
+
+func renderMarkdown(markdown, style string, width int) (string, error) {
+	r, err := glamour.NewTermRenderer(
+		// glow uses WithStylePath for both builtin styles ("dark") and style files.
+		glamour.WithStylePath(style),
+		glamour.WithWordWrap(width),
+	)
+	if err != nil {
+		return "", err
+	}
+
+	out, err := r.Render(markdown)
+	if err != nil {
+		return "", err
+	}
+
+	// Match glow's "trim every rendered line" behavior.
+	lines := strings.Split(out, "\n")
+	var b strings.Builder
+	for i, s := range lines {
+		b.WriteString(strings.TrimSpace(s))
+		if i+1 < len(lines) {
+			b.WriteString("\n")
+		}
+	}
+	return b.String(), nil
 }

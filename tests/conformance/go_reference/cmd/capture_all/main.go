@@ -38,6 +38,7 @@ func main() {
 		"glamour",
 		"huh",
 		"wish",
+		"glow",
 	}
 
 	fmt.Println("=== Charmed Rust Conformance Capture ===")

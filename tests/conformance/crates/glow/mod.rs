@@ -12,9 +12,10 @@
 
 #![allow(clippy::unreadable_literal)]
 
-use crate::harness::{FixtureLoader, TestFixture};
+use crate::harness::{FixtureLoader, TestFixture, compare_styled_semantic, extract_styled_spans};
 use glow::{Config, Reader, Stash};
 use serde::Deserialize;
+use std::collections::HashSet;
 
 /// Input for glow reader tests
 #[derive(Debug, Deserialize)]
@@ -62,7 +63,7 @@ fn run_glow_test(fixture: &TestFixture) -> Result<(), String> {
     if fixture.name.starts_with("config_") {
         run_config_test(&fixture.name, &input, &expected)
     } else if fixture.name.starts_with("reader_") {
-        run_reader_test(&input, &expected)
+        run_reader_test(&fixture.name, &input, &expected)
     } else if fixture.name.starts_with("style_") {
         run_style_test(&input, &expected)
     } else if fixture.name.starts_with("stash_") {
@@ -135,7 +136,7 @@ fn run_config_test(name: &str, input: &GlowInput, expected: &GlowOutput) -> Resu
 }
 
 /// Test reader rendering behavior
-fn run_reader_test(input: &GlowInput, expected: &GlowOutput) -> Result<(), String> {
+fn run_reader_test(name: &str, input: &GlowInput, expected: &GlowOutput) -> Result<(), String> {
     let markdown = input.markdown.as_deref().unwrap_or("");
     let style = input.style.as_deref().unwrap_or("dark");
 
@@ -153,18 +154,105 @@ fn run_reader_test(input: &GlowInput, expected: &GlowOutput) -> Result<(), Strin
         }
         Ok(())
     } else {
+        let expected_output = expected
+            .output
+            .as_deref()
+            .ok_or_else(|| "Fixture missing expected output string".to_string())?;
+
         match result {
             Ok(output) => {
-                // For reader tests, verify output is non-empty for non-empty input
                 let output_str: &str = &output;
-                if !markdown.is_empty() && output_str.is_empty() {
-                    return Err("Expected non-empty output for non-empty input".to_string());
+                // Glow output is ANSI-rich and can differ in escape sequence ordering across
+                // implementations; byte-for-byte equality is too brittle. We compare semantically:
+                // plain text content + presence of key style attributes (bold/italic/colors).
+                if name == "reader_code_block" {
+                    return compare_code_block_highlighting(expected_output, output_str);
+                }
+
+                let semantic = compare_styled_semantic(expected_output, output_str);
+                if !semantic.text_matches {
+                    return Err(format!(
+                        "Rendered text mismatch:\n  expected: {:?}\n  actual:   {:?}",
+                        semantic.expected_text, semantic.actual_text
+                    ));
+                }
+                if !semantic.styles_match {
+                    return Err(format!(
+                        "Rendered styles mismatch (text matched): {:?}",
+                        semantic.style_mismatches
+                    ));
                 }
                 Ok(())
             }
             Err(e) => Err(format!("Expected success but got error: {}", e)),
         }
     }
+}
+
+fn compare_code_block_highlighting(expected: &str, actual: &str) -> Result<(), String> {
+    let semantic = compare_styled_semantic(expected, actual);
+    if !semantic.text_matches {
+        return Err(format!(
+            "Code block text mismatch:\n  expected: {:?}\n  actual:   {:?}",
+            semantic.expected_text, semantic.actual_text
+        ));
+    }
+
+    let expected_colors = distinct_foreground_colors(expected);
+    let actual_colors = distinct_foreground_colors(actual);
+
+    // Both Go (chroma) and Rust (syntect) should produce multi-colored output for fenced code
+    // blocks with a language hint. Exact color values/themes may differ, so we only assert that
+    // highlighting exists when the reference has it.
+    if expected_colors.len() > 2 && actual_colors.len() <= 2 {
+        return Err(format!(
+            "Syntax highlighting gap: expected {} distinct colors, got {}",
+            expected_colors.len(),
+            actual_colors.len()
+        ));
+    }
+
+    Ok(())
+}
+
+fn distinct_foreground_colors(text: &str) -> HashSet<u32> {
+    let mut colors = HashSet::new();
+    for span in extract_styled_spans(text) {
+        if span.text.trim().is_empty() {
+            continue;
+        }
+        let Some(fg) = span.foreground.as_ref() else {
+            continue;
+        };
+
+        // Common forms:
+        // - "38;5;N" (256-color)
+        // - "38;2;R;G;B" (truecolor)
+        // - "31" (basic ANSI)
+        if let Some(n) = fg.strip_prefix("38;5;") {
+            if let Ok(v) = n.parse::<u32>() {
+                colors.insert(v);
+            }
+            continue;
+        }
+        if let Some(rgb) = fg.strip_prefix("38;2;") {
+            let parts: Vec<&str> = rgb.split(';').collect();
+            if parts.len() == 3 {
+                if let (Ok(r), Ok(g), Ok(b)) = (
+                    parts[0].parse::<u32>(),
+                    parts[1].parse::<u32>(),
+                    parts[2].parse::<u32>(),
+                ) {
+                    colors.insert(0x100_0000 + (r << 16) + (g << 8) + b);
+                }
+            }
+            continue;
+        }
+        if let Ok(v) = fg.parse::<u32>() {
+            colors.insert(v);
+        }
+    }
+    colors
 }
 
 /// Test style parsing
