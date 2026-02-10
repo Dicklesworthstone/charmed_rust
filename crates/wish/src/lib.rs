@@ -118,6 +118,7 @@ pub use lipgloss;
 /// | [`Key`](Error::Key) | Regenerate keys or check permissions |
 /// | [`KeyLoad`](Error::KeyLoad) | Verify key file format |
 /// | [`AuthenticationFailed`](Error::AuthenticationFailed) | Expected for invalid credentials |
+/// | [`MaxSessionsReached`](Error::MaxSessionsReached) | Retry later or raise configured session limit |
 /// | [`Configuration`](Error::Configuration) | Fix server configuration |
 /// | [`Session`](Error::Session) | Close session gracefully |
 /// | [`AddrParse`](Error::AddrParse) | Validate address format |
@@ -163,6 +164,17 @@ pub enum Error {
     /// This is expected in normal operation - not all attempts succeed.
     #[error("authentication failed")]
     AuthenticationFailed,
+
+    /// Maximum concurrent sessions reached.
+    ///
+    /// Returned when attempting to create a new session while at capacity.
+    #[error("maximum sessions reached ({current}/{max})")]
+    MaxSessionsReached {
+        /// Configured maximum concurrent sessions.
+        max: usize,
+        /// Current active session count at rejection time.
+        current: usize,
+    },
 
     /// Server configuration error.
     ///

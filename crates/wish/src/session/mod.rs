@@ -15,17 +15,18 @@
 //! let config = SessionConfig {
 //!     max_sessions: 100,
 //!     session_timeout: Duration::from_secs(3600),
+//!     cleanup_interval: Duration::from_secs(30),
 //! };
 //! let manager = SessionManager::new(config);
 //!
 //! // Create a session
-//! let (id, shutdown_rx) = manager.create_session("user", addr).await?;
+//! let (id, shutdown_rx) = manager.create_session("user".to_string(), addr)?;
 //!
 //! // Track activity
-//! manager.update_activity(id).await;
+//! manager.update_activity(id);
 //!
 //! // Clean up
-//! manager.remove_session(id).await;
+//! manager.remove_session(id);
 //! ```
 
 mod handle;

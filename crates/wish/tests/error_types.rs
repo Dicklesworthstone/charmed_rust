@@ -43,6 +43,21 @@ mod creation_tests {
     }
 
     #[test]
+    fn test_max_sessions_reached_variant() {
+        let e = Error::MaxSessionsReached {
+            max: 100,
+            current: 100,
+        };
+        assert!(matches!(
+            e,
+            Error::MaxSessionsReached {
+                max: 100,
+                current: 100
+            }
+        ));
+    }
+
+    #[test]
     fn test_configuration_error_variant() {
         let e = Error::Configuration("invalid port".into());
         assert!(matches!(e, Error::Configuration(_)));
@@ -95,6 +110,17 @@ mod display_tests {
         let e = Error::AuthenticationFailed;
         let msg = format!("{e}");
         assert!(msg.contains("authentication failed"));
+    }
+
+    #[test]
+    fn test_max_sessions_reached_display() {
+        let e = Error::MaxSessionsReached {
+            max: 100,
+            current: 100,
+        };
+        let msg = format!("{e}");
+        assert!(msg.contains("maximum sessions reached"));
+        assert!(msg.contains("100/100"));
     }
 
     #[test]
@@ -156,6 +182,7 @@ mod chaining_tests {
         let errors = [
             Error::Ssh("test".into()),
             Error::Key("test".into()),
+            Error::MaxSessionsReached { max: 1, current: 1 },
             Error::Configuration("test".into()),
             Error::Session("test".into()),
         ];

@@ -86,7 +86,10 @@ impl SessionManager {
                 addr = %remote_addr,
                 "Maximum sessions reached, rejecting connection"
             );
-            return Err(Error::Ssh("maximum sessions reached".to_string()));
+            return Err(Error::MaxSessionsReached {
+                max: self.config.max_sessions,
+                current: sessions.len(),
+            });
         }
 
         // Generate session ID
@@ -362,7 +365,10 @@ mod tests {
 
         // Third session should fail
         let result = manager.create_session("user3".to_string(), test_addr());
-        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(Error::MaxSessionsReached { max: 2, current: 2 })
+        ));
     }
 
     #[test]
