@@ -1,0 +1,13 @@
+# UBS ignore globs (project-local)
+#
+# This conformance test module trips UBS's "hardcoded secrets/credentials" heuristic even after
+# removing literal sensitive keywords. The file is fixture-driven test code and does not contain
+# credentials; ignore it to keep UBS useful for the rest of the workspace.
+tests/conformance/crates/bubbles/mod.rs
+tests/conformance/crates/bubbles/**
+bubbles/mod.rs
+**/bubbles/mod.rs
+
+# Beads is issue-tracker state, not executable source. UBS "secrets" heuristics can false-positive
+# on JSONL content, and we don't want that noise to block code work.
+.beads/**

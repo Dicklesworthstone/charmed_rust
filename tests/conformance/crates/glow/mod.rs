@@ -317,13 +317,11 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let fixtures = match loader.load_crate("glow") {
         Ok(f) => f,
         Err(e) => {
-            // If no fixtures file exists yet, run basic tests
             results.push((
                 "load_fixtures",
-                Err(format!("No fixtures file yet (expected): {}", e)),
+                Err(format!("Failed to load fixtures: {}", e)),
             ));
-            // Run basic sanity tests without fixtures
-            return run_basic_tests();
+            return results;
         }
     };
 
@@ -353,7 +351,11 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
     run_glow_test(fixture)
 }
 
-/// Run basic sanity tests without fixtures
+/// Run basic sanity tests without fixtures.
+///
+/// Note: conformance is fixture-driven; the main suite must fail if fixtures
+/// cannot be loaded. This remains only as a local debugging helper.
+#[allow(dead_code)]
 fn run_basic_tests() -> Vec<(&'static str, Result<(), String>)> {
     fn test_basic_config() -> Result<(), String> {
         let config = Config::new();
@@ -439,10 +441,6 @@ mod tests {
                     skipped += 1;
                     println!("  SKIP: {} - {}", name, msg);
                 }
-                Err(msg) if msg.contains("No fixtures file yet") => {
-                    // Expected during initial setup
-                    println!("  INFO: {} - {}", name, msg);
-                }
                 Err(msg) => {
                     failed += 1;
                     failures.push((name, msg));
@@ -464,8 +462,11 @@ mod tests {
             }
         }
 
-        // Don't fail if we're just missing fixtures - basic tests should pass
         assert_eq!(failed, 0, "All conformance tests should pass");
+        assert_eq!(
+            skipped, 0,
+            "No conformance fixtures should be skipped (missing coverage must fail CI)"
+        );
     }
 
     /// Quick sanity test that glow renders basic markdown

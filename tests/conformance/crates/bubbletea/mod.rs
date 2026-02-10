@@ -861,14 +861,13 @@ mod tests {
             for (name, msg) in &failures {
                 println!("  {}: {}", name, msg);
             }
-            panic!(
-                "Bubbletea conformance tests failed: {} of {} tests failed",
-                failed,
-                results.len()
-            );
         }
 
         assert_eq!(failed, 0, "All conformance tests should pass");
+        assert_eq!(
+            skipped, 0,
+            "No conformance fixtures should be skipped (missing coverage must fail CI)"
+        );
     }
 
     /// Basic KeyType display test

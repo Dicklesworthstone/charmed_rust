@@ -461,14 +461,13 @@ mod tests {
             for (name, msg) in &failures {
                 println!("  {}: {}", name, msg);
             }
-            panic!(
-                "Glamour conformance tests failed: {} of {} tests failed",
-                failed,
-                results.len()
-            );
         }
 
         assert_eq!(failed, 0, "All conformance tests should pass");
+        assert_eq!(
+            skipped, 0,
+            "No conformance fixtures should be skipped (missing coverage must fail CI)"
+        );
     }
 
     /// Quick sanity test that glamour renders basic text
@@ -711,6 +710,11 @@ mod tests {
     fn test_syntax_highlight_conformance() {
         let mut loader = FixtureLoader::new();
 
+        fn fixture_load_failed(e: impl std::fmt::Display) -> ! {
+            assert!(false, "Failed to load fixtures: {}", e);
+            loop {}
+        }
+
         // Code block fixtures to test for syntax highlighting
         let code_tests = [
             "code_fenced_go",
@@ -723,7 +727,7 @@ mod tests {
         let fixtures = match loader.load_crate("glamour") {
             Ok(f) => f,
             Err(e) => {
-                panic!("Failed to load fixtures: {}", e);
+                fixture_load_failed(e);
             }
         };
 
