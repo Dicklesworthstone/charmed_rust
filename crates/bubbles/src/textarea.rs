@@ -21,6 +21,7 @@ use crate::runeutil::Sanitizer;
 use crate::viewport::Viewport;
 use bubbletea::{Cmd, KeyMsg, Message, Model};
 use lipgloss::Style;
+use unicode_width::UnicodeWidthStr;
 
 const MIN_HEIGHT: usize = 1;
 const DEFAULT_HEIGHT: usize = 6;
@@ -812,7 +813,7 @@ impl TextArea {
 
     /// Sets the width of the textarea.
     pub fn set_width(&mut self, w: usize) {
-        self.prompt_width = self.prompt.chars().count();
+        self.prompt_width = UnicodeWidthStr::width(self.prompt.as_str());
 
         let reserved_outer = 0; // No frame in base style
         let mut reserved_inner = self.prompt_width;
@@ -1674,6 +1675,18 @@ mod tests {
         // Width should be accessible
         let view = ta.view();
         assert!(!view.is_empty(), "View should work after width set");
+    }
+
+    #[test]
+    fn test_textarea_width_uses_prompt_display_width() {
+        let mut ta = TextArea::new();
+        ta.show_line_numbers = false;
+        ta.prompt = "界 ".to_string(); // display width 3, char count 2
+        ta.set_width(6);
+
+        // Total width budget is 6, so content width must be 3 when prompt width is
+        // measured as display width (not char count).
+        assert_eq!(ta.width(), 3);
     }
 
     #[test]
