@@ -1,6 +1,6 @@
 //! Syntax highlighting example
 //!
-//! Run with: `cargo run -p glamour --features syntax-highlighting --example syntax_highlighting`
+//! Run with: `cargo run -p charmed-glamour --features syntax-highlighting --example syntax_highlighting`
 
 use glamour::{Renderer, Style, StyleConfig, render};
 

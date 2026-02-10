@@ -3,7 +3,7 @@
 //! This example shows the basic usage of the derive macro to implement
 //! the Model trait with automatic state tracking.
 //!
-//! Run with: `cargo run -p bubbletea-macros --example counter_derive`
+//! Run with: `cargo run -p charmed-bubbletea-macros --example counter_derive`
 
 #![forbid(unsafe_code)]
 #![allow(dead_code)]

@@ -3,7 +3,7 @@
 //! This example shows how to use the derive macro with generic structs,
 //! including proper trait bounds.
 //!
-//! Run with: `cargo run -p bubbletea-macros --example generic_model`
+//! Run with: `cargo run -p charmed-bubbletea-macros --example generic_model`
 
 #![forbid(unsafe_code)]
 #![allow(dead_code)]

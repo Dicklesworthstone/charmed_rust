@@ -15,13 +15,13 @@
 //! - Graceful shutdown with task cancellation
 //! - Automatic `spawn_blocking` for sync `Cmd` commands
 //!
-//! Run with: `cargo run -p bubbletea --example async_fetch --features async`
+//! Run with: `cargo run -p charmed-bubbletea --example async_fetch --features async`
 
 // Fallback main for when async feature is not enabled
 #[cfg(not(feature = "async"))]
 fn main() {
     eprintln!("This example requires the 'async' feature.");
-    eprintln!("Run with: cargo run -p bubbletea --example async_fetch --features async");
+    eprintln!("Run with: cargo run -p charmed-bubbletea --example async_fetch --features async");
 }
 
 // All async-related code is gated behind the feature

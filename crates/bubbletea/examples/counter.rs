@@ -3,7 +3,7 @@
 //! This example shows the basic pattern for bubbletea applications using the
 //! derive macro instead of manual trait implementation.
 //!
-//! Run with: `cargo run -p bubbletea --example counter`
+//! Run with: `cargo run -p charmed-bubbletea --example counter`
 
 #![forbid(unsafe_code)]
 #![allow(clippy::unused_self)]

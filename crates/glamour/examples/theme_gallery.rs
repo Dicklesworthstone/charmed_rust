@@ -1,6 +1,6 @@
 //! Theme gallery - preview all available syntax highlighting themes
 //!
-//! Run with: `cargo run -p glamour --features syntax-highlighting --example theme_gallery`
+//! Run with: `cargo run -p charmed-glamour --features syntax-highlighting --example theme_gallery`
 
 use glamour::{Renderer, StyleConfig};
 
@@ -53,7 +53,7 @@ fn main() {
     {
         println!("This example requires the syntax-highlighting feature.");
         println!(
-            "Run with: cargo run -p glamour --features syntax-highlighting --example theme_gallery"
+            "Run with: cargo run -p charmed-glamour --features syntax-highlighting --example theme_gallery"
         );
     }
 }

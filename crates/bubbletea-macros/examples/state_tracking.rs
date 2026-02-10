@@ -6,7 +6,7 @@
 //! - `#[state(skip)]` to exclude fields
 //! - `#[state(debug)]` to log changes
 //!
-//! Run with: `cargo run -p bubbletea-macros --example state_tracking`
+//! Run with: `cargo run -p charmed-bubbletea-macros --example state_tracking`
 
 #![forbid(unsafe_code)]
 #![allow(dead_code)]
