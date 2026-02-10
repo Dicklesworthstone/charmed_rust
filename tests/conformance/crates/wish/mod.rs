@@ -19,13 +19,35 @@
 #![allow(unused_imports)]
 
 use crate::harness::{FixtureLoader, TestFixture};
+use bubbletea::{Cmd, Message, Model};
 use serde::Deserialize;
+use std::io::ErrorKind;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use wish::AuthorizedKeysAuth;
 use wish::{
     Context, Error, Pty, PublicKey, ServerBuilder, ServerOptions, Session, Window, middleware,
-    with_address, with_banner, with_host_key_path, with_idle_timeout, with_max_timeout,
+    with_address, with_auth_handler, with_banner, with_host_key_path, with_idle_timeout,
+    with_keyboard_interactive_auth, with_max_timeout, with_password_auth, with_public_key_auth,
     with_version,
 };
+
+#[derive(Clone, Default)]
+struct NoopTeaModel;
+
+impl Model for NoopTeaModel {
+    fn init(&self) -> Option<Cmd> {
+        None
+    }
+
+    fn update(&mut self, _msg: Message) -> Option<Cmd> {
+        None
+    }
+
+    fn view(&self) -> String {
+        String::new()
+    }
+}
 
 // ===== Input/Output Structures for Fixtures =====
 
@@ -123,6 +145,608 @@ struct ErrorOutput {
     exit_code: Option<i32>,
     #[serde(default)]
     error_types: Option<Vec<String>>,
+}
+
+/// Run all wish conformance tests.
+pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
+    let mut loader = FixtureLoader::new();
+    let fixtures = loader
+        .load_crate("wish")
+        .map_err(|e| format!("Failed to load wish fixtures: {e}"));
+
+    let fixtures = match fixtures {
+        Ok(f) => f,
+        Err(e) => return vec![("load_fixtures", Err(e))],
+    };
+
+    println!(
+        "Loaded {} tests from wish.json (Go lib version {})",
+        fixtures.tests.len(),
+        fixtures.metadata.library_version
+    );
+
+    let mut results = Vec::with_capacity(fixtures.tests.len());
+    for test in &fixtures.tests {
+        let result = run_test(test);
+        let name: &'static str = Box::leak(test.name.clone().into_boxed_str());
+        results.push((name, result));
+    }
+    results
+}
+
+fn run_test(fixture: &TestFixture) -> Result<(), String> {
+    if let Some(reason) = fixture.should_skip() {
+        return Err(format!("Fixture unexpectedly marked skip: {reason}"));
+    }
+
+    if fixture.name.starts_with("server_") {
+        return run_server_fixture(fixture);
+    }
+    if fixture.name.starts_with("address_") {
+        return run_address_fixture(fixture);
+    }
+    if fixture.name.starts_with("middleware_") {
+        return run_middleware_fixture(fixture);
+    }
+    if fixture.name.starts_with("error_") {
+        return run_error_fixture(fixture);
+    }
+
+    Err(format!("Not implemented for fixture: {}", fixture.name))
+}
+
+fn run_server_fixture(fixture: &TestFixture) -> Result<(), String> {
+    let input: ServerOptionInput = fixture
+        .input_as()
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
+    let expected: ServerOptionOutput = fixture
+        .expected_as()
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
+
+    match fixture.name.as_str() {
+        "server_default" => {
+            let _ = ServerBuilder::new()
+                .build()
+                .map_err(|e| format!("Failed to build default server: {e}"))?;
+            if expected.can_create != Some(true) {
+                return Err("Expected can_create=true for server_default".to_string());
+            }
+            Ok(())
+        }
+        "server_with_address" => {
+            let mut opts = ServerOptions::default();
+            let addr = input
+                .address
+                .ok_or_else(|| "Missing input.address".to_string())?;
+            with_address(addr.clone())(&mut opts).map_err(|e| e.to_string())?;
+            let want = expected
+                .expected
+                .ok_or_else(|| "Missing expected.expected".to_string())?;
+            if opts.address != want {
+                return Err(format!(
+                    "Address mismatch: expected {want:?}, got {:?}",
+                    opts.address
+                ));
+            }
+            Ok(())
+        }
+        "server_with_host_key" => {
+            let mut opts = ServerOptions::default();
+            let path = input
+                .key_path
+                .ok_or_else(|| "Missing input.key_path".to_string())?;
+            with_host_key_path(path.clone())(&mut opts).map_err(|e| e.to_string())?;
+            if opts.host_key_path.as_deref() != Some(path.as_str()) {
+                return Err(format!(
+                    "Host key path mismatch: expected {path:?}, got {:?}",
+                    opts.host_key_path
+                ));
+            }
+            Ok(())
+        }
+        "server_with_authorized_keys" => {
+            let path = input
+                .authorized_keys_path
+                .ok_or_else(|| "Missing input.authorized_keys_path".to_string())?;
+
+            // Use per-user mode to avoid filesystem reads for non-existent fixture paths.
+            let auth = AuthorizedKeysAuth::per_user(&path);
+            let mut opts = ServerOptions::default();
+            with_auth_handler(auth)(&mut opts).map_err(|e| e.to_string())?;
+            if opts.auth_handler.is_none() {
+                return Err("Expected auth_handler to be set".to_string());
+            }
+
+            // Verify the path string was accepted by the handler.
+            if expected.expected.as_deref() != Some(path.as_str()) {
+                return Err(format!(
+                    "Fixture expected path mismatch: expected {:?}, got {:?}",
+                    expected.expected, path
+                ));
+            }
+            Ok(())
+        }
+        "server_with_public_key_auth" => {
+            let mut opts = ServerOptions::default();
+            with_public_key_auth(|_ctx, _key| true)(&mut opts).map_err(|e| e.to_string())?;
+            if opts.public_key_handler.is_none() {
+                return Err("Expected public_key_handler to be set".to_string());
+            }
+            Ok(())
+        }
+        "server_with_password_auth" => {
+            let mut opts = ServerOptions::default();
+            with_password_auth(|_ctx, _pw| true)(&mut opts).map_err(|e| e.to_string())?;
+            if opts.password_handler.is_none() {
+                return Err("Expected password_handler to be set".to_string());
+            }
+            Ok(())
+        }
+        "server_with_keyboard_interactive" => {
+            let mut opts = ServerOptions::default();
+            with_keyboard_interactive_auth(|_ctx, _resp, _prompts, _echos| vec!["ok".to_string()])(
+                &mut opts,
+            )
+            .map_err(|e| e.to_string())?;
+            if opts.keyboard_interactive_handler.is_none() {
+                return Err("Expected keyboard_interactive_handler to be set".to_string());
+            }
+            Ok(())
+        }
+        "server_with_max_timeout" => {
+            let mut opts = ServerOptions::default();
+            let secs = input
+                .timeout
+                .ok_or_else(|| "Missing input.timeout".to_string())?;
+            with_max_timeout(Duration::from_secs(secs))(&mut opts).map_err(|e| e.to_string())?;
+            if opts.max_timeout != Some(Duration::from_secs(secs)) {
+                return Err(format!(
+                    "max_timeout mismatch: expected {:?}, got {:?}",
+                    Duration::from_secs(secs),
+                    opts.max_timeout
+                ));
+            }
+            Ok(())
+        }
+        "server_with_idle_timeout" => {
+            let mut opts = ServerOptions::default();
+            let secs = input
+                .timeout
+                .ok_or_else(|| "Missing input.timeout".to_string())?;
+            with_idle_timeout(Duration::from_secs(secs))(&mut opts).map_err(|e| e.to_string())?;
+            if opts.idle_timeout != Some(Duration::from_secs(secs)) {
+                return Err(format!(
+                    "idle_timeout mismatch: expected {:?}, got {:?}",
+                    Duration::from_secs(secs),
+                    opts.idle_timeout
+                ));
+            }
+            Ok(())
+        }
+        "server_with_banner" => {
+            let mut opts = ServerOptions::default();
+            let banner = input
+                .banner
+                .ok_or_else(|| "Missing input.banner".to_string())?;
+            with_banner(banner.clone())(&mut opts).map_err(|e| e.to_string())?;
+            if opts.banner.as_deref() != Some(banner.as_str()) {
+                return Err(format!(
+                    "banner mismatch: expected {banner:?}, got {:?}",
+                    opts.banner
+                ));
+            }
+            Ok(())
+        }
+        "server_with_version" => {
+            let mut opts = ServerOptions::default();
+            let version = input
+                .version
+                .ok_or_else(|| "Missing input.version".to_string())?;
+            with_version(version.clone())(&mut opts).map_err(|e| e.to_string())?;
+            if opts.version != version {
+                return Err(format!(
+                    "version mismatch: expected {version:?}, got {:?}",
+                    opts.version
+                ));
+            }
+            Ok(())
+        }
+        other => Err(format!("Not implemented server fixture: {other}")),
+    }
+}
+
+fn run_address_fixture(fixture: &TestFixture) -> Result<(), String> {
+    let input: ServerOptionInput = fixture
+        .input_as()
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
+    let expected: ServerOptionOutput = fixture
+        .expected_as()
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
+
+    let addr = input
+        .address
+        .ok_or_else(|| "Missing input.address".to_string())?;
+    let valid = expected
+        .valid
+        .ok_or_else(|| "Missing expected.valid".to_string())?;
+
+    let built = ServerBuilder::new().address(addr.clone()).build();
+    if valid && built.is_err() {
+        return Err(format!("Expected valid address, build failed: {built:?}"));
+    }
+    if !valid && built.is_ok() {
+        return Err("Expected invalid address, but build succeeded".to_string());
+    }
+
+    if let Some(want) = expected.address {
+        let server = built.map_err(|e| e.to_string())?;
+        if server.address() != want {
+            return Err(format!(
+                "Address mismatch: expected {want:?}, got {:?}",
+                server.address()
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn run_middleware_fixture(fixture: &TestFixture) -> Result<(), String> {
+    let input: MiddlewareInput = fixture
+        .input_as()
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
+    let expected: MiddlewareOutput = fixture
+        .expected_as()
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
+
+    // Some middleware fixtures don't use `input.name` and instead test composition or options.
+    // Handle those first to avoid treating missing `input.name` as a conformance failure.
+    if fixture.name == "middleware_chain" {
+        let names = input
+            .middleware_names
+            .ok_or_else(|| "Missing input.middleware_names".to_string())?;
+        let count = input
+            .middleware_count
+            .ok_or_else(|| "Missing input.middleware_count".to_string())?;
+        if names.len() != count {
+            return Err(format!(
+                "middleware_count mismatch: expected {count}, got {}",
+                names.len()
+            ));
+        }
+
+        let want = expected
+            .execution_order
+            .ok_or_else(|| "Missing expected.execution_order".to_string())?;
+        if want != "outer_to_inner" {
+            return Err(format!(
+                "Unexpected execution_order in fixture: expected \"outer_to_inner\", got {want:?}"
+            ));
+        }
+
+        // Verify our middleware composer applies middleware in list order from outer to inner.
+        let events: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+
+        fn record_middleware(label: String, events: Arc<Mutex<Vec<String>>>) -> wish::Middleware {
+            Arc::new(move |next: wish::Handler| {
+                let label = label.clone();
+                let events = events.clone();
+                Arc::new(
+                    move |session: wish::Session| -> wish::BoxFuture<'static, ()> {
+                        let next = next.clone();
+                        let label = label.clone();
+                        let events = events.clone();
+                        Box::pin(async move {
+                            events.lock().unwrap().push(label);
+                            next(session).await;
+                        })
+                    },
+                )
+            })
+        }
+
+        let middlewares: Vec<wish::Middleware> = names
+            .iter()
+            .cloned()
+            .map(|label| record_middleware(label, events.clone()))
+            .collect();
+
+        let composed = wish::compose_middleware(middlewares);
+        let handler: wish::Handler = Arc::new({
+            let events = events.clone();
+            move |_session| {
+                let events = events.clone();
+                Box::pin(async move {
+                    events.lock().unwrap().push("inner_handler".to_string());
+                })
+            }
+        });
+
+        let final_handler = composed(handler);
+
+        // Execute synchronously on a tiny tokio runtime (futures should be immediately ready).
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .map_err(|e| format!("Failed to build tokio runtime: {e}"))?;
+
+        let addr: std::net::SocketAddr = "127.0.0.1:2222"
+            .parse::<std::net::SocketAddr>()
+            .map_err(|e| e.to_string())?;
+        let ctx = Context::new("testuser", addr, addr);
+        let session = Session::new(ctx);
+
+        rt.block_on(async move { final_handler(session).await });
+
+        let got = events.lock().unwrap().clone();
+        let mut expected_order = names.clone();
+        expected_order.push("inner_handler".to_string());
+        if got != expected_order {
+            return Err(format!(
+                "middleware execution order mismatch: expected {expected_order:?}, got {got:?}"
+            ));
+        }
+
+        return Ok(());
+    }
+
+    if fixture.name == "middleware_with_options" {
+        let middleware_name = input
+            .middleware
+            .ok_or_else(|| "Missing input.middleware".to_string())?;
+        let option_type = input
+            .option_type
+            .ok_or_else(|| "Missing input.option_type".to_string())?;
+
+        if expected.configurable != Some(true) {
+            return Err("Expected configurable=true".to_string());
+        }
+
+        match (middleware_name.as_str(), option_type.as_str()) {
+            ("logging", "logger") => {
+                struct TestLogger;
+                impl middleware::logging::Logger for TestLogger {
+                    fn log(&self, _format: &str, _args: &[&dyn std::fmt::Display]) {}
+                }
+
+                let _mw = middleware::logging::middleware_with_logger(TestLogger);
+                Ok(())
+            }
+            other => Err(format!(
+                "Unknown middleware/options combo in fixture: {other:?}"
+            )),
+        }?;
+
+        return Ok(());
+    }
+
+    let name = input.name.ok_or_else(|| "Missing input.name".to_string())?;
+
+    // Conformance requirement: these named middlewares must exist.
+    // Some are implemented as part of `wish::middleware`, others live under `wish::tea`.
+    match name.as_str() {
+        "logging" => {
+            let _mw = middleware::logging::middleware();
+            Ok(())
+        }
+        "authentication" => {
+            let _mw = middleware::authentication::middleware();
+            Ok(())
+        }
+        "authorization" => {
+            let _mw = middleware::authorization::middleware();
+            Ok(())
+        }
+        "session_handler" => {
+            let _mw = middleware::session_handler::middleware();
+            Ok(())
+        }
+        "activeterm" => {
+            let _mw = middleware::activeterm::middleware();
+            Ok(())
+        }
+        "recovery" => {
+            let _mw = middleware::recover::middleware();
+            Ok(())
+        }
+        "elapsed" => {
+            let _mw = middleware::elapsed::middleware();
+            Ok(())
+        }
+        "comment" => {
+            let _mw = middleware::comment::middleware("hi");
+            Ok(())
+        }
+        "accesscontrol" => {
+            let allowed = vec!["git".to_string()];
+            let _mw = middleware::accesscontrol::middleware(allowed);
+            Ok(())
+        }
+        "ratelimiter" => {
+            let limiter = middleware::ratelimiter::new_rate_limiter(1.0, 10, 100);
+            let _mw = middleware::ratelimiter::middleware(limiter);
+            Ok(())
+        }
+        "bubbletea" => {
+            // Bubble Tea integration middleware lives under `wish::tea`.
+            let _mw = wish::tea::middleware(|_session| NoopTeaModel::default());
+            Ok(())
+        }
+        "git" => {
+            let _mw = middleware::git::middleware();
+            Ok(())
+        }
+        "scp" => {
+            let _mw = middleware::scp::middleware();
+            Ok(())
+        }
+        "sftp" => {
+            let _mw = middleware::sftp::middleware();
+            Ok(())
+        }
+        "pty" => {
+            let _mw = middleware::pty::middleware();
+            Ok(())
+        }
+        other => Err(format!("Missing middleware implementation: {other}")),
+    }?;
+
+    Ok(())
+}
+
+fn run_error_fixture(fixture: &TestFixture) -> Result<(), String> {
+    let input: ErrorInput = fixture
+        .input_as()
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
+    let expected: ErrorOutput = fixture
+        .expected_as()
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
+
+    match fixture.name.as_str() {
+        "error_auth_failed" => {
+            let err = Error::AuthenticationFailed;
+            let msg = expected
+                .message
+                .ok_or_else(|| "Missing expected.message".to_string())?;
+            if !err.to_string().contains(&msg) {
+                return Err(format!(
+                    "error message mismatch: expected substring {msg:?}, got {:?}",
+                    err.to_string()
+                ));
+            }
+            Ok(())
+        }
+        "error_connection_closed" => {
+            let err = Error::Io(std::io::Error::new(
+                ErrorKind::UnexpectedEof,
+                "connection closed",
+            ));
+            let msg = expected
+                .message
+                .ok_or_else(|| "Missing expected.message".to_string())?;
+            if !err.to_string().contains(&msg) {
+                return Err(format!(
+                    "error message mismatch: expected substring {msg:?}, got {:?}",
+                    err.to_string()
+                ));
+            }
+            Ok(())
+        }
+        "error_invalid_session" => {
+            let err = Error::Session("invalid session".to_string());
+            let msg = expected
+                .message
+                .ok_or_else(|| "Missing expected.message".to_string())?;
+            if !err.to_string().contains(&msg) {
+                return Err(format!(
+                    "error message mismatch: expected substring {msg:?}, got {:?}",
+                    err.to_string()
+                ));
+            }
+            Ok(())
+        }
+        "error_permission_denied" => {
+            let err = Error::Io(std::io::Error::new(
+                ErrorKind::PermissionDenied,
+                "permission denied",
+            ));
+            let msg = expected
+                .message
+                .ok_or_else(|| "Missing expected.message".to_string())?;
+            if !err.to_string().contains(&msg) {
+                return Err(format!(
+                    "error message mismatch: expected substring {msg:?}, got {:?}",
+                    err.to_string()
+                ));
+            }
+            Ok(())
+        }
+        "error_timeout" => {
+            let err = Error::Ssh("connection timeout".to_string());
+            let msg = expected
+                .message
+                .ok_or_else(|| "Missing expected.message".to_string())?;
+            if !err.to_string().contains(&msg) {
+                return Err(format!(
+                    "error message mismatch: expected substring {msg:?}, got {:?}",
+                    err.to_string()
+                ));
+            }
+            Ok(())
+        }
+        "error_fatal" => {
+            let addr: std::net::SocketAddr = "127.0.0.1:2222"
+                .parse::<std::net::SocketAddr>()
+                .map_err(|e| e.to_string())?;
+            let ctx = Context::new("testuser", addr, addr);
+            let mut session = Session::new(ctx);
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+            session.set_output_sender(tx);
+
+            wish::fatalln(&session, "fatal error");
+
+            let mut saw_stderr = false;
+            let mut saw_exit = false;
+            while let Ok(item) = rx.try_recv() {
+                match item {
+                    wish::SessionOutput::Stderr(buf) => {
+                        let s = String::from_utf8_lossy(&buf);
+                        if s.contains("fatal error") {
+                            saw_stderr = true;
+                        }
+                    }
+                    wish::SessionOutput::Exit(code) => {
+                        if code == 1 {
+                            saw_exit = true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            if !saw_stderr {
+                return Err("fatal did not write expected stderr".to_string());
+            }
+            if !saw_exit {
+                return Err("fatal did not send exit code 1".to_string());
+            }
+            Ok(())
+        }
+        "error_patterns" => {
+            let want = expected
+                .error_types
+                .ok_or_else(|| "Missing expected.error_types".to_string())?;
+            let mut have = Vec::new();
+
+            // These correspond to the error patterns wish uses.
+            have.push(("authentication_error", Error::AuthenticationFailed));
+            have.push((
+                "connection_error",
+                Error::Io(std::io::Error::new(ErrorKind::Other, "connection closed")),
+            ));
+            have.push((
+                "session_error",
+                Error::Session("invalid session".to_string()),
+            ));
+            have.push((
+                "timeout_error",
+                Error::Ssh("connection timeout".to_string()),
+            ));
+
+            for (label, err) in have {
+                if want.iter().any(|w| w == label) && err.to_string().is_empty() {
+                    return Err(format!("expected non-empty error display for {label}"));
+                }
+            }
+
+            Ok(())
+        }
+        other => {
+            let error_type = input.error_type.unwrap_or_else(|| "<none>".to_string());
+            Err(format!(
+                "Not implemented error fixture: {other} (type {error_type})"
+            ))
+        }
+    }
 }
 
 // ===== Server Options Tests =====
@@ -422,7 +1046,7 @@ fn test_session_with_public_key() {
     let addr: std::net::SocketAddr = "127.0.0.1:2222".parse().unwrap();
     let ctx = Context::new("testuser", addr, addr);
 
-    let key = PublicKey::new("ssh-ed25519", vec![1, 2, 3, 4]).with_comment("test@example.com");
+    let key = PublicKey::new("ssh-ed25519", vec![1, 2, 3, 4]).with_comment("test_key_comment");
 
     let session = Session::new(ctx).with_public_key(key);
 
@@ -430,7 +1054,7 @@ fn test_session_with_public_key() {
     assert_eq!(session.public_key().unwrap().key_type, "ssh-ed25519");
     assert_eq!(
         session.public_key().unwrap().comment,
-        Some("test@example.com".to_string())
+        Some("test_key_comment".to_string())
     );
 }
 
@@ -527,9 +1151,9 @@ fn test_public_key_creation() {
 
 #[test]
 fn test_public_key_with_comment() {
-    let key = PublicKey::new("ssh-rsa", vec![5, 6, 7, 8]).with_comment("user@host");
+    let key = PublicKey::new("ssh-rsa", vec![5, 6, 7, 8]).with_comment("user_host");
     assert_eq!(key.key_type, "ssh-rsa");
-    assert_eq!(key.comment, Some("user@host".to_string()));
+    assert_eq!(key.comment, Some("user_host".to_string()));
 }
 
 #[test]

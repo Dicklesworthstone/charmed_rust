@@ -587,6 +587,7 @@ dependencies = [
  "portable-pty 0.9.0",
  "russh",
  "russh-keys",
+ "ssh-key",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -620,6 +621,7 @@ dependencies = [
  "tempfile",
  "termcolor",
  "thiserror 2.0.18",
+ "tokio",
  "unicode-normalization",
 ]
 

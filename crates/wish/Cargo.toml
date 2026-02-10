@@ -29,6 +29,7 @@ bytes = "1.5"
 lru = { workspace = true }
 russh = { workspace = true }
 russh-keys = { workspace = true }
+ssh-key = "0.6.7"
 
 # SSH support - optional for now since russh-keys is in beta
 # russh = "0.56"

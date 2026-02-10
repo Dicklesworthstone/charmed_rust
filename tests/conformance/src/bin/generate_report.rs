@@ -43,7 +43,7 @@ pub enum TestStatus {
 fn collect_results() -> Vec<TestResult> {
     let mut all_results = Vec::new();
 
-    let crates: Vec<(&str, fn() -> Vec<(&'static str, Result<(), String>)>)> = vec![
+    let mut crates: Vec<(&str, fn() -> Vec<(&'static str, Result<(), String>)>)> = vec![
         (
             "harmonica",
             charmed_conformance::crates::harmonica::run_all_tests,
@@ -69,11 +69,15 @@ fn collect_results() -> Vec<TestResult> {
             charmed_conformance::crates::glamour::run_all_tests,
         ),
         ("huh", charmed_conformance::crates::huh::run_all_tests),
+        ("glow", charmed_conformance::crates::glow::run_all_tests),
         (
             "integration",
             charmed_conformance::integration::run_all_tests,
         ),
     ];
+
+    #[cfg(feature = "wish")]
+    crates.push(("wish", charmed_conformance::crates::wish::run_all_tests));
 
     for (crate_name, run_fn) in crates {
         let tests = run_fn();

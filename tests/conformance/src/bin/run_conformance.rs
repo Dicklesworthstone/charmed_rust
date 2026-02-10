@@ -289,7 +289,7 @@ fn main() {
     let mut all_results = Vec::new();
 
     // Run tests for each crate that has run_all_tests()
-    let crates_to_run: Vec<(&str, fn() -> Vec<(&'static str, Result<(), String>)>)> = vec![
+    let mut crates_to_run: Vec<(&str, fn() -> Vec<(&'static str, Result<(), String>)>)> = vec![
         (
             "harmonica",
             charmed_conformance::crates::harmonica::run_all_tests,
@@ -315,11 +315,15 @@ fn main() {
             charmed_conformance::crates::glamour::run_all_tests,
         ),
         ("huh", charmed_conformance::crates::huh::run_all_tests),
+        ("glow", charmed_conformance::crates::glow::run_all_tests),
         (
             "integration",
             charmed_conformance::integration::run_all_tests,
         ),
     ];
+
+    #[cfg(feature = "wish")]
+    crates_to_run.push(("wish", charmed_conformance::crates::wish::run_all_tests));
 
     for (crate_name, run_fn) in crates_to_run {
         // Skip if filtered
