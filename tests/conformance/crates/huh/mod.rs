@@ -909,7 +909,7 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
     } else if fixture.name.starts_with("form_") {
         run_theme_test(fixture) // form_with_theme uses the theme test handler
     } else {
-        Err(format!("SKIPPED: not implemented for {}", fixture.name))
+        Err(format!("Unhandled fixture: {}", fixture.name))
     }
 }
 

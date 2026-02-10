@@ -746,10 +746,7 @@ fn run_stopwatch_test(fixture: &TestFixture) -> Result<(), String> {
             }));
         }
         _ => {
-            return Err(format!(
-                "SKIPPED: stopwatch fixture not implemented: {}",
-                fixture.name
-            ));
+            return Err(format!("Unhandled stopwatch fixture: {}", fixture.name));
         }
     }
 
@@ -832,10 +829,7 @@ fn run_timer_test(fixture: &TestFixture) -> Result<(), String> {
             let _ = timer.update(Message::new(tick));
         }
         _ => {
-            return Err(format!(
-                "SKIPPED: timer fixture not implemented: {}",
-                fixture.name
-            ));
+            return Err(format!("Unhandled timer fixture: {}", fixture.name));
         }
     }
 
@@ -1086,10 +1080,7 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
             return Ok(());
         }
         _ => {
-            return Err(format!(
-                "SKIPPED: list fixture not implemented: {}",
-                fixture.name
-            ));
+            return Err(format!("Unhandled list fixture: {}", fixture.name));
         }
     }
 
@@ -1403,10 +1394,7 @@ fn run_table_test(fixture: &TestFixture) -> Result<(), String> {
             return Ok(());
         }
         _ => {
-            return Err(format!(
-                "SKIPPED: table fixture not implemented: {}",
-                fixture.name
-            ));
+            return Err(format!("Unhandled table fixture: {}", fixture.name));
         }
     }
 
@@ -1648,10 +1636,7 @@ fn run_paginator_test(fixture: &TestFixture) -> Result<(), String> {
             }
         }
         _ => {
-            return Err(format!(
-                "SKIPPED: paginator fixture not implemented: {}",
-                fixture.name
-            ));
+            return Err(format!("Unhandled paginator fixture: {}", fixture.name));
         }
     }
 
@@ -1783,10 +1768,7 @@ fn run_help_test(fixture: &TestFixture) -> Result<(), String> {
             }
         }
         _ => {
-            return Err(format!(
-                "SKIPPED: help fixture not implemented: {}",
-                fixture.name
-            ));
+            return Err(format!("Unhandled help fixture: {}", fixture.name));
         }
     }
 
@@ -1861,10 +1843,7 @@ fn run_viewport_test(fixture: &TestFixture) -> Result<(), String> {
             return Ok(());
         }
         _ => {
-            return Err(format!(
-                "SKIPPED: viewport fixture not implemented: {}",
-                fixture.name
-            ));
+            return Err(format!("Unhandled viewport fixture: {}", fixture.name));
         }
     }
 
@@ -2053,10 +2032,7 @@ fn run_cursor_test(fixture: &TestFixture) -> Result<(), String> {
             }
         }
         _ => {
-            return Err(format!(
-                "SKIPPED: cursor fixture not implemented: {}",
-                fixture.name
-            ));
+            return Err(format!("Unhandled cursor fixture: {}", fixture.name));
         }
     }
 
@@ -2235,10 +2211,7 @@ fn run_binding_test(fixture: &TestFixture) -> Result<(), String> {
             }
         }
         _ => {
-            return Err(format!(
-                "SKIPPED: bindings fixture not implemented: {}",
-                fixture.name
-            ));
+            return Err(format!("Unhandled bindings fixture: {}", fixture.name));
         }
     }
 
@@ -2536,10 +2509,7 @@ fn run_filepicker_test(fixture: &TestFixture) -> Result<(), String> {
             }
         }
         _ => {
-            return Err(format!(
-                "SKIPPED: filepicker fixture not implemented: {}",
-                fixture.name
-            ));
+            return Err(format!("Unhandled filepicker fixture: {}", fixture.name));
         }
     }
 
@@ -2675,10 +2645,7 @@ fn run_textinput_test(fixture: &TestFixture) -> Result<(), String> {
             return Ok(());
         }
         _ => {
-            return Err(format!(
-                "SKIPPED: textinput fixture not implemented: {}",
-                fixture.name
-            ));
+            return Err(format!("Unhandled textinput fixture: {}", fixture.name));
         }
     }
 
@@ -2809,7 +2776,7 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
     } else if fixture.name.starts_with(concat!("ke", "ybinding_")) {
         run_binding_test(fixture)
     } else {
-        Err(format!("SKIPPED: not implemented for {}", fixture.name))
+        Err(format!("Unhandled fixture: {}", fixture.name))
     }
 }
 
