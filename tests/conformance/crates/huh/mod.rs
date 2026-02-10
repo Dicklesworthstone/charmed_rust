@@ -29,7 +29,8 @@ use bubbletea::{Message, Model};
 use huh::{
     Confirm, EchoMode, Form, FormState, Group, Input, MultiSelect, NextFieldMsg, NextGroupMsg,
     Note, PrevFieldMsg, PrevGroupMsg, Select, SelectOption, Text, theme_base, theme_base16,
-    theme_charm, theme_dracula, validate_email, validate_min_length_8, validate_required_name,
+    theme_catppuccin, theme_charm, theme_dracula, validate_email, validate_min_length_8,
+    validate_required_name,
 };
 use serde::Deserialize;
 
@@ -834,9 +835,7 @@ fn run_theme_test(fixture: &TestFixture) -> Result<(), String> {
                 true
             }
             "catppuccin" => {
-                // Catppuccin is not yet implemented - we have base16 instead
-                // For now, return true since we do have theme_base16 as an equivalent
-                let _theme = theme_base16();
+                let _theme = theme_catppuccin();
                 true
             }
             _ => false,
@@ -858,6 +857,7 @@ fn run_theme_test(fixture: &TestFixture) -> Result<(), String> {
             "base" => theme_base(),
             "charm" => theme_charm(),
             "dracula" => theme_dracula(),
+            "catppuccin" => theme_catppuccin(),
             _ => theme_charm(), // Default to charm
         };
 

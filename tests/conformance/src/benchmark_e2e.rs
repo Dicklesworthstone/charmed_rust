@@ -99,7 +99,7 @@ mod compilation_tests {
 
     #[test]
     fn test_lipgloss_benchmarks_compile() {
-        let output = run_cargo_command(&["bench", "-p", "lipgloss", "--no-run"]);
+        let output = run_cargo_command(&["bench", "-p", "charmed-lipgloss", "--no-run"]);
 
         assert!(
             is_success(&output),
@@ -110,7 +110,7 @@ mod compilation_tests {
 
     #[test]
     fn test_bubbletea_benchmarks_compile() {
-        let output = run_cargo_command(&["bench", "-p", "bubbletea", "--no-run"]);
+        let output = run_cargo_command(&["bench", "-p", "charmed-bubbletea", "--no-run"]);
 
         assert!(
             is_success(&output),
@@ -121,7 +121,7 @@ mod compilation_tests {
 
     #[test]
     fn test_glamour_benchmarks_compile() {
-        let output = run_cargo_command(&["bench", "-p", "glamour", "--no-run"]);
+        let output = run_cargo_command(&["bench", "-p", "charmed-glamour", "--no-run"]);
 
         assert!(
             is_success(&output),
@@ -145,7 +145,7 @@ mod execution_tests {
         let output = run_cargo_command(&[
             "bench",
             "-p",
-            "lipgloss",
+            "charmed-lipgloss",
             "--",
             "--noplot",
             "--warm-up-time",
@@ -178,7 +178,7 @@ mod execution_tests {
         let output = run_cargo_command(&[
             "bench",
             "-p",
-            "bubbletea",
+            "charmed-bubbletea",
             "--",
             "--noplot",
             "--warm-up-time",
@@ -255,7 +255,7 @@ mod baseline_tests {
             &[
                 "bench",
                 "-p",
-                "lipgloss",
+                "charmed-lipgloss",
                 "--",
                 "--noplot",
                 "--warm-up-time",
@@ -280,7 +280,7 @@ mod baseline_tests {
             &[
                 "bench",
                 "-p",
-                "lipgloss",
+                "charmed-lipgloss",
                 "--",
                 "--noplot",
                 "--warm-up-time",
@@ -327,7 +327,7 @@ mod ci_simulation_tests {
         let bench_output = run_cargo_command(&[
             "bench",
             "-p",
-            "lipgloss",
+            "charmed-lipgloss",
             "--",
             "--noplot",
             "--warm-up-time",
@@ -349,7 +349,7 @@ mod ci_simulation_tests {
         let compare_output = run_cargo_command(&[
             "bench",
             "-p",
-            "lipgloss",
+            "charmed-lipgloss",
             "--",
             "--noplot",
             "--warm-up-time",
@@ -455,7 +455,7 @@ mod report_tests {
         let output = run_cargo_command(&[
             "bench",
             "-p",
-            "lipgloss",
+            "charmed-lipgloss",
             "--",
             "--warm-up-time",
             "1",
