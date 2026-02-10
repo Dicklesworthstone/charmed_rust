@@ -2582,6 +2582,18 @@ fn format_file_size(size: u64) -> String {
     }
 }
 
+fn parse_textinput_echo_mode(mode: &str, fixture_name: &str) -> Result<EchoMode, String> {
+    match mode {
+        "normal" => Ok(EchoMode::Normal),
+        "password" => Ok(EchoMode::Password),
+        "none" => Ok(EchoMode::None),
+        unknown => Err(format!(
+            "Unknown textinput echo_mode {:?} in fixture {} (expected normal|password|none)",
+            unknown, fixture_name
+        )),
+    }
+}
+
 fn run_textinput_test(fixture: &TestFixture) -> Result<(), String> {
     let input: TextInputInput = fixture
         .input_as()
@@ -2608,16 +2620,10 @@ fn run_textinput_test(fixture: &TestFixture) -> Result<(), String> {
         textinput.width = width;
     }
 
-    // Set echo mode if provided
-    if let Some(ref mode) = input.echo_mode {
-        if mode == "none" {
-            textinput.set_echo_mode(EchoMode::None);
-        } else {
-            // The Go fixtures only exercise two echo modes: masked input and none.
-            // Treat any other value as "masked" so we never embed a sensitive-looking
-            // keyword in the conformance runner source.
-            textinput.set_echo_mode(EchoMode::Password);
-        }
+    // Set echo mode if provided.
+    if let Some(mode) = input.echo_mode.as_deref() {
+        let parsed_mode = parse_textinput_echo_mode(mode, &fixture.name)?;
+        textinput.set_echo_mode(parsed_mode);
     }
 
     match fixture.name.as_str() {
@@ -3074,7 +3080,8 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{parse_textinput_echo_mode, run_all_tests};
+    use bubbles::textinput::EchoMode;
 
     #[test]
     fn test_bubbles_conformance() {
@@ -3122,11 +3129,35 @@ mod tests {
             "No conformance fixtures should be skipped (missing coverage must fail CI)"
         );
     }
+
+    #[test]
+    fn test_parse_textinput_echo_mode_accepts_known_values() {
+        assert!(matches!(
+            parse_textinput_echo_mode("normal", "fixture_name"),
+            Ok(EchoMode::Normal)
+        ));
+        assert!(matches!(
+            parse_textinput_echo_mode("password", "fixture_name"),
+            Ok(EchoMode::Password)
+        ));
+        assert!(matches!(
+            parse_textinput_echo_mode("none", "fixture_name"),
+            Ok(EchoMode::None)
+        ));
+    }
+
+    #[test]
+    fn test_parse_textinput_echo_mode_rejects_unknown_values() {
+        let err = parse_textinput_echo_mode("masked", "fixture_name")
+            .expect_err("unknown echo mode should fail strict parsing");
+        assert!(err.contains("Unknown textinput echo_mode"));
+        assert!(err.contains("fixture_name"));
+    }
 }
 
 /// Integration with the conformance trait system
 pub mod integration {
-    use super::*;
+    use super::{FixtureLoader, run_test};
     use crate::harness::{ConformanceTest, TestCategory, TestContext, TestResult};
 
     pub struct BubblesTest {
