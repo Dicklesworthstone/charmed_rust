@@ -542,18 +542,22 @@ pub fn calculate_column_widths(table: &ParsedTable, config: &ColumnWidthConfig) 
             if current_content > 0 {
                 let scale = available_content as f64 / current_content as f64;
                 let mut remaining = available_content;
+                let mut remaining_columns = column_count;
 
                 // Scale all but the last column
                 for width in widths.iter_mut().take(column_count - 1) {
                     let scaled = (*width as f64 * scale).floor() as usize;
-                    let new_width = scaled.max(config.min_width);
+                    remaining_columns = remaining_columns.saturating_sub(1);
+                    let min_for_rest = remaining_columns * config.min_width;
+                    let max_for_this = remaining.saturating_sub(min_for_rest);
+                    let new_width = scaled.max(config.min_width).min(max_for_this);
                     *width = new_width;
                     remaining = remaining.saturating_sub(new_width);
                 }
 
                 // Give remaining space to last column
                 if let Some(last) = widths.last_mut() {
-                    *last = remaining.max(config.min_width);
+                    *last = remaining;
                 }
             }
         } else {
@@ -2882,6 +2886,36 @@ Some text between tables.
             widths.total_width,
             max
         );
+    }
+
+    #[test]
+    fn proportional_shrink_does_not_overshoot_max_width() {
+        // Regression: proportional scaling + per-column min-width could
+        // overshoot max_table_width due rounding in earlier columns.
+        let table = ParsedTable {
+            header: vec![
+                TableCell::new("A".repeat(50), Alignment::Left),
+                TableCell::new("B".repeat(50), Alignment::Left),
+                TableCell::new("C", Alignment::Left),
+            ],
+            rows: vec![],
+            alignments: vec![Alignment::Left, Alignment::Left, Alignment::Left],
+        };
+
+        let config = ColumnWidthConfig::default()
+            .max_table_width(20) // overhead=10, available_content=10, min_required=9
+            .cell_padding(1)
+            .border_width(1);
+
+        let widths = calculate_column_widths(&table, &config);
+
+        assert!(
+            widths.total_width <= 20,
+            "total_width {} exceeds max {}",
+            widths.total_width,
+            20
+        );
+        assert!(widths.widths.iter().all(|&w| w >= config.min_width));
     }
 
     #[test]
