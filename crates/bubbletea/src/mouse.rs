@@ -416,6 +416,43 @@ mod tests {
     use super::*;
     use proptest::prelude::*;
 
+    #[test]
+    fn test_from_crossterm_mouse_drag_maps_to_motion_with_button() {
+        use crossterm::event::{KeyModifiers, MouseButton as CtButton, MouseEvent, MouseEventKind};
+
+        let event = MouseEvent {
+            kind: MouseEventKind::Drag(CtButton::Left),
+            column: 12,
+            row: 34,
+            modifiers: KeyModifiers::empty(),
+        };
+
+        let msg = from_crossterm_mouse(event);
+        assert_eq!(msg.x, 12);
+        assert_eq!(msg.y, 34);
+        assert_eq!(msg.action, MouseAction::Motion);
+        assert_eq!(msg.button, MouseButton::Left);
+        assert!(!msg.shift);
+        assert!(!msg.alt);
+        assert!(!msg.ctrl);
+    }
+
+    #[test]
+    fn test_from_crossterm_mouse_moved_maps_to_motion_without_button() {
+        use crossterm::event::{KeyModifiers, MouseEvent, MouseEventKind};
+
+        let event = MouseEvent {
+            kind: MouseEventKind::Moved,
+            column: 1,
+            row: 2,
+            modifiers: KeyModifiers::empty(),
+        };
+
+        let msg = from_crossterm_mouse(event);
+        assert_eq!(msg.action, MouseAction::Motion);
+        assert_eq!(msg.button, MouseButton::None);
+    }
+
     fn sgr_sequence_bytes(encoded: u16, x: u16, y: u16, release: bool) -> Vec<u8> {
         let suffix = if release { 'm' } else { 'M' };
         format!("\x1b[<{};{};{}{}", encoded, x, y, suffix).into_bytes()

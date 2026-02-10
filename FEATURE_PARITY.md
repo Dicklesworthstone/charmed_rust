@@ -91,14 +91,14 @@ Result summary:
 **Windows SSH:** CI-covered via cross-platform wish e2e harness (bd-212m.7.2).
 
 ### Other Limitations
-- Mouse drag support: limited.
+- Mouse drag support: supported (terminal-dependent; requires enabling mouse motion).
 - Complex Unicode: "basic" support only.
 
 ---
 
 ## Recommended Next Actions (High Priority)
 
-1. **Run targeted validation** for remaining README limitations (mouse drag, Unicode).
+1. **Run targeted validation** for remaining README limitations (Unicode).
 
 ---
 

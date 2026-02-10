@@ -996,7 +996,7 @@ chmod 644 ./host_key.pub
 | **crates.io** | ✅ Published | Install via `charmed-*` packages |
 | **Nightly Rust** | Required | Edition 2024 |
 | **SSH (wish)** | ⚠️ Beta | Framework ready, deps maturing |
-| **Mouse drag** | ⚠️ Limited | Click/scroll work, selection needs terminal support |
+| **Mouse drag** | ✅ Supported | Enable mouse motion; terminal support varies |
 | **Complex Unicode** | ⚠️ Basic | `unicode-width` handles most cases |
 | **Windows SSH** | ⚠️ CI covered | Requires OpenSSH client (CI installs it) |
 
