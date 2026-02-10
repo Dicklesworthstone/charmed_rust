@@ -59,6 +59,17 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
 
+      - name: Ensure OpenSSH client available (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
+            Write-Host "ssh not found; installing OpenSSH.Client..."
+            Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0
+          }
+          ssh -V
+          if (Get-Command ssh-keygen -ErrorAction SilentlyContinue) { ssh-keygen -h } else { Write-Host "ssh-keygen not found" }
+
       - name: Cache cargo registry and build
         uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:

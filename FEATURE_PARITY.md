@@ -88,7 +88,7 @@ Result summary:
   - Concurrent PTY sessions: 5 sessions OK
 - Rich error types implemented (Io, Ssh, Russh, Key, Auth, Config, Session, AddrParse)
 
-**Remaining:** Windows SSH untested (bd-212m.7.2).
+**Windows SSH:** CI-covered via cross-platform wish e2e harness (bd-212m.7.2).
 
 ### Other Limitations
 - Mouse drag support: limited.
@@ -98,8 +98,7 @@ Result summary:
 
 ## Recommended Next Actions (High Priority)
 
-1. **Validate Windows SSH** (bd-212m.7.2).
-2. **Run targeted validation** for remaining README limitations (mouse drag, Unicode).
+1. **Run targeted validation** for remaining README limitations (mouse drag, Unicode).
 
 ---
 

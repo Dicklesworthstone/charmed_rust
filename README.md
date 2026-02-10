@@ -998,7 +998,7 @@ chmod 644 ./host_key.pub
 | **SSH (wish)** | ⚠️ Beta | Framework ready, deps maturing |
 | **Mouse drag** | ⚠️ Limited | Click/scroll work, selection needs terminal support |
 | **Complex Unicode** | ⚠️ Basic | `unicode-width` handles most cases |
-| **Windows SSH** | ⚠️ Untested | Linux/macOS verified |
+| **Windows SSH** | ⚠️ CI covered | Requires OpenSSH client (CI installs it) |
 
 ### Not Planned
 

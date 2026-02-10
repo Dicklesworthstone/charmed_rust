@@ -133,6 +133,8 @@ async fn test_rapid_pty_resize() {
     )
     .await;
 
+    let client = SshClient::new(server.port());
+
     let pty_system = native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -146,13 +148,19 @@ async fn test_rapid_pty_resize() {
     let mut cmd = CommandBuilder::new("ssh");
     cmd.arg("-tt");
     cmd.arg("-F");
-    cmd.arg("/dev/null");
+    cmd.arg(client.user_config_path());
     cmd.arg("-o");
     cmd.arg("StrictHostKeyChecking=no");
     cmd.arg("-o");
-    cmd.arg("UserKnownHostsFile=/dev/null");
+    cmd.arg(format!(
+        "UserKnownHostsFile={}",
+        client.known_hosts_option_value()
+    ));
     cmd.arg("-o");
-    cmd.arg("GlobalKnownHostsFile=/dev/null");
+    cmd.arg(format!(
+        "GlobalKnownHostsFile={}",
+        client.known_hosts_option_value()
+    ));
     cmd.arg("-o");
     cmd.arg("LogLevel=ERROR");
     cmd.arg("-o");
@@ -167,7 +175,9 @@ async fn test_rapid_pty_resize() {
     let mut writer = pair.master.take_writer().expect("pty writer");
 
     // Wait for program to start
-    wait_for_flag(&started, LONG_TIMEOUT).await;
+    wait_for_flag(&started, LONG_TIMEOUT)
+        .await
+        .expect("program start");
 
     // Send rapid resize events
     let resize_count_target: u16 = 20;
@@ -212,15 +222,18 @@ async fn test_rapid_pty_resize() {
     server.stop().await;
 }
 
-async fn wait_for_flag(flag: &AtomicBool, timeout: std::time::Duration) {
+async fn wait_for_flag(
+    flag: &AtomicBool,
+    timeout: std::time::Duration,
+) -> Result<(), &'static str> {
     let deadline = tokio::time::Instant::now() + timeout;
     while tokio::time::Instant::now() < deadline {
         if flag.load(Ordering::SeqCst) {
-            return;
+            return Ok(());
         }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
-    panic!("timed out waiting for program start");
+    Err("timed out waiting for program start")
 }
 
 #[derive(Clone)]
@@ -333,7 +346,8 @@ async fn test_concurrent_pty_sessions() {
     }
 
     for (i, handle) in handles.into_iter().enumerate() {
-        handle.await.unwrap_or_else(|_| panic!("join session {i}"));
+        let join = handle.await;
+        assert!(join.is_ok(), "join session {i} failed: {join:?}");
     }
 
     eprintln!("concurrent PTY sessions: {concurrent} sessions completed successfully");

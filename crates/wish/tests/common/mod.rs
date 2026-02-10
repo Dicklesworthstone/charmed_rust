@@ -1,5 +1,6 @@
 use std::fmt;
 use std::io;
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::{Command as StdCommand, Output, Stdio};
 use std::sync::{Arc, Mutex};
@@ -45,7 +46,9 @@ impl TestServer {
             }
         });
 
-        wait_for_ssh_server(port).await;
+        wait_for_ssh_server(port)
+            .await
+            .expect("wish server did not start in time");
 
         Self { port, handle }
     }
@@ -60,7 +63,7 @@ impl TestServer {
     }
 }
 
-async fn wait_for_ssh_server(port: u16) {
+async fn wait_for_ssh_server(port: u16) -> io::Result<()> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let addr = format!("127.0.0.1:{port}");
@@ -74,16 +77,23 @@ async fn wait_for_ssh_server(port: u16) {
         let _ = stream.write_all(b"SSH-2.0-wish-test\r\n").await;
         let mut buf = [0u8; 128];
         let Ok(Ok(n)) = timeout(Duration::from_millis(200), stream.read(&mut buf)).await else {
+            let _ = stream.shutdown().await;
             sleep(Duration::from_millis(50)).await;
             continue;
         };
 
         if n > 0 && String::from_utf8_lossy(&buf[..n]).contains("SSH-") {
-            return;
+            let _ = stream.shutdown().await;
+            return Ok(());
         }
+
+        let _ = stream.shutdown().await;
         sleep(Duration::from_millis(50)).await;
     }
-    panic!("wish server did not start in time");
+    Err(io::Error::new(
+        io::ErrorKind::TimedOut,
+        "wish server did not start in time",
+    ))
 }
 
 #[derive(Clone, Default)]
@@ -113,19 +123,31 @@ impl wish::middleware::logging::Logger for LogCapture {
     }
 }
 
-#[derive(Clone)]
 pub struct SshClient {
     port: u16,
     user: String,
     identity_file: Option<PathBuf>,
+    _scratch: tempfile::TempDir,
+    user_config: PathBuf,
+    known_hosts: PathBuf,
 }
 
 impl SshClient {
     pub fn new(port: u16) -> Self {
+        let scratch = tempfile::tempdir().expect("ssh client scratch tempdir");
+        let user_config = scratch.path().join("ssh_config");
+        std::fs::write(&user_config, "").expect("write ssh_config");
+
+        let known_hosts = scratch.path().join("known_hosts");
+        std::fs::write(&known_hosts, "").expect("write known_hosts");
+
         Self {
             port,
             user: TEST_USER.to_string(),
             identity_file: None,
+            _scratch: scratch,
+            user_config,
+            known_hosts,
         }
     }
 
@@ -138,6 +160,14 @@ impl SshClient {
     pub fn with_identity_file(mut self, path: impl Into<PathBuf>) -> Self {
         self.identity_file = Some(path.into());
         self
+    }
+
+    pub fn user_config_path(&self) -> &Path {
+        &self.user_config
+    }
+
+    pub fn known_hosts_option_value(&self) -> String {
+        ssh_opt_path(&self.known_hosts)
     }
 
     pub async fn exec(&self, command: &str) -> io::Result<Output> {
@@ -165,35 +195,43 @@ impl SshClient {
     }
 
     pub async fn exec_with_password(&self, command: &str, password: &str) -> io::Result<Output> {
-        let dir = tempfile::tempdir()?;
-        let script_path = dir.path().join("askpass.sh");
-        let script = "#!/bin/sh\nprintf '%s\\n' \"$WISH_TEST_PASSWORD\"\n";
-        std::fs::write(&script_path, script)?;
-
-        #[cfg(unix)]
+        #[cfg(windows)]
         {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&script_path)?.permissions();
-            perms.set_mode(0o700);
-            std::fs::set_permissions(&script_path, perms)?;
+            return self.exec_with_password_via_pty(command, password).await;
         }
 
-        let mut cmd = self.base_command();
-        cmd.arg("-o")
-            .arg("BatchMode=no")
-            .arg("-o")
-            .arg("PreferredAuthentications=password")
-            .arg("-o")
-            .arg("PubkeyAuthentication=no")
-            .arg("-o")
-            .arg("NumberOfPasswordPrompts=1")
-            .env("SSH_ASKPASS", &script_path)
-            .env("SSH_ASKPASS_REQUIRE", "force")
-            .env("DISPLAY", "1")
-            .env("WISH_TEST_PASSWORD", password)
-            .arg(command);
+        #[cfg(not(windows))]
+        {
+            let dir = tempfile::tempdir()?;
+            let script_path = dir.path().join("askpass.sh");
+            let script = "#!/bin/sh\nprintf '%s\\n' \"$WISH_TEST_PASSWORD\"\n";
+            std::fs::write(&script_path, script)?;
 
-        run_with_timeout(cmd, DEFAULT_TIMEOUT).await
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mut perms = std::fs::metadata(&script_path)?.permissions();
+                perms.set_mode(0o700);
+                std::fs::set_permissions(&script_path, perms)?;
+            }
+
+            let mut cmd = self.base_command();
+            cmd.arg("-o")
+                .arg("BatchMode=no")
+                .arg("-o")
+                .arg("PreferredAuthentications=password")
+                .arg("-o")
+                .arg("PubkeyAuthentication=no")
+                .arg("-o")
+                .arg("NumberOfPasswordPrompts=1")
+                .env("SSH_ASKPASS", &script_path)
+                .env("SSH_ASKPASS_REQUIRE", "force")
+                .env("DISPLAY", "1")
+                .env("WISH_TEST_PASSWORD", password)
+                .arg(command);
+
+            run_with_timeout(cmd, DEFAULT_TIMEOUT).await
+        }
     }
 
     pub fn spawn_interactive(&self) -> io::Result<tokio::process::Child> {
@@ -208,13 +246,19 @@ impl SshClient {
     fn base_command(&self) -> TokioCommand {
         let mut cmd = TokioCommand::new("ssh");
         cmd.arg("-F")
-            .arg("/dev/null")
+            .arg(&self.user_config)
             .arg("-o")
             .arg("StrictHostKeyChecking=no")
             .arg("-o")
-            .arg("UserKnownHostsFile=/dev/null")
+            .arg(format!(
+                "UserKnownHostsFile={}",
+                ssh_opt_path(&self.known_hosts)
+            ))
             .arg("-o")
-            .arg("GlobalKnownHostsFile=/dev/null")
+            .arg(format!(
+                "GlobalKnownHostsFile={}",
+                ssh_opt_path(&self.known_hosts)
+            ))
             .arg("-o")
             .arg("LogLevel=ERROR")
             .arg("-o")
@@ -230,6 +274,103 @@ impl SshClient {
 
         cmd.arg(format!("{}@127.0.0.1", self.user));
         cmd
+    }
+
+    #[cfg(windows)]
+    async fn exec_with_password_via_pty(
+        &self,
+        command: &str,
+        password: &str,
+    ) -> io::Result<Output> {
+        use portable_pty::{CommandBuilder, PtySize, native_pty_system};
+        use std::io::{Read, Write};
+
+        let port = self.port;
+        let user = self.user.clone();
+        let user_config = self.user_config.clone();
+        let known_hosts_opt = ssh_opt_path(&self.known_hosts);
+        let command = command.to_string();
+        let pw = password.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            let pty_system = native_pty_system();
+            let pair = pty_system
+                .openpty(PtySize {
+                    rows: 24,
+                    cols: 80,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .map_err(io::Error::other)?;
+
+            let mut cmd = CommandBuilder::new("ssh");
+            cmd.arg("-tt");
+            cmd.arg("-F");
+            cmd.arg(user_config);
+            cmd.arg("-o");
+            cmd.arg("StrictHostKeyChecking=no");
+            cmd.arg("-o");
+            cmd.arg(format!("UserKnownHostsFile={known_hosts_opt}"));
+            cmd.arg("-o");
+            cmd.arg(format!("GlobalKnownHostsFile={known_hosts_opt}"));
+            cmd.arg("-o");
+            cmd.arg("LogLevel=ERROR");
+            cmd.arg("-o");
+            cmd.arg("ConnectTimeout=5");
+            cmd.arg("-o");
+            cmd.arg("BatchMode=no");
+            cmd.arg("-o");
+            cmd.arg("PreferredAuthentications=password");
+            cmd.arg("-o");
+            cmd.arg("PubkeyAuthentication=no");
+            cmd.arg("-o");
+            cmd.arg("NumberOfPasswordPrompts=1");
+            cmd.arg("-p");
+            cmd.arg(port.to_string());
+            cmd.arg(format!("{user}@127.0.0.1"));
+            cmd.arg(command);
+
+            let mut child = pair.slave.spawn_command(cmd).map_err(io::Error::other)?;
+            drop(pair.slave);
+
+            // Feed the password eagerly; SSH will consume it when it prompts.
+            let mut writer = pair
+                .master
+                .take_writer()
+                .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
+            writer.write_all(pw.as_bytes())?;
+            writer.write_all(b"\n")?;
+            writer.flush()?;
+
+            let mut reader = pair
+                .master
+                .take_reader()
+                .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
+
+            let mut stdout = Vec::new();
+            reader.read_to_end(&mut stdout)?;
+
+            let status = child
+                .wait()
+                .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
+
+            Ok(Output {
+                status,
+                stdout,
+                stderr: Vec::new(),
+            })
+        })
+        .await
+        .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?
+    }
+}
+
+fn ssh_opt_path(path: &Path) -> String {
+    let raw = path.to_string_lossy().to_string();
+    if cfg!(windows) {
+        raw.replace('\\', "/")
+    } else {
+        raw
     }
 }
 
