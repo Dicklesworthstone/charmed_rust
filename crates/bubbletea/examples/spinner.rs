@@ -7,62 +7,10 @@
 //! - Handle async tick messages for animation
 //! - Apply lipgloss styles to components
 //!
-//! Run with: cargo run -p bubbletea --example spinner
-
-mod bubbles {
-    pub mod spinner {
-        #![allow(
-            clippy::must_use_candidate,
-            clippy::unused_self,
-            clippy::needless_pass_by_ref_mut,
-            clippy::missing_const_for_fn
-        )]
-
-        use bubbletea::{Cmd, Message};
-        use lipgloss::Style;
-
-        #[derive(Clone, Copy, Debug)]
-        pub struct Spinner;
-
-        pub mod spinners {
-            use super::Spinner;
-
-            pub fn dot() -> Spinner {
-                Spinner
-            }
-        }
-
-        #[derive(Clone, Debug)]
-        pub struct SpinnerModel {
-            frame: &'static str,
-        }
-
-        impl SpinnerModel {
-            pub fn with_spinner(_spinner: Spinner) -> Self {
-                Self { frame: "*" }
-            }
-
-            pub fn style(self, _style: Style) -> Self {
-                self
-            }
-
-            pub fn init(&self) -> Option<Cmd> {
-                None
-            }
-
-            pub fn update(&mut self, _msg: Message) -> Option<Cmd> {
-                None
-            }
-
-            pub fn view(&self) -> String {
-                self.frame.to_string()
-            }
-        }
-    }
-}
+//! Run with: cargo run -p charmed-bubbletea --example spinner
 
 use bubbles::spinner::{SpinnerModel, spinners};
-use bubbletea::{Cmd, KeyMsg, KeyType, Message, Program, quit};
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, quit};
 use lipgloss::Style;
 
 /// Main application model composing a spinner with app state.
