@@ -995,10 +995,10 @@ chmod 644 ./host_key.pub
 |------------|--------|-------|
 | **crates.io** | ✅ Published | Install via `charmed-*` packages |
 | **Nightly Rust** | Required | Edition 2024 |
-| **SSH (wish)** | ⚠️ Beta | Framework ready, deps maturing |
+| **SSH (wish)** | ✅ Stable | Stability audit complete (see `FEATURE_PARITY.md`) |
 | **Mouse drag** | ✅ Supported | Enable mouse motion; terminal support varies |
 | **Complex Unicode** | ✅ Go-parity | Grapheme-aware width matches Go; rendering depends on terminal/font |
-| **Windows SSH** | ⚠️ CI covered | Requires OpenSSH client (CI installs it) |
+| **Windows SSH** | ✅ CI covered | Requires OpenSSH client (CI installs it) |
 
 ### Not Planned
 
