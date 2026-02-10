@@ -195,7 +195,7 @@
 //!
 //! # Empty States
 //!
-//! Use guiding copy that explains what would normally appear:
+//! Use guiding copy that explains what normally appears:
 //!
 //! - "No recent deployments" (not "Nothing here")
 //! - "No jobs in queue" (not "Empty")

@@ -1,7 +1,7 @@
 //! Wizard page - multi-step service deployment workflow.
 //!
-//! This page demonstrates huh form integration by guiding users through
-//! a realistic "Deploy a Service" workflow with validation and progress.
+//! This page demonstrates a realistic multi-step "Deploy a Service" workflow
+//! with validation, progress, and recovery from simulated backend errors.
 //!
 //! ## Error States (bd-2fty)
 //!
@@ -15,8 +15,6 @@
 //! Recovery flows allow retrying or backing out safely.
 
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, batch};
-// Note: huh components would be used in a more complete implementation
-// For now, we implement a custom form UI to demonstrate the patterns
 use lipgloss::Style;
 
 use super::PageModel;

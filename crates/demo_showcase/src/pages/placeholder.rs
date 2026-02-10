@@ -1,4 +1,4 @@
-//! Placeholder page for pages not yet implemented.
+//! Placeholder page used as a safe fallback for routes that are not wired up.
 
 use bubbletea::{Cmd, Message};
 use lipgloss::Position;
@@ -7,7 +7,7 @@ use super::PageModel;
 use crate::messages::Page;
 use crate::theme::Theme;
 
-/// Placeholder page for pages not yet implemented.
+/// Placeholder page used as a safe fallback for routes that are not wired up.
 pub struct PlaceholderPage {
     page: Page,
 }
@@ -43,7 +43,10 @@ impl PageModel for PlaceholderPage {
             "{}\n\n{}\n\n{}",
             title,
             theme.muted_style().render(description),
-            theme.muted_style().italic().render("Coming soon...")
+            theme
+                .muted_style()
+                .italic()
+                .render("This page is not wired up in this build.")
         );
 
         let boxed = theme.box_style().padding(1).render(&content);

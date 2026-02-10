@@ -180,17 +180,18 @@ INFO  Session ended user="demo" duration_secs=45.2 active_sessions=0
 
 ## Pages
 
-The showcase includes 7 interactive pages:
+	The showcase includes 8 interactive pages:
 
 | # | Page | Description | Key Features |
 |---|------|-------------|--------------|
 | 1 | **Dashboard** | Overview with status cards | Real-time stats, recent jobs list |
-| 2 | **Services** | Placeholder for service status | — |
+| 2 | **Services** | Service catalog + details panel | Filter (/), status chips, notify (Enter) |
 | 3 | **Jobs** | Background task monitoring | Filterable table, job actions (n/⏎/x/R) |
 | 4 | **Logs** | Real-time log viewer | Follow mode, level filters, export |
 | 5 | **Docs** | Markdown documentation | Syntax highlighting, split-view, search |
-| 6 | **Wizard** | Multi-step form demo | huh integration, form validation |
-| 7 | **Settings** | App configuration | Theme switching, toggle controls |
+| 6 | **Files** | Filesystem browser | Navigate, preview, fixtures mode |
+| 7 | **Wizard** | Multi-step form demo | huh integration, form validation |
+| 8 | **Settings** | App configuration | Theme switching, toggle controls |
 
 ## Keybindings
 
@@ -198,7 +199,7 @@ The showcase includes 7 interactive pages:
 
 | Key | Action |
 |-----|--------|
-| `1-7` | Navigate to page |
+| `1-8` | Navigate to page |
 | `[` | Toggle sidebar |
 | `?` | Show help overlay |
 | `q` | Quit |

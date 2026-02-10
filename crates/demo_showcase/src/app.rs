@@ -31,7 +31,8 @@ use std::fmt::Write as _;
 /// This function parses ANSI escape codes and converts them to HTML spans
 /// with appropriate CSS styling, preserving colors and text attributes.
 #[allow(clippy::too_many_lines, clippy::similar_names, clippy::collapsible_if)]
-fn ansi_to_html(input: &str) -> String {
+#[must_use]
+pub fn ansi_to_html(input: &str) -> String {
     let mut html = String::with_capacity(input.len() * 2);
     html.push_str("<!DOCTYPE html>\n<html>\n<head>\n");
     html.push_str("<meta charset=\"utf-8\">\n");
@@ -251,7 +252,8 @@ fn ansi256_to_hex(n: u8) -> String {
 /// CSI sequences start with ESC [ and end with a byte in the range 0x40-0x7E
 /// (characters '@' through '~'), which includes 'm' for SGR, 'H' for cursor
 /// positioning, 'J' for erase display, etc.
-fn strip_ansi(input: &str) -> String {
+#[must_use]
+pub fn strip_ansi(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     let mut in_escape = false;
     let mut in_csi = false;
@@ -1660,22 +1662,8 @@ fn truncate_line_ansi_aware(line: &str, max_width: usize) -> String {
 
 /// Calculate the visible length of a string (excluding ANSI escape sequences).
 fn strip_ansi_len(s: &str) -> usize {
-    // Simple heuristic: count non-escape characters
-    // This is a rough approximation; a full ANSI parser would be more accurate
-    let mut len = 0;
-    let mut in_escape = false;
-    for c in s.chars() {
-        if c == '\x1b' {
-            in_escape = true;
-        } else if in_escape {
-            if c == 'm' {
-                in_escape = false;
-            }
-        } else {
-            len += 1;
-        }
-    }
-    len
+    // Prefer lipgloss's canonical ANSI-aware width implementation.
+    lipgloss::visible_width(s)
 }
 
 #[cfg(test)]

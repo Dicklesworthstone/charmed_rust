@@ -35,9 +35,11 @@ use bubbletea::Program;
 // Re-export from library for use in main
 use clap::Parser;
 use demo_showcase::app::App;
+use demo_showcase::app::{ansi_to_html, strip_ansi};
 use demo_showcase::cli::{Cli, Command};
 use demo_showcase::config::Config;
 use demo_showcase::messages;
+use demo_showcase::messages::Page;
 #[cfg(feature = "ssh")]
 use demo_showcase::ssh;
 use demo_showcase::test_support;
@@ -138,17 +140,108 @@ fn handle_subcommand(cmd: &Command, cli: &Cli) -> anyhow::Result<()> {
             });
         }
         Command::Export(args) => {
-            eprintln!("Export not yet implemented");
-            eprintln!("Format: {:?}", args.format);
-            eprintln!("Output: {}", args.output.display());
-            if let Some(page) = &args.page {
-                eprintln!("Page: {page}");
-            }
+            let mut config = Config::from_cli(cli);
+            // Export is non-interactive: force headless behavior and avoid alt-screen.
+            config.self_check = true;
+            config.alt_screen = false;
+            config.validate()?;
+            run_export(args, &config)?;
         }
         Command::Diagnostics => {
             print_diagnostics(cli);
         }
     }
+    Ok(())
+}
+
+fn parse_page_arg(s: &str) -> Option<Page> {
+    let s = s.trim().to_ascii_lowercase();
+    if s.len() == 1 {
+        let c = s.chars().next()?;
+        if let Some(p) = Page::from_shortcut(c) {
+            return Some(p);
+        }
+    }
+
+    match s.as_str() {
+        "dashboard" => Some(Page::Dashboard),
+        "services" => Some(Page::Services),
+        "jobs" => Some(Page::Jobs),
+        "logs" => Some(Page::Logs),
+        "docs" => Some(Page::Docs),
+        "files" => Some(Page::Files),
+        "wizard" => Some(Page::Wizard),
+        "settings" => Some(Page::Settings),
+        _ => None,
+    }
+}
+
+const fn export_extension(format: demo_showcase::cli::ExportFormat) -> &'static str {
+    match format {
+        demo_showcase::cli::ExportFormat::Plain => "txt",
+        demo_showcase::cli::ExportFormat::Html => "html",
+        demo_showcase::cli::ExportFormat::Ansi => "ansi",
+    }
+}
+
+fn export_convert(format: demo_showcase::cli::ExportFormat, ansi_view: &str) -> String {
+    match format {
+        demo_showcase::cli::ExportFormat::Plain => strip_ansi(ansi_view),
+        demo_showcase::cli::ExportFormat::Html => ansi_to_html(ansi_view),
+        demo_showcase::cli::ExportFormat::Ansi => ansi_view.to_string(),
+    }
+}
+
+fn run_export(args: &demo_showcase::cli::ExportArgs, config: &Config) -> anyhow::Result<()> {
+    use demo_showcase::test_support::E2ERunner;
+
+    let pages: Vec<Page> = if let Some(page) = &args.page {
+        vec![parse_page_arg(page).ok_or_else(|| {
+            anyhow::anyhow!("unknown page {page:?}; expected one of: dashboard, services, jobs, logs, docs, files, wizard, settings (or 1-8)")
+        })?]
+    } else {
+        Page::all().to_vec()
+    };
+
+    let ext = export_extension(args.format);
+
+    // Output resolution:
+    // - If exporting a single page: `--output` may be a file or a directory.
+    // - If exporting multiple pages: `--output` must be a directory.
+    let output_path = &args.output;
+    let exporting_many = pages.len() > 1;
+
+    if exporting_many {
+        // Treat output as a directory. Create it if needed.
+        if output_path.extension().is_some() {
+            anyhow::bail!(
+                "exporting multiple pages requires --output to be a directory path (got file-like path: {})",
+                output_path.display()
+            );
+        }
+        std::fs::create_dir_all(output_path)?;
+    }
+
+    for page in pages {
+        let mut runner = E2ERunner::with_config("cli_export", config.clone());
+        runner.resize(120, 40);
+        runner.press_key(page.shortcut());
+        runner.drain();
+
+        let ansi_view = runner.view();
+        let content = export_convert(args.format, &ansi_view);
+
+        let out_file = if exporting_many || output_path.is_dir() {
+            let name = page.name().to_ascii_lowercase();
+            output_path.join(format!("{name}.{ext}"))
+        } else {
+            output_path.clone()
+        };
+
+        std::fs::write(&out_file, content)?;
+        eprintln!("Exported {page:?} to {}", out_file.display());
+    }
+
     Ok(())
 }
 

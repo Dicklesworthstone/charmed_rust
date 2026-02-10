@@ -208,6 +208,7 @@ impl Config {
     /// Takes into account the color mode and terminal capabilities.
     #[must_use]
     pub fn use_color(&self) -> bool {
+        use std::io::IsTerminal as _;
         match self.color_mode {
             ColorMode::Always => true,
             ColorMode::Never => false,
@@ -217,9 +218,12 @@ impl Config {
                     return false;
                 }
 
-                // Check if stdout is a tty (simplified check)
-                // In production, would use atty or similar
-                true
+                // Respect dumb terminals and non-interactive stdout.
+                if matches!(std::env::var("TERM").as_deref(), Ok("dumb")) {
+                    return false;
+                }
+
+                std::io::stdout().is_terminal()
             }
         }
     }

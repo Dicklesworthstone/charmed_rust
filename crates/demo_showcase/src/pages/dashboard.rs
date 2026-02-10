@@ -1309,8 +1309,6 @@ impl PageModel for DashboardPage {
         if msg.downcast_ref::<TickMsg>().is_some() {
             // Process tick and collect any notifications (for future toast display)
             let _notifications = self.process_tick();
-            // Note: In a full implementation, notifications would be emitted via App-level
-            // message routing. For now, the view reflects the live metric state changes.
 
             return Some(self.schedule_tick());
         }

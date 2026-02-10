@@ -1191,9 +1191,7 @@ mod tests {
     }
 
     #[test]
-    fn color_profile_detection_respects_no_color() {
-        // Note: This test would need env var mocking to test properly
-        // Here we just verify the default behavior
+    fn color_profile_default_is_truecolor() {
         let profile = ColorProfile::default();
         assert_eq!(profile, ColorProfile::TrueColor);
     }

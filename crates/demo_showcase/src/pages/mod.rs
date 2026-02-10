@@ -51,6 +51,7 @@ mod files;
 mod jobs;
 mod logs;
 mod placeholder;
+mod services;
 mod settings;
 mod wizard;
 
@@ -60,6 +61,7 @@ pub use files::FilesPage;
 pub use jobs::JobsPage;
 pub use logs::LogsPage;
 pub use placeholder::PlaceholderPage;
+pub use services::ServicesPage;
 pub use settings::SettingsPage;
 pub use wizard::WizardPage;
 
@@ -117,30 +119,16 @@ pub trait PageModel {
 /// Container for all page models.
 ///
 /// This allows the router to hold all pages and delegate to the active one.
+#[derive(Default)]
 pub struct Pages {
     pub dashboard: DashboardPage,
-    pub services: PlaceholderPage,
+    pub services: ServicesPage,
     pub jobs: JobsPage,
     pub logs: LogsPage,
     pub docs: DocsPage,
     pub files: FilesPage,
     pub wizard: WizardPage,
     pub settings: SettingsPage,
-}
-
-impl Default for Pages {
-    fn default() -> Self {
-        Self {
-            dashboard: DashboardPage::new(),
-            services: PlaceholderPage::new(Page::Services),
-            jobs: JobsPage::new(),
-            logs: LogsPage::new(),
-            docs: DocsPage::new(),
-            files: FilesPage::new(),
-            wizard: WizardPage::new(),
-            settings: SettingsPage::new(),
-        }
-    }
 }
 
 impl Pages {
