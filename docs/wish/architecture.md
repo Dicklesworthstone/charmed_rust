@@ -385,8 +385,8 @@ impl RusshHandler for WishHandler {
 
         // Notify handler via channel
         if let Some(state) = self.channels.get(&channel) {
-            // Send window resize message
-            // This would be handled by bubbletea integration
+            // Send window resize message.
+            // In the real implementation we forward this into the Bubble Tea program as WindowSizeMsg.
         }
         Ok(())
     }

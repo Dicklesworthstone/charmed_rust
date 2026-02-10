@@ -1042,8 +1042,39 @@ impl Server {
 
         // Bind to the address
         let listener = TcpListener::bind(addr).await?;
-        info!("Server listening on {}", addr);
+        let local_addr = listener.local_addr().unwrap_or(addr);
+        info!("Server listening on {}", local_addr);
 
+        self.listen_with_listener_inner(listener, config, factory, local_addr)
+            .await
+    }
+
+    /// Starts listening for connections using an already-bound listener.
+    ///
+    /// This is primarily useful for tests and embedding scenarios where you need to
+    /// bind to an ephemeral port (`127.0.0.1:0`) without races.
+    pub async fn listen_with_listener(&self, listener: TcpListener) -> Result<()> {
+        let local_addr = listener.local_addr()?;
+
+        // Create russh configuration
+        let config = self.create_russh_config()?;
+        let config = Arc::new(config);
+
+        // Create the handler factory
+        let factory = WishHandlerFactory::new(self.options.clone());
+
+        info!("Server listening on {}", local_addr);
+        self.listen_with_listener_inner(listener, config, factory, local_addr)
+            .await
+    }
+
+    async fn listen_with_listener_inner(
+        &self,
+        listener: TcpListener,
+        config: Arc<RusshConfig>,
+        factory: WishHandlerFactory,
+        local_addr: SocketAddr,
+    ) -> Result<()> {
         // Accept connections
         loop {
             match listener.accept().await {
@@ -1051,8 +1082,8 @@ impl Server {
                     info!(peer_addr = %peer_addr, "Accepted connection");
 
                     let config = config.clone();
-                    let local_addr = socket.local_addr().unwrap_or(addr);
-                    let handler = factory.create_handler(peer_addr, local_addr);
+                    let socket_local_addr = socket.local_addr().unwrap_or(local_addr);
+                    let handler = factory.create_handler(peer_addr, socket_local_addr);
 
                     // Spawn a task to handle this connection
                     tokio::spawn(async move {

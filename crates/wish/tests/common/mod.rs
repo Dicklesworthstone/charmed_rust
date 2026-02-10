@@ -1,11 +1,11 @@
 use std::fmt;
 use std::io;
-use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Command as StdCommand, Output, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 use tokio::process::Command as TokioCommand;
 use tokio::time::{sleep, timeout};
@@ -30,19 +30,22 @@ pub struct TestServer {
 
 impl TestServer {
     pub async fn start(builder: ServerBuilder) -> Self {
-        let port = pick_unused_port();
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test server listener");
+        let port = listener.local_addr().expect("listener local addr").port();
         let server = builder
             .address(format!("127.0.0.1:{port}"))
             .build()
             .expect("build wish server");
 
         let handle = tokio::spawn(async move {
-            if let Err(err) = server.listen().await {
+            if let Err(err) = server.listen_with_listener(listener).await {
                 eprintln!("wish server error: {err}");
             }
         });
 
-        wait_for_port(port).await;
+        wait_for_ssh_server(port).await;
 
         Self { port, handle }
     }
@@ -57,48 +60,25 @@ impl TestServer {
     }
 }
 
-fn pick_unused_port() -> u16 {
-    use std::sync::atomic::{AtomicU16, Ordering};
+async fn wait_for_ssh_server(port: u16) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-    // Use a static counter to avoid port reuse during concurrent test runs.
-    // Start from a high ephemeral port to avoid conflicts with other services.
-    static NEXT_PORT: AtomicU16 = AtomicU16::new(0);
-
-    // Try up to 100 ports to find an available one
-    for _ in 0..100 {
-        // Get next port, starting from 49152 (start of dynamic/private port range)
-        let port = NEXT_PORT.fetch_add(1, Ordering::SeqCst);
-        let port = if port == 0 {
-            // First call - initialize to a random starting point in the high range
-            let listener = TcpListener::bind("127.0.0.1:0").expect("bind temp port");
-            let initial_port = listener.local_addr().expect("local addr").port();
-            drop(listener);
-            NEXT_PORT.store(initial_port + 1, Ordering::SeqCst);
-            initial_port
-        } else {
-            // Wrap around if we go too high
-            if port > 65000 {
-                NEXT_PORT.store(49152, Ordering::SeqCst);
-                49152
-            } else {
-                port
-            }
-        };
-
-        // Verify the port is actually available
-        if let Ok(listener) = TcpListener::bind(format!("127.0.0.1:{port}")) {
-            drop(listener);
-            return port;
-        }
-    }
-
-    panic!("Could not find an available port after 100 attempts");
-}
-
-async fn wait_for_port(port: u16) {
     let addr = format!("127.0.0.1:{port}");
     for _ in 0..100 {
-        if TcpStream::connect(&addr).await.is_ok() {
+        let Ok(mut stream) = TcpStream::connect(&addr).await else {
+            sleep(Duration::from_millis(50)).await;
+            continue;
+        };
+
+        // Prove the listener is an SSH server by attempting the identification exchange.
+        let _ = stream.write_all(b"SSH-2.0-wish-test\r\n").await;
+        let mut buf = [0u8; 128];
+        let Ok(Ok(n)) = timeout(Duration::from_millis(200), stream.read(&mut buf)).await else {
+            sleep(Duration::from_millis(50)).await;
+            continue;
+        };
+
+        if n > 0 && String::from_utf8_lossy(&buf[..n]).contains("SSH-") {
             return;
         }
         sleep(Duration::from_millis(50)).await;
