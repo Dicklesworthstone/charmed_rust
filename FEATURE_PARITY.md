@@ -92,13 +92,13 @@ Result summary:
 
 ### Other Limitations
 - Mouse drag support: supported (terminal-dependent; requires enabling mouse motion).
-- Complex Unicode: "basic" support only.
+- Complex Unicode: Go-parity for grapheme-aware width (ZWJ, flags, modifiers, VS16) validated via conformance.
 
 ---
 
 ## Recommended Next Actions (High Priority)
 
-1. **Run targeted validation** for remaining README limitations (Unicode).
+1. **Expand Unicode fixture coverage** beyond width (if future parity bugs appear).
 
 ---
 

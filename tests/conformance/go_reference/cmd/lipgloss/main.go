@@ -676,6 +676,39 @@ func captureDimensionTests(fs *capture.FixtureSet) {
 			},
 		)
 	}
+
+	// Test 6: Complex Unicode width (ZWJ sequences, flags, combining marks, variation selectors)
+	{
+		type unicodeCase struct {
+			name string
+			text string
+		}
+
+		cases := []unicodeCase{
+			{name: "zwj_family", text: "A\U0001F468\u200d\U0001F469\u200d\U0001F467\u200d\U0001F466B"},
+			{name: "flag_us", text: "\U0001F1FA\U0001F1F8"},
+			{name: "skin_tone", text: "\U0001F44D\U0001F3FD"},
+			{name: "combining_acute", text: "e\u0301"},
+			{name: "precomposed_acute", text: "\u00e9"},
+			{name: "variation_selector", text: "\u270c\ufe0f"},
+			{name: "keycap_one", text: "1\ufe0f\u20e3"},
+		}
+
+		style := lipgloss.NewStyle()
+		for _, tc := range cases {
+			rendered := style.Render(tc.text)
+			fs.AddTestWithCategory("dimension_unicode_"+tc.name, "unit",
+				capture.StyleInput{
+					Text: tc.text,
+				},
+				capture.StyleOutput{
+					Rendered: rendered,
+					Width:    lipgloss.Width(rendered),
+					Height:   lipgloss.Height(rendered),
+				},
+			)
+		}
+	}
 }
 
 func captureAlignmentTests(fs *capture.FixtureSet) {

@@ -415,7 +415,57 @@ pub fn visible_width(s: &str) -> usize {
         return s.len();
     }
 
-    // Full state machine for proper ANSI handling
+    fn grapheme_cluster_width(grapheme: &str) -> usize {
+        use unicode_width::UnicodeWidthChar;
+
+        // Keycap sequences (e.g., "1️⃣") are rendered as a single cell in Go's
+        // width calculations.
+        let chars: Vec<char> = grapheme.chars().collect();
+        if chars.len() == 2 || chars.len() == 3 {
+            if chars.last() == Some(&'\u{20e3}') {
+                let first_ok = matches!(chars[0], '0'..='9' | '#' | '*');
+                let mid_ok = chars.len() == 2 || chars.get(1) == Some(&'\u{fe0f}');
+                if first_ok && mid_ok {
+                    return 1;
+                }
+            }
+        }
+
+        // Flags are pairs of regional indicator symbols and occupy two cells.
+        if chars.len() == 2
+            && chars
+                .iter()
+                .all(|&c| ('\u{1f1e6}'..='\u{1f1ff}').contains(&c))
+        {
+            return 2;
+        }
+
+        let mut w = grapheme
+            .chars()
+            .map(|c| UnicodeWidthChar::width(c).unwrap_or(0))
+            .max()
+            .unwrap_or(0);
+
+        // Emoji variation selector 16 requests emoji presentation. Go's runewidth
+        // treats many VS16 sequences as double-width; match that behavior.
+        if grapheme.contains('\u{fe0f}') {
+            w = w.max(2);
+        }
+
+        w
+    }
+
+    fn text_width(text: &str) -> usize {
+        use unicode_segmentation::UnicodeSegmentation;
+
+        UnicodeSegmentation::graphemes(text, true)
+            .map(grapheme_cluster_width)
+            .sum()
+    }
+
+    // Full state machine for proper ANSI handling.
+    // Width is computed over grapheme clusters (not scalar values) to match
+    // Go's behavior for ZWJ emoji sequences, emoji modifiers, etc.
     let mut width = 0;
 
     #[derive(Clone, Copy)]
@@ -430,14 +480,17 @@ pub fn visible_width(s: &str) -> usize {
     }
 
     let mut state = State::Normal;
+    let mut segment_start = 0usize;
 
-    for c in s.chars() {
+    for (idx, c) in s.char_indices() {
         match state {
             State::Normal => {
                 if c == '\x1b' {
+                    width += text_width(&s[segment_start..idx]);
                     state = State::Esc;
+                    segment_start = idx + c.len_utf8();
                 } else {
-                    width += unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+                    // Defer counting until we have a full text segment.
                 }
             }
             State::Esc => {
@@ -449,6 +502,7 @@ pub fn visible_width(s: &str) -> usize {
                     _ => {
                         // Simple escapes: single char after ESC (e.g., \x1b7 save cursor)
                         state = State::Normal;
+                        segment_start = idx + c.len_utf8();
                     }
                 }
             }
@@ -456,12 +510,14 @@ pub fn visible_width(s: &str) -> usize {
                 // CSI sequence ends with final byte 0x40-0x7E (@ to ~)
                 if ('@'..='~').contains(&c) {
                     state = State::Normal;
+                    segment_start = idx + c.len_utf8();
                 }
             }
             State::Str => {
                 // String sequence ends with BEL (\x07) or ST (ESC \)
                 if c == '\x07' {
                     state = State::Normal;
+                    segment_start = idx + c.len_utf8();
                 } else if c == '\x1b' {
                     state = State::StrEsc;
                 }
@@ -472,6 +528,7 @@ pub fn visible_width(s: &str) -> usize {
                 if c == '\\' {
                     // Valid ST terminator (ESC \) — sequence is properly closed.
                     state = State::Normal;
+                    segment_start = idx + c.len_utf8();
                 } else if c == '[' {
                     // Malformed sequence followed by a new CSI.
                     state = State::Csi;
@@ -481,9 +538,14 @@ pub fn visible_width(s: &str) -> usize {
                 } else {
                     // Unknown escape; recover to Normal.
                     state = State::Normal;
+                    segment_start = idx + c.len_utf8();
                 }
             }
         }
+    }
+
+    if matches!(state, State::Normal) && segment_start <= s.len() {
+        width += text_width(&s[segment_start..]);
     }
 
     width

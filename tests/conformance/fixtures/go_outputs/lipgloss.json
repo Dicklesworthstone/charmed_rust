@@ -3,7 +3,7 @@
     "crate": "lipgloss",
     "go_version": "1.24",
     "library_version": "1.1.0",
-    "captured_at": "2026-01-17T17:24:53Z"
+    "captured_at": "2026-02-10T16:16:44Z"
   },
   "tests": [
     {
@@ -649,6 +649,139 @@
         "rendered": "L1\nL2",
         "width": 2,
         "height": 2
+      }
+    },
+    {
+      "name": "dimension_unicode_zwj_family",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "A👨‍👩‍👧‍👦B"
+      },
+      "expected_output": {
+        "rendered": "A👨‍👩‍👧‍👦B",
+        "width": 4,
+        "height": 1
+      }
+    },
+    {
+      "name": "dimension_unicode_flag_us",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "🇺🇸"
+      },
+      "expected_output": {
+        "rendered": "🇺🇸",
+        "width": 2,
+        "height": 1
+      }
+    },
+    {
+      "name": "dimension_unicode_skin_tone",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "👍🏽"
+      },
+      "expected_output": {
+        "rendered": "👍🏽",
+        "width": 2,
+        "height": 1
+      }
+    },
+    {
+      "name": "dimension_unicode_combining_acute",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "é"
+      },
+      "expected_output": {
+        "rendered": "é",
+        "width": 1,
+        "height": 1
+      }
+    },
+    {
+      "name": "dimension_unicode_precomposed_acute",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "é"
+      },
+      "expected_output": {
+        "rendered": "é",
+        "width": 1,
+        "height": 1
+      }
+    },
+    {
+      "name": "dimension_unicode_variation_selector",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "✌️"
+      },
+      "expected_output": {
+        "rendered": "✌️",
+        "width": 2,
+        "height": 1
+      }
+    },
+    {
+      "name": "dimension_unicode_keycap_one",
+      "category": "unit",
+      "input": {
+        "bold": false,
+        "italic": false,
+        "underline": false,
+        "strikethrough": false,
+        "faint": false,
+        "blink": false,
+        "reverse": false,
+        "text": "1️⃣"
+      },
+      "expected_output": {
+        "rendered": "1️⃣",
+        "width": 1,
+        "height": 1
       }
     },
     {

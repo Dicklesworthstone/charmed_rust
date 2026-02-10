@@ -997,7 +997,7 @@ chmod 644 ./host_key.pub
 | **Nightly Rust** | Required | Edition 2024 |
 | **SSH (wish)** | ⚠️ Beta | Framework ready, deps maturing |
 | **Mouse drag** | ✅ Supported | Enable mouse motion; terminal support varies |
-| **Complex Unicode** | ⚠️ Basic | `unicode-width` handles most cases |
+| **Complex Unicode** | ✅ Go-parity | Grapheme-aware width matches Go; rendering depends on terminal/font |
 | **Windows SSH** | ⚠️ CI covered | Requires OpenSSH client (CI installs it) |
 
 ### Not Planned
