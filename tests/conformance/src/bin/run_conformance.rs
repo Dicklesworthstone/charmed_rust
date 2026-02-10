@@ -131,7 +131,7 @@ fn print_standard(results: &[TestResult], verbose: bool, summary_only: bool) {
         total_pass + total_fail + total_skip
     );
 
-    if total_fail > 0 {
+    if total_fail > 0 || total_skip > 0 {
         println!();
         println!("RESULT: FAILED");
     } else {
@@ -253,6 +253,11 @@ fn print_ci(results: &[TestResult]) {
             "::error::Conformance tests failed: {}/{} passed, {} failed, {} skipped",
             total_pass, total, total_fail, total_skip
         );
+    } else if total_skip > 0 {
+        println!(
+            "::error::Conformance tests incomplete: {}/{} passed, 0 failed, {} skipped",
+            total_pass, total, total_skip
+        );
     } else {
         println!(
             "::notice::Conformance tests passed: {}/{} passed, {} skipped",
@@ -344,7 +349,9 @@ fn main() {
     }
 
     // Exit with error code if any tests failed
-    let has_failures = all_results.iter().any(|r| r.status == TestStatus::Fail);
+    let has_failures = all_results
+        .iter()
+        .any(|r| r.status == TestStatus::Fail || r.status == TestStatus::Skipped);
     if has_failures {
         std::process::exit(1);
     }

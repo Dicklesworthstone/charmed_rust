@@ -609,18 +609,18 @@ fn test_tea_make_renderer_basic_term() {
 #[test]
 fn test_fixture_server_options() {
     let mut loader = FixtureLoader::new();
-    let fixtures = match loader.load_crate("wish") {
-        Ok(f) => f,
-        Err(_) => {
-            eprintln!("Warning: wish fixtures not found, skipping fixture tests");
-            return;
-        }
-    };
+    let fixtures = loader
+        .load_crate("wish")
+        .expect("wish fixtures must exist for conformance");
 
     for fixture in fixtures.tests.iter() {
         if let Some(skip) = fixture.should_skip() {
-            eprintln!("Skipping {}: {}", fixture.name, skip);
-            continue;
+            assert!(
+                skip.is_empty(),
+                "wish fixture unexpectedly marked skip: {}: {}",
+                fixture.name,
+                skip
+            );
         }
 
         if fixture.name.starts_with("server_") {
@@ -630,24 +630,13 @@ fn test_fixture_server_options() {
 }
 
 fn test_server_option_fixture(fixture: &TestFixture) {
-    let input: ServerOptionInput = match fixture.input_as() {
-        Ok(i) => i,
-        Err(e) => {
-            eprintln!("Warning: Could not parse input for {}: {}", fixture.name, e);
-            return;
-        }
-    };
+    let input: ServerOptionInput = fixture
+        .input_as()
+        .expect("could not parse input for wish server option fixture");
 
-    let output: ServerOptionOutput = match fixture.expected_as() {
-        Ok(o) => o,
-        Err(e) => {
-            eprintln!(
-                "Warning: Could not parse output for {}: {}",
-                fixture.name, e
-            );
-            return;
-        }
-    };
+    let output: ServerOptionOutput = fixture
+        .expected_as()
+        .expect("could not parse output for wish server option fixture");
 
     match fixture.name.as_str() {
         "server_default" => {

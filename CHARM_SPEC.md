@@ -231,7 +231,7 @@ Behavioral contract:
 
 Known limitations (see [FEATURE_PARITY.md](FEATURE_PARITY.md)):
 - Labeled as "beta" stability level.
-- Windows SSH support is untested.
+- Windows SSH is CI-covered (requires OpenSSH client).
 
 ### 5.9 glow
 
