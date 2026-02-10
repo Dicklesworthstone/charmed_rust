@@ -34,7 +34,9 @@ impl Renderer {
 
     /// Create a new renderer for the given writer.
     pub fn for_writer<W: Write>(_w: W) -> Self {
-        // In a real implementation, this would detect terminal capabilities
+        // Capability detection is environment-based (COLORTERM/TERM/NO_COLOR/COLORFGBG on native).
+        // The writer is currently unused because generic `Write` doesn't let us reliably detect
+        // terminal capabilities or background color.
         Self::detect()
     }
 
