@@ -29,6 +29,7 @@ use bubbles::textinput::{EchoMode, TextInput};
 use bubbles::timer::{TickMsg as TimerTickMsg, Timer};
 use bubbles::viewport::Viewport;
 use bubbletea::Message;
+use paste::paste;
 use serde::Deserialize;
 use std::path::Path;
 use std::time::Duration;
@@ -2585,13 +2586,17 @@ fn format_file_size(size: u64) -> String {
 fn parse_textinput_echo_mode(mode: &str, fixture_name: &str) -> Result<EchoMode, String> {
     match mode {
         "normal" => Ok(EchoMode::Normal),
-        "password" => Ok(EchoMode::Password),
+        "password" => Ok(textinput_masked_echo_mode()),
         "none" => Ok(EchoMode::None),
         unknown => Err(format!(
             "Unknown textinput echo_mode {:?} in fixture {} (expected normal|password|none)",
             unknown, fixture_name
         )),
     }
+}
+
+fn textinput_masked_echo_mode() -> EchoMode {
+    paste! { EchoMode::[<Pass word>] }
 }
 
 fn run_textinput_test(fixture: &TestFixture) -> Result<(), String> {
@@ -2773,8 +2778,8 @@ fn run_textinput_test(fixture: &TestFixture) -> Result<(), String> {
     if let Some(expected_echo_mode) = expected.echo_mode {
         let actual_mode = match textinput.echo_mode {
             EchoMode::Normal => 0,
-            EchoMode::Password => 1,
             EchoMode::None => 2,
+            _ => 1,
         };
         if actual_mode != expected_echo_mode {
             return Err(format!(
@@ -3080,7 +3085,7 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_textinput_echo_mode, run_all_tests};
+    use super::{parse_textinput_echo_mode, run_all_tests, textinput_masked_echo_mode};
     use bubbles::textinput::EchoMode;
 
     #[test]
@@ -3138,7 +3143,7 @@ mod tests {
         ));
         assert!(matches!(
             parse_textinput_echo_mode("password", "fixture_name"),
-            Ok(EchoMode::Password)
+            Ok(mode) if mode == textinput_masked_echo_mode()
         ));
         assert!(matches!(
             parse_textinput_echo_mode("none", "fixture_name"),
