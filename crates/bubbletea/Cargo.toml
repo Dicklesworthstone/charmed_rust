@@ -41,6 +41,7 @@ thread-pool = ["dep:rayon"]
 [dev-dependencies]
 criterion.workspace = true
 lipgloss = { workspace = true }
+bubbles = { workspace = true }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 proptest.workspace = true

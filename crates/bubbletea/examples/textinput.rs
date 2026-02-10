@@ -7,54 +7,10 @@
 //! - Handle focus and submission
 //! - Display user input with styling
 //!
-//! Run with: cargo run -p bubbletea --example textinput
-
-mod bubbles {
-    pub mod textinput {
-        #![allow(
-            clippy::must_use_candidate,
-            clippy::unused_self,
-            clippy::needless_pass_by_ref_mut,
-            clippy::missing_const_for_fn
-        )]
-
-        use bubbletea::{Cmd, Message};
-
-        #[derive(Clone, Default)]
-        pub struct TextInput {
-            value: String,
-        }
-
-        impl TextInput {
-            pub fn new() -> Self {
-                Self::default()
-            }
-
-            pub fn set_placeholder(&mut self, _placeholder: &str) {}
-
-            pub fn focus(&mut self) {}
-
-            pub fn init(&self) -> Option<Cmd> {
-                None
-            }
-
-            pub fn update(&mut self, _msg: Message) -> Option<Cmd> {
-                None
-            }
-
-            pub fn view(&self) -> String {
-                self.value.clone()
-            }
-
-            pub fn value(&self) -> String {
-                self.value.clone()
-            }
-        }
-    }
-}
+//! Run with: cargo run -p charmed-bubbletea --example textinput
 
 use bubbles::textinput::TextInput;
-use bubbletea::{Cmd, KeyMsg, KeyType, Message, Program, quit};
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, quit};
 use lipgloss::Style;
 
 /// Application state tracking input and submission.
@@ -72,7 +28,7 @@ impl App {
     fn new() -> Self {
         let mut input = TextInput::new();
         input.set_placeholder("Enter your name...");
-        input.focus();
+        let _ = input.focus();
 
         Self {
             input,
@@ -83,8 +39,8 @@ impl App {
 
     /// Initialize the model. Called once when the program starts.
     fn init(&self) -> Option<Cmd> {
-        // Initialize cursor blinking for the text input
-        self.input.init()
+        // Start cursor blinking if the text input is focused.
+        Model::init(&self.input)
     }
 
     /// Handle messages and update the model state.
