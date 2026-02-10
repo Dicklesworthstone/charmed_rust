@@ -1027,9 +1027,6 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
         }
         "list_pagination" => {
             // Verify pagination values
-            // Note: Rust uses a fixed 4-line chrome overhead while Go calculates dynamically
-            // This results in different items_per_page values
-
             if let Some(expected_current_page) = expected.current_page {
                 let actual = list.paginator().page();
                 if actual != expected_current_page {
@@ -1043,25 +1040,20 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
             if let Some(expected_total_pages) = expected.total_pages {
                 let actual = list.paginator().get_total_pages();
                 if actual != expected_total_pages {
-                    // Log discrepancy but don't fail - this is a known difference
-                    eprintln!(
-                        "PARITY NOTE: total_pages discrepancy - Go expects {}, Rust calculates {}. \
-                        Go uses dynamic chrome height calculation, Rust uses fixed 4-line overhead.",
+                    return Err(format!(
+                        "Total pages mismatch: expected {}, got {}",
                         expected_total_pages, actual
-                    );
+                    ));
                 }
             }
 
             if let Some(expected_items_per_page) = expected.items_per_page {
                 let actual = list.paginator().get_per_page();
                 if actual != expected_items_per_page {
-                    // Log discrepancy but don't fail - this is a known difference
-                    eprintln!(
-                        "PARITY NOTE: items_per_page discrepancy - Go expects {}, Rust calculates {}. \
-                        Rust reserves 4 lines for chrome (title, status, help, pagination), \
-                        Go calculates actual rendered heights.",
+                    return Err(format!(
+                        "Items per page mismatch: expected {}, got {}",
                         expected_items_per_page, actual
-                    );
+                    ));
                 }
             }
 

@@ -388,18 +388,10 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         let items_len = items.len();
         let filtered_indices: Vec<usize> = (0..items_len).collect();
 
-        // Calculate per_page based on height and delegate
-        let item_height = delegate.height() + delegate.spacing();
-        let available = height.saturating_sub(4); // Reserve space for chrome
-        let per_page = available / item_height.max(1);
-
-        let mut paginator = Paginator::new().per_page(per_page.max(1));
-        paginator.set_total_pages_from_items(items_len);
-
         let mut filter_input = TextInput::new();
         filter_input.prompt = "Filter: ".to_string();
 
-        Self {
+        let mut list = Self {
             title: String::new(),
             show_title: true,
             show_filter: true,
@@ -417,7 +409,7 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
             mouse_wheel_delta: 1,
             mouse_click_enabled: true,
             spinner: SpinnerModel::new(),
-            paginator,
+            paginator: Paginator::new(),
             help: Help::new(),
             filter_input,
             items,
@@ -429,7 +421,11 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
             filter_state: FilterState::Unfiltered,
             show_spinner: false,
             status_message: None,
-        }
+        };
+
+        // Ensure pagination is consistent with the initial chrome configuration.
+        list.update_pagination();
+        list
     }
 
     /// Sets the title.
@@ -558,6 +554,7 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         self.paginator.set_total_pages_from_items(self.items.len());
         self.paginator.set_page(0);
         self.cursor = 0;
+        self.update_pagination();
     }
 
     /// Applies the current filter.
@@ -581,18 +578,21 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         self.paginator.set_page(0);
         self.cursor = 0;
         self.filter_state = FilterState::FilterApplied;
+        self.update_pagination();
     }
 
     /// Starts the spinner.
     /// Returns a message that should be passed to update to start the animation.
     pub fn start_spinner(&mut self) -> Option<Message> {
         self.show_spinner = true;
+        self.update_pagination();
         Some(self.spinner.tick())
     }
 
     /// Stops the spinner.
     pub fn stop_spinner(&mut self) {
         self.show_spinner = false;
+        self.update_pagination();
     }
 
     /// Returns whether the spinner is visible.
@@ -650,12 +650,70 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
     /// Updates pagination based on height and delegate.
     fn update_pagination(&mut self) {
         let item_height = self.delegate.height() + self.delegate.spacing();
-        let available = self.height.saturating_sub(4); // Reserve space for chrome
-        let per_page = available / item_height.max(1);
-        // Rebuild paginator with new per_page
-        self.paginator = Paginator::new().per_page(per_page);
-        self.paginator
-            .set_total_pages_from_items(self.filtered_indices.len());
+        let items_len = self.filtered_indices.len();
+
+        // Chrome is everything that isn't an item row. Unlike an earlier fixed "4 line"
+        // approximation, this matches the view's actual sections and therefore matches
+        // the Go implementation's dynamic layout more closely.
+        let chrome_base = self.chrome_lines_without_pagination();
+
+        let mut pagination_line = 0usize;
+        let mut per_page = 1usize;
+
+        // Pagination visibility depends on total_pages, which depends on per_page.
+        // Iterate to a stable point (at most 2 transitions).
+        for _ in 0..3 {
+            let chrome_lines = chrome_base + pagination_line;
+            let available = self.height.saturating_sub(chrome_lines);
+            let candidate = (available / item_height.max(1)).max(1);
+
+            per_page = candidate;
+            let total_pages = total_pages_from_items(items_len, per_page);
+            let want_pagination = usize::from(self.show_pagination && total_pages > 1);
+
+            if want_pagination == pagination_line {
+                break;
+            }
+            pagination_line = want_pagination;
+        }
+
+        let current_page = self.paginator.page();
+        let mut paginator = Paginator::new().per_page(per_page);
+        paginator.set_total_pages_from_items(items_len);
+        let max_page = paginator.get_total_pages().saturating_sub(1);
+        paginator.set_page(current_page.min(max_page));
+        self.paginator = paginator;
+    }
+
+    fn chrome_lines_without_pagination(&self) -> usize {
+        let mut lines = 0usize;
+
+        // Title (top)
+        if self.show_title && !self.title.is_empty() {
+            lines += 1;
+        }
+
+        // Filter input (top, only when actively filtering)
+        if self.show_filter && self.filter_state == FilterState::Filtering {
+            lines += 1;
+        }
+
+        // Spinner (bottom)
+        if self.show_spinner {
+            lines += 1;
+        }
+
+        // Status bar (bottom)
+        if self.show_status_bar {
+            lines += 1;
+        }
+
+        // Help (bottom)
+        if self.show_help {
+            lines += 1;
+        }
+
+        lines
     }
 
     /// Updates the list based on messages.
@@ -724,6 +782,7 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
             } else if matches(&key_str, &[&self.key_map.filter]) && self.filtering_enabled {
                 self.filter_state = FilterState::Filtering;
                 self.filter_input.focus();
+                self.update_pagination();
             } else if matches(&key_str, &[&self.key_map.clear_filter]) {
                 self.reset_filter();
             } else if matches(&key_str, &[&self.key_map.show_full_help]) {
@@ -874,6 +933,13 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
     pub fn init(&self) -> Option<Cmd> {
         None
     }
+}
+
+fn total_pages_from_items(items_len: usize, per_page: usize) -> usize {
+    if items_len == 0 {
+        return 1;
+    }
+    items_len.div_ceil(per_page.max(1))
 }
 
 /// Implement the Model trait for standalone bubbletea usage.
