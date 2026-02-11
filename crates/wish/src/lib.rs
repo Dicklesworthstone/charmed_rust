@@ -2284,14 +2284,17 @@ pub mod tea {
 
                     // Run the program in a blocking task
                     let session_clone = session.clone();
-                    tokio::task::spawn_blocking(move || {
+                    let run_result = tokio::task::spawn_blocking(move || {
                         let _ = Program::new(model)
                             .with_custom_io()
                             .with_input_receiver(rx)
                             .run_with_writer(session_clone);
                     })
-                    .await
-                    .unwrap();
+                    .await;
+                    if let Err(err) = run_result {
+                        fatalln(&session, format!("bubbletea program crashed: {err}"));
+                        return;
+                    }
 
                     next(session).await;
                 })
@@ -2435,6 +2438,23 @@ mod tests {
                 .lock()
                 .expect("structured disconnects")
                 .push((user.to_string(), *remote_addr));
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct PanicTeaModel;
+
+    impl bubbletea::Model for PanicTeaModel {
+        fn init(&self) -> Option<bubbletea::Cmd> {
+            None
+        }
+
+        fn update(&mut self, _msg: Message) -> Option<bubbletea::Cmd> {
+            None
+        }
+
+        fn view(&self) -> String {
+            std::panic::panic_any("panic from test tea model")
         }
     }
 
@@ -2725,6 +2745,58 @@ mod tests {
 
         let _renderer = tea::make_renderer(&session);
         // Just verify it doesn't panic
+    }
+
+    #[tokio::test]
+    async fn test_tea_middleware_handles_program_panic()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let called = Arc::new(AtomicUsize::new(0));
+        let mw = tea::middleware(|_session| PanicTeaModel);
+        let next = handler({
+            let called = called.clone();
+            move |_session| {
+                let called = called.clone();
+                async move {
+                    called.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        });
+
+        let addr: SocketAddr = "127.0.0.1:2222".parse().map_err(io::Error::other)?;
+        let ctx = Context::new("test", addr, addr);
+        let mut session = Session::new(ctx).with_pty(Pty::default());
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        session.set_output_sender(tx);
+
+        mw(next)(session).await;
+
+        assert_eq!(called.load(Ordering::SeqCst), 0);
+
+        let mut saw_fatal = false;
+        let mut saw_exit = false;
+        let mut saw_close = false;
+        loop {
+            match rx.try_recv() {
+                Ok(SessionOutput::Stderr(data)) => {
+                    let msg = String::from_utf8_lossy(&data);
+                    if msg.contains("bubbletea program crashed:") {
+                        saw_fatal = true;
+                    }
+                }
+                Ok(SessionOutput::Exit(1)) => saw_exit = true,
+                Ok(SessionOutput::Close) => saw_close = true,
+                Ok(_) => {}
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty)
+                | Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
+            }
+        }
+
+        assert!(saw_fatal, "expected fatal stderr output for tea panic");
+        assert!(saw_exit, "expected exit(1) for tea panic");
+        assert!(saw_close, "expected close signal for tea panic");
+
+        Ok(())
     }
 
     #[test]
