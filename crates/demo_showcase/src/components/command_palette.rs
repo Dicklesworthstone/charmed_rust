@@ -357,11 +357,11 @@ impl CommandPalette {
                 self.hide();
                 action.map(|a| Cmd::new(move || a.to_app_msg().into_message()))
             }
-            KeyType::Up => {
+            KeyType::Up | KeyType::CtrlP => {
                 self.select_prev();
                 None
             }
-            KeyType::Down => {
+            KeyType::Down | KeyType::CtrlN => {
                 self.select_next();
                 None
             }
@@ -373,7 +373,8 @@ impl CommandPalette {
                 None
             }
             KeyType::Runes if !key.runes.is_empty() => {
-                // Handle Ctrl+N / Ctrl+P for navigation
+                // Handle Alt+N / Alt+P for navigation in terminals that send
+                // modified runes instead of dedicated control key types.
                 if key.runes == ['n'] && key.alt {
                     self.select_next();
                     return None;
@@ -789,21 +790,42 @@ mod tests {
     }
 
     #[test]
+    fn command_palette_ctrl_n_selects_next() {
+        let mut palette = CommandPalette::new();
+        palette.show();
+        assert_eq!(palette.selected, 0);
+
+        let key = KeyMsg::from_type(KeyType::CtrlN);
+        let cmd = palette.handle_key(&key);
+        assert!(cmd.is_none());
+        assert_eq!(palette.selected, 1);
+    }
+
+    #[test]
+    fn command_palette_ctrl_p_selects_prev() {
+        let mut palette = CommandPalette::new();
+        palette.show();
+        assert_eq!(palette.selected, 0);
+
+        let key = KeyMsg::from_type(KeyType::CtrlP);
+        let cmd = palette.handle_key(&key);
+        assert!(cmd.is_none());
+        assert_eq!(palette.selected, palette.filtered_commands.len() - 1);
+    }
+
+    #[test]
     fn command_palette_selected_command() {
         let palette = CommandPalette::new();
         let cmd = palette.selected_command();
         assert!(cmd.is_some());
-        assert_eq!(cmd.unwrap().id, COMMANDS[0].id);
+        assert_eq!(cmd.map(|c| c.id), Some(COMMANDS[0].id));
     }
 
     #[test]
     fn command_action_to_app_msg() {
         let action = CommandAction::Navigate(Page::Dashboard);
         let msg = action.to_app_msg();
-        match msg {
-            AppMsg::Navigate(Page::Dashboard) => {}
-            _ => panic!("Expected Navigate(Dashboard)"),
-        }
+        assert!(matches!(msg, AppMsg::Navigate(Page::Dashboard)));
     }
 
     #[test]

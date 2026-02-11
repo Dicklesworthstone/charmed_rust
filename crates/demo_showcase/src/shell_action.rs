@@ -30,6 +30,7 @@
 use bubbletea::{Cmd, Message, screen, sequence};
 use std::env;
 use std::io::{self, Read, Write};
+use std::path::Path;
 use std::process::Command;
 
 use crate::messages::ShellOutMsg;
@@ -102,8 +103,9 @@ fn build_pager_sequence(content: String) -> Cmd {
 /// Tries pagers in order of preference, falling back to a simple
 /// "press Enter to continue" prompt if no pager is available.
 fn run_pager(content: &str) -> Message {
-    // Try to get preferred pager from environment
-    let pager = env::var("PAGER").ok();
+    // Try to get preferred pager from environment.
+    // Empty/whitespace values are treated as "unset" to preserve fallback behavior.
+    let pager = normalize_pager_value(env::var("PAGER").ok());
 
     let result = pager.map_or_else(
         || {
@@ -128,10 +130,96 @@ fn run_pager(content: &str) -> Message {
 
 /// Check if a command exists in PATH.
 fn command_exists(cmd: &str) -> bool {
-    Command::new("which")
-        .arg(cmd)
-        .output()
-        .is_ok_and(|o| o.status.success())
+    let cmd = cmd.trim();
+    if cmd.is_empty() {
+        return false;
+    }
+
+    let path = Path::new(cmd);
+    if path.components().count() > 1 {
+        return is_executable_file(path);
+    }
+
+    let Some(path_var) = env::var_os("PATH") else {
+        return false;
+    };
+
+    #[cfg(windows)]
+    {
+        let has_extension = path.extension().is_some();
+        let path_exts = windows_path_extensions();
+
+        for dir in env::split_paths(&path_var) {
+            if has_extension {
+                if is_executable_file(&dir.join(cmd)) {
+                    return true;
+                }
+            } else {
+                for ext in &path_exts {
+                    let candidate = dir.join(format!("{cmd}{ext}"));
+                    if is_executable_file(&candidate) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    #[cfg(not(windows))]
+    {
+        env::split_paths(&path_var).any(|dir| is_executable_file(&dir.join(cmd)))
+    }
+}
+
+/// Normalize the optional pager command value from environment variables.
+///
+/// Returns `None` when unset, empty, or whitespace-only.
+fn normalize_pager_value(value: Option<String>) -> Option<String> {
+    value
+        .map(|raw| raw.trim().to_string())
+        .filter(|normalized| !normalized.is_empty())
+}
+
+/// Check if a filesystem path points to an executable file.
+fn is_executable_file(path: &Path) -> bool {
+    let Ok(metadata) = path.metadata() else {
+        return false;
+    };
+
+    if !metadata.is_file() {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o111 != 0
+    }
+
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
+#[cfg(windows)]
+fn windows_path_extensions() -> Vec<String> {
+    let exts = env::var("PATHEXT").unwrap_or_else(|_| String::from(".COM;.EXE;.BAT;.CMD"));
+
+    exts.split(';')
+        .filter_map(|ext| {
+            let trimmed = ext.trim();
+            if trimmed.is_empty() {
+                None
+            } else if trimmed.starts_with('.') {
+                Some(trimmed.to_string())
+            } else {
+                Some(format!(".{trimmed}"))
+            }
+        })
+        .collect()
 }
 
 /// Run a pager command with the given content as stdin.
@@ -537,20 +625,17 @@ mod tests {
     fn shell_out_msg_pager_completed_success() {
         let msg = ShellOutMsg::PagerCompleted(None).into_message();
         let shell_msg = msg.downcast::<ShellOutMsg>().unwrap();
-        match shell_msg {
-            ShellOutMsg::PagerCompleted(err) => assert!(err.is_none()),
-            other => panic!("expected PagerCompleted(None), got {other:?}"),
-        }
+        assert!(matches!(shell_msg, ShellOutMsg::PagerCompleted(None)));
     }
 
     #[test]
     fn shell_out_msg_pager_completed_error() {
         let msg = ShellOutMsg::PagerCompleted(Some("spawn failed".into())).into_message();
         let shell_msg = msg.downcast::<ShellOutMsg>().unwrap();
-        match shell_msg {
-            ShellOutMsg::PagerCompleted(Some(e)) => assert_eq!(e, "spawn failed"),
-            other => panic!("expected PagerCompleted(Some(..)), got {other:?}"),
-        }
+        assert!(matches!(
+            shell_msg,
+            ShellOutMsg::PagerCompleted(Some(e)) if e == "spawn failed"
+        ));
     }
 
     #[test]
@@ -623,7 +708,28 @@ mod tests {
 
     #[test]
     fn command_exists_empty_string() {
-        // Empty command name should not panic.
-        let _ = command_exists("");
+        assert!(!command_exists(""));
+        assert!(!command_exists("   "));
+    }
+
+    #[test]
+    fn command_exists_current_executable_path() {
+        let current_exe = std::env::current_exe().expect("current executable path");
+        assert!(command_exists(current_exe.to_string_lossy().as_ref()));
+    }
+
+    #[test]
+    fn normalize_pager_value_empty_and_whitespace_are_none() {
+        assert_eq!(normalize_pager_value(None), None);
+        assert_eq!(normalize_pager_value(Some(String::new())), None);
+        assert_eq!(normalize_pager_value(Some("   \t".to_string())), None);
+    }
+
+    #[test]
+    fn normalize_pager_value_trims_valid_input() {
+        assert_eq!(
+            normalize_pager_value(Some("  less -R  ".to_string())),
+            Some("less -R".to_string())
+        );
     }
 }
