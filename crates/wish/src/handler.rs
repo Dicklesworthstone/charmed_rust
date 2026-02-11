@@ -83,6 +83,72 @@ struct KeyboardInteractiveState {
     echos: Vec<bool>,
 }
 
+/// Parse an SSH `exec` command string into argv-style arguments.
+///
+/// Supports:
+/// - Whitespace-separated tokens
+/// - Single and double quoted strings
+/// - Backslash escaping outside/single quotes
+///
+/// Returns `None` when the command contains unmatched quotes.
+fn parse_exec_command_args(command: &str) -> Option<Vec<String>> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut token_in_progress = false;
+    let mut in_single_quotes = false;
+    let mut in_double_quotes = false;
+    let mut escaped = false;
+
+    for ch in command.chars() {
+        if escaped {
+            current.push(ch);
+            token_in_progress = true;
+            escaped = false;
+            continue;
+        }
+
+        match ch {
+            '\\' if !in_single_quotes => {
+                escaped = true;
+                token_in_progress = true;
+            }
+            '\'' if !in_double_quotes => {
+                in_single_quotes = !in_single_quotes;
+                token_in_progress = true;
+            }
+            '"' if !in_single_quotes => {
+                in_double_quotes = !in_double_quotes;
+                token_in_progress = true;
+            }
+            _ if ch.is_whitespace() && !in_single_quotes && !in_double_quotes => {
+                if token_in_progress {
+                    args.push(std::mem::take(&mut current));
+                    token_in_progress = false;
+                }
+            }
+            _ => {
+                current.push(ch);
+                token_in_progress = true;
+            }
+        }
+    }
+
+    if escaped {
+        current.push('\\');
+        token_in_progress = true;
+    }
+
+    if in_single_quotes || in_double_quotes {
+        return None;
+    }
+
+    if token_in_progress {
+        args.push(current);
+    }
+
+    Some(args)
+}
+
 /// Handler for a single SSH connection.
 ///
 /// Implements `russh::server::Handler` to handle SSH protocol events
@@ -653,8 +719,16 @@ impl RusshHandler for WishHandler {
                 return Ok(());
             }
 
-            // Parse command into args
-            let args: Vec<String> = command.split_whitespace().map(String::from).collect();
+            // Parse command into argv-style args so quoted/escaped segments are preserved.
+            let args = parse_exec_command_args(&command).unwrap_or_else(|| {
+                warn!(
+                    connection_id = self.connection_id,
+                    channel = ?channel,
+                    command = %command,
+                    "Malformed quoted exec command; falling back to whitespace split"
+                );
+                command.split_whitespace().map(String::from).collect()
+            });
             state.session = state.session.clone().with_command(args);
             state.started = true;
 
@@ -976,6 +1050,41 @@ impl WishHandlerFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_exec_command_args_basic() {
+        let args = parse_exec_command_args("echo hello world").expect("parse should succeed");
+        assert_eq!(args, vec!["echo", "hello", "world"]);
+    }
+
+    #[test]
+    fn test_parse_exec_command_args_preserves_quotes() {
+        let args = parse_exec_command_args(r#"cmd --name "foo bar" --path '/tmp/one two'"#)
+            .expect("parse should succeed");
+        assert_eq!(
+            args,
+            vec!["cmd", "--name", "foo bar", "--path", "/tmp/one two"]
+        );
+    }
+
+    #[test]
+    fn test_parse_exec_command_args_supports_escapes() {
+        let args =
+            parse_exec_command_args(r#"cmd one\ two \"quoted\""#).expect("parse should succeed");
+        assert_eq!(args, vec!["cmd", "one two", "\"quoted\""]);
+    }
+
+    #[test]
+    fn test_parse_exec_command_args_rejects_unterminated_quotes() {
+        assert!(parse_exec_command_args(r#"cmd "unterminated"#).is_none());
+        assert!(parse_exec_command_args("cmd 'unterminated").is_none());
+    }
+
+    #[test]
+    fn test_parse_exec_command_args_preserves_empty_quoted_args() {
+        let args = parse_exec_command_args(r#"cmd "" '' tail"#).expect("parse should succeed");
+        assert_eq!(args, vec!["cmd", "", "", "tail"]);
+    }
 
     #[test]
     fn test_server_state_new() {
