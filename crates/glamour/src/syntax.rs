@@ -845,20 +845,13 @@ pub fn highlight_code(code: &str, language: &str, theme: &SyntaxTheme) -> String
                     let ends_with_newline = text.ends_with('\n');
                     let trimmed = text.trim_end_matches('\n');
 
-                    let use_json_style = if json_punct_style.is_some() {
+                    let json_style = json_punct_style.as_ref().filter(|_| {
                         is_default_foreground(&syn_style, theme)
                             && trimmed.chars().any(is_json_punctuation)
-                    } else {
-                        false
-                    };
+                    });
 
-                    if use_json_style {
-                        render_with_json_punctuation(
-                            lip_style,
-                            json_punct_style.as_ref().unwrap(),
-                            trimmed,
-                            &mut output,
-                        );
+                    if let Some(json_style) = json_style {
+                        render_with_json_punctuation(lip_style, json_style, trimmed, &mut output);
                     } else {
                         output.push_str(&lip_style.render(trimmed));
                     }
