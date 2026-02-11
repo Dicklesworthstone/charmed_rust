@@ -2045,9 +2045,13 @@ pub fn truncate_line_ansi(line: &str, max_width: usize) -> String {
                 match next {
                     '[' => {
                         // CSI sequence: ESC [ params final_byte
-                        result.push(chars.next().unwrap());
-                        while let Some(&ch) = chars.peek() {
-                            result.push(chars.next().unwrap());
+                        if let Some(ch) = chars.next() {
+                            result.push(ch);
+                        } else {
+                            continue;
+                        }
+                        for ch in chars.by_ref() {
+                            result.push(ch);
                             // CSI ends with a final byte (0x40-0x7E)
                             if (0x40..=0x7E).contains(&(ch as u8)) {
                                 break;
@@ -2057,27 +2061,33 @@ pub fn truncate_line_ansi(line: &str, max_width: usize) -> String {
                     ']' | 'P' | 'X' | '^' | '_' => {
                         // String-type sequences (OSC, DCS, SOS, PM, APC)
                         // terminated by BEL or ST (ESC \)
-                        result.push(chars.next().unwrap());
-                        while let Some(ch) = chars.next() {
+                        if let Some(ch) = chars.next() {
+                            result.push(ch);
+                        } else {
+                            continue;
+                        }
+                        let mut prev_was_esc = false;
+                        for ch in chars.by_ref() {
                             result.push(ch);
                             if ch == '\x07' {
                                 break;
                             }
-                            if ch == '\x1b' && chars.peek() == Some(&'\\') {
-                                result.push(chars.next().unwrap());
+                            if prev_was_esc && ch == '\\' {
                                 break;
                             }
+                            prev_was_esc = ch == '\x1b';
                         }
                     }
                     _ => {
                         // Simple two-char escape (e.g., ESC 7, ESC ( B)
-                        let first = chars.next().expect("peek guaranteed Some");
-                        result.push(first);
-                        // Charset designation escapes include an extra final byte
-                        // after the intermediate selector, e.g. ESC ( B.
-                        if matches!(first, '(' | ')' | '*' | '+' | '-' | '.' | '/') {
-                            if let Some(final_byte) = chars.next() {
-                                result.push(final_byte);
+                        if let Some(first) = chars.next() {
+                            result.push(first);
+                            // Charset designation escapes include an extra final byte
+                            // after the intermediate selector, e.g. ESC ( B.
+                            if matches!(first, '(' | ')' | '*' | '+' | '-' | '.' | '/') {
+                                if let Some(final_byte) = chars.next() {
+                                    result.push(final_byte);
+                                }
                             }
                         }
                     }
@@ -2210,6 +2220,20 @@ mod tests {
         let line = "\x1b(BHelloWorld";
         let truncated = truncate_line_ansi(line, 5);
         assert_eq!(truncated, "\x1b(BHello\x1b[0m");
+    }
+
+    #[test]
+    fn test_truncate_line_ansi_handles_incomplete_csi_sequence() {
+        let line = "\x1b[";
+        let truncated = truncate_line_ansi(line, 10);
+        assert_eq!(truncated, line);
+    }
+
+    #[test]
+    fn test_truncate_line_ansi_handles_unterminated_string_escape() {
+        let line = "\x1b]0;title\x1b";
+        let truncated = truncate_line_ansi(line, 10);
+        assert_eq!(truncated, line);
     }
 
     #[test]
