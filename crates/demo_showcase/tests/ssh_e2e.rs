@@ -387,7 +387,7 @@ fn ssh_e2e_rejects_bad_password() {
     }
 
     // Try to connect with wrong password
-    let output = match Command::new("sshpass")
+    let output = Command::new("sshpass")
         .args([
             "-p",
             "wrong_password",
@@ -406,13 +406,10 @@ fn ssh_e2e_rejects_bad_password() {
             "echo",
             "should_not_see_this",
         ])
-        .output()
-    {
-        Ok(output) => output,
-        Err(e) => {
-            assert!(false, "Failed to spawn ssh: {e}");
-            return;
-        }
+        .output();
+    assert!(output.is_ok(), "Failed to spawn ssh");
+    let Ok(output) = output else {
+        return;
     };
 
     // Should fail authentication
