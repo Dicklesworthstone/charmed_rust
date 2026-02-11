@@ -1629,15 +1629,18 @@ fn truncate_line_ansi_aware(line: &str, max_width: usize) -> String {
             // Start of escape sequence - include the whole sequence
             result.push(c);
 
-            if let Some(&next) = chars.peek() {
+            if let Some(next) = chars.next() {
+                result.push(next);
+
                 match next {
                     '[' => {
                         // CSI sequence: ESC [ params final_byte
-                        result.push(chars.next().unwrap());
                         while let Some(&ch) = chars.peek() {
-                            result.push(chars.next().unwrap());
+                            if let Some(consumed) = chars.next() {
+                                result.push(consumed);
+                            }
                             // CSI ends with a final byte (0x40-0x7E)
-                            if (0x40..=0x7E).contains(&(ch as u8)) {
+                            if (0x40..=0x7E).contains(&(ch as u32)) {
                                 break;
                             }
                         }
@@ -1645,21 +1648,17 @@ fn truncate_line_ansi_aware(line: &str, max_width: usize) -> String {
                     ']' | 'P' | 'X' | '^' | '_' => {
                         // String-type sequences (OSC, DCS, SOS, PM, APC)
                         // terminated by BEL or ST (ESC \)
-                        result.push(chars.next().unwrap());
-                        while let Some(ch) = chars.next() {
+                        let mut prev_was_esc = false;
+                        for ch in chars.by_ref() {
                             result.push(ch);
-                            if ch == '\x07' {
+                            if ch == '\x07' || (prev_was_esc && ch == '\\') {
                                 break;
                             }
-                            if ch == '\x1b' && chars.peek() == Some(&'\\') {
-                                result.push(chars.next().unwrap());
-                                break;
-                            }
+                            prev_was_esc = ch == '\x1b';
                         }
                     }
                     _ => {
-                        // Simple two-char escape
-                        result.push(chars.next().unwrap());
+                        // Simple two-char escape already captured above.
                     }
                 }
             }
@@ -1735,6 +1734,27 @@ mod tests {
     fn strip_ansi_removes_dcs_and_apc_sequences() {
         let input = "x\x1bP123\x1b\\y\x1b_message\x1b\\z";
         assert_eq!(strip_ansi(input), "xyz");
+    }
+
+    #[test]
+    fn truncate_line_ansi_aware_handles_trailing_escape() {
+        let input = "ab\x1b";
+        let output = truncate_line_ansi_aware(input, 2);
+        assert_eq!(output, input);
+    }
+
+    #[test]
+    fn truncate_line_ansi_aware_handles_incomplete_csi_sequence() {
+        let input = "ab\x1b[31";
+        let output = truncate_line_ansi_aware(input, 2);
+        assert_eq!(output, input);
+    }
+
+    #[test]
+    fn truncate_line_ansi_aware_handles_unterminated_string_escape() {
+        let input = "a\x1b]title";
+        let output = truncate_line_ansi_aware(input, 1);
+        assert_eq!(output, input);
     }
 
     #[test]
