@@ -4496,7 +4496,8 @@ impl Layout for LayoutColumns {
 
             // Join columns horizontally using lipgloss
             if row_parts.len() == 1 {
-                rows.push(row_parts.into_iter().next().unwrap());
+                // Keep render path panic-free even if future refactors alter row_parts population.
+                rows.push(row_parts.into_iter().next().unwrap_or_default());
             } else {
                 let row_refs: Vec<&str> = row_parts.iter().map(|s| s.as_str()).collect();
                 rows.push(lipgloss::join_horizontal(
@@ -4591,7 +4592,8 @@ impl Layout for LayoutGrid {
             }
 
             if row_parts.len() == 1 {
-                rows.push(row_parts.into_iter().next().unwrap());
+                // Keep render path panic-free even if future refactors alter row_parts population.
+                rows.push(row_parts.into_iter().next().unwrap_or_default());
             } else {
                 let row_refs: Vec<&str> = row_parts.iter().map(|s| s.as_str()).collect();
                 rows.push(lipgloss::join_horizontal(
@@ -5559,6 +5561,18 @@ mod tests {
         let layout = LayoutGrid::new(0, 0);
         assert_eq!(layout.rows, 1);
         assert_eq!(layout.columns, 1);
+    }
+
+    #[test]
+    fn test_layout_columns_view_single_empty_group_no_panic() {
+        let form = Form::new(vec![Group::new(Vec::new())]).layout(LayoutColumns::new(1));
+        let _ = form.view();
+    }
+
+    #[test]
+    fn test_layout_grid_view_single_empty_group_no_panic() {
+        let form = Form::new(vec![Group::new(Vec::new())]).layout(LayoutGrid::new(1, 1));
+        let _ = form.view();
     }
 
     #[test]
