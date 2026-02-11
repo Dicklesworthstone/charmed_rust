@@ -46,7 +46,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 #[cfg(feature = "native")]
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, LazyLock, RwLock};
+use std::sync::{Arc, LazyLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use thiserror::Error;
 use tracing::{debug, info, trace, warn};
 
@@ -372,17 +372,32 @@ pub struct ThemeContext {
     next_listener_id: Arc<AtomicU64>,
 }
 
+fn read_lock_or_recover<'a, T>(lock: &'a RwLock<T>, lock_name: &str) -> RwLockReadGuard<'a, T> {
+    match lock.read() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            warn!(lock = lock_name, "Recovering from poisoned read lock");
+            poisoned.into_inner()
+        }
+    }
+}
+
+fn write_lock_or_recover<'a, T>(lock: &'a RwLock<T>, lock_name: &str) -> RwLockWriteGuard<'a, T> {
+    match lock.write() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            warn!(lock = lock_name, "Recovering from poisoned write lock");
+            poisoned.into_inner()
+        }
+    }
+}
+
 impl fmt::Debug for ThemeContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let listener_count = read_lock_or_recover(&self.listeners, "theme.listeners").len();
         f.debug_struct("ThemeContext")
             .field("current", &"<RwLock<Theme>>")
-            .field(
-                "listeners",
-                &format!(
-                    "{} listeners",
-                    self.listeners.read().map(|l| l.len()).unwrap_or(0)
-                ),
-            )
+            .field("listeners", &format!("{listener_count} listeners"))
             .field("next_listener_id", &self.next_listener_id)
             .finish()
     }
@@ -405,7 +420,7 @@ impl ThemeContext {
 
     /// Returns a read guard for the current theme.
     pub fn current(&self) -> std::sync::RwLockReadGuard<'_, Theme> {
-        let guard = self.current.read().expect("theme context lock poisoned");
+        let guard = read_lock_or_recover(&self.current, "theme.current");
         trace!(theme.name = %guard.name(), "Theme read");
         guard
     }
@@ -413,13 +428,13 @@ impl ThemeContext {
     /// Switch to a new theme and notify listeners.
     pub fn set_theme(&self, theme: Theme) {
         let from = {
-            let current = self.current.read().expect("theme context lock poisoned");
+            let current = read_lock_or_recover(&self.current, "theme.current");
             current.name().to_string()
         };
         let to = theme.name().to_string();
         let snapshot = theme.clone();
         {
-            let mut current = self.current.write().expect("theme context lock poisoned");
+            let mut current = write_lock_or_recover(&self.current, "theme.current");
             *current = theme;
         }
 
@@ -438,20 +453,14 @@ impl ThemeContext {
         F: Fn(&Theme) + Send + Sync + 'static,
     {
         let id = ListenerId(self.next_listener_id.fetch_add(1, Ordering::Relaxed));
-        self.listeners
-            .write()
-            .expect("theme listener lock poisoned")
-            .insert(id, Arc::new(callback));
+        write_lock_or_recover(&self.listeners, "theme.listeners").insert(id, Arc::new(callback));
         debug!(theme.listener_id = id.0, "Theme listener registered");
         id
     }
 
     /// Remove a listener by id.
     pub fn remove_listener(&self, id: ListenerId) {
-        let mut listeners = self
-            .listeners
-            .write()
-            .expect("theme listener lock poisoned");
+        let mut listeners = write_lock_or_recover(&self.listeners, "theme.listeners");
         if listeners.remove(&id).is_some() {
             debug!(theme.listener_id = id.0, "Theme listener removed");
         }
@@ -459,7 +468,7 @@ impl ThemeContext {
 
     fn notify_listeners(&self, theme: &Theme) {
         let listeners: Vec<(ListenerId, Arc<dyn ThemeChangeListener>)> = {
-            let listeners = self.listeners.read().expect("theme listener lock poisoned");
+            let listeners = read_lock_or_recover(&self.listeners, "theme.listeners");
             listeners
                 .iter()
                 .map(|(id, listener)| (*id, Arc::clone(listener)))
@@ -2271,6 +2280,48 @@ mod tests {
         for handle in handles {
             handle.join().expect("thread join");
         }
+    }
+
+    #[test]
+    fn test_theme_context_recovers_from_poisoned_current_lock() {
+        let ctx = ThemeContext::from_preset(ThemePreset::Dark);
+        let current = Arc::clone(&ctx.current);
+
+        let poison_result = std::thread::spawn(move || {
+            let _guard = current.write().expect("write lock should be acquired");
+            std::panic::resume_unwind(Box::new("poison current lock"));
+        })
+        .join();
+        assert!(poison_result.is_err(), "poisoning thread should panic");
+
+        // Lock poisoning should not panic and should still allow theme updates.
+        assert_eq!(ctx.current().name(), "Dark");
+        ctx.set_preset(ThemePreset::Light);
+        assert_eq!(ctx.current().name(), "Light");
+    }
+
+    #[test]
+    fn test_theme_context_recovers_from_poisoned_listeners_lock() {
+        let ctx = ThemeContext::from_preset(ThemePreset::Dark);
+        let listeners = Arc::clone(&ctx.listeners);
+
+        let poison_result = std::thread::spawn(move || {
+            let _guard = listeners.write().expect("write lock should be acquired");
+            std::panic::resume_unwind(Box::new("poison listeners lock"));
+        })
+        .join();
+        assert!(poison_result.is_err(), "poisoning thread should panic");
+
+        let hits = Arc::new(AtomicUsize::new(0));
+        let hits_ref = Arc::clone(&hits);
+        let id = ctx.on_change(move |_theme| {
+            hits_ref.fetch_add(1, Ordering::SeqCst);
+        });
+
+        // Registering/listener notifications should continue working after poison.
+        ctx.set_preset(ThemePreset::Light);
+        assert_eq!(hits.load(Ordering::SeqCst), 1);
+        ctx.remove_listener(id);
     }
 
     #[test]
