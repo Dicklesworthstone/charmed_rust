@@ -2053,7 +2053,7 @@ pub fn truncate_line_ansi(line: &str, max_width: usize) -> String {
                         for ch in chars.by_ref() {
                             result.push(ch);
                             // CSI ends with a final byte (0x40-0x7E)
-                            if (0x40..=0x7E).contains(&(ch as u8)) {
+                            if ('@'..='~').contains(&ch) {
                                 break;
                             }
                         }
@@ -2234,6 +2234,13 @@ mod tests {
         let line = "\x1b]0;title\x1b";
         let truncated = truncate_line_ansi(line, 10);
         assert_eq!(truncated, line);
+    }
+
+    #[test]
+    fn test_truncate_line_ansi_does_not_end_csi_on_non_ascii_char() {
+        let line = "\x1b[Ł31mHello";
+        let truncated = truncate_line_ansi(line, 2);
+        assert_eq!(truncated, "\x1b[Ł31mHe\x1b[0m");
     }
 
     #[test]
