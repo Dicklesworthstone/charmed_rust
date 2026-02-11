@@ -2033,6 +2033,7 @@ pub fn truncate_line_ansi(line: &str, max_width: usize) -> String {
     let mut visible_count = 0;
     let mut chars = line.chars().peekable();
     let mut in_style = false;
+    let mut truncated = false;
 
     while let Some(c) = chars.next() {
         if c == '\x1b' {
@@ -2070,7 +2071,15 @@ pub fn truncate_line_ansi(line: &str, max_width: usize) -> String {
                     }
                     _ => {
                         // Simple two-char escape (e.g., ESC 7, ESC ( B)
-                        result.push(chars.next().unwrap());
+                        let first = chars.next().expect("peek guaranteed Some");
+                        result.push(first);
+                        // Charset designation escapes include an extra final byte
+                        // after the intermediate selector, e.g. ESC ( B.
+                        if matches!(first, '(' | ')' | '*' | '+' | '-' | '.' | '/') {
+                            if let Some(final_byte) = chars.next() {
+                                result.push(final_byte);
+                            }
+                        }
                     }
                 }
             }
@@ -2079,6 +2088,7 @@ pub fn truncate_line_ansi(line: &str, max_width: usize) -> String {
             let char_width = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
             if visible_count + char_width > max_width {
                 // Would exceed max_width - stop here
+                truncated = true;
                 break;
             }
             result.push(c);
@@ -2087,7 +2097,7 @@ pub fn truncate_line_ansi(line: &str, max_width: usize) -> String {
     }
 
     // If we had styles and truncated, add a reset to close them
-    if in_style && visible_count < visible_width(line) {
+    if in_style && truncated {
         result.push_str("\x1b[0m");
     }
 
@@ -2186,6 +2196,20 @@ mod tests {
         // Precomposed form
         let precomposed = "é";
         assert_eq!(visible_width(precomposed), 1);
+    }
+
+    #[test]
+    fn test_truncate_line_ansi_preserves_charset_designation_escape_untruncated() {
+        let line = "\x1b(BHello";
+        let truncated = truncate_line_ansi(line, 5);
+        assert_eq!(truncated, line);
+    }
+
+    #[test]
+    fn test_truncate_line_ansi_preserves_charset_designation_escape_truncated() {
+        let line = "\x1b(BHelloWorld";
+        let truncated = truncate_line_ansi(line, 5);
+        assert_eq!(truncated, "\x1b(BHello\x1b[0m");
     }
 
     #[test]

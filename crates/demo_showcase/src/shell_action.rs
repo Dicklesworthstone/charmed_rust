@@ -182,6 +182,68 @@ fn normalize_pager_value(value: Option<String>) -> Option<String> {
         .filter(|normalized| !normalized.is_empty())
 }
 
+/// Parse a command string into argv-style arguments.
+///
+/// Supports whitespace splitting, single/double quoted segments, and backslash
+/// escapes (outside single quotes). Returns `None` when quotes are unterminated.
+fn parse_command_args(command: &str) -> Option<Vec<String>> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut token_in_progress = false;
+    let mut in_single_quotes = false;
+    let mut in_double_quotes = false;
+    let mut escaped = false;
+
+    for ch in command.chars() {
+        if escaped {
+            current.push(ch);
+            token_in_progress = true;
+            escaped = false;
+            continue;
+        }
+
+        match ch {
+            '\\' if !in_single_quotes => {
+                escaped = true;
+                token_in_progress = true;
+            }
+            '\'' if !in_double_quotes => {
+                in_single_quotes = !in_single_quotes;
+                token_in_progress = true;
+            }
+            '"' if !in_single_quotes => {
+                in_double_quotes = !in_double_quotes;
+                token_in_progress = true;
+            }
+            _ if ch.is_whitespace() && !in_single_quotes && !in_double_quotes => {
+                if token_in_progress {
+                    args.push(std::mem::take(&mut current));
+                    token_in_progress = false;
+                }
+            }
+            _ => {
+                current.push(ch);
+                token_in_progress = true;
+            }
+        }
+    }
+
+    if escaped {
+        current.push('\\');
+        token_in_progress = true;
+    }
+
+    if in_single_quotes || in_double_quotes {
+        return None;
+    }
+
+    if token_in_progress {
+        args.push(current);
+    }
+
+    Some(args)
+}
+
 /// Check if a filesystem path points to an executable file.
 fn is_executable_file(path: &Path) -> bool {
     let Ok(metadata) = path.metadata() else {
@@ -224,9 +286,9 @@ fn windows_path_extensions() -> Vec<String> {
 
 /// Run a pager command with the given content as stdin.
 fn run_pager_command(pager_cmd: &str, content: &str) -> Result<(), String> {
-    // Split command and args (e.g., "less -R" -> "less", ["-R"])
-    let parts: Vec<&str> = pager_cmd.split_whitespace().collect();
-    let (cmd, args) = parts
+    let args = parse_command_args(pager_cmd)
+        .ok_or_else(|| format!("invalid pager command (unterminated quote): {pager_cmd}"))?;
+    let (cmd, args) = args
         .split_first()
         .ok_or_else(|| "empty pager command".to_string())?;
 
@@ -731,5 +793,36 @@ mod tests {
             normalize_pager_value(Some("  less -R  ".to_string())),
             Some("less -R".to_string())
         );
+    }
+
+    #[test]
+    fn parse_command_args_basic() {
+        let args = parse_command_args("less -R").expect("parse should succeed");
+        assert_eq!(args, vec!["less", "-R"]);
+    }
+
+    #[test]
+    fn parse_command_args_preserves_quoted_segments() {
+        let args = parse_command_args(r#"my-pager --title "foo bar" '/tmp/a b'"#)
+            .expect("parse should succeed");
+        assert_eq!(args, vec!["my-pager", "--title", "foo bar", "/tmp/a b"]);
+    }
+
+    #[test]
+    fn parse_command_args_supports_escapes() {
+        let args = parse_command_args(r#"pager one\ two \"quoted\""#).expect("parse should work");
+        assert_eq!(args, vec!["pager", "one two", "\"quoted\""]);
+    }
+
+    #[test]
+    fn parse_command_args_preserves_empty_quoted_args() {
+        let args = parse_command_args(r#"pager "" '' tail"#).expect("parse should work");
+        assert_eq!(args, vec!["pager", "", "", "tail"]);
+    }
+
+    #[test]
+    fn parse_command_args_rejects_unterminated_quotes() {
+        assert!(parse_command_args(r#"pager "unterminated"#).is_none());
+        assert!(parse_command_args("pager 'unterminated").is_none());
     }
 }
