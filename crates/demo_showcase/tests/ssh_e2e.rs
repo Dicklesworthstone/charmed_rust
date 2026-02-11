@@ -35,9 +35,13 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 /// Find an available port for testing.
-fn find_available_port() -> u16 {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to ephemeral port");
-    listener.local_addr().unwrap().port()
+fn find_available_port() -> Result<u16, String> {
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .map_err(|e| format!("Failed to bind to ephemeral port: {e}"))?;
+    let addr = listener
+        .local_addr()
+        .map_err(|e| format!("Failed to read ephemeral listener address: {e}"))?;
+    Ok(addr.port())
 }
 
 /// Probe server availability with an explicit connect+shutdown cycle.
@@ -59,10 +63,20 @@ fn generate_test_password(port: u16) -> String {
     format!("pw_{:x}_{port}", time_seed ^ u64::from(std::process::id()))
 }
 
+fn has_sshpass() -> bool {
+    matches!(
+        Command::new("which").arg("sshpass").output(),
+        Ok(output) if output.status.success()
+    )
+}
+
 /// Generate a temporary ED25519 host key for testing.
-fn generate_temp_host_key() -> PathBuf {
+fn generate_temp_host_key() -> Result<PathBuf, String> {
     let temp_dir = std::env::temp_dir();
     let key_path = temp_dir.join(format!("demo_showcase_test_key_{}", std::process::id()));
+    let key_path_str = key_path
+        .to_str()
+        .ok_or_else(|| format!("Host key path is not valid UTF-8: {}", key_path.display()))?;
 
     // Remove existing key if present
     let _ = std::fs::remove_file(&key_path);
@@ -70,25 +84,18 @@ fn generate_temp_host_key() -> PathBuf {
 
     // Generate key using ssh-keygen
     let output = Command::new("ssh-keygen")
-        .args([
-            "-t",
-            "ed25519",
-            "-f",
-            key_path.to_str().unwrap(),
-            "-N",
-            "",   // No passphrase
-            "-q", // Quiet
-        ])
+        .args(["-t", "ed25519", "-f", key_path_str, "-N", "", "-q"])
         .output()
-        .expect("Failed to run ssh-keygen");
+        .map_err(|e| format!("Failed to run ssh-keygen: {e}"))?;
 
-    assert!(
-        output.status.success(),
-        "ssh-keygen failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    if !output.status.success() {
+        return Err(format!(
+            "ssh-keygen failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
 
-    key_path
+    Ok(key_path)
 }
 
 /// Cleanup temporary host key files.
@@ -129,21 +136,19 @@ impl SshTestHarness {
     fn start() -> Result<Self, String> {
         let binary = demo_showcase_binary().ok_or("demo_showcase binary not found")?;
 
-        let port = find_available_port();
-        let host_key_path = generate_temp_host_key();
+        let port = find_available_port()?;
+        let host_key_path = generate_temp_host_key()?;
         let auth_credential = generate_test_password(port);
 
         // Start the SSH server
         let server_process = Command::new(&binary)
-            .args([
-                "ssh",
-                "--host-key",
-                host_key_path.to_str().unwrap(),
-                "--addr",
-                &format!("127.0.0.1:{}", port),
-                "--password",
-                &auth_credential,
-            ])
+            .arg("ssh")
+            .arg("--host-key")
+            .arg(host_key_path.as_os_str())
+            .arg("--addr")
+            .arg(format!("127.0.0.1:{port}"))
+            .arg("--password")
+            .arg(&auth_credential)
             .env("RUST_LOG", "info")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -182,10 +187,7 @@ impl SshTestHarness {
 
         // Use sshpass to provide the password non-interactively
         // If sshpass is not available, we'll use expect or skip
-        let sshpass_check = Command::new("which").arg("sshpass").output();
-        let has_sshpass = sshpass_check.is_ok() && sshpass_check.unwrap().status.success();
-
-        if !has_sshpass {
+        if !has_sshpass() {
             return Err("sshpass not installed - skipping SSH connection test".to_string());
         }
 
@@ -379,14 +381,13 @@ fn ssh_e2e_rejects_bad_password() {
     };
 
     // Check if sshpass is available
-    let sshpass_check = Command::new("which").arg("sshpass").output();
-    if sshpass_check.is_err() || !sshpass_check.unwrap().status.success() {
+    if !has_sshpass() {
         eprintln!("Skipping test: sshpass not installed");
         return;
     }
 
     // Try to connect with wrong password
-    let output = Command::new("sshpass")
+    let output = match Command::new("sshpass")
         .args([
             "-p",
             "wrong_password",
@@ -406,7 +407,13 @@ fn ssh_e2e_rejects_bad_password() {
             "should_not_see_this",
         ])
         .output()
-        .expect("Failed to spawn ssh");
+    {
+        Ok(output) => output,
+        Err(e) => {
+            assert!(false, "Failed to spawn ssh: {e}");
+            return;
+        }
+    };
 
     // Should fail authentication
     assert!(
