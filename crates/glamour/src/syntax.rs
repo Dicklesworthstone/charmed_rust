@@ -632,14 +632,11 @@ impl StyleCache {
     ///
     /// # Arguments
     ///
-    /// * `capacity` - Maximum number of entries to cache. Must be at least 1.
-    ///
-    /// # Panics
-    ///
-    /// Panics if capacity is 0.
+    /// * `capacity` - Maximum number of entries to cache. Values below 1 are
+    ///   saturated to 1.
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
-        let cap = NonZeroUsize::new(capacity).expect("StyleCache capacity must be at least 1");
+        let cap = NonZeroUsize::new(capacity).unwrap_or(NonZeroUsize::MIN);
         Self {
             cache: LruCache::new(cap),
         }
@@ -1697,9 +1694,46 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "capacity must be at least 1")]
-    fn test_style_cache_zero_capacity_panics() {
-        let _ = StyleCache::with_capacity(0);
+    fn test_style_cache_zero_capacity_saturates_to_one() {
+        use syntect::highlighting::Color as SynColor;
+
+        let mut cache = StyleCache::with_capacity(0);
+        assert_eq!(cache.capacity(), 1);
+        assert!(cache.is_empty());
+
+        let style0 = SynStyle {
+            foreground: SynColor {
+                r: 1,
+                g: 0,
+                b: 0,
+                a: 255,
+            },
+            background: SynColor {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            font_style: SynFontStyle::empty(),
+        };
+        let style1 = SynStyle {
+            foreground: SynColor {
+                r: 2,
+                g: 0,
+                b: 0,
+                a: 255,
+            },
+            background: SynColor {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            font_style: SynFontStyle::empty(),
+        };
+        let _ = cache.get_or_convert(style0);
+        let _ = cache.get_or_convert(style1);
+        assert_eq!(cache.len(), 1);
     }
 
     #[test]
