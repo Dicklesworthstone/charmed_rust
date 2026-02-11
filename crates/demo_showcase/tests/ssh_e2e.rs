@@ -29,7 +29,7 @@
 #![cfg(feature = "ssh")]
 
 use std::io::Write;
-use std::net::TcpListener;
+use std::net::{Shutdown, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -38,6 +38,25 @@ use std::time::{Duration, Instant};
 fn find_available_port() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to ephemeral port");
     listener.local_addr().unwrap().port()
+}
+
+/// Probe server availability with an explicit connect+shutdown cycle.
+fn probe_server(port: u16) -> bool {
+    match TcpStream::connect(format!("127.0.0.1:{port}")) {
+        Ok(stream) => {
+            let _ = stream.shutdown(Shutdown::Both);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+fn generate_test_password(port: u16) -> String {
+    #[allow(clippy::cast_possible_truncation)]
+    let time_seed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos() as u64);
+    format!("pw_{:x}_{port}", time_seed ^ u64::from(std::process::id()))
 }
 
 /// Generate a temporary ED25519 host key for testing.
@@ -63,12 +82,11 @@ fn generate_temp_host_key() -> PathBuf {
         .output()
         .expect("Failed to run ssh-keygen");
 
-    if !output.status.success() {
-        panic!(
-            "ssh-keygen failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
+    assert!(
+        output.status.success(),
+        "ssh-keygen failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     key_path
 }
@@ -103,7 +121,7 @@ struct SshTestHarness {
     server_process: Child,
     port: u16,
     host_key_path: PathBuf,
-    password: String,
+    auth_credential: String,
 }
 
 impl SshTestHarness {
@@ -113,7 +131,7 @@ impl SshTestHarness {
 
         let port = find_available_port();
         let host_key_path = generate_temp_host_key();
-        let password = "test_password_12345".to_string();
+        let auth_credential = generate_test_password(port);
 
         // Start the SSH server
         let server_process = Command::new(&binary)
@@ -124,7 +142,7 @@ impl SshTestHarness {
                 "--addr",
                 &format!("127.0.0.1:{}", port),
                 "--password",
-                &password,
+                &auth_credential,
             ])
             .env("RUST_LOG", "info")
             .stdout(Stdio::piped())
@@ -136,7 +154,7 @@ impl SshTestHarness {
             server_process,
             port,
             host_key_path,
-            password,
+            auth_credential,
         };
 
         // Wait for server to be ready
@@ -149,7 +167,7 @@ impl SshTestHarness {
     fn wait_for_server_ready(&self, timeout: Duration) -> Result<(), String> {
         let start = Instant::now();
         while start.elapsed() < timeout {
-            if let Ok(_) = std::net::TcpStream::connect(format!("127.0.0.1:{}", self.port)) {
+            if probe_server(self.port) {
                 return Ok(());
             }
             std::thread::sleep(Duration::from_millis(100));
@@ -175,7 +193,7 @@ impl SshTestHarness {
         let mut child = Command::new("sshpass")
             .args([
                 "-p",
-                &self.password,
+                &self.auth_credential,
                 "ssh",
                 "-p",
                 &self.port.to_string(),
@@ -262,7 +280,7 @@ fn ssh_e2e_server_starts() {
 
     // Verify the port is actually listening
     assert!(
-        std::net::TcpStream::connect(format!("127.0.0.1:{}", harness.port)).is_ok(),
+        probe_server(harness.port),
         "Should be able to connect to server"
     );
 }
@@ -304,7 +322,11 @@ fn ssh_e2e_renders_ui() {
                 eprintln!("Skipping UI verification: {}", e);
                 return;
             }
-            panic!("SSH connection failed: {}", e);
+            assert!(
+                e.contains("sshpass not installed"),
+                "SSH connection failed: {}",
+                e
+            );
         }
     }
 }
@@ -324,19 +346,20 @@ fn ssh_e2e_clean_disconnect() {
     };
 
     // Connect and immediately disconnect
-    let stream = std::net::TcpStream::connect(format!("127.0.0.1:{}", harness.port));
+    let stream = TcpStream::connect(format!("127.0.0.1:{}", harness.port));
     assert!(stream.is_ok(), "Should connect to server");
 
-    // Drop the connection
-    drop(stream);
+    // Explicitly shutdown the connection.
+    if let Ok(stream) = stream {
+        let _ = stream.shutdown(Shutdown::Both);
+    }
 
     // Wait a moment for the server to handle the disconnect
     std::thread::sleep(Duration::from_millis(500));
 
     // Server should still be alive and accepting new connections
-    let stream2 = std::net::TcpStream::connect(format!("127.0.0.1:{}", harness.port));
     assert!(
-        stream2.is_ok(),
+        probe_server(harness.port),
         "Server should still accept connections after disconnect"
     );
 }
@@ -393,7 +416,7 @@ fn ssh_e2e_rejects_bad_password() {
 
     // Server should still be alive
     assert!(
-        std::net::TcpStream::connect(format!("127.0.0.1:{}", harness.port)).is_ok(),
+        probe_server(harness.port),
         "Server should still be alive after failed auth"
     );
 }
@@ -429,10 +452,7 @@ fn ssh_e2e_smoke_test() {
 
     // Phase 2: Verify server is listening
     println!("\n[Phase 2] Verifying server is listening...");
-    assert!(
-        std::net::TcpStream::connect(format!("127.0.0.1:{}", harness.port)).is_ok(),
-        "Server should be listening"
-    );
+    assert!(probe_server(harness.port), "Server should be listening");
     println!("Server is accepting connections");
 
     // Phase 3: Test SSH connection
@@ -459,11 +479,8 @@ fn ssh_e2e_smoke_test() {
     // Phase 4: Verify server handles multiple connections
     println!("\n[Phase 4] Testing connection resilience...");
     for i in 1..=3 {
-        if std::net::TcpStream::connect(format!("127.0.0.1:{}", harness.port)).is_ok() {
-            println!("Connection {} successful", i);
-        } else {
-            panic!("Connection {} failed", i);
-        }
+        assert!(probe_server(harness.port), "Connection {} failed", i);
+        println!("Connection {} successful", i);
         std::thread::sleep(Duration::from_millis(100));
     }
 
