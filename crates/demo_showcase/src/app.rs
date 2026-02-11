@@ -257,7 +257,24 @@ pub fn strip_ansi(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     let mut in_escape = false;
     let mut in_csi = false;
-    for c in input.chars() {
+    let mut in_str = false;
+    let mut chars = input.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if in_str {
+            // String-type escape sequences (OSC/DCS/SOS/PM/APC) terminate with
+            // BEL (\x07) or ST (ESC \).
+            if c == '\x07' {
+                in_str = false;
+                in_escape = false;
+            } else if c == '\x1b' && chars.peek() == Some(&'\\') {
+                let _ = chars.next();
+                in_str = false;
+                in_escape = false;
+            }
+            continue;
+        }
+
         if c == '\x1b' {
             in_escape = true;
             in_csi = false;
@@ -266,6 +283,10 @@ pub fn strip_ansi(input: &str) -> String {
         if in_escape {
             if c == '[' {
                 in_csi = true;
+                continue;
+            }
+            if matches!(c, ']' | 'P' | 'X' | '^' | '_') {
+                in_str = true;
                 continue;
             }
             if in_csi {
@@ -283,6 +304,7 @@ pub fn strip_ansi(input: &str) -> String {
         }
         result.push(c);
     }
+
     result
 }
 
@@ -1698,6 +1720,24 @@ mod tests {
     }
 
     #[test]
+    fn strip_ansi_removes_osc_bel_sequences() {
+        let input = "a\x1b]0;window-title\x07b";
+        assert_eq!(strip_ansi(input), "ab");
+    }
+
+    #[test]
+    fn strip_ansi_removes_osc_st_hyperlink_sequences() {
+        let input = "a\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\b";
+        assert_eq!(strip_ansi(input), "alinkb");
+    }
+
+    #[test]
+    fn strip_ansi_removes_dcs_and_apc_sequences() {
+        let input = "x\x1bP123\x1b\\y\x1b_message\x1b\\z";
+        assert_eq!(strip_ansi(input), "xyz");
+    }
+
+    #[test]
     fn content_dimensions_with_sidebar() {
         let mut app = App::new();
         app.width = 100;
@@ -2596,11 +2636,12 @@ mod tests {
                         .replace('\x1b', "ESC")
                 );
             }
-            panic!(
-                "Found {} lines exceeding safe width (119)",
-                problematic_lines.len()
-            );
         }
+        assert!(
+            problematic_lines.is_empty(),
+            "Found {} lines exceeding safe width (119)",
+            problematic_lines.len()
+        );
 
         // Also verify the view has the expected structure
         assert!(
