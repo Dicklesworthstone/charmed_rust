@@ -29,7 +29,7 @@
 
 use bubbletea::{Cmd, Message, screen, sequence};
 use std::env;
-use std::io::{self, Read, Write};
+use std::io::{self, BufRead, Write};
 use std::path::Path;
 use std::process::Command;
 
@@ -327,14 +327,42 @@ fn run_fallback_prompt(content: &str) -> Result<(), String> {
         .map_err(|e| format!("write error: {e}"))?;
     stdout.flush().map_err(|e| format!("flush error: {e}"))?;
 
-    // Wait for Enter
-    let mut buf = [0u8; 1];
-    stdin
-        .lock()
-        .read_exact(&mut buf)
-        .map_err(|e| format!("read error: {e}"))?;
+    // Wait for Enter/newline.
+    let mut handle = stdin.lock();
+    read_until_enter(&mut handle).map_err(|e| format!("read error: {e}"))?;
 
     Ok(())
+}
+
+/// Consume input until Enter (LF/CR) or EOF.
+fn read_until_enter<R: BufRead>(reader: &mut R) -> io::Result<()> {
+    loop {
+        let consume_all = {
+            let chunk = reader.fill_buf()?;
+            if chunk.is_empty() {
+                return Ok(());
+            }
+
+            if let Some(pos) = chunk.iter().position(|byte| matches!(*byte, b'\n' | b'\r')) {
+                let terminator = chunk[pos];
+                reader.consume(pos + 1);
+
+                // Consume the optional LF from CRLF so repeated prompts don't auto-dismiss.
+                if terminator == b'\r' {
+                    let next = reader.fill_buf()?;
+                    if !next.is_empty() && next[0] == b'\n' {
+                        reader.consume(1);
+                    }
+                }
+
+                return Ok(());
+            }
+
+            chunk.len()
+        };
+
+        reader.consume(consume_all);
+    }
 }
 
 /// Generate diagnostics information about the application.
@@ -420,6 +448,7 @@ fn rustc_version() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
 
     #[test]
     fn test_open_in_pager_headless_returns_none() {
@@ -824,5 +853,41 @@ mod tests {
     fn parse_command_args_rejects_unterminated_quotes() {
         assert!(parse_command_args(r#"pager "unterminated"#).is_none());
         assert!(parse_command_args("pager 'unterminated").is_none());
+    }
+
+    #[test]
+    fn read_until_enter_stops_on_newline() {
+        let mut input = Cursor::new(b"abc\nxyz".to_vec());
+        read_until_enter(&mut input).expect("read should succeed");
+
+        let position = usize::try_from(input.position()).expect("cursor position should fit usize");
+        assert_eq!(&input.get_ref()[position..], b"xyz");
+    }
+
+    #[test]
+    fn read_until_enter_stops_on_carriage_return() {
+        let mut input = Cursor::new(b"abc\rxyz".to_vec());
+        read_until_enter(&mut input).expect("read should succeed");
+
+        let position = usize::try_from(input.position()).expect("cursor position should fit usize");
+        assert_eq!(&input.get_ref()[position..], b"xyz");
+    }
+
+    #[test]
+    fn read_until_enter_consumes_full_crlf_sequence() {
+        let mut input = Cursor::new(b"abc\r\nxyz".to_vec());
+        read_until_enter(&mut input).expect("read should succeed");
+
+        let position = usize::try_from(input.position()).expect("cursor position should fit usize");
+        assert_eq!(&input.get_ref()[position..], b"xyz");
+    }
+
+    #[test]
+    fn read_until_enter_consumes_to_eof_when_no_newline() {
+        let mut input = Cursor::new(b"abc".to_vec());
+        read_until_enter(&mut input).expect("read should succeed");
+
+        let len = u64::try_from(input.get_ref().len()).expect("length should fit u64");
+        assert_eq!(input.position(), len);
     }
 }
