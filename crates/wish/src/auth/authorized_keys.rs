@@ -234,9 +234,6 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, &'static str> {
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     fn decode_char(c: u8) -> Result<u8, &'static str> {
-        if c == b'=' {
-            return Ok(0);
-        }
         ALPHABET
             .iter()
             .position(|&x| x == c)
@@ -263,8 +260,13 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, &'static str> {
         let c = match iter.next() {
             Some(&c) if c == b'=' => {
                 output.push((a << 2) | (b >> 4));
-                // Consume the last '='
-                iter.next();
+                match iter.next() {
+                    Some(&d) if d == b'=' => {}
+                    _ => return Err("invalid base64 padding"),
+                }
+                if iter.next().is_some() {
+                    return Err("invalid base64 padding");
+                }
                 break;
             }
             Some(&c) => decode_char(c)?,
@@ -274,6 +276,9 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, &'static str> {
             Some(&ch) if ch == b'=' => {
                 output.push((a << 2) | (b >> 4));
                 output.push((b << 4) | (c >> 2));
+                if iter.next().is_some() {
+                    return Err("invalid base64 padding");
+                }
                 break;
             }
             Some(&ch) => decode_char(ch)?,
@@ -609,6 +614,15 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHUFrQ== user3@example.com
         // "A" in base64 is "QQ=="
         let decoded = base64_decode("QQ==").unwrap();
         assert_eq!(decoded, b"A");
+    }
+
+    #[test]
+    fn test_base64_decode_rejects_malformed_padding() {
+        assert!(base64_decode("=Q==").is_err());
+        assert!(base64_decode("QQ=").is_err());
+        assert!(base64_decode("QQ=A").is_err());
+        assert!(base64_decode("SGk=A").is_err());
+        assert!(base64_decode("SGk=Zg==").is_err());
     }
 
     #[test]
