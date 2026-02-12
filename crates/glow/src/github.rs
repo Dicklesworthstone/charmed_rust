@@ -410,31 +410,53 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
         46, 47, 48, 49, 50, 51, -1, -1, -1, -1, -1,
     ];
 
-    let mut output = Vec::with_capacity(input.len() * 3 / 4);
-    let mut buffer = 0u32;
-    let mut bits = 0;
-
-    for c in input.chars() {
-        if c == '=' {
-            break;
-        }
-
-        let byte = c as usize;
+    fn decode_char(byte: u8, table: &[i8; 128]) -> Result<u8, String> {
         if byte >= 128 {
-            return Err(format!("invalid character: {c}"));
+            return Err(format!("invalid character byte: 0x{byte:02X}"));
         }
-
-        let value = DECODE_TABLE[byte];
+        let value = table[usize::from(byte)];
         if value < 0 {
-            return Err(format!("invalid character: {c}"));
+            return Err(format!("invalid character: {}", char::from(byte)));
         }
+        Ok(value as u8)
+    }
 
-        buffer = (buffer << 6) | (value as u32);
-        bits += 6;
+    if input.len() % 4 != 0 {
+        return Err("invalid base64 length".to_string());
+    }
 
-        if bits >= 8 {
-            bits -= 8;
-            output.push(((buffer >> bits) & 0xFF) as u8);
+    let bytes = input.as_bytes();
+    let mut output = Vec::with_capacity(bytes.len() * 3 / 4);
+
+    for (index, chunk) in bytes.chunks_exact(4).enumerate() {
+        let is_last_chunk = index == (bytes.len() / 4).saturating_sub(1);
+
+        let a = decode_char(chunk[0], &DECODE_TABLE)?;
+        let b = decode_char(chunk[1], &DECODE_TABLE)?;
+
+        match (chunk[2], chunk[3]) {
+            (b'=', b'=') => {
+                if !is_last_chunk {
+                    return Err("invalid base64 padding".to_string());
+                }
+                output.push((a << 2) | (b >> 4));
+            }
+            (c, b'=') => {
+                if !is_last_chunk {
+                    return Err("invalid base64 padding".to_string());
+                }
+                let c = decode_char(c, &DECODE_TABLE)?;
+                output.push((a << 2) | (b >> 4));
+                output.push((b << 4) | (c >> 2));
+            }
+            (b'=', _) => return Err("invalid base64 padding".to_string()),
+            (c, d) => {
+                let c = decode_char(c, &DECODE_TABLE)?;
+                let d = decode_char(d, &DECODE_TABLE)?;
+                output.push((a << 2) | (b >> 4));
+                output.push((b << 4) | (c >> 2));
+                output.push((c << 6) | d);
+            }
         }
     }
 
@@ -500,6 +522,15 @@ mod tests {
         let encoded = "SGVsbG8gV29ybGQ="; // "Hello World"
         let decoded = base64_decode(encoded).unwrap();
         assert_eq!(String::from_utf8(decoded).unwrap(), "Hello World");
+    }
+
+    #[test]
+    fn test_base64_decode_rejects_malformed_inputs() {
+        assert!(base64_decode("SGVsbG8").is_err());
+        assert!(base64_decode("=GVsbG8=").is_err());
+        assert!(base64_decode("QQ=A").is_err());
+        assert!(base64_decode("SGk=Zg==").is_err());
+        assert!(base64_decode("SGVsbG8===").is_err());
     }
 
     #[test]
