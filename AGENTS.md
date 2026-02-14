@@ -4,7 +4,7 @@
 
 ---
 
-## RULE 0 - THE FUNDAMENTAL OVERRIDE PEROGATIVE
+## RULE 0 - THE FUNDAMENTAL OVERRIDE PREROGATIVE
 
 If I tell you to do something, even if it goes against what follows below, YOU MUST LISTEN TO ME. I AM IN CHARGE, NOT YOU.
 
@@ -28,6 +28,23 @@ If I tell you to do something, even if it goes against what follows below, YOU M
 
 ---
 
+## Git Branch: ONLY Use `main`, NEVER `master`
+
+**The default branch is `main`. The `master` branch exists only for legacy URL compatibility.**
+
+- **All work happens on `main`** — commits, PRs, feature branches all merge to `main`
+- **Never reference `master` in code or docs** — if you see `master` anywhere, it's a bug that needs fixing
+- **The `master` branch must stay synchronized with `main`** — after pushing to `main`, also push to `master`:
+  ```bash
+  git push origin main:master
+  ```
+
+**If you see `master` referenced anywhere:**
+1. Update it to `main`
+2. Ensure `master` is synchronized: `git push origin main:master`
+
+---
+
 ## Toolchain: Rust & Cargo
 
 We only use **Cargo** in this project, NEVER any other package manager.
@@ -35,7 +52,7 @@ We only use **Cargo** in this project, NEVER any other package manager.
 - **Edition:** Rust 2024 (nightly required — see `rust-toolchain.toml`)
 - **Workspace:** Multi-crate workspace in `crates/`
 - **Dependency versions:** Explicit versions for stability
-- **Configuration:** Cargo.toml only
+- **Configuration:** Cargo.toml workspace with `workspace = true` pattern
 - **Unsafe code:** Forbidden (`#![forbid(unsafe_code)]`)
 
 ### Key Dependencies
@@ -45,11 +62,18 @@ We only use **Cargo** in this project, NEVER any other package manager.
 | `crossterm` | Terminal I/O, raw mode, events |
 | `unicode-width` | Character cell width calculation |
 | `tokio` | Async runtime for event loop |
-| `pulldown-cmark` | Markdown parsing |
+| `pulldown-cmark` | Markdown parsing (glamour/glow) |
 | `russh` + `russh-keys` | SSH protocol for wish |
 | `clap` | CLI argument parsing for glow |
 | `tracing` | Structured logging |
 | `serde` + `serde_json` | Serialization |
+| `thiserror` | Ergonomic error type derivation |
+| `textwrap` | Text wrapping and indentation |
+| `regex` | Regular expressions |
+| `rayon` | Data parallelism |
+| `proptest` | Property-based testing |
+| `insta` | Snapshot testing |
+| `criterion` | Benchmarking |
 
 ### Release Profile
 
@@ -104,7 +128,7 @@ We do not care about backwards compatibility—we're in early development with n
 **After any substantive code changes, you MUST verify no errors were introduced:**
 
 ```bash
-# Check for compiler errors and warnings
+# Check for compiler errors and warnings (workspace-wide)
 cargo check --workspace --all-targets
 
 # Check for clippy lints (pedantic + nursery are enabled)
@@ -120,40 +144,115 @@ If you see errors, **carefully understand and resolve each issue**. Read suffici
 
 ## Testing
 
+### Testing Policy
+
+Every component crate includes inline `#[cfg(test)]` unit tests alongside the implementation. Tests must cover:
+- Happy path
+- Edge cases (empty input, max values, boundary conditions)
+- Error conditions
+
+Cross-component integration tests live in the workspace `tests/conformance/` directory.
+
 ### Unit Tests
 
 ```bash
-# Run all tests
+# Run all tests across the workspace
 cargo test --workspace
 
 # Run with output
 cargo test --workspace -- --nocapture
 
-# Run specific crate tests
+# Run tests for a specific crate
 cargo test -p charmed-lipgloss
 cargo test -p charmed-bubbletea
+cargo test -p charmed-harmonica
+cargo test -p charmed-glamour
+cargo test -p charmed-bubbles
+cargo test -p charmed-huh
+cargo test -p charmed-wish
+cargo test -p charmed-glow
+
+# Run tests with all features enabled
+cargo test --workspace --all-features
 ```
 
 ### Test Categories
 
-Each crate should have comprehensive tests:
+| Crate | Focus Areas |
+|-------|-------------|
+| `harmonica` | Spring animation physics, damping ratios, frame updates, convergence |
+| `lipgloss` | Style composition, color rendering (ANSI/256/TrueColor), borders, padding, alignment, adaptive color profiles |
+| `charmed_log` | Structured log output formatting with lipgloss styles |
+| `bubbletea` | Elm architecture event loop, message dispatch, command batching, key events, mouse events, resize handling |
+| `glamour` | Markdown-to-terminal rendering, code blocks, lists, tables, links, word wrapping |
+| `bubbles` | Text input, viewport scrolling, spinner animation, list selection, progress bars, file picker, paginator, stopwatch/timer |
+| `huh` | Form fields, validation, groups, accessibility, keyboard navigation |
+| `wish` | SSH server lifecycle, session handling, PTY allocation |
+| `glow` | CLI argument parsing, file loading, pager integration |
+| `tests/conformance/` | Cross-crate integration, Go behavior parity verification |
 
-- **Unit tests:** Cover all public APIs
-- **Integration tests:** Cross-crate interactions
-- **Conformance tests:** Behavior matches Go implementation
-- **Property tests:** For complex algorithms (consider `proptest`)
+### Test Fixtures
+
+Conformance tests compare Rust output against known-good Go implementation output to ensure behavioral parity.
 
 ---
 
 ## Third-Party Library Usage
 
-If you aren't 100% sure how to use a third-party library, **SEARCH ONLINE** to find the latest documentation and mid-2025 best practices.
+If you aren't 100% sure how to use a third-party library, **SEARCH ONLINE** to find the latest documentation and current best practices.
 
 ---
 
 ## Charmed Rust — This Project
 
-This project ports **all of Charm's Go libraries** to idiomatic Rust:
+**This is the project you're working on.** Charmed Rust ports **all of Charm's Go libraries** to idiomatic Rust, providing a complete terminal UI toolkit.
+
+### What It Does
+
+Provides a full-stack terminal UI framework: spring animations, declarative styling, Elm-architecture event loops, markdown rendering, pre-built components (text inputs, lists, spinners, viewports), interactive forms, SSH app serving, and a markdown reader CLI.
+
+### Architecture
+
+```
+harmonica (standalone) ─── Spring animations
+lipgloss (standalone) ──── Terminal styling (colors, borders, layout)
+charmed_log ─► lipgloss    Structured logging with lipgloss styling
+bubbletea ─► lipgloss, harmonica   Elm-architecture TUI framework
+glamour ─► lipgloss        Markdown rendering for terminals
+bubbles ─► bubbletea, lipgloss     Pre-built TUI components
+huh ─► bubbletea, lipgloss, bubbles   Interactive forms and prompts
+wish ─► bubbletea          SSH app framework
+glow ─► glamour, bubbletea, lipgloss, bubbles   Markdown reader CLI
+charmed-wasm ─► lipgloss   WASM bindings for web
+demo_showcase ─► (all)     Flagship showcase
+```
+
+### Workspace Structure
+
+```
+charmed_rust/
+├── Cargo.toml                         # Workspace root
+├── crates/
+│   ├── harmonica/                     # Smooth spring animations (standalone)
+│   ├── lipgloss/                      # Terminal styling: colors, borders, layout (standalone)
+│   ├── charmed_log/                   # Structured logging with lipgloss styling
+│   ├── bubbletea-macros/              # Proc-macros for bubbletea
+│   ├── bubbletea/                     # Elm-architecture TUI framework
+│   ├── glamour/                       # Markdown rendering for terminals
+│   ├── bubbles/                       # Pre-built TUI components
+│   ├── huh/                           # Interactive forms and prompts
+│   ├── wish/                          # SSH app framework
+│   ├── glow/                          # Markdown reader CLI
+│   ├── charmed-wasm/                  # WASM bindings for web
+│   └── demo_showcase/                 # Flagship showcase
+├── legacy_*/                          # Original Go source (reference)
+├── tests/conformance/                 # Cross-component conformance tests
+├── benches/                           # Performance benchmarks
+├── examples/                          # Usage examples
+└── docs/                              # Architecture and spec documents
+```
+
+### Key Files by Crate
 
 | Crate | Source | Purpose |
 |-------|--------|---------|
@@ -166,20 +265,8 @@ This project ports **all of Charm's Go libraries** to idiomatic Rust:
 | `huh` | `legacy_huh/` | Interactive forms and prompts |
 | `wish` | `legacy_wish/` | SSH app framework |
 | `glow` | `legacy_glow/` | Markdown reader CLI |
-
-### Dependency Graph
-
-```
-harmonica (standalone)
-lipgloss (standalone)
-charmed_log ─► lipgloss
-bubbletea ─► lipgloss, harmonica
-glamour ─► lipgloss
-bubbles ─► bubbletea, lipgloss
-huh ─► bubbletea, lipgloss, bubbles
-wish ─► bubbletea
-glow ─► glamour, bubbletea, lipgloss, bubbles
-```
+| `charmed-wasm` | — | WASM bindings for web |
+| `demo_showcase` | — | Flagship showcase |
 
 ### Porting Order (recommended)
 
@@ -199,7 +286,7 @@ This port follows the "Essence Extraction" methodology:
 
 Do NOT:
 - Translate Go syntax 1:1 to Rust
-- Keep Go idioms that don't fit Rust (e.g., error returns → Result types)
+- Keep Go idioms that don't fit Rust (e.g., error returns -> Result types)
 - Preserve Go's interface-based polymorphism when traits work better
 
 DO:
@@ -208,7 +295,7 @@ DO:
 - Leverage ownership for memory safety
 - Use async/await where Go uses goroutines
 
-### Go → Rust Pattern Mappings
+### Go -> Rust Pattern Mappings
 
 | Go Pattern | Rust Equivalent |
 |------------|-----------------|
@@ -222,25 +309,18 @@ DO:
 | `nil` | `Option::None` |
 | `panic/recover` | `Result` or `catch_unwind` |
 
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| `Cargo.toml` | Workspace configuration |
-| `crates/*/Cargo.toml` | Per-crate dependencies |
-| `legacy_*/` | Original Go source (reference) |
-| `rust-toolchain.toml` | Nightly toolchain requirement |
-
 ### Reference Documents
-
-The following documents should be created during the porting process:
 
 | Document | Purpose |
 |----------|---------|
-| `EXISTING_CHARM_STRUCTURE_AND_ARCHITECTURE.md` | Comprehensive Go source analysis |
-| `PROPOSED_RUST_CHARMED_ARCHITECTURE.md` | Rust architecture design |
-| `PLAN_TO_PORT_CHARM_TO_RUST.md` | Phased implementation plan |
-| `CHARM_SPEC.md` | Behavioral specification |
+| `docs/SPEC.md` | Behavioral specification |
+| `docs/HARMONICA.md` | Harmonica architecture |
+| `docs/LIPGLOSS.md` | Lipgloss architecture |
+| `docs/BUBBLETEA.md` | Bubbletea architecture |
+| `docs/BUBBLES.md` | Bubbles component catalog |
+| `docs/BENCHMARKS.md` | Performance benchmarks |
+| `docs/property-testing.md` | Property test methodology |
+| `docs/custom-themes.md` | Theme system documentation |
 
 ---
 
@@ -295,9 +375,9 @@ A mail-like layer that lets coding agents coordinate asynchronously via MCP tool
 
 ## Beads (br) — Dependency-Aware Issue Tracking
 
-Beads provides a lightweight, dependency-aware issue database and CLI (`br`) for selecting "ready work," setting priorities, and tracking status. It complements MCP Agent Mail's messaging and file reservations.
+Beads provides a lightweight, dependency-aware issue database and CLI (`br` - beads_rust) for selecting "ready work," setting priorities, and tracking status. It complements MCP Agent Mail's messaging and file reservations.
 
-**Note:** `br` (beads_rust) is non-invasive and never executes git commands. You must run git commands manually after `br sync --flush-only`.
+**Important:** `br` is non-invasive—it NEVER runs git commands automatically. You must manually commit changes after `br sync --flush-only`.
 
 ### Conventions
 
@@ -326,7 +406,8 @@ Beads provides a lightweight, dependency-aware issue database and CLI (`br`) for
 
 5. **Complete and release:**
    ```bash
-   br close br-123 --reason "Completed"
+   br close 123 --reason "Completed"
+   br sync --flush-only  # Export to JSONL (no git operations)
    ```
    ```
    release_file_reservations(project_key, agent_name, paths=["crates/**"])
@@ -475,6 +556,33 @@ Parse: `file:line:col` → location | 💡 → how to fix | Exit 0/1 → pass/fa
 
 ---
 
+## RCH — Remote Compilation Helper
+
+RCH offloads `cargo build`, `cargo test`, `cargo clippy`, and other compilation commands to a fleet of 8 remote Contabo VPS workers instead of building locally. This prevents compilation storms from overwhelming csd when many agents run simultaneously.
+
+**RCH is installed at `~/.local/bin/rch` and is hooked into Claude Code's PreToolUse automatically.** Most of the time you don't need to do anything if you are Claude Code — builds are intercepted and offloaded transparently.
+
+To manually offload a build:
+```bash
+rch exec -- cargo build --release
+rch exec -- cargo test
+rch exec -- cargo clippy
+```
+
+Quick commands:
+```bash
+rch doctor                    # Health check
+rch workers probe --all       # Test connectivity to all 8 workers
+rch status                    # Overview of current state
+rch queue                     # See active/waiting builds
+```
+
+If rch or its workers are unavailable, it fails open — builds run locally as normal.
+
+**Note for Codex/GPT-5.2:** Codex does not have the automatic PreToolUse hook, but you can (and should) still manually offload compute-intensive compilation commands using `rch exec -- <command>`. This avoids local resource contention when multiple agents are building simultaneously.
+
+---
+
 ## ast-grep vs ripgrep
 
 **Use `ast-grep` when structure matters.** It parses code and matches AST nodes, ignoring comments/strings, and can **safely rewrite** code.
@@ -534,7 +642,7 @@ rg -l -t rust 'unwrap\(' | xargs ast-grep run -l Rust -p '$X.unwrap()' --json
 
 ```
 mcp__morph-mcp__warp_grep(
-  repoPath: "/data/projects/charmed_rust",
+  repoPath: "/dp/charmed_rust",
   query: "How does the bubbletea event loop work?"
 )
 ```
@@ -614,7 +722,9 @@ Treat cass as a way to avoid re-solving problems other agents already handled.
 
 ## Beads Workflow Integration
 
-This project uses [beads_viewer](https://github.com/Dicklesworthstone/beads_viewer) for issue tracking. Issues are stored in `.beads/` and tracked in git.
+This project uses [beads_rust](https://github.com/Dicklesworthstone/beads_rust) (`br`) for issue tracking. Issues are stored in `.beads/` and tracked in git.
+
+**Important:** `br` is non-invasive—it NEVER executes git commands. After `br sync --flush-only`, you must manually run `git add .beads/ && git commit`.
 
 ### Essential Commands
 
@@ -628,11 +738,9 @@ br list --status=open # All open issues
 br show <id>          # Full issue details with dependencies
 br create --title="..." --type=task --priority=2
 br update <id> --status=in_progress
-br close <id> --reason="Completed"
+br close <id> --reason "Completed"
 br close <id1> <id2>  # Close multiple issues at once
-br sync --flush-only  # Export to JSONL
-git add .beads/       # Stage beads changes
-git commit -m "..."   # Commit beads state
+br sync --flush-only  # Export to JSONL (NO git operations)
 ```
 
 ### Workflow Pattern
@@ -641,7 +749,7 @@ git commit -m "..."   # Commit beads state
 2. **Claim**: Use `br update <id> --status=in_progress`
 3. **Work**: Implement the task
 4. **Complete**: Use `br close <id>`
-5. **Sync**: Always run `br sync --flush-only` then `git add .beads/ && git commit` at session end
+5. **Sync**: Run `br sync --flush-only` then manually commit
 
 ### Key Concepts
 
@@ -659,7 +767,7 @@ git status              # Check what changed
 git add <files>         # Stage code changes
 br sync --flush-only    # Export beads to JSONL
 git add .beads/         # Stage beads changes
-git commit -m "..."     # Commit code and beads
+git commit -m "..."     # Commit everything together
 git push                # Push to remote
 ```
 
@@ -669,37 +777,21 @@ git push                # Push to remote
 - Update status as you work (in_progress → closed)
 - Create new issues with `br create` when you discover tasks
 - Use descriptive titles and set appropriate priority/type
-- Always `br sync --flush-only` then commit `.beads/` before ending session
+- Always `br sync --flush-only && git add .beads/` before ending session
 
 <!-- end-bv-agent-instructions -->
 
 ## Landing the Plane (Session Completion)
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**When ending a work session**, you MUST complete ALL steps below.
 
 **MANDATORY WORKFLOW:**
 
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   br sync --flush-only
-   git add .beads/
-   git commit -m "sync beads" --allow-empty
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+4. **Sync beads** - `br sync --flush-only` to export to JSONL
+5. **Hand off** - Provide context for next session
 
 
 ---
@@ -720,7 +812,7 @@ Next steps (pick one)
 3. If you want a full suite run later, fix conformance/clippy blockers and re‑run cargo test --all.
 ```
 
-NEVER EVER DO THAT AGAIN. The answer is literally ALWAYS the same: those are changes created by the potentially dozen of other agents working on the project at the same time. This is not only a common occurence, it happens multiple times PER MINUTE. The way to deal with it is simple: you NEVER, under ANY CIRCUMSTANCE, stash, revert, overwrite, or otherwise disturb in ANY way the work of other agents. Just treat those changes identically to changes that you yourself made. Just fool yourself into think YOU made the changes and simply don't recall it for some reason.
+NEVER EVER DO THAT AGAIN. The answer is literally ALWAYS the same: those are changes created by the potentially dozen of other agents working on the project at the same time. This is not only a common occurence, it happens multiple times PER MINUTE. The way to deal with it is simple: you NEVER, under ANY CIRCUMSTANCE, stash, revert, overwrite, or otherwise disturb in ANY way the work of other agents. Just treat those changes identically to changes that you yourself made. Just fool yourself into thinking YOU made the changes and simply don't recall it for some reason.
 
 ---
 
