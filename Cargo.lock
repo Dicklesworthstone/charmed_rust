@@ -391,7 +391,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-bubbles"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "charmed-bubbletea",
  "charmed-harmonica",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-bubbletea"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "charmed-bubbles",
  "charmed-bubbletea-macros",
@@ -425,7 +425,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-bubbletea-macros"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "darling",
  "proc-macro-error2",
@@ -437,7 +437,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-demo-showcase"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -472,7 +472,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-glamour"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "charmed-lipgloss",
  "criterion",
@@ -488,7 +488,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-glow"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "assert_cmd",
  "charmed-bubbles",
@@ -508,7 +508,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-harmonica"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "libm",
  "proptest",
@@ -516,7 +516,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-huh"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "charmed-bubbles",
  "charmed-bubbletea",
@@ -527,7 +527,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-lipgloss"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "bitflags 2.10.0",
  "colored",
@@ -550,7 +550,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-log"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "backtrace",
  "charmed-lipgloss",
@@ -562,7 +562,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-wasm"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "charmed-lipgloss",
  "console_error_panic_hook",
@@ -576,7 +576,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-wish"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -600,7 +600,7 @@ dependencies = [
 
 [[package]]
 name = "charmed_conformance"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "charmed-bubbles",
  "charmed-bubbletea",

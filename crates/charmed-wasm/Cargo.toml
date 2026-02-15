@@ -37,7 +37,7 @@ web-sys = { version = "0.3", features = [
 ]}
 
 # Re-export lipgloss with wasm feature
-lipgloss = { package = "charmed-lipgloss", path = "../lipgloss", version = "0.1.2", default-features = false, features = ["wasm"] }
+lipgloss = { package = "charmed-lipgloss", path = "../lipgloss", version = "0.2.0", default-features = false, features = ["wasm"] }
 
 # Better error messages in browser
 console_error_panic_hook = { version = "0.1", optional = true }
