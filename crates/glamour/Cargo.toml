@@ -17,10 +17,10 @@ name = "glamour"
 
 [dependencies]
 lipgloss = { workspace = true }
-lru = "0.12"  # O(1) LRU cache for StyleCache (bd-cnqe, bd-2oct)
+lru = "0.16"  # O(1) LRU cache for StyleCache (bd-cnqe, bd-2oct)
 pulldown-cmark = "0.13"
 tracing.workspace = true
-unicode-width = "0.1"
+unicode-width = "0.2"
 
 # Optional: syntax highlighting
 # Uses fancy-regex (pure Rust) instead of onig for WASM compatibility
