@@ -1089,9 +1089,31 @@ impl<M: Model> Program<M> {
             return Ok(());
         }
 
-        // Clear and render
-        execute!(writer, MoveTo(0, 0), Clear(ClearType::All))?;
-        write!(writer, "{}", view)?;
+        // Render only changed rows to reduce full-screen flicker on
+        // high-frequency updates (spinner ticks, streaming token deltas).
+        let old_lines: Vec<&str> = last_view.split('\n').collect();
+        let new_lines: Vec<&str> = view.split('\n').collect();
+        let max_lines = old_lines.len().max(new_lines.len());
+
+        for row in 0..max_lines {
+            let old_line = old_lines
+                .get(row)
+                .copied()
+                .map(|line| line.trim_end_matches('\r'));
+            let new_line = new_lines
+                .get(row)
+                .copied()
+                .map(|line| line.trim_end_matches('\r'));
+            if old_line == new_line {
+                continue;
+            }
+
+            let clamped_row = row.min(u16::MAX as usize) as u16;
+            execute!(writer, MoveTo(0, clamped_row), Clear(ClearType::CurrentLine))?;
+            if let Some(line) = new_line {
+                write!(writer, "{}", line)?;
+            }
+        }
         writer.flush()?;
 
         *last_view = view;
