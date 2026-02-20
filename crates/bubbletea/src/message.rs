@@ -34,8 +34,23 @@ impl Message {
     /// Try to downcast to a specific message type.
     ///
     /// Returns `Some(T)` if the message is of type `T`, otherwise `None`.
+    /// Note: consumes the message even on failure. Use [`try_downcast`] to
+    /// preserve the message on type mismatch.
     pub fn downcast<M: Any + Send + 'static>(self) -> Option<M> {
         self.0.downcast::<M>().ok().map(|b| *b)
+    }
+
+    /// Try to downcast to a specific message type, preserving the message on
+    /// failure.
+    ///
+    /// Returns `Ok(M)` if the message is of type `M`, otherwise returns
+    /// `Err(Message)` with the original message intact. This is useful when
+    /// you need to try multiple downcast targets in sequence without cloning.
+    pub fn try_downcast<M: Any + Send + 'static>(self) -> Result<M, Self> {
+        match self.0.downcast::<M>() {
+            Ok(b) => Ok(*b),
+            Err(original) => Err(Self(original)),
+        }
     }
 
     /// Try to get a reference to the message as a specific type.
