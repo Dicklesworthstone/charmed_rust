@@ -38,7 +38,7 @@ default = ["wish"]
 wish = ["dep:wish"]
 
 [dev-dependencies]
-criterion = "0.5"          # Benchmarking
+criterion = "0.8"          # Benchmarking
 proptest = "1"             # Property testing
 tempfile = "3"             # Temp directories
 

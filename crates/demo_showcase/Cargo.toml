@@ -68,8 +68,8 @@ tempfile.workspace = true
 assert_cmd.workspace = true
 predicates.workspace = true
 insta.workspace = true
-portable-pty = "0.8"
-vt100 = "0.15"
+portable-pty = "0.9"
+vt100 = "0.16"
 regex = "1"
 
 [[bin]]
