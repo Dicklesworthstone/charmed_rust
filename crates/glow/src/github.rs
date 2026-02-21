@@ -14,7 +14,7 @@ use serde::Deserialize;
 use thiserror::Error;
 
 /// Represents a GitHub repository reference.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepoRef {
     /// Repository owner (user or organization).
     pub owner: String,
@@ -33,11 +33,16 @@ impl RepoRef {
     /// - `https://github.com/owner/repo`
     /// - `git@github.com:owner/repo`
     /// - `owner/repo@branch`
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError`] when the input is not a supported repository
+    /// reference format or misses owner/repository components.
     pub fn parse(input: &str) -> Result<Self, ParseError> {
         let input = input.trim();
 
         // Extract branch if specified with @
-        let (repo_part, branch) = if let Some(at_idx) = input.rfind('@') {
+        let (repo_part, branch) = input.rfind('@').map_or((input, None), |at_idx| {
             // Make sure @ is not part of git@ prefix
             if input.starts_with("git@") && at_idx < 15 {
                 (input, None)
@@ -46,9 +51,7 @@ impl RepoRef {
                 let repo = &input[..at_idx];
                 (repo, Some(branch.to_string()))
             }
-        } else {
-            (input, None)
-        };
+        });
 
         // Try different formats
         let (owner, name) = if repo_part.starts_with("git@github.com:") {
@@ -97,6 +100,7 @@ impl RepoRef {
     }
 
     /// Returns the cache key for this repository.
+    #[must_use]
     pub fn cache_key(&self) -> String {
         // Sanitize components to prevent path traversal in cache filenames
         let sanitize = |s: &str| -> String {
@@ -110,15 +114,17 @@ impl RepoRef {
                 })
                 .collect()
         };
-        match &self.branch {
-            Some(branch) => format!(
+        self.branch.as_ref().map_or_else(
+            || format!("{}_{}", sanitize(&self.owner), sanitize(&self.name)),
+            |branch| {
+                format!(
                 "{}_{}_{}",
                 sanitize(&self.owner),
                 sanitize(&self.name),
                 sanitize(branch)
-            ),
-            None => format!("{}_{}", sanitize(&self.owner), sanitize(&self.name)),
-        }
+            )
+            },
+        )
     }
 }
 
@@ -140,7 +146,7 @@ impl RepoRef {
 ///     Err(e) => eprintln!("Parse error: {}", e),
 /// }
 /// ```
-#[derive(Error, Debug, Clone, PartialEq)]
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
     /// Invalid repository format.
     ///
@@ -263,11 +269,12 @@ pub struct GitHubFetcher {
 
 impl GitHubFetcher {
     /// Create a new fetcher with the given configuration.
+    #[must_use]
     pub fn new(config: FetcherConfig) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .expect("failed to create HTTP client");
+            .unwrap_or_else(|_| Client::new());
 
         let cache_dir = ProjectDirs::from("com", "charmbracelet", "glow")
             .map(|dirs| dirs.cache_dir().to_path_buf());
@@ -280,6 +287,11 @@ impl GitHubFetcher {
     }
 
     /// Fetch the README for a repository.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FetchError`] when cache access fails, the HTTP request fails,
+    /// GitHub returns an error status, or the README content cannot be decoded.
     pub fn fetch_readme(&self, repo: &RepoRef) -> Result<String, FetchError> {
         // Check cache first (unless force refresh)
         if !self.config.force_refresh
@@ -289,16 +301,15 @@ impl GitHubFetcher {
         }
 
         // Build API URL
-        let url = match &repo.branch {
-            Some(branch) => format!(
+        let url = repo.branch.as_ref().map_or_else(
+            || format!("https://api.github.com/repos/{}/{}/readme", repo.owner, repo.name),
+            |branch| {
+                format!(
                 "https://api.github.com/repos/{}/{}/readme?ref={}",
                 repo.owner, repo.name, branch
-            ),
-            None => format!(
-                "https://api.github.com/repos/{}/{}/readme",
-                repo.owner, repo.name
-            ),
-        };
+            )
+            },
+        );
 
         // Build request
         let mut request = self
@@ -361,9 +372,8 @@ impl GitHubFetcher {
     }
 
     fn get_cached(&self, repo: &RepoRef) -> Result<Option<String>, FetchError> {
-        let cache_dir = match &self.cache_dir {
-            Some(dir) => dir,
-            None => return Ok(None),
+        let Some(cache_dir) = &self.cache_dir else {
+            return Ok(None);
         };
 
         let cache_file = cache_dir.join(format!("{}.md", repo.cache_key()));
@@ -386,9 +396,8 @@ impl GitHubFetcher {
     }
 
     fn set_cached(&self, repo: &RepoRef, content: &str) -> Result<(), FetchError> {
-        let cache_dir = match &self.cache_dir {
-            Some(dir) => dir,
-            None => return Ok(()),
+        let Some(cache_dir) = &self.cache_dir else {
+            return Ok(());
         };
 
         fs::create_dir_all(cache_dir)?;
@@ -418,7 +427,7 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
         if value < 0 {
             return Err(format!("invalid character: {}", char::from(byte)));
         }
-        Ok(value as u8)
+        Ok(value.cast_unsigned())
     }
 
     if !input.len().is_multiple_of(4) {

@@ -11,6 +11,13 @@
 //! // Use in TUI with bubbletea Model trait
 //! ```
 
+#![allow(
+    clippy::missing_const_for_fn,
+    clippy::missing_errors_doc,
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use
+)]
+
 use std::cmp::Ordering;
 use std::ffi::OsStr;
 use std::fs;
@@ -84,10 +91,10 @@ impl Entry {
         let symlink_metadata = fs::symlink_metadata(path)?;
         let file_type = symlink_metadata.file_type();
         let (size, modified) = if file_type.is_symlink() {
-            match fs::metadata(path) {
-                Ok(target) => (target.len(), target.modified().ok()),
-                Err(_) => (symlink_metadata.len(), symlink_metadata.modified().ok()),
-            }
+            fs::metadata(path).map_or_else(
+                |_| (symlink_metadata.len(), symlink_metadata.modified().ok()),
+                |target| (target.len(), target.modified().ok()),
+            )
         } else {
             (symlink_metadata.len(), symlink_metadata.modified().ok())
         };
@@ -290,17 +297,15 @@ impl FileBrowser {
                     *flag = is_markdown;
                 }
                 // For non-recursive mode, add directories and markdown files
-                if !self.config.recursive {
-                    if file_entry.is_directory() || is_markdown {
-                        self.entries.push(file_entry);
-                    }
-                } else {
+                if self.config.recursive {
                     // For recursive mode, only show markdown files
                     if is_markdown {
                         self.entries.push(file_entry);
                     } else if file_entry.is_directory() && !is_symlink {
                         self.scan_directory(&path, depth + 1)?;
                     }
+                } else if file_entry.is_directory() || is_markdown {
+                    self.entries.push(file_entry);
                 }
             }
         }
@@ -641,9 +646,8 @@ fn is_markdown_file(path: &Path) -> bool {
 const DEFAULT_MARKDOWN_EXTENSIONS: [&str; 4] = ["md", "markdown", "mdown", "mkd"];
 
 fn is_markdown_with_extensions(path: &Path, extensions: &[String]) -> bool {
-    let ext = match path.extension().and_then(OsStr::to_str) {
-        Some(ext) => ext,
-        None => return false,
+    let Some(ext) = path.extension().and_then(OsStr::to_str) else {
+        return false;
     };
     let ext = ext.to_ascii_lowercase();
 
@@ -666,14 +670,20 @@ fn format_size(bytes: u64) -> String {
     const GB: u64 = MB * 1024;
 
     if bytes >= GB {
-        format!("{:.1}G", bytes as f64 / GB as f64)
+        format_with_tenths(bytes, GB, "G")
     } else if bytes >= MB {
-        format!("{:.1}M", bytes as f64 / MB as f64)
+        format_with_tenths(bytes, MB, "M")
     } else if bytes >= KB {
-        format!("{:.1}K", bytes as f64 / KB as f64)
+        format_with_tenths(bytes, KB, "K")
     } else {
-        format!("{}B", bytes)
+        format!("{bytes}B")
     }
+}
+
+fn format_with_tenths(bytes: u64, unit: u64, suffix: &str) -> String {
+    let whole = bytes / unit;
+    let tenth = ((bytes % unit) * 10) / unit;
+    format!("{whole}.{tenth}{suffix}")
 }
 
 /// Truncates a string to a maximum width.
@@ -699,7 +709,7 @@ fn truncate_string(s: &str, max_width: usize) -> String {
             result.push(ch);
             current_width += width;
         }
-        format!("{}…", result)
+        format!("{result}…")
     }
 }
 
@@ -760,8 +770,13 @@ mod tests {
         let mut browser = FileBrowser::with_directory(dir.path(), config).unwrap();
         browser.scan().unwrap();
 
-        let names: Vec<_> = browser.entries.iter().map(|e| &e.name).collect();
-        assert!(names.contains(&&".hidden.md".to_string()));
+        assert!(
+            browser
+                .entries
+                .iter()
+                .map(|e| &e.name)
+                .any(|name| name == ".hidden.md")
+        );
     }
 
     #[test]

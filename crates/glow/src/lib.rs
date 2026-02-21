@@ -1,7 +1,4 @@
 #![forbid(unsafe_code)]
-// Allow pedantic lints for early-stage API ergonomics.
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
 
 //! # Glow
 //!
@@ -83,6 +80,7 @@ use glamour::{Style as GlamourStyle, TermRenderer};
 ///     .style("light");
 /// ```
 #[derive(Debug, Clone)]
+#[must_use]
 pub struct Config {
     pager: bool,
     width: Option<usize>,
@@ -104,13 +102,13 @@ impl Config {
     }
 
     /// Enables or disables pager mode.
-    pub fn pager(mut self, enabled: bool) -> Self {
+    pub const fn pager(mut self, enabled: bool) -> Self {
         self.pager = enabled;
         self
     }
 
     /// Sets the output width.
-    pub fn width(mut self, width: usize) -> Self {
+    pub const fn width(mut self, width: usize) -> Self {
         self.width = Some(width);
         self
     }
@@ -122,13 +120,13 @@ impl Config {
     }
 
     /// Enables or disables line numbers in code blocks.
-    pub fn line_numbers(mut self, enabled: bool) -> Self {
+    pub const fn line_numbers(mut self, enabled: bool) -> Self {
         self.line_numbers = enabled;
         self
     }
 
     /// Enables or disables preserving newlines in output.
-    pub fn preserve_newlines(mut self, enabled: bool) -> Self {
+    pub const fn preserve_newlines(mut self, enabled: bool) -> Self {
         self.preserve_newlines = enabled;
         self
     }
@@ -180,28 +178,38 @@ impl Default for Config {
 /// # }
 /// ```
 #[derive(Debug)]
+#[must_use]
 pub struct Reader {
     config: Config,
 }
 
 impl Reader {
     /// Creates a new reader with the given configuration.
-    pub fn new(config: Config) -> Self {
+    pub const fn new(config: Config) -> Self {
         Self { config }
     }
 
     /// Returns the reader configuration.
-    pub fn config(&self) -> &Config {
+    pub const fn config(&self) -> &Config {
         &self.config
     }
 
     /// Reads and renders a markdown file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the file cannot be read from disk or when
+    /// markdown rendering fails for the configured renderer.
     pub fn read_file<P: AsRef<Path>>(&self, path: P) -> io::Result<String> {
         let markdown = std::fs::read_to_string(path)?;
         self.render_markdown(&markdown)
     }
 
     /// Renders markdown text using the configured renderer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the configured style cannot be parsed.
     pub fn render_markdown(&self, markdown: &str) -> io::Result<String> {
         let renderer = self.config.renderer()?;
         // Match Go glow: trim leading/trailing whitespace on each rendered line.
@@ -222,6 +230,7 @@ impl Reader {
 /// assert_eq!(stash.documents().len(), 2);
 /// ```
 #[derive(Debug, Default)]
+#[must_use]
 pub struct Stash {
     documents: Vec<String>,
 }
@@ -238,6 +247,7 @@ impl Stash {
     }
 
     /// Returns all stashed documents.
+    #[must_use]
     pub fn documents(&self) -> &[String] {
         &self.documents
     }
@@ -430,7 +440,7 @@ mod tests {
         let config = Config::new().style("dark").width(80);
         let reader = Reader::new(config);
 
-        let markdown = r#"
+        let markdown = r"
 # Heading
 
 Some **bold** and *italic* text.
@@ -441,7 +451,7 @@ Some **bold** and *italic* text.
 ```rust
 fn main() {}
 ```
-"#;
+";
 
         let result = reader.render_markdown(markdown);
         assert!(result.is_ok());
