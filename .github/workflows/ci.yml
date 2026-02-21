@@ -40,6 +40,11 @@ jobs:
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
+      - name: Enforce clippy allow policy and publish report
+        run: |
+          python3 scripts/clippy_allow_report.py --fail-on-forbidden | tee clippy_allow_report.md
+          cat clippy_allow_report.md >> "$GITHUB_STEP_SUMMARY"
+
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
