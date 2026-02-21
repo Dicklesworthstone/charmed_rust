@@ -1,7 +1,4 @@
 #![forbid(unsafe_code)]
-// Allow pedantic lints for early-stage API ergonomics.
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
 
 //! # Charmed Log
 //!
@@ -17,7 +14,7 @@
 //!
 //! Charmed Log is the logging spine for TUI applications in this repo:
 //! - **wish** uses it for SSH session logging and diagnostics.
-//! - **demo_showcase** uses it for traceable, styled logs in tests and demos.
+//! - **`demo_showcase`** uses it for traceable, styled logs in tests and demos.
 //! - **lipgloss** supplies the styling used in human-readable formatters.
 //!
 //! ## Example
@@ -40,7 +37,7 @@ use lipgloss::{Color, Style};
 use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, Write};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, PoisonError, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
@@ -63,7 +60,7 @@ pub enum Level {
 impl Level {
     /// Returns the string representation of the level.
     #[must_use]
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Debug => "debug",
             Self::Info => "info",
@@ -75,7 +72,7 @@ impl Level {
 
     /// Returns the uppercase string representation of the level.
     #[must_use]
-    pub fn as_upper_str(&self) -> &'static str {
+    pub const fn as_upper_str(&self) -> &'static str {
         match self {
             Self::Debug => "DEBU",
             Self::Info => "INFO",
@@ -256,7 +253,7 @@ pub type TimeFunction = fn(std::time::SystemTime) -> std::time::SystemTime;
 
 /// Returns the time in UTC.
 #[must_use]
-pub fn now_utc(t: SystemTime) -> SystemTime {
+pub const fn now_utc(t: SystemTime) -> SystemTime {
     t // SystemTime is already timezone-agnostic
 }
 
@@ -348,10 +345,10 @@ impl CallerInfo {
         for frame in frames.iter().skip(skip_total) {
             for symbol in frame.symbols() {
                 // Get function name and filter out internal frames
-                let fn_name = symbol
-                    .name()
-                    .map(|n| n.to_string())
-                    .unwrap_or_else(|| "<unknown>".to_string());
+                let fn_name = symbol.name().map_or_else(
+                    || "<unknown>".to_string(),
+                    |symbol_name| symbol_name.to_string(),
+                );
 
                 // Skip frames from logging crate itself
                 if fn_name.contains("charmed_log::") || fn_name.contains("backtrace::") {
@@ -427,6 +424,10 @@ impl Default for Options {
 }
 
 /// Internal logger state.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "Explicit independent flags keep logger state transitions simple"
+)]
 struct LoggerInner {
     writer: Box<dyn Write + Send + Sync>,
     level: Level,
@@ -471,7 +472,7 @@ impl Clone for Logger {
 
 impl fmt::Debug for Logger {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
+        let inner = self.inner.read().unwrap_or_else(PoisonError::into_inner);
         f.debug_struct("Logger")
             .field("level", &inner.level)
             .field("prefix", &inner.prefix)
@@ -516,33 +517,33 @@ impl Logger {
 
     /// Sets the minimum log level.
     pub fn set_level(&self, level: Level) {
-        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
         inner.level = level;
     }
 
     /// Returns the current log level.
     #[must_use]
     pub fn level(&self) -> Level {
-        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
+        let inner = self.inner.read().unwrap_or_else(PoisonError::into_inner);
         inner.level
     }
 
     /// Sets the log prefix.
     pub fn set_prefix(&self, prefix: impl Into<String>) {
-        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
         inner.prefix = prefix.into();
     }
 
     /// Returns the current prefix.
     #[must_use]
     pub fn prefix(&self) -> String {
-        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
+        let inner = self.inner.read().unwrap_or_else(PoisonError::into_inner);
         inner.prefix.clone()
     }
 
     /// Sets whether to report timestamps.
     pub fn set_report_timestamp(&self, report: bool) {
-        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
         inner.report_timestamp = report;
     }
 
@@ -566,7 +567,7 @@ impl Logger {
     ///
     /// [`suppress_caller_warning`]: Logger::suppress_caller_warning
     pub fn set_report_caller(&self, report: bool) {
-        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
         inner.report_caller = report;
     }
 
@@ -591,25 +592,25 @@ impl Logger {
     /// logger.info("debug message", &[]);
     /// ```
     pub fn suppress_caller_warning(&self) {
-        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
         inner.suppress_caller_warning = true;
     }
 
     /// Sets the time format.
     pub fn set_time_format(&self, format: impl Into<String>) {
-        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
         inner.time_format = format.into();
     }
 
     /// Sets the formatter.
     pub fn set_formatter(&self, formatter: Formatter) {
-        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
         inner.formatter = formatter;
     }
 
     /// Sets the styles.
     pub fn set_styles(&self, styles: Styles) {
-        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
         inner.styles = styles;
     }
 
@@ -619,7 +620,7 @@ impl Logger {
     /// use [`with`](Logger::with) instead.
     #[must_use]
     pub fn with_fields(&self, fields: &[(&str, &str)]) -> Self {
-        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
+        let inner = self.inner.read().unwrap_or_else(PoisonError::into_inner);
         let mut new_fields = inner.fields.clone();
         new_fields.extend(fields.iter().map(|(k, v)| (k.to_string(), v.to_string())));
 
@@ -704,7 +705,7 @@ impl Logger {
     where
         F: Fn(io::Error) + Send + Sync + 'static,
     {
-        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
         inner.error_handler = Some(Arc::new(handler));
         drop(inner);
         self
@@ -719,7 +720,7 @@ impl Logger {
         // Use a single write lock for the entire operation to avoid race conditions
         // between configuration reads and writes. This eliminates the window where
         // another thread could modify settings between formatting and writing.
-        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
+        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
 
         // Check if we need to emit caller overhead warning
         if inner.report_caller && !inner.warned_caller_overhead && !inner.suppress_caller_warning {
@@ -785,11 +786,11 @@ impl Logger {
             if let Ok(duration) = ts.duration_since(UNIX_EPOCH) {
                 let secs = duration.as_secs();
                 let ts_str = format_timestamp(secs, &inner.time_format);
-                let styled = styles.timestamp.render(&ts_str);
+                let rendered = styles.timestamp.render(&ts_str);
                 if !first {
                     output.push(' ');
                 }
-                output.push_str(&styled);
+                output.push_str(&rendered);
                 first = false;
             }
         }
@@ -811,31 +812,31 @@ impl Logger {
             } else {
                 (inner.caller_formatter)("unknown", 0, "unknown")
             };
-            let styled = styles.caller.render(&format!("<{caller_str}>"));
+            let rendered = styles.caller.render(&format!("<{caller_str}>"));
             if !first {
                 output.push(' ');
             }
-            output.push_str(&styled);
+            output.push_str(&rendered);
             first = false;
         }
 
         // Prefix
         if !inner.prefix.is_empty() {
-            let styled = styles.prefix.render(&format!("{}:", inner.prefix));
+            let rendered = styles.prefix.render(&format!("{}:", inner.prefix));
             if !first {
                 output.push(' ');
             }
-            output.push_str(&styled);
+            output.push_str(&rendered);
             first = false;
         }
 
         // Message
         if !msg.is_empty() {
-            let styled = styles.message.render(msg);
+            let rendered = styles.message.render(msg);
             if !first {
                 output.push(' ');
             }
-            output.push_str(&styled);
+            output.push_str(&rendered);
             first = false;
         }
 
@@ -861,16 +862,14 @@ impl Logger {
         output: &mut String,
     ) {
         let sep = styles.separator.render("=");
-        let key_styled = if let Some(style) = styles.keys.get(key) {
-            style.render(key)
-        } else {
-            styles.key.render(key)
-        };
-        let value_styled = if let Some(style) = styles.values.get(key) {
-            style.render(value)
-        } else {
-            styles.value.render(value)
-        };
+        let key_styled = styles
+            .keys
+            .get(key)
+            .map_or_else(|| styles.key.render(key), |style| style.render(key));
+        let value_styled = styles
+            .values
+            .get(key)
+            .map_or_else(|| styles.value.render(value), |style| style.render(value));
 
         if !*first {
             output.push(' ');
@@ -979,6 +978,7 @@ impl Logger {
     // =========================================================================
 
     #[expect(dead_code, reason = "Kept for API compatibility")]
+    #[expect(clippy::unused_self, reason = "Kept as method for API compatibility")]
     fn format_text(
         &self,
         inner: &LoggerInner,
@@ -991,6 +991,7 @@ impl Logger {
     }
 
     #[expect(dead_code, reason = "Kept for API compatibility")]
+    #[expect(clippy::unused_self, reason = "Kept as method for API compatibility")]
     fn format_text_keyval(
         &self,
         styles: &Styles,
@@ -1003,6 +1004,7 @@ impl Logger {
     }
 
     #[expect(dead_code, reason = "Kept for API compatibility")]
+    #[expect(clippy::unused_self, reason = "Kept as method for API compatibility")]
     fn format_json(
         &self,
         inner: &LoggerInner,
@@ -1015,6 +1017,7 @@ impl Logger {
     }
 
     #[expect(dead_code, reason = "Kept for API compatibility")]
+    #[expect(clippy::unused_self, reason = "Kept as method for API compatibility")]
     fn format_logfmt(
         &self,
         inner: &LoggerInner,
@@ -1112,11 +1115,13 @@ fn format_args_simple(format: &str, args: &[&dyn fmt::Display]) -> String {
 fn format_timestamp(secs: u64, format: &str) -> String {
     use chrono::{DateTime, Utc};
 
-    if let Some(datetime) = DateTime::from_timestamp(secs as i64, 0) {
-        datetime.with_timezone(&Utc).format(format).to_string()
-    } else {
-        "INVALID TIMESTAMP".to_string()
-    }
+    i64::try_from(secs)
+        .ok()
+        .and_then(|signed_secs| DateTime::from_timestamp(signed_secs, 0))
+        .map_or_else(
+            || "INVALID TIMESTAMP".to_string(),
+            |datetime| datetime.with_timezone(&Utc).format(format).to_string(),
+        )
 }
 
 /// Writes a JSON field.
@@ -1134,6 +1139,8 @@ fn write_json_field(output: &mut String, key: &str, value: &str, first: &mut boo
 
 /// Escapes a string for JSON.
 fn escape_json(s: &str) -> String {
+    use std::fmt::Write as _;
+
     let mut result = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
@@ -1145,13 +1152,13 @@ fn escape_json(s: &str) -> String {
             c if c.is_control() => {
                 let cp = c as u32;
                 if cp <= 0xFFFF {
-                    result.push_str(&format!("\\u{cp:04x}"));
+                    let _ = write!(result, "\\u{cp:04x}");
                 } else {
                     // Encode as UTF-16 surrogate pair for JSON compatibility
                     let s = cp - 0x10000;
                     let hi = 0xD800 + (s >> 10);
                     let lo = 0xDC00 + (s & 0x3FF);
-                    result.push_str(&format!("\\u{hi:04x}\\u{lo:04x}"));
+                    let _ = write!(result, "\\u{hi:04x}\\u{lo:04x}");
                 }
             }
             c => result.push(c),
@@ -1203,9 +1210,9 @@ fn escape_logfmt(s: &str) -> String {
 /// Prelude module for convenient imports.
 pub mod prelude {
     pub use crate::{
-        CallerInfo, DEFAULT_TIME_FORMAT, ErrorHandler, Formatter, Level, Logger, Options,
-        ParseLevelError, ParseResult, Styles, keys, long_caller_formatter, now_utc,
-        short_caller_formatter,
+        keys, long_caller_formatter, now_utc, short_caller_formatter, CallerInfo, ErrorHandler,
+        Formatter, Level, Logger, Options, ParseLevelError, ParseResult, Styles,
+        DEFAULT_TIME_FORMAT,
     };
 }
 
@@ -1440,6 +1447,7 @@ mod tests {
         let error_msg = captured_error.lock().unwrap();
         assert!(error_msg.is_some());
         assert!(error_msg.as_ref().unwrap().contains("simulated failure"));
+        drop(error_msg);
     }
 
     #[test]
@@ -1462,6 +1470,7 @@ mod tests {
         // Verify has_warned_io_failure is set
         let inner = logger.inner.read().unwrap();
         assert!(inner.has_warned_io_failure);
+        drop(inner);
     }
 
     #[test]
@@ -1492,14 +1501,7 @@ mod tests {
 
     #[test]
     fn test_with_error_handler_returns_same_logger() {
-        use std::sync::atomic::{AtomicBool, Ordering};
-
-        let called = Arc::new(AtomicBool::new(false));
-        let flag = called.clone();
-
-        let logger = Logger::new().with_error_handler(move |_| {
-            flag.store(true, Ordering::Relaxed);
-        });
+        let logger = Logger::new().with_error_handler(move |_| {});
 
         // Verify the logger is usable after setting error handler
         assert_eq!(logger.level(), Level::Info);
@@ -1507,6 +1509,7 @@ mod tests {
         // The error handler should be set
         let inner = logger.inner.read().unwrap();
         assert!(inner.error_handler.is_some());
+        drop(inner);
     }
 
     #[test]
@@ -1518,6 +1521,7 @@ mod tests {
         {
             let inner = logger.inner.read().unwrap();
             assert!(!inner.warned_caller_overhead);
+            drop(inner);
         }
 
         // Log a message (this should set the warning flag)
@@ -1527,6 +1531,7 @@ mod tests {
         {
             let inner = logger.inner.read().unwrap();
             assert!(inner.warned_caller_overhead);
+            drop(inner);
         }
     }
 
@@ -1540,6 +1545,7 @@ mod tests {
         {
             let inner = logger.inner.read().unwrap();
             assert!(inner.suppress_caller_warning);
+            drop(inner);
         }
 
         // Log a message (warning flag should still be false since suppressed)
@@ -1549,6 +1555,7 @@ mod tests {
         {
             let inner = logger.inner.read().unwrap();
             assert!(!inner.warned_caller_overhead);
+            drop(inner);
         }
     }
 
@@ -1564,6 +1571,7 @@ mod tests {
         {
             let inner = logger.inner.read().unwrap();
             assert!(!inner.warned_caller_overhead);
+            drop(inner);
         }
     }
 
@@ -1580,6 +1588,7 @@ mod tests {
         {
             let inner = child.inner.read().unwrap();
             assert!(inner.suppress_caller_warning);
+            drop(inner);
         }
     }
 
@@ -1598,6 +1607,7 @@ mod tests {
         {
             let inner = child.inner.read().unwrap();
             assert!(!inner.warned_caller_overhead);
+            drop(inner);
         }
     }
 }
