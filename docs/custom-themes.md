@@ -142,9 +142,14 @@ lipgloss accepts colors in multiple formats:
 
 ```rust
 use lipgloss::Theme;
+use std::path::PathBuf;
 
 // Auto-detects format from extension
-let theme = Theme::from_file("~/.config/myapp/theme.toml")?;
+let theme_path = dirs::config_dir()
+    .unwrap_or_else(|| PathBuf::from("."))
+    .join("myapp")
+    .join("theme.toml");
+let theme = Theme::from_file(&theme_path)?;
 
 // Or parse directly
 let toml_content = std::fs::read_to_string("theme.toml")?;

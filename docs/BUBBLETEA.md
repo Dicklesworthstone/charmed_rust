@@ -1,4 +1,4 @@
-# Bubbletea Crate Specification
+# Bubbletea Crate Guide
 
 ## Overview
 
@@ -31,10 +31,10 @@ Primary files from `legacy_bubbletea/`:
 /// Application model trait - the heart of the Elm Architecture.
 pub trait Model: Send + 'static {
     /// Initialize the model and return an optional startup command.
-    fn init(&self) -> Option<Cmd<Self>>;
+    fn init(&self) -> Option<Cmd>;
 
-    /// Process a message and return the new model state with optional command.
-    fn update(&mut self, msg: Message) -> Option<Cmd<Self>>;
+    /// Process a message and return an optional follow-up command.
+    fn update(&mut self, msg: Message) -> Option<Cmd>;
 
     /// Render the model as a string for display.
     fn view(&self) -> String;
@@ -71,28 +71,38 @@ pub struct BlurMsg;
 ### Commands
 
 ```rust
-/// A lazy IO operation that produces a message.
-pub type Cmd<M> = Box<dyn FnOnce() -> Option<Message> + Send>;
+/// A lazy IO operation that may produce a message.
+pub struct Cmd(/* closure-backed command */);
+
+impl Cmd {
+    pub fn new<F>(f: F) -> Self
+    where
+        F: FnOnce() -> Message + Send + 'static;
+
+    pub fn new_optional<F>(f: F) -> Self
+    where
+        F: FnOnce() -> Option<Message> + Send + 'static;
+
+    pub fn execute(self) -> Option<Message>;
+}
 
 /// Batch multiple commands to run concurrently (unordered).
-pub fn batch<M: Model>(cmds: Vec<Option<Cmd<M>>>) -> Option<Cmd<M>>;
+pub fn batch(cmds: Vec<Option<Cmd>>) -> Option<Cmd>;
 
 /// Sequence commands to run in order.
-pub fn sequence<M: Model>(cmds: Vec<Option<Cmd<M>>>) -> Option<Cmd<M>>;
+pub fn sequence(cmds: Vec<Option<Cmd>>) -> Option<Cmd>;
 
 /// Command that signals program to quit.
-pub fn quit<M: Model>() -> Cmd<M>;
+pub fn quit() -> Cmd;
 
 /// Tick command for periodic updates.
-pub fn tick<M, F>(duration: Duration, f: F) -> Cmd<M>
+pub fn tick<F>(duration: Duration, f: F) -> Cmd
 where
-    M: Model,
     F: FnOnce(Instant) -> Message + Send + 'static;
 
 /// Sync with system clock for precise timing.
-pub fn every<M, F>(duration: Duration, f: F) -> Cmd<M>
+pub fn every<F>(duration: Duration, f: F) -> Cmd
 where
-    M: Model,
     F: FnOnce(Instant) -> Message + Send + 'static;
 ```
 
@@ -102,12 +112,6 @@ where
 /// Keyboard key event.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyMsg {
-    pub key: Key,
-}
-
-/// Key representation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Key {
     pub key_type: KeyType,
     pub runes: Vec<char>,
     pub alt: bool,
@@ -187,19 +191,11 @@ pub enum KeyType {
     Runes,
 }
 
-impl Key {
-    /// Create a key from a character.
-    pub fn from_char(c: char) -> Self;
-
-    /// Create a key from a key type.
+impl KeyMsg {
+    /// Helper constructors for synthetic input in tests and simulations.
     pub fn from_type(key_type: KeyType) -> Self;
-
-    /// Get the string representation of the key.
-    pub fn string(&self) -> String;
-}
-
-impl std::fmt::Display for Key {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
+    pub fn from_char(c: char) -> Self;
+    pub fn from_runes(runes: Vec<char>) -> Self;
 }
 ```
 
@@ -207,14 +203,8 @@ impl std::fmt::Display for Key {
 
 ```rust
 /// Mouse event message.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MouseMsg {
-    pub event: MouseEvent,
-}
-
-/// Mouse event details.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MouseEvent {
     pub x: u16,
     pub y: u16,
     pub shift: bool,
@@ -247,12 +237,9 @@ pub enum MouseButton {
     Forward,
 }
 
-impl MouseEvent {
+impl MouseMsg {
     /// Check if this is a wheel event.
     pub fn is_wheel(&self) -> bool;
-
-    /// Get string representation.
-    pub fn string(&self) -> String;
 }
 ```
 
@@ -398,46 +385,46 @@ impl StandardRenderer {
 
 ```rust
 /// Command to clear the screen.
-pub fn clear_screen<M: Model>() -> Cmd<M>;
+pub fn clear_screen() -> Cmd;
 
 /// Command to enter alternate screen buffer.
-pub fn enter_alt_screen<M: Model>() -> Cmd<M>;
+pub fn enter_alt_screen() -> Cmd;
 
 /// Command to exit alternate screen buffer.
-pub fn exit_alt_screen<M: Model>() -> Cmd<M>;
+pub fn exit_alt_screen() -> Cmd;
 
 /// Command to show the cursor.
-pub fn show_cursor<M: Model>() -> Cmd<M>;
+pub fn show_cursor() -> Cmd;
 
 /// Command to hide the cursor.
-pub fn hide_cursor<M: Model>() -> Cmd<M>;
+pub fn hide_cursor() -> Cmd;
 
 /// Command to enable mouse cell motion tracking.
-pub fn enable_mouse_cell_motion<M: Model>() -> Cmd<M>;
+pub fn enable_mouse_cell_motion() -> Cmd;
 
 /// Command to enable mouse all motion tracking.
-pub fn enable_mouse_all_motion<M: Model>() -> Cmd<M>;
+pub fn enable_mouse_all_motion() -> Cmd;
 
 /// Command to disable mouse tracking.
-pub fn disable_mouse<M: Model>() -> Cmd<M>;
+pub fn disable_mouse() -> Cmd;
 
 /// Command to enable bracketed paste mode.
-pub fn enable_bracketed_paste<M: Model>() -> Cmd<M>;
+pub fn enable_bracketed_paste() -> Cmd;
 
 /// Command to disable bracketed paste mode.
-pub fn disable_bracketed_paste<M: Model>() -> Cmd<M>;
+pub fn disable_bracketed_paste() -> Cmd;
 
 /// Command to set window title.
-pub fn set_window_title<M: Model>(title: impl Into<String>) -> Cmd<M>;
+pub fn set_window_title(title: impl Into<String>) -> Cmd;
 
 /// Command to query window size.
-pub fn window_size<M: Model>() -> Cmd<M>;
+pub fn window_size() -> Cmd;
 
 /// Command to enable focus reporting.
-pub fn enable_report_focus<M: Model>() -> Cmd<M>;
+pub fn enable_report_focus() -> Cmd;
 
 /// Command to disable focus reporting.
-pub fn disable_report_focus<M: Model>() -> Cmd<M>;
+pub fn disable_report_focus() -> Cmd;
 ```
 
 ## Module Structure
@@ -446,30 +433,30 @@ pub fn disable_report_focus<M: Model>() -> Cmd<M>;
 crates/bubbletea/
 ├── Cargo.toml
 └── src/
-    ├── lib.rs           # Module exports and documentation
-    ├── model.rs         # Model trait definition
-    ├── message.rs       # Message type and built-in messages
-    ├── command.rs       # Cmd type and combinators
-    ├── key.rs           # Keyboard input types
-    ├── key_sequences.rs # ANSI escape sequence mapping
-    ├── mouse.rs         # Mouse input types
-    ├── program.rs       # Program struct and lifecycle
-    ├── renderer.rs      # Renderer trait and StandardRenderer
-    ├── screen.rs        # Screen control commands
-    └── input.rs         # Terminal input reading
+    ├── lib.rs         # Module exports and top-level rustdoc
+    ├── command.rs     # Cmd type and combinators
+    ├── key.rs         # Keyboard input types and sequence parsing
+    ├── message.rs     # Message type and built-in messages
+    ├── mouse.rs       # Mouse input types and parsing
+    ├── program.rs     # Program runtime, event loop, options
+    ├── screen.rs      # Screen control commands
+    └── simulator.rs   # Deterministic model simulation utilities
 ```
 
 ## Dependencies
 
 ```toml
 [dependencies]
-crossterm = "0.27"         # Terminal control (raw mode, events)
-tokio = { version = "1", features = ["sync", "time", "rt-multi-thread"], optional = true }
+crossterm = "0.29"         # Terminal control (raw mode, events)
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"], optional = true }
+tokio-util = { version = "0.7", features = ["rt"], optional = true }
+futures = { version = "0.3", optional = true }
 parking_lot = "0.12"       # Fast mutexes
 
 [features]
-default = ["async"]
-async = ["tokio"]
+default = ["macros"]
+macros = ["dep:bubbletea-macros"]
+async = ["dep:tokio", "dep:tokio-util", "dep:futures"]
 ```
 
 ## Key Differences from Go
@@ -483,7 +470,7 @@ Go uses interfaces with implicit ownership. Rust requires explicit ownership:
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd)
 
 // Rust: explicit mutable reference
-fn update(&mut self, msg: Message) -> Option<Cmd<Self>>;
+fn update(&mut self, msg: Message) -> Option<Cmd>;
 ```
 
 ### Type-Safe Messages
@@ -511,18 +498,18 @@ Go uses goroutines. Rust uses either:
 
 ```rust
 // Sync version
-fn execute_command<M: Model>(cmd: Cmd<M>, sender: Sender<Message>) {
+fn execute_command(cmd: Cmd, sender: Sender<Message>) {
     thread::spawn(move || {
-        if let Some(msg) = cmd() {
+        if let Some(msg) = cmd.execute() {
             let _ = sender.send(msg);
         }
     });
 }
 
 // Async version (with tokio feature)
-async fn execute_command<M: Model>(cmd: Cmd<M>, sender: Sender<Message>) {
+async fn execute_command(cmd: Cmd, sender: Sender<Message>) {
     tokio::spawn(async move {
-        if let Some(msg) = cmd() {
+        if let Some(msg) = cmd.execute() {
             let _ = sender.send(msg).await;
         }
     });
@@ -545,7 +532,7 @@ use crossterm::{
 ## Usage Example
 
 ```rust
-use bubbletea::{Model, Message, Cmd, Program, KeyMsg, KeyType, quit};
+use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, quit};
 
 struct Counter {
     count: i32,
@@ -555,19 +542,19 @@ struct IncrementMsg;
 struct DecrementMsg;
 
 impl Model for Counter {
-    fn init(&self) -> Option<Cmd<Self>> {
+    fn init(&self) -> Option<Cmd> {
         None
     }
 
-    fn update(&mut self, msg: Message) -> Option<Cmd<Self>> {
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
         if let Some(_) = msg.downcast::<IncrementMsg>() {
             self.count += 1;
         } else if let Some(_) = msg.downcast::<DecrementMsg>() {
             self.count -= 1;
         } else if let Some(key) = msg.downcast::<KeyMsg>() {
-            match key.key.key_type {
+            match key.key_type {
                 KeyType::CtrlC | KeyType::Esc => return Some(quit()),
-                KeyType::Runes if key.key.runes == vec!['q'] => return Some(quit()),
+                KeyType::Runes if key.runes == vec!['q'] => return Some(quit()),
                 _ => {}
             }
         }
@@ -588,6 +575,26 @@ fn main() -> Result<(), bubbletea::Error> {
     Ok(())
 }
 ```
+
+## Getting Started Workflow
+
+Follow this order when building a production-quality Bubble Tea app:
+
+1. Define your domain state in a `Model` struct with no rendering concerns.
+2. Define explicit message types for user intent, timer ticks, and external events.
+3. Keep `update` deterministic and return `Cmd` values for all side effects.
+4. Start with plain string `view` output, then layer in `lipgloss` styles.
+5. Introduce `bubbles` components only where they replace common behavior (list, textinput, viewport, spinner, progress).
+6. Add terminal behavior options intentionally (`with_alt_screen`, mouse tracking, bracketed paste).
+7. Add tests for message transitions and quit/error paths before adding advanced features.
+
+### Quality Gates for Bubble Tea Apps
+
+- Verify all key paths can be driven by `Message` inputs alone (no hidden side effects).
+- Verify intentional panic paths and quit behavior in tests.
+- Verify resize, focus/blur, and interrupt messages do not leave stale UI state.
+- Verify command-producing transitions always return quickly and do not block the update loop.
+- Verify keyboard escape hatches (`q`, `esc`, `ctrl+c`) work from all major screens.
 
 ## Implementation Priority
 

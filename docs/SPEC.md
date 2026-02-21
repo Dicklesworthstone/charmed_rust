@@ -4,6 +4,16 @@
 
 This project ports the **Charm** suite of Go terminal UI libraries to idiomatic Rust. The Charm ecosystem provides beautiful terminal applications through a cohesive set of libraries built around the Elm architecture. Our Rust port will leverage Rust's ownership model, type system, and ecosystem to create an even more robust and performant implementation.
 
+## Start Here
+
+If you are onboarding to this repository, read `README.md` in this docs directory first. It provides guided reading paths for:
+
+- Fast onboarding to get a first app running.
+- Building polished, accessible, high-quality UI.
+- Deep architecture and implementation work.
+
+Then use this specification as the source of truth for project scope, dependency ordering, and crate-level responsibilities.
+
 ## Source Libraries
 
 | Library | Purpose | Go LoC (est.) | Complexity | Priority |

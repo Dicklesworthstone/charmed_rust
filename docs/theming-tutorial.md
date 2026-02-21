@@ -38,7 +38,7 @@ fn main() {
     let error = theme.get(ColorSlot::Error);
 
     // Create styles with theme colors
-    let title_style = Style::new().foreground(primary).bold(true);
+    let title_style = Style::new().foreground(primary).bold();
     let error_style = Style::new().foreground(error);
 
     println!("{}", title_style.render("Welcome!"));
