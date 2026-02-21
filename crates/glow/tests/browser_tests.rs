@@ -1,6 +1,3 @@
-#![allow(clippy::pedantic)]
-#![allow(clippy::nursery)]
-
 //! External unit tests for glow file browser, utility rendering, and
 //! Reader/Config edge cases.
 

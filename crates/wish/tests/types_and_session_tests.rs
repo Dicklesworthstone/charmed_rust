@@ -1,7 +1,4 @@
-#![allow(clippy::pedantic)]
-#![allow(clippy::nursery)]
-
-//! Unit tests for wish types: Window, Pty, PublicKey, Context, Session.
+//! Unit tests for wish types: `Window`, `Pty`, `PublicKey`, `Context`, `Session`.
 //! These test the public API without requiring an actual SSH connection.
 
 use std::net::SocketAddr;
@@ -194,8 +191,13 @@ fn context_clone_shares_values() {
     let ctx = Context::new("eve", test_remote(), test_addr());
     ctx.set_value("shared", "yes");
     let ctx2 = ctx.clone();
+    ctx.set_value("after_clone", "still_shared");
     // Arc<RwLock<HashMap>> is shared
     assert_eq!(ctx2.get_value("shared"), Some("yes".to_string()));
+    assert_eq!(
+        ctx2.get_value("after_clone"),
+        Some("still_shared".to_string())
+    );
 }
 
 // =============================================================================

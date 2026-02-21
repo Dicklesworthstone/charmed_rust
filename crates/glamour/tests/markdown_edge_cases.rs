@@ -1,10 +1,7 @@
-#![allow(clippy::pedantic)]
-#![allow(clippy::nursery)]
-
 //! Tests for glamour markdown rendering edge cases, API surface,
 //! and markdown feature coverage gaps.
 
-use glamour::{Renderer, Style, available_styles, render};
+use glamour::{available_styles, render, Renderer, Style};
 
 // =============================================================================
 // API surface tests

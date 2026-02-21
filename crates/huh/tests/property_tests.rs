@@ -1,13 +1,14 @@
-#![allow(clippy::pedantic)]
-#![allow(clippy::nursery)]
-#![allow(clippy::redundant_closure_for_method_calls)]
+#![allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "proptest builders are clearer with explicit closures in this test module"
+)]
 
 //! Property-based tests for huh form framework:
-//! validators, Input, Select, MultiSelect, SelectOption, Confirm, Note, Text.
+//! validators, `Input`, `Select`, `MultiSelect`, `SelectOption`, `Confirm`, `Note`, `Text`.
 
 use huh::{
-    Confirm, EchoMode, Input, MultiSelect, Note, Select, SelectOption, Text, validate_email,
-    validate_min_length_8, validate_required, validate_required_name,
+    validate_email, validate_min_length_8, validate_required, validate_required_name, Confirm,
+    EchoMode, Input, MultiSelect, Note, Select, SelectOption, Text,
 };
 use proptest::prelude::*;
 
@@ -195,7 +196,7 @@ proptest! {
         let options: Vec<SelectOption<i32>> = keys
             .iter()
             .enumerate()
-            .map(|(i, k)| SelectOption::new(k.clone(), i as i32))
+            .map(|(i, k)| SelectOption::new(k.clone(), i32::try_from(i).expect("index bounded to <= 9")))
             .collect();
         let _select: Select<i32> = Select::new().options(options);
     }
@@ -223,7 +224,7 @@ proptest! {
         let options: Vec<SelectOption<i32>> = keys
             .iter()
             .enumerate()
-            .map(|(i, k)| SelectOption::new(k.clone(), i as i32))
+            .map(|(i, k)| SelectOption::new(k.clone(), i32::try_from(i).expect("index bounded to <= 9")))
             .collect();
         let _ms: MultiSelect<i32> = MultiSelect::new().options(options);
     }

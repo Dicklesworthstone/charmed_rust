@@ -1,7 +1,25 @@
-// Allow pedantic and nursery lints for this test infrastructure module.
-// Many of these are stylistic and the code prioritizes clarity for test debugging.
-#![allow(clippy::pedantic)]
-#![allow(clippy::nursery)]
+#![allow(
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::doc_markdown,
+    clippy::format_push_string,
+    clippy::missing_const_for_fn,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::needless_continue,
+    clippy::needless_pass_by_value,
+    clippy::option_if_let_else,
+    clippy::redundant_clone,
+    clippy::redundant_closure_for_method_calls,
+    clippy::single_char_pattern,
+    clippy::too_many_lines,
+    clippy::uninlined_format_args,
+    clippy::unreadable_literal,
+    reason = "test support favors readable diagnostics and stable test interfaces over pedantic style rewrites"
+)]
 
 //! E2E Test Logging and Artifact Capture
 //!
