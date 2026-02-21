@@ -1098,7 +1098,9 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
                 }
             }
             if let Some(ref expected_title) = expected.selected_title {
-                let actual_title = list.selected_item().map_or("", bubbles::list::Item::filter_value);
+                let actual_title = list
+                    .selected_item()
+                    .map_or("", bubbles::list::Item::filter_value);
                 if actual_title != expected_title {
                     return Err(format!(
                         "Selected title mismatch: expected {expected_title:?}, got {actual_title:?}"
@@ -2990,7 +2992,7 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
 }
 
 /// Run all bubbles conformance tests
-#[must_use] 
+#[must_use]
 pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let mut loader = FixtureLoader::new();
     let mut results = Vec::new();
@@ -3108,7 +3110,7 @@ pub mod integration {
     }
 
     impl BubblesTest {
-        #[must_use] 
+        #[must_use]
         pub fn new(name: &str) -> Self {
             Self {
                 name: name.to_string(),
@@ -3149,7 +3151,7 @@ pub mod integration {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn all_tests() -> Vec<Box<dyn ConformanceTest>> {
         let mut loader = FixtureLoader::new();
         let fixtures = match loader.load_crate("bubbles") {

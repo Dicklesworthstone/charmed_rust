@@ -302,8 +302,7 @@ mod error_recovery {
                     Err(e) => last_err = Some(e),
                 }
             }
-            Err(last_err
-                .unwrap_or_else(|| Error::Io(io::Error::other("no attempts"))))
+            Err(last_err.unwrap_or_else(|| Error::Io(io::Error::other("no attempts"))))
         }
 
         // Simulate a flaky operation that succeeds on 3rd try

@@ -616,7 +616,7 @@ pub fn strip_ansi(input: &str) -> String {
             // Look for '[' which starts CSI sequences
             if chars.peek() == Some(&'[') {
                 chars.next(); // consume '['
-                              // Skip until we hit a letter (the terminator)
+                // Skip until we hit a letter (the terminator)
                 while let Some(&next) = chars.peek() {
                     chars.next();
                     if next.is_ascii_alphabetic() {
@@ -627,7 +627,7 @@ pub fn strip_ansi(input: &str) -> String {
             // Also handle other escape sequence types (OSC, etc.)
             else if chars.peek() == Some(&']') {
                 chars.next(); // consume ']'
-                              // Skip until BEL (\x07) or ST (\x1b\\)
+                // Skip until BEL (\x07) or ST (\x1b\\)
                 while let Some(next) = chars.next() {
                     if next == '\x07' {
                         break;

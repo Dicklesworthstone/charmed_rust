@@ -15,7 +15,7 @@
     reason = "Conformance fixtures encode color and threshold literals that should remain verbatim"
 )]
 
-use crate::harness::{compare_styled_semantic, extract_styled_spans, FixtureLoader, TestFixture};
+use crate::harness::{FixtureLoader, TestFixture, compare_styled_semantic, extract_styled_spans};
 use glow::{Config, Reader, Stash};
 use serde::Deserialize;
 use std::collections::HashSet;
@@ -550,7 +550,7 @@ mod tests {
 
 /// Integration with the conformance trait system
 pub mod integration {
-    use super::{run_test, FixtureLoader};
+    use super::{FixtureLoader, run_test};
     use crate::harness::{ConformanceTest, TestCategory, TestContext, TestResult};
 
     /// Glow rendering conformance test

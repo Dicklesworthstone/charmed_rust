@@ -38,7 +38,7 @@ impl Default for TestContext {
 
 impl TestContext {
     /// Create a new test context with default settings
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             logger: TestLogger::new(),
@@ -50,7 +50,7 @@ impl TestContext {
     }
 
     /// Set the current test name
-    #[must_use] 
+    #[must_use]
     pub fn with_test_name(mut self, name: &str) -> Self {
         self.test_name = name.to_string();
         self.logger.set_test_name(name);
@@ -58,7 +58,7 @@ impl TestContext {
     }
 
     /// Set the logger's test name without changing fixture lookup name
-    #[must_use] 
+    #[must_use]
     pub fn with_logger_test_name(mut self, name: &str) -> Self {
         self.logger.set_test_name(name);
         self
@@ -92,7 +92,7 @@ impl TestContext {
     }
 
     /// Get a reference to the fixture loader
-    #[must_use] 
+    #[must_use]
     pub const fn fixtures(&self) -> &FixtureLoader {
         &self.fixtures
     }
@@ -103,7 +103,7 @@ impl TestContext {
     }
 
     /// Get a reference to the comparator
-    #[must_use] 
+    #[must_use]
     pub const fn comparator(&self) -> &OutputComparator {
         &self.comparator
     }
@@ -187,7 +187,7 @@ impl TestContext {
     }
 
     /// Get the final test result
-    #[must_use] 
+    #[must_use]
     pub fn result(&self) -> TestResult {
         if self.has_failures {
             TestResult::Fail {

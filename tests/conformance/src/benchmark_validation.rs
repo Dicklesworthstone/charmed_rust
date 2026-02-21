@@ -9,7 +9,7 @@
 //! 2. The output is correct/valid
 //! 3. Edge cases are handled properly
 
-use lipgloss::{join_horizontal, join_vertical, place, Border, Color, Position, RgbColor, Style};
+use lipgloss::{Border, Color, Position, RgbColor, Style, join_horizontal, join_vertical, place};
 
 // ============================================================================
 // LIPGLOSS BENCHMARK VALIDATION
@@ -176,7 +176,7 @@ mod lipgloss_validation {
 // ============================================================================
 
 mod bubbletea_validation {
-    use bubbletea::{batch, parse_sequence, sequence, Cmd, Message, Model};
+    use bubbletea::{Cmd, Message, Model, batch, parse_sequence, sequence};
 
     #[derive(Clone, Debug)]
     enum TestMsg {
@@ -291,7 +291,7 @@ mod bubbletea_validation {
 // ============================================================================
 
 mod bubbles_validation {
-    use bubbles::spinner::{spinners, SpinnerModel};
+    use bubbles::spinner::{SpinnerModel, spinners};
 
     #[test]
     fn validate_spinner_creation() {

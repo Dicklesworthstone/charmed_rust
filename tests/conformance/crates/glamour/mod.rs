@@ -21,9 +21,9 @@
 )]
 
 use crate::harness::{
-    compare_styled_semantic, extract_styled_spans, strip_ansi, FixtureLoader, TestFixture,
+    FixtureLoader, TestFixture, compare_styled_semantic, extract_styled_spans, strip_ansi,
 };
-use glamour::{render, Style};
+use glamour::{Style, render};
 use serde::Deserialize;
 use std::collections::HashSet;
 
@@ -790,7 +790,7 @@ mod tests {
 
 /// Integration with the conformance trait system
 pub mod integration {
-    use super::{run_test, FixtureLoader};
+    use super::{FixtureLoader, run_test};
     use crate::harness::{ConformanceTest, TestCategory, TestContext, TestResult};
 
     /// Glamour rendering conformance test

@@ -35,13 +35,13 @@ pub struct TestSummary {
 
 impl TestSummary {
     /// Check if all tests passed
-    #[must_use] 
+    #[must_use]
     pub const fn is_success(&self) -> bool {
         self.failed == 0
     }
 
     /// Get results grouped by crate
-    #[must_use] 
+    #[must_use]
     pub fn by_crate(&self) -> HashMap<&str, Vec<&TestRunResult>> {
         let mut grouped: HashMap<&str, Vec<&TestRunResult>> = HashMap::new();
         for result in &self.results {
@@ -51,7 +51,7 @@ impl TestSummary {
     }
 
     /// Get results grouped by category
-    #[must_use] 
+    #[must_use]
     pub fn by_category(&self) -> HashMap<TestCategory, Vec<&TestRunResult>> {
         let mut grouped: HashMap<TestCategory, Vec<&TestRunResult>> = HashMap::new();
         for result in &self.results {
@@ -112,7 +112,7 @@ impl Default for TestRunner {
 
 impl TestRunner {
     /// Create a new empty test runner
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             tests: Vec::new(),
@@ -140,28 +140,28 @@ impl TestRunner {
     }
 
     /// Filter tests by crate name
-    #[must_use] 
+    #[must_use]
     pub fn filter_crate(mut self, crate_name: &str) -> Self {
         self.crate_filter = Some(crate_name.to_string());
         self
     }
 
     /// Filter tests by category
-    #[must_use] 
+    #[must_use]
     pub const fn filter_category(mut self, category: TestCategory) -> Self {
         self.category_filter = Some(category);
         self
     }
 
     /// Filter tests by name pattern (substring match)
-    #[must_use] 
+    #[must_use]
     pub fn filter_name(mut self, pattern: &str) -> Self {
         self.name_filter = Some(pattern.to_string());
         self
     }
 
     /// Enable or disable parallel execution
-    #[must_use] 
+    #[must_use]
     pub const fn parallel(mut self, enabled: bool) -> Self {
         self.parallel = enabled;
         self
@@ -264,7 +264,7 @@ impl TestRunner {
     /// Run all registered tests and return a summary
     ///
     /// Uses parallel execution if enabled (default), otherwise sequential.
-    #[must_use] 
+    #[must_use]
     pub fn run(&self) -> TestSummary {
         if self.parallel {
             self.run_parallel()
@@ -274,13 +274,13 @@ impl TestRunner {
     }
 
     /// Get the number of registered tests
-    #[must_use] 
+    #[must_use]
     pub fn test_count(&self) -> usize {
         self.tests.len()
     }
 
     /// Get the number of tests that will run after filtering
-    #[must_use] 
+    #[must_use]
     pub fn filtered_count(&self) -> usize {
         self.tests
             .iter()
@@ -344,9 +344,7 @@ impl ReportGenerator {
                     let (icon, msg) = match &result.result {
                         TestResult::Pass => ("  ✓", String::new()),
                         TestResult::Fail { reason } => ("  ✗", format!(" FAILED: {reason}")),
-                        TestResult::Skipped { reason } => {
-                            ("  ○", format!(" (skipped: {reason})"))
-                        }
+                        TestResult::Skipped { reason } => ("  ○", format!(" (skipped: {reason})")),
                     };
                     if config.verbose || result.result.is_fail() {
                         write!(writer, "{} {}{}", icon, result.name, msg)?;

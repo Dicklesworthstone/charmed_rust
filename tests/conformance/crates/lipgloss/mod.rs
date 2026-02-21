@@ -16,7 +16,7 @@
 //! - Place: positioning within containers
 
 use crate::harness::{FixtureLoader, TestFixture};
-use lipgloss::{join_horizontal, join_vertical, place, Border, Position, Style};
+use lipgloss::{Border, Position, Style, join_horizontal, join_vertical, place};
 use serde::Deserialize;
 
 /// Input for style tests (text attributes)
@@ -606,7 +606,7 @@ mod tests {
 
 /// Integration with the conformance trait system
 pub mod integration {
-    use super::{run_test, FixtureLoader};
+    use super::{FixtureLoader, run_test};
     use crate::harness::{ConformanceTest, TestCategory, TestContext, TestResult};
 
     /// Lipgloss conformance test

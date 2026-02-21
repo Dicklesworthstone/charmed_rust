@@ -251,7 +251,7 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
 }
 
 /// Run all `charmed_log` conformance tests
-#[must_use] 
+#[must_use]
 pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let mut loader = FixtureLoader::new();
     let mut results = Vec::new();
@@ -336,7 +336,7 @@ mod tests {
 
 /// Integration with the conformance trait system
 pub mod integration {
-    use super::{run_test, FixtureLoader};
+    use super::{FixtureLoader, run_test};
     use crate::harness::{ConformanceTest, TestCategory, TestContext, TestResult};
 
     pub struct CharmedLogTest {
@@ -344,7 +344,7 @@ pub mod integration {
     }
 
     impl CharmedLogTest {
-        #[must_use] 
+        #[must_use]
         pub fn new(name: &str) -> Self {
             Self {
                 name: name.to_string(),
@@ -385,7 +385,7 @@ pub mod integration {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn all_tests() -> Vec<Box<dyn ConformanceTest>> {
         let mut loader = FixtureLoader::new();
         let fixtures = match loader.load_crate("charmed_log") {

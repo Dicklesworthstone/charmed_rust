@@ -22,7 +22,7 @@ pub enum TestCategory {
 
 impl TestCategory {
     /// Get the string name of the category
-    #[must_use] 
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Unit => "unit",
@@ -47,19 +47,19 @@ pub enum TestResult {
 
 impl TestResult {
     /// Returns true if the test passed
-    #[must_use] 
+    #[must_use]
     pub const fn is_pass(&self) -> bool {
         matches!(self, Self::Pass)
     }
 
     /// Returns true if the test failed
-    #[must_use] 
+    #[must_use]
     pub const fn is_fail(&self) -> bool {
         matches!(self, Self::Fail { .. })
     }
 
     /// Returns true if the test was skipped
-    #[must_use] 
+    #[must_use]
     pub const fn is_skipped(&self) -> bool {
         matches!(self, Self::Skipped { .. })
     }

@@ -15,7 +15,7 @@
 )]
 
 use crate::harness::{FixtureLoader, TestFixture};
-use harmonica::{fps, Point, Projectile, Spring, Vector};
+use harmonica::{Point, Projectile, Spring, Vector, fps};
 use serde::Deserialize;
 
 /// Epsilon for floating point comparisons
@@ -627,7 +627,7 @@ mod tests {
 
 /// Integration with the conformance trait system
 pub mod integration {
-    use super::{run_test, FixtureLoader};
+    use super::{FixtureLoader, run_test};
     use crate::harness::{ConformanceTest, TestCategory, TestContext, TestResult};
 
     /// Spring physics conformance test

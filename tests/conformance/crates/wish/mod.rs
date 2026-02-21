@@ -148,7 +148,7 @@ struct ErrorOutput {
 }
 
 /// Run all wish conformance tests.
-#[must_use] 
+#[must_use]
 pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let mut loader = FixtureLoader::new();
     let fixtures = loader

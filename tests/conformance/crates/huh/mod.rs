@@ -27,10 +27,10 @@
 use crate::harness::{FixtureLoader, TestFixture};
 use bubbletea::{Message, Model};
 use huh::{
-    theme_base, theme_base16, theme_catppuccin, theme_charm, theme_dracula, validate_email,
-    validate_min_length_8, validate_required_name, Confirm, EchoMode, Form, FormState, Group,
-    Input, MultiSelect, NextFieldMsg, NextGroupMsg, Note, PrevFieldMsg, PrevGroupMsg, Select,
-    SelectOption, Text,
+    Confirm, EchoMode, Form, FormState, Group, Input, MultiSelect, NextFieldMsg, NextGroupMsg,
+    Note, PrevFieldMsg, PrevGroupMsg, Select, SelectOption, Text, theme_base, theme_base16,
+    theme_catppuccin, theme_charm, theme_dracula, validate_email, validate_min_length_8,
+    validate_required_name,
 };
 use serde::Deserialize;
 

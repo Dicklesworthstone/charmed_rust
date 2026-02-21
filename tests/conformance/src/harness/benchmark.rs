@@ -130,7 +130,7 @@ pub struct BenchResult {
 
 impl BenchResult {
     /// Format the result as a human-readable string
-    #[must_use] 
+    #[must_use]
     pub fn to_string_pretty(&self) -> String {
         format!(
             "{}: min={:?}, max={:?}, mean={:?}, median={:?}, std_dev={:?} ({} iterations)",
@@ -139,7 +139,7 @@ impl BenchResult {
     }
 
     /// Detailed display output
-    #[must_use] 
+    #[must_use]
     pub fn display_detailed(&self) -> String {
         let mut output = String::new();
         output.push_str(&format!("Benchmark: {}\n", self.name));
@@ -181,13 +181,13 @@ impl BenchResult {
     }
 
     /// Check if this result represents a regression
-    #[must_use] 
+    #[must_use]
     pub fn is_regression(&self) -> bool {
         self.vs_baseline.as_ref().is_some_and(|c| c.is_regression)
     }
 
     /// Convert to JSON string
-    #[must_use] 
+    #[must_use]
     pub fn to_json(&self) -> String {
         serde_json::to_string_pretty(&StoredBenchResult {
             mean: self.mean,
@@ -218,7 +218,7 @@ impl Default for BenchContext {
 
 impl BenchContext {
     /// Create a new benchmark context with default settings
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: BenchConfig::default(),
@@ -229,7 +229,7 @@ impl BenchContext {
     }
 
     /// Create with custom configuration
-    #[must_use] 
+    #[must_use]
     pub const fn with_config(config: BenchConfig) -> Self {
         Self {
             config,
@@ -240,54 +240,54 @@ impl BenchContext {
     }
 
     /// Set the number of warmup iterations
-    #[must_use] 
+    #[must_use]
     pub const fn warmup(mut self, iterations: usize) -> Self {
         self.config.warmup_iterations = iterations;
         self
     }
 
     /// Alias for warmup
-    #[must_use] 
+    #[must_use]
     pub const fn with_warmup(self, iterations: usize) -> Self {
         self.warmup(iterations)
     }
 
     /// Set the number of measured iterations
-    #[must_use] 
+    #[must_use]
     pub const fn iterations(mut self, iterations: usize) -> Self {
         self.config.measure_iterations = iterations;
         self
     }
 
     /// Alias for iterations
-    #[must_use] 
+    #[must_use]
     pub const fn with_iterations(self, iterations: usize) -> Self {
         self.iterations(iterations)
     }
 
     /// Enable adaptive warmup
-    #[must_use] 
+    #[must_use]
     pub const fn adaptive_warmup(mut self, enabled: bool) -> Self {
         self.config.adaptive_warmup = enabled;
         self
     }
 
     /// Set outlier removal method
-    #[must_use] 
+    #[must_use]
     pub const fn outlier_removal(mut self, method: OutlierRemoval) -> Self {
         self.config.outlier_removal = method;
         self
     }
 
     /// Set regression detection threshold
-    #[must_use] 
+    #[must_use]
     pub const fn regression_threshold(mut self, threshold: f64) -> Self {
         self.config.regression_threshold = threshold;
         self
     }
 
     /// Set baseline for comparison
-    #[must_use] 
+    #[must_use]
     pub fn with_baseline(mut self, baseline: BenchBaseline) -> Self {
         self.baseline = Some(baseline);
         self
@@ -421,7 +421,11 @@ impl BenchContext {
         }
 
         let n = samples.len() as f64;
-        let mean: f64 = samples.iter().map(std::time::Duration::as_secs_f64).sum::<f64>() / n;
+        let mean: f64 = samples
+            .iter()
+            .map(std::time::Duration::as_secs_f64)
+            .sum::<f64>()
+            / n;
 
         if mean == 0.0 {
             return 0.0;
@@ -445,7 +449,10 @@ impl BenchContext {
             return Vec::new();
         }
 
-        let mut sorted: Vec<f64> = samples.iter().map(std::time::Duration::as_secs_f64).collect();
+        let mut sorted: Vec<f64> = samples
+            .iter()
+            .map(std::time::Duration::as_secs_f64)
+            .collect();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
         let median = if sorted.len() % 2 == 0 {
@@ -459,7 +466,10 @@ impl BenchContext {
         deviations.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
         let mad = if deviations.len() % 2 == 0 {
-            f64::midpoint(deviations[deviations.len() / 2 - 1], deviations[deviations.len() / 2])
+            f64::midpoint(
+                deviations[deviations.len() / 2 - 1],
+                deviations[deviations.len() / 2],
+            )
         } else {
             deviations[deviations.len() / 2]
         };
@@ -484,7 +494,10 @@ impl BenchContext {
             return Vec::new();
         }
 
-        let mut sorted: Vec<f64> = samples.iter().map(std::time::Duration::as_secs_f64).collect();
+        let mut sorted: Vec<f64> = samples
+            .iter()
+            .map(std::time::Duration::as_secs_f64)
+            .collect();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
         let n = sorted.len();
@@ -642,19 +655,19 @@ impl BenchContext {
     }
 
     /// Get all benchmark results
-    #[must_use] 
+    #[must_use]
     pub fn results(&self) -> &[BenchResult] {
         &self.all_results
     }
 
     /// Get the number of collected results
-    #[must_use] 
+    #[must_use]
     pub fn result_count(&self) -> usize {
         self.all_results.len()
     }
 
     /// Create a baseline from all collected results
-    #[must_use] 
+    #[must_use]
     pub fn create_baseline(&self) -> BenchBaseline {
         let mut results = HashMap::new();
         for r in &self.all_results {
