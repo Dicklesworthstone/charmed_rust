@@ -14,6 +14,35 @@
 //! assert!(detector.is_supported("rs")); // Alias works too
 //! ```
 
+// This module intentionally keeps a broad compatibility surface for language
+// aliases/theme adaptation, which currently trades strict pedantic style for
+// readability and behavior parity.
+#![allow(
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::doc_markdown,
+    clippy::if_not_else,
+    clippy::items_after_statements,
+    clippy::map_unwrap_or,
+    clippy::match_same_arms,
+    clippy::missing_const_for_fn,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::option_if_let_else,
+    clippy::range_plus_one,
+    clippy::redundant_closure_for_method_calls,
+    clippy::return_self_not_must_use,
+    clippy::similar_names,
+    clippy::struct_excessive_bools,
+    clippy::suboptimal_flops,
+    clippy::too_many_lines,
+    clippy::uninlined_format_args,
+    clippy::unused_self
+)]
+
 use lipgloss::{RgbColor, Style as LipglossStyle};
 use lru::LruCache;
 use std::num::NonZeroUsize;

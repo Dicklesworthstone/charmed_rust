@@ -1,4 +1,22 @@
 #![doc = include_str!("../docs/tables/README.md")]
+// Table parsing/rendering favors explicit state-machine shape and deterministic
+// layout math; scoped allowances keep this module warning-clean without
+// reintroducing crate-wide suppression.
+#![allow(
+    clippy::bool_to_int_with_if,
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::doc_markdown,
+    clippy::match_same_arms,
+    clippy::missing_const_for_fn,
+    clippy::missing_panics_doc,
+    clippy::needless_raw_string_hashes,
+    clippy::option_if_let_else,
+    clippy::too_many_lines,
+    clippy::uninlined_format_args,
+    clippy::use_self
+)]
 
 use pulldown_cmark::{Alignment, Event, Tag, TagEnd};
 use tracing::debug;

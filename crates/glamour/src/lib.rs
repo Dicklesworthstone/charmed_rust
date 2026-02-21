@@ -1,7 +1,27 @@
 #![forbid(unsafe_code)]
-// Allow pedantic lints for early-stage API ergonomics.
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
+#![allow(
+    clippy::assigning_clones,
+    clippy::cast_possible_truncation,
+    clippy::explicit_iter_loop,
+    clippy::format_collect,
+    clippy::format_push_string,
+    clippy::if_not_else,
+    clippy::items_after_statements,
+    clippy::map_unwrap_or,
+    clippy::missing_const_for_fn,
+    clippy::missing_errors_doc,
+    clippy::must_use_candidate,
+    clippy::needless_collect,
+    clippy::range_plus_one,
+    clippy::redundant_closure_for_method_calls,
+    clippy::return_self_not_must_use,
+    clippy::struct_excessive_bools,
+    clippy::too_many_lines,
+    clippy::uninlined_format_args,
+    clippy::unused_self,
+    clippy::use_self,
+    clippy::useless_let_if_seq
+)]
 #![allow(clippy::len_zero)]
 #![allow(clippy::single_char_pattern)]
 
@@ -19,7 +39,7 @@
 //!
 //! Glamour is the Markdown renderer for the ecosystem:
 //! - **glow** is the CLI reader built directly on glamour.
-//! - **demo_showcase** uses glamour for in-app documentation pages.
+//! - **`demo_showcase`** uses glamour for in-app documentation pages.
 //! - **lipgloss** provides the styling primitives that glamour applies.
 //!
 //! ## Example
@@ -2296,6 +2316,7 @@ pub mod prelude {
 // ============================================================================
 
 #[cfg(test)]
+#[allow(clippy::needless_raw_string_hashes)]
 mod tests {
     use super::*;
 
@@ -2978,6 +2999,7 @@ mod tests {
 
 #[cfg(test)]
 #[cfg(feature = "syntax-highlighting")]
+#[allow(clippy::needless_raw_string_hashes)]
 mod e2e_highlighting_tests {
     use super::*;
 
@@ -3460,6 +3482,7 @@ The end.
 }
 
 #[cfg(test)]
+#[allow(clippy::needless_raw_string_hashes)]
 mod table_spacing_tests {
     use super::*;
 
