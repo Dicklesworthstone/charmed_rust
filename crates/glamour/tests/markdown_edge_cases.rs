@@ -1,7 +1,7 @@
 //! Tests for glamour markdown rendering edge cases, API surface,
 //! and markdown feature coverage gaps.
 
-use glamour::{available_styles, render, Renderer, Style};
+use glamour::{Renderer, Style, available_styles, render};
 
 // =============================================================================
 // API surface tests

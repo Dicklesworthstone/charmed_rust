@@ -2495,6 +2495,9 @@ mod tests {
     #[derive(Clone, Default)]
     struct PanicTeaModel;
 
+    #[derive(Clone, Default)]
+    struct QuickExitTeaModel;
+
     impl bubbletea::Model for PanicTeaModel {
         fn init(&self) -> Option<bubbletea::Cmd> {
             None
@@ -2506,6 +2509,20 @@ mod tests {
 
         fn view(&self) -> String {
             std::panic::panic_any("panic from test tea model")
+        }
+    }
+
+    impl bubbletea::Model for QuickExitTeaModel {
+        fn init(&self) -> Option<bubbletea::Cmd> {
+            Some(bubbletea::quit())
+        }
+
+        fn update(&mut self, _msg: Message) -> Option<bubbletea::Cmd> {
+            None
+        }
+
+        fn view(&self) -> String {
+            "ok".to_string()
         }
     }
 
@@ -2799,6 +2816,10 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        all(target_os = "macos", target_arch = "aarch64"),
+        ignore = "panic runtime aborts on this target during deliberate panic probes"
+    )]
     async fn test_tea_middleware_handles_program_panic()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
         let called = Arc::new(AtomicUsize::new(0));
@@ -2846,6 +2867,43 @@ mod tests {
         assert!(saw_fatal, "expected fatal stderr output for tea panic");
         assert!(saw_exit, "expected exit(1) for tea panic");
         assert!(saw_close, "expected close signal for tea panic");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_tea_middleware_runs_next_after_clean_program_exit()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let called = Arc::new(AtomicUsize::new(0));
+        let mw = tea::middleware(|_session| QuickExitTeaModel);
+        let next = handler({
+            let called = called.clone();
+            move |_session| {
+                let called = called.clone();
+                async move {
+                    called.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        });
+
+        let addr: SocketAddr = "127.0.0.1:2222".parse().map_err(io::Error::other)?;
+        let ctx = Context::new("test", addr, addr);
+        let mut session = Session::new(ctx).with_pty(Pty::default());
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        session.set_output_sender(tx);
+
+        mw(next)(session).await;
+
+        assert_eq!(called.load(Ordering::SeqCst), 1);
+
+        let mut saw_fatal = false;
+        while let Ok(SessionOutput::Stderr(data)) = rx.try_recv() {
+            if String::from_utf8_lossy(&data).contains("bubbletea program crashed:") {
+                saw_fatal = true;
+            }
+        }
+        assert!(!saw_fatal, "did not expect crash output for clean tea exit");
 
         Ok(())
     }
