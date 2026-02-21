@@ -118,11 +118,11 @@ impl RepoRef {
             || format!("{}_{}", sanitize(&self.owner), sanitize(&self.name)),
             |branch| {
                 format!(
-                "{}_{}_{}",
-                sanitize(&self.owner),
-                sanitize(&self.name),
-                sanitize(branch)
-            )
+                    "{}_{}_{}",
+                    sanitize(&self.owner),
+                    sanitize(&self.name),
+                    sanitize(branch)
+                )
             },
         )
     }
@@ -302,12 +302,17 @@ impl GitHubFetcher {
 
         // Build API URL
         let url = repo.branch.as_ref().map_or_else(
-            || format!("https://api.github.com/repos/{}/{}/readme", repo.owner, repo.name),
+            || {
+                format!(
+                    "https://api.github.com/repos/{}/{}/readme",
+                    repo.owner, repo.name
+                )
+            },
             |branch| {
                 format!(
-                "https://api.github.com/repos/{}/{}/readme?ref={}",
-                repo.owner, repo.name, branch
-            )
+                    "https://api.github.com/repos/{}/{}/readme?ref={}",
+                    repo.owner, repo.name, branch
+                )
             },
         );
 

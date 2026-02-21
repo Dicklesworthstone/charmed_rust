@@ -1109,7 +1109,11 @@ impl<M: Model> Program<M> {
             }
 
             let clamped_row = row.min(u16::MAX as usize) as u16;
-            execute!(writer, MoveTo(0, clamped_row), Clear(ClearType::CurrentLine))?;
+            execute!(
+                writer,
+                MoveTo(0, clamped_row),
+                Clear(ClearType::CurrentLine)
+            )?;
             if let Some(line) = new_line {
                 write!(writer, "{}", line)?;
             }

@@ -184,10 +184,18 @@ pub mod command;
 pub mod key;
 pub mod message;
 // Phase 2 narrowing: retain lint flexibility only in this hot parsing module.
-#[allow(clippy::pedantic, clippy::nursery, reason = "Mouse protocol parsing is large and parity-sensitive; full cleanup deferred to focused follow-up")]
+#[allow(
+    clippy::pedantic,
+    clippy::nursery,
+    reason = "Mouse protocol parsing is large and parity-sensitive; full cleanup deferred to focused follow-up"
+)]
 pub mod mouse;
 // Phase 2 narrowing: runtime loop cleanup is substantial and kept in module scope for now.
-#[allow(clippy::pedantic, clippy::nursery, reason = "Event-loop internals need broader refactor; scoped allow preserves strictness elsewhere")]
+#[allow(
+    clippy::pedantic,
+    clippy::nursery,
+    reason = "Event-loop internals need broader refactor; scoped allow preserves strictness elsewhere"
+)]
 pub mod program;
 pub mod screen;
 pub mod simulator;

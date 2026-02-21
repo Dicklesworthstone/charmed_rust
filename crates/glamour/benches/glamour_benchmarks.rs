@@ -8,13 +8,13 @@
     clippy::too_many_lines
 )]
 
-use std::hint::black_box;
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use glamour::{Renderer, Style, StyleBlock, StyleConfig, StylePrimitive};
 use pulldown_cmark::Parser;
 use stats_alloc::{INSTRUMENTED_SYSTEM, Region, StatsAlloc};
 use std::alloc::System;
 use std::fmt::Write;
+use std::hint::black_box;
 use std::time::Instant;
 
 #[global_allocator]

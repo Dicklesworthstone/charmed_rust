@@ -6,7 +6,7 @@
 // darling derives expand to control-flow patterns clippy flags, but the
 // generated code is upstream and not hand-editable in this crate.
 
-use darling::{ast, FromDeriveInput, FromField, FromMeta};
+use darling::{FromDeriveInput, FromField, FromMeta, ast};
 use proc_macro2::Span;
 use syn::{Attribute, FnArg, Ident, ImplItem, ImplItemFn, ItemImpl, ReturnType, Signature, Type};
 
@@ -611,10 +611,12 @@ mod tests {
         };
         let result = validate_init_signature(&sig);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .message
-            .contains("no additional parameters"));
+        assert!(
+            result
+                .unwrap_err()
+                .message
+                .contains("no additional parameters")
+        );
     }
 
     #[test]

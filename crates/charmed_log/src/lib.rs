@@ -1210,9 +1210,9 @@ fn escape_logfmt(s: &str) -> String {
 /// Prelude module for convenient imports.
 pub mod prelude {
     pub use crate::{
-        keys, long_caller_formatter, now_utc, short_caller_formatter, CallerInfo, ErrorHandler,
-        Formatter, Level, Logger, Options, ParseLevelError, ParseResult, Styles,
-        DEFAULT_TIME_FORMAT,
+        CallerInfo, DEFAULT_TIME_FORMAT, ErrorHandler, Formatter, Level, Logger, Options,
+        ParseLevelError, ParseResult, Styles, keys, long_caller_formatter, now_utc,
+        short_caller_formatter,
     };
 }
 

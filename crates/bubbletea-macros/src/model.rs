@@ -39,11 +39,11 @@
 use darling::FromDeriveInput;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{parse2, DeriveInput};
+use syn::{DeriveInput, parse2};
 
 use crate::attributes::ModelInput;
 use crate::error::MacroError;
-use crate::state::{generate_state_snapshot_with_generics, StateField};
+use crate::state::{StateField, generate_state_snapshot_with_generics};
 
 /// Main implementation for the derive macro.
 ///
@@ -213,7 +213,9 @@ mod tests {
         let output_str = output.to_string();
 
         // Should handle lifetimes
-        assert!(output_str.contains("impl < 'a > :: bubbletea :: Model for AppWithLifetime < 'a >"));
+        assert!(
+            output_str.contains("impl < 'a > :: bubbletea :: Model for AppWithLifetime < 'a >")
+        );
     }
 
     #[test]
@@ -505,8 +507,11 @@ mod tests {
         let output_str = output.to_string();
 
         // Should handle multiple generics and lifetimes
-        assert!(output_str
-            .contains("impl < 'a , T , U > :: bubbletea :: Model for MultiGeneric < 'a , T , U >"));
+        assert!(
+            output_str.contains(
+                "impl < 'a , T , U > :: bubbletea :: Model for MultiGeneric < 'a , T , U >"
+            )
+        );
     }
 
     #[test]

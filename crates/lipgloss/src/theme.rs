@@ -32,6 +32,47 @@
 //!     .background_color(theme.colors().background.clone());
 //! ```
 
+#![allow(
+    clippy::must_use_candidate,
+    reason = "Theme accessors/builders are often used for side-effect-free composition in call chains"
+)]
+#![allow(
+    clippy::return_self_not_must_use,
+    reason = "Fluent builder API mirrors upstream semantics and is intentionally permissive"
+)]
+#![allow(
+    clippy::missing_const_for_fn,
+    reason = "Const-qualifying this module broadly would add complexity without practical runtime benefit"
+)]
+#![allow(
+    clippy::use_self,
+    reason = "Explicit type names help readability across dense enum-heavy color transform code"
+)]
+#![allow(
+    clippy::cast_lossless,
+    reason = "Color conversions use explicit casts to keep channel intent obvious"
+)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "HSL/RGB conversion intentionally quantizes into 8-bit channels"
+)]
+#![allow(
+    clippy::cast_sign_loss,
+    reason = "Color channel casts are bounded to non-negative ranges"
+)]
+#![allow(
+    clippy::items_after_statements,
+    reason = "Local conversion helpers are intentionally co-located with call sites"
+)]
+#![allow(
+    clippy::collapsible_if,
+    reason = "Expanded conditionals keep lock/cache fast-path logic easy to read"
+)]
+#![allow(
+    clippy::uninlined_format_args,
+    reason = "Formatting style stays consistent with existing serialized color output tests"
+)]
+
 use crate::border::Border;
 use crate::color::{AdaptiveColor, Color, ansi256_to_rgb};
 use crate::position::{Position, Sides};
@@ -2282,16 +2323,16 @@ mod tests {
         }
     }
 
+    #[cfg(not(feature = "wasm"))]
     #[test]
     fn test_theme_context_recovers_from_poisoned_current_lock() {
         let ctx = ThemeContext::from_preset(ThemePreset::Dark);
         let current = Arc::clone(&ctx.current);
 
-        let poison_result = std::thread::spawn(move || {
+        let poison_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
             let _guard = current.write().expect("write lock should be acquired");
-            std::panic::resume_unwind(Box::new("poison current lock"));
-        })
-        .join();
+            panic!("poison current lock");
+        }));
         assert!(poison_result.is_err(), "poisoning thread should panic");
 
         // Lock poisoning should not panic and should still allow theme updates.
@@ -2300,16 +2341,16 @@ mod tests {
         assert_eq!(ctx.current().name(), "Light");
     }
 
+    #[cfg(not(feature = "wasm"))]
     #[test]
     fn test_theme_context_recovers_from_poisoned_listeners_lock() {
         let ctx = ThemeContext::from_preset(ThemePreset::Dark);
         let listeners = Arc::clone(&ctx.listeners);
 
-        let poison_result = std::thread::spawn(move || {
+        let poison_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
             let _guard = listeners.write().expect("write lock should be acquired");
-            std::panic::resume_unwind(Box::new("poison listeners lock"));
-        })
-        .join();
+            panic!("poison listeners lock");
+        }));
         assert!(poison_result.is_err(), "poisoning thread should panic");
 
         let hits = Arc::new(AtomicUsize::new(0));

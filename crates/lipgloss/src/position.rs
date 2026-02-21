@@ -1,5 +1,14 @@
 //! Position and alignment types.
 
+#![allow(
+    clippy::must_use_candidate,
+    reason = "Position and side helpers are pure value utilities used in many transient calculations"
+)]
+#![allow(
+    clippy::missing_const_for_fn,
+    reason = "Const-lint here would mainly produce annotation churn with minimal engineering benefit"
+)]
+
 /// Text alignment position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Position {
@@ -20,9 +29,9 @@ impl Position {
     /// Convert position to a factor (0.0, 0.5, or 1.0).
     pub fn factor(&self) -> f64 {
         match self {
-            Position::Top | Position::Left => 0.0,
-            Position::Center => 0.5,
-            Position::Bottom | Position::Right => 1.0,
+            Self::Top | Self::Left => 0.0,
+            Self::Center => 0.5,
+            Self::Bottom | Self::Right => 1.0,
         }
     }
 }

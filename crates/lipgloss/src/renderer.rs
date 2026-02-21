@@ -5,6 +5,19 @@
 //! from environment variables. On WASM or without the native feature, it uses
 //! sensible defaults.
 
+#![allow(
+    clippy::must_use_candidate,
+    reason = "Renderer factories/accessors are intentionally lightweight value operations"
+)]
+#![allow(
+    clippy::missing_const_for_fn,
+    reason = "Const qualification would not materially improve runtime behavior for this stateful API"
+)]
+#![allow(
+    clippy::collapsible_if,
+    reason = "Expanded nested checks keep environment-probe branches explicit"
+)]
+
 use std::io::Write;
 use std::sync::OnceLock;
 
@@ -22,7 +35,7 @@ pub struct Renderer {
 
 impl Renderer {
     /// Default renderer instance.
-    pub const DEFAULT: Renderer = Renderer {
+    pub const DEFAULT: Self = Self {
         color_profile: ColorProfile::TrueColor,
         has_dark_background: true,
     };

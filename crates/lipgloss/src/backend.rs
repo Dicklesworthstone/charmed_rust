@@ -15,6 +15,35 @@
 //! let styled = backend.apply_bold("Hello");
 //! ```
 
+#![allow(
+    clippy::must_use_candidate,
+    reason = "Backend constructors/helpers are pure and frequently used in contexts that intentionally discard values"
+)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "Terminal layout/color conversions are range-bounded by protocol constraints"
+)]
+#![allow(
+    clippy::cast_sign_loss,
+    reason = "Sign-changing casts are guarded by known non-negative control flow"
+)]
+#![allow(
+    clippy::cast_lossless,
+    reason = "Explicit numeric conversions document terminal sizing/HTML unit intent"
+)]
+#![allow(
+    clippy::missing_const_for_fn,
+    reason = "Const conversion for backend entry points does not improve behavior and increases maintenance cost"
+)]
+#![allow(
+    clippy::option_if_let_else,
+    reason = "Branch-based entity parsing remains clearer than combinator-heavy alternatives"
+)]
+#![allow(
+    clippy::uninlined_format_args,
+    reason = "Formatting calls intentionally mirror existing output fixtures"
+)]
+
 use crate::border::Border;
 use crate::color::{ColorProfile, TerminalColor, ansi256_to_rgb};
 use crate::style::{Attrs, Style};

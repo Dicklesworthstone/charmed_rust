@@ -1,9 +1,9 @@
-use std::hint::black_box;
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use lipgloss::{
     AdaptiveColor, AnsiColor, Border, Color, ColorProfile, Position, RgbColor, Style,
     TerminalColor, join_horizontal, join_vertical, place,
 };
+use std::hint::black_box;
 
 const SAMPLE_LINE: &str = "The quick brown fox jumps over the lazy dog.";
 const SAMPLE_PARAGRAPH: &str =

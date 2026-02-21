@@ -22,6 +22,35 @@
 //! };
 //! ```
 
+#![allow(
+    clippy::must_use_candidate,
+    reason = "Color conversion helpers are intentionally side-effect-free and sometimes used for validation only"
+)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "Color-space quantization intentionally narrows values into ANSI palette domains"
+)]
+#![allow(
+    clippy::cast_sign_loss,
+    reason = "Numeric casts operate on non-negative color channels and bounded intermediate values"
+)]
+#![allow(
+    clippy::cast_lossless,
+    reason = "Explicit channel conversions are retained for readability in color math"
+)]
+#![allow(
+    clippy::missing_const_for_fn,
+    reason = "Many functions depend on trait/deser contexts where const brings no practical improvement"
+)]
+#![allow(
+    clippy::items_after_statements,
+    reason = "Small local helpers stay adjacent to the conversion logic they support"
+)]
+#![allow(
+    clippy::uninlined_format_args,
+    reason = "Formatting style remains consistent with existing parser expectations"
+)]
+
 use std::fmt;
 
 use serde::de::{self, MapAccess, Visitor};
@@ -43,15 +72,14 @@ pub enum ColorProfile {
 
 impl ColorProfile {
     /// Returns true if this profile supports the given color depth.
-    pub fn supports(&self, other: ColorProfile) -> bool {
-        use ColorProfile::*;
-        match (self, other) {
-            (TrueColor, _) => true,
-            (Ansi256, Ansi256 | Ansi | Ascii) => true,
-            (Ansi, Ansi | Ascii) => true,
-            (Ascii, Ascii) => true,
-            _ => false,
-        }
+    pub fn supports(&self, other: Self) -> bool {
+        matches!(
+            (self, other),
+            (Self::TrueColor, _)
+                | (Self::Ansi256, Self::Ansi256 | Self::Ansi | Self::Ascii)
+                | (Self::Ansi, Self::Ansi | Self::Ascii)
+                | (Self::Ascii, Self::Ascii)
+        )
     }
 }
 

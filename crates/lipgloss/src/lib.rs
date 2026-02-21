@@ -1,40 +1,4 @@
 #![forbid(unsafe_code)]
-// Allow these clippy lints for API ergonomics and terminal UI code
-#![allow(clippy::must_use_candidate)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::use_self)]
-#![allow(clippy::return_self_not_must_use)]
-#![allow(clippy::missing_const_for_fn)]
-#![allow(clippy::cast_lossless)]
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::cast_precision_loss)]
-#![allow(clippy::struct_field_names)]
-#![allow(clippy::struct_excessive_bools)]
-#![allow(clippy::enum_glob_use)]
-#![allow(clippy::match_like_matches_macro)]
-#![allow(clippy::redundant_closure)]
-#![allow(clippy::redundant_closure_for_method_calls)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::single_match_else)]
-#![allow(clippy::needless_pass_by_value)]
-#![allow(clippy::new_without_default)]
-#![allow(clippy::collapsible_if)]
-#![allow(clippy::missing_fields_in_debug)]
-#![allow(clippy::option_if_let_else)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::manual_repeat_n)]
-#![allow(clippy::if_not_else)]
-#![allow(clippy::map_unwrap_or)]
-#![allow(clippy::same_item_push)]
-#![allow(clippy::bool_to_int_with_if)]
-#![allow(clippy::if_same_then_else)]
-#![allow(clippy::branches_sharing_code)]
-#![allow(clippy::items_after_test_module)]
 
 //! # Lipgloss
 //!
@@ -52,8 +16,8 @@
 //! - **bubbletea** renders views using lipgloss styles.
 //! - **bubbles** components expose styling hooks via lipgloss.
 //! - **glamour** uses lipgloss for Markdown theming.
-//! - **charmed_log** formats log output with lipgloss styles.
-//! - **demo_showcase** centralizes themes and visual identity with lipgloss.
+//! - **`charmed_log`** formats log output with lipgloss styles.
+//! - **`demo_showcase`** centralizes themes and visual identity with lipgloss.
 //!
 //! ## Quick Start
 //!
@@ -209,6 +173,7 @@ pub mod prelude {
 /// Create a new empty style.
 ///
 /// This is equivalent to `Style::new()`.
+#[must_use]
 pub fn new_style() -> Style {
     Style::new()
 }
@@ -231,6 +196,13 @@ pub fn new_style() -> Style {
 /// let right = "A\nB";
 /// let combined = join_horizontal(Position::Top, &[left, right]);
 /// ```
+#[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    reason = "Alignment offsets intentionally use float rounding to match Go lipgloss behavior"
+)]
 pub fn join_horizontal(pos: Position, strs: &[&str]) -> String {
     if strs.is_empty() {
         return String::new();
@@ -245,7 +217,7 @@ pub fn join_horizontal(pos: Position, strs: &[&str]) -> String {
         .iter()
         .map(|lines| lines.iter().map(|l| visible_width(l)).max().unwrap_or(0))
         .collect();
-    let max_height = blocks.iter().map(|lines| lines.len()).max().unwrap_or(0);
+    let max_height = blocks.iter().map(std::vec::Vec::len).max().unwrap_or(0);
 
     // Pre-compute alignment factor once
     let factor = pos.factor();
@@ -311,6 +283,13 @@ pub fn join_horizontal(pos: Position, strs: &[&str]) -> String {
 /// let bottom = "A longer line";
 /// let combined = join_vertical(Position::Center, &[top, bottom]);
 /// ```
+#[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    reason = "Alignment offsets intentionally use float rounding to match Go lipgloss behavior"
+)]
 pub fn join_vertical(pos: Position, strs: &[&str]) -> String {
     if strs.is_empty() {
         return String::new();
@@ -323,7 +302,7 @@ pub fn join_vertical(pos: Position, strs: &[&str]) -> String {
     let max_width = strs
         .iter()
         .flat_map(|s| s.lines())
-        .map(|l| visible_width(l))
+        .map(visible_width)
         .max()
         .unwrap_or(0);
 
@@ -409,6 +388,16 @@ pub fn join_vertical(pos: Position, strs: &[&str]) -> String {
 /// Includes a fast path for ASCII-only strings without escape sequences,
 /// which is the common case for most terminal text.
 #[inline]
+#[must_use]
+#[allow(
+    clippy::too_many_lines,
+    clippy::items_after_statements,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::collapsible_if,
+    reason = "Single-pass ANSI width parsing keeps the state machine contiguous and preserves Go parity"
+)]
 pub fn visible_width(s: &str) -> usize {
     // Fast path: ASCII-only content without escapes (common case)
     if s.is_ascii() && !s.contains('\x1b') {
@@ -552,11 +541,13 @@ pub fn visible_width(s: &str) -> usize {
 }
 
 /// Get the width of the widest line in a string.
+#[must_use]
 pub fn width(s: &str) -> usize {
-    s.lines().map(|l| visible_width(l)).max().unwrap_or(0)
+    s.lines().map(visible_width).max().unwrap_or(0)
 }
 
 /// Get the number of lines in a string.
+#[must_use]
 pub fn height(s: &str) -> usize {
     s.lines().count().max(1)
 }
@@ -569,7 +560,7 @@ mod tests {
     fn test_join_vertical_left_alignment() {
         let result = join_vertical(Position::Left, &["Short", "LongerText"]);
         println!("Result bytes: {:?}", result.as_bytes());
-        println!("Result repr: {:?}", result);
+        println!("Result repr: {result:?}");
         // Expected: "Short     \nLongerText" (Short with 5 trailing spaces)
         assert_eq!(result, "Short     \nLongerText");
     }
@@ -578,7 +569,7 @@ mod tests {
     fn test_join_vertical_center_alignment() {
         let result = join_vertical(Position::Center, &["Short", "LongerText"]);
         println!("Result bytes: {:?}", result.as_bytes());
-        println!("Result repr: {:?}", result);
+        println!("Result repr: {result:?}");
         // Go rounds for center alignment: round(5 * 0.5) = 3 left, 2 right (bd-3vqi)
         let expected = "   Short  \nLongerText";
         assert_eq!(result, expected);
@@ -778,6 +769,13 @@ mod tests {
 /// let text = "Hello";
 /// let placed = place(20, 5, Position::Center, Position::Center, text);
 /// ```
+#[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    reason = "Placement math intentionally uses rounded float factors for Go-compatible alignment"
+)]
 pub fn place(width: usize, height: usize, h_pos: Position, v_pos: Position, s: &str) -> String {
     let content_width = self::width(s);
     let content_height = self::height(s);
@@ -869,6 +867,11 @@ pub struct Range {
 
 impl Range {
     /// Creates a new Range.
+    #[must_use]
+    #[allow(
+        clippy::missing_const_for_fn,
+        reason = "Range carries `Style`, which is not const-constructible"
+    )]
     pub fn new(start: usize, end: usize, style: Style) -> Self {
         Self { start, end, style }
     }
@@ -895,6 +898,7 @@ impl Range {
 ///     ],
 /// );
 /// ```
+#[must_use]
 pub fn new_range(start: usize, end: usize, style: Style) -> Range {
     Range::new(start, end, style)
 }
@@ -924,6 +928,7 @@ pub fn new_range(start: usize, end: usize, style: Style) -> Range {
 ///     ],
 /// );
 /// ```
+#[must_use]
 pub fn style_ranges(s: &str, ranges: &[Range]) -> String {
     if ranges.is_empty() {
         return s.to_string();
@@ -959,10 +964,10 @@ pub fn style_ranges(s: &str, ranges: &[Range]) -> String {
     }
 
     // Add remaining text after last range
-    if current_pos < bytes.len() {
-        if let Ok(text) = std::str::from_utf8(&bytes[current_pos..]) {
-            result.push_str(text);
-        }
+    if current_pos < bytes.len()
+        && let Ok(text) = std::str::from_utf8(&bytes[current_pos..])
+    {
+        result.push_str(text);
     }
 
     result
@@ -992,6 +997,11 @@ pub fn style_ranges(s: &str, ranges: &[Range]) -> String {
 ///     Style::new().faint(),
 /// );
 /// ```
+#[must_use]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "API intentionally takes owned styles to match existing public semantics"
+)]
 pub fn style_runes(s: &str, indices: &[usize], matched: Style, unmatched: Style) -> String {
     use std::collections::HashSet;
     let indices_set: HashSet<_> = indices.iter().copied().collect();

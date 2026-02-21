@@ -3383,8 +3383,7 @@ impl Field for Text {
                         if removed == Some('\n') {
                             self.cursor_row = self.cursor_row.saturating_sub(1);
                             let lines = self.visible_lines();
-                            self.cursor_col =
-                                lines.get(self.cursor_row).map_or(0, |l| l.len());
+                            self.cursor_col = lines.get(self.cursor_row).map_or(0, |l| l.len());
                         } else {
                             self.cursor_col = self.cursor_col.saturating_sub(1);
                         }
@@ -3535,7 +3534,8 @@ impl Field for Text {
     fn with_height(&mut self, height: usize) {
         self.height = height;
         // Adjust lines based on height minus title/description
-        let adjust = usize::from(!self.title.is_empty()) + usize::from(!self.description.is_empty());
+        let adjust =
+            usize::from(!self.title.is_empty()) + usize::from(!self.description.is_empty());
         if height > adjust {
             self.lines = height - adjust;
         }
@@ -4224,7 +4224,9 @@ impl Group {
 
     /// Returns a reference to the current field.
     pub fn current_field(&self) -> Option<&dyn Field> {
-        self.fields.get(self.current).map(std::convert::AsRef::as_ref)
+        self.fields
+            .get(self.current)
+            .map(std::convert::AsRef::as_ref)
     }
 
     /// Returns a mutable reference to the current field.
@@ -4520,7 +4522,8 @@ impl Layout for LayoutColumns {
                 // Keep render path panic-free even if future refactors alter row_parts population.
                 rows.push(row_parts.into_iter().next().unwrap_or_default());
             } else {
-                let row_refs: Vec<&str> = row_parts.iter().map(std::string::String::as_str).collect();
+                let row_refs: Vec<&str> =
+                    row_parts.iter().map(std::string::String::as_str).collect();
                 rows.push(lipgloss::join_horizontal(
                     lipgloss::Position::Top,
                     &row_refs,
@@ -4616,7 +4619,8 @@ impl Layout for LayoutGrid {
                 // Keep render path panic-free even if future refactors alter row_parts population.
                 rows.push(row_parts.into_iter().next().unwrap_or_default());
             } else {
-                let row_refs: Vec<&str> = row_parts.iter().map(std::string::String::as_str).collect();
+                let row_refs: Vec<&str> =
+                    row_parts.iter().map(std::string::String::as_str).collect();
                 rows.push(lipgloss::join_horizontal(
                     lipgloss::Position::Top,
                     &row_refs,

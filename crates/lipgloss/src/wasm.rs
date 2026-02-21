@@ -20,6 +20,35 @@
 //! document.body.innerHTML = rendered;
 //! ```
 
+#![allow(
+    clippy::must_use_candidate,
+    reason = "WASM bindings mirror JavaScript chaining patterns where return values are optional at call sites"
+)]
+#![allow(
+    clippy::return_self_not_must_use,
+    reason = "Chainable JS wrapper methods preserve ergonomic API parity with web consumers"
+)]
+#![allow(
+    clippy::use_self,
+    reason = "Explicit type names in exported wasm APIs improve readability for generated bindings"
+)]
+#![allow(
+    clippy::uninlined_format_args,
+    reason = "Formatting style is retained for consistency with existing wasm tests"
+)]
+#![allow(
+    clippy::needless_pass_by_value,
+    reason = "`wasm_bindgen` exports use owned JS values for ABI ergonomics and compatibility"
+)]
+#![allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "Closure form keeps conversion intent explicit in JS interop pipelines"
+)]
+#![allow(
+    clippy::doc_markdown,
+    reason = "WASM docs intentionally mirror JavaScript-facing names"
+)]
+
 use wasm_bindgen::prelude::*;
 
 use crate::Border;

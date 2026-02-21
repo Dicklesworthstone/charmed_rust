@@ -252,7 +252,11 @@ pub struct PublicKey {
     pub comment: Option<String>,
 }
 
-#[allow(clippy::missing_const_for_fn, clippy::must_use_candidate, clippy::return_self_not_must_use)]
+#[allow(
+    clippy::missing_const_for_fn,
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use
+)]
 impl PublicKey {
     /// Creates a new public key.
     pub fn new(key_type: impl Into<String>, data: Vec<u8>) -> Self {
@@ -1031,7 +1035,11 @@ impl fmt::Debug for Server {
     }
 }
 
-#[allow(clippy::missing_const_for_fn, clippy::missing_errors_doc, clippy::must_use_candidate)]
+#[allow(
+    clippy::missing_const_for_fn,
+    clippy::missing_errors_doc,
+    clippy::must_use_candidate
+)]
 impl Server {
     /// Creates a new server with the given options.
     pub fn new(options: impl IntoIterator<Item = ServerOption>) -> Result<Self> {
@@ -1249,7 +1257,11 @@ pub struct ServerBuilder {
     options: ServerOptions,
 }
 
-#[allow(clippy::missing_const_for_fn, clippy::must_use_candidate, clippy::return_self_not_must_use)]
+#[allow(
+    clippy::missing_const_for_fn,
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use
+)]
 impl ServerBuilder {
     /// Creates a new server builder.
     pub fn new() -> Self {
@@ -2283,7 +2295,11 @@ pub mod middleware {
 
 /// BubbleTea integration for serving TUI apps over SSH.
 pub mod tea {
-    #![allow(clippy::map_unwrap_or, clippy::must_use_candidate, clippy::wildcard_imports)]
+    #![allow(
+        clippy::map_unwrap_or,
+        clippy::must_use_candidate,
+        clippy::wildcard_imports
+    )]
     use super::*;
     use bubbletea::{Model, Program};
 

@@ -21,6 +21,23 @@
 //! assert_eq!(border.top_left, "╭");
 //! ```
 
+#![allow(
+    clippy::must_use_candidate,
+    reason = "Border constructors are value factories used heavily in fluent style setup"
+)]
+#![allow(
+    clippy::struct_excessive_bools,
+    reason = "BorderEdges intentionally models four independent edge toggles as booleans for API clarity"
+)]
+#![allow(
+    clippy::missing_const_for_fn,
+    reason = "Const annotations here are mostly cosmetic and would add churn across helper methods"
+)]
+#![allow(
+    clippy::bool_to_int_with_if,
+    reason = "Explicit branches keep edge-presence math easy to read"
+)]
+
 use unicode_width::UnicodeWidthStr;
 
 /// Border characters for all edges and corners.
