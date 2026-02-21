@@ -12,7 +12,19 @@ use tempfile::{NamedTempFile, TempDir};
 /// Get a Command for the glow binary.
 #[allow(deprecated)]
 fn glow_cmd() -> Command {
-    Command::cargo_bin("glow").unwrap()
+    if let Some(path) = std::env::var_os("CARGO_BIN_EXE_glow") {
+        Command::new(path)
+    } else {
+        let mut cmd = Command::new("cargo");
+        cmd.arg("run")
+            .arg("--quiet")
+            .arg("-p")
+            .arg("charmed-glow")
+            .arg("--bin")
+            .arg("glow")
+            .arg("--");
+        cmd
+    }
 }
 
 // =============================================================================

@@ -15,7 +15,7 @@
 //! ## Comparison with `std::sync::RwLock`
 //! - Demonstrate that `std::sync::RwLock` DOES poison (for documentation)
 
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
 // =============================================================================
 // TEST: parking_lot::RwLock Never Poisons
