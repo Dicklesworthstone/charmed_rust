@@ -193,16 +193,14 @@ impl<I: Item> ItemDelegate<I> for DefaultDelegate {
             } else {
                 self.selected_style.render(&title_trunc)
             }
+        } else if self.show_description {
+            format!(
+                "{}\n{}",
+                self.normal_style.render(&title_trunc),
+                self.normal_style.render(&desc_trunc)
+            )
         } else {
-            if self.show_description {
-                format!(
-                    "{}\n{}",
-                    self.normal_style.render(&title_trunc),
-                    self.normal_style.render(&desc_trunc)
-                )
-            } else {
-                self.normal_style.render(&title_trunc)
-            }
+            self.normal_style.render(&title_trunc)
         }
     }
 }
