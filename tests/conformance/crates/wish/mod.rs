@@ -9,7 +9,7 @@
 //! - Address parsing
 //! - Error types
 //! - Session and Context
-//! - PublicKey functionality
+//! - `PublicKey` functionality
 //!
 //! Note: Middleware composition tests require async runtime and are
 //! tested separately in the wish crate's unit tests.
@@ -148,6 +148,7 @@ struct ErrorOutput {
 }
 
 /// Run all wish conformance tests.
+#[must_use] 
 pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let mut loader = FixtureLoader::new();
     let fixtures = loader
@@ -218,7 +219,7 @@ fn run_server_fixture(fixture: &TestFixture) -> Result<(), String> {
             let addr = input
                 .address
                 .ok_or_else(|| "Missing input.address".to_string())?;
-            with_address(addr.clone())(&mut opts).map_err(|e| e.to_string())?;
+            with_address(addr)(&mut opts).map_err(|e| e.to_string())?;
             let want = expected
                 .expected
                 .ok_or_else(|| "Missing expected.expected".to_string())?;
@@ -370,7 +371,7 @@ fn run_address_fixture(fixture: &TestFixture) -> Result<(), String> {
         .valid
         .ok_or_else(|| "Missing expected.valid".to_string())?;
 
-    let built = ServerBuilder::new().address(addr.clone()).build();
+    let built = ServerBuilder::new().address(addr).build();
     if valid && built.is_err() {
         return Err(format!("Expected valid address, build failed: {built:?}"));
     }
@@ -568,7 +569,7 @@ fn run_middleware_fixture(fixture: &TestFixture) -> Result<(), String> {
         }
         "bubbletea" => {
             // Bubble Tea integration middleware lives under `wish::tea`.
-            let _mw = wish::tea::middleware(|_session| NoopTeaModel::default());
+            let _mw = wish::tea::middleware(|_session| NoopTeaModel);
             Ok(())
         }
         "git" => {
@@ -715,22 +716,22 @@ fn run_error_fixture(fixture: &TestFixture) -> Result<(), String> {
             let want = expected
                 .error_types
                 .ok_or_else(|| "Missing expected.error_types".to_string())?;
-            let mut have = Vec::new();
-
             // These correspond to the error patterns wish uses.
-            have.push(("authentication_error", Error::AuthenticationFailed));
-            have.push((
-                "connection_error",
-                Error::Io(std::io::Error::new(ErrorKind::Other, "connection closed")),
-            ));
-            have.push((
-                "session_error",
-                Error::Session("invalid session".to_string()),
-            ));
-            have.push((
-                "timeout_error",
-                Error::Ssh("connection timeout".to_string()),
-            ));
+            let have = vec![
+                ("authentication_error", Error::AuthenticationFailed),
+                (
+                    "connection_error",
+                    Error::Io(std::io::Error::other("connection closed")),
+                ),
+                (
+                    "session_error",
+                    Error::Session("invalid session".to_string()),
+                ),
+                (
+                    "timeout_error",
+                    Error::Ssh("connection timeout".to_string()),
+                ),
+            ];
 
             for (label, err) in have {
                 if want.iter().any(|w| w == label) && err.to_string().is_empty() {
@@ -1237,7 +1238,7 @@ fn test_fixture_server_options() {
         .load_crate("wish")
         .expect("wish fixtures must exist for conformance");
 
-    for fixture in fixtures.tests.iter() {
+    for fixture in &fixtures.tests {
         if let Some(skip) = fixture.should_skip() {
             assert!(
                 skip.is_empty(),
@@ -1324,7 +1325,7 @@ fn test_fixture_addresses() {
         Err(_) => return,
     };
 
-    for fixture in fixtures.tests.iter() {
+    for fixture in &fixtures.tests {
         if fixture.name.starts_with("address_") {
             test_address_fixture(fixture);
         }
@@ -1361,7 +1362,7 @@ fn test_fixture_middleware() {
         Err(_) => return,
     };
 
-    for fixture in fixtures.tests.iter() {
+    for fixture in &fixtures.tests {
         if fixture.name.starts_with("middleware_") {
             test_middleware_fixture(fixture);
         }
@@ -1419,7 +1420,7 @@ fn test_fixture_errors() {
         Err(_) => return,
     };
 
-    for fixture in fixtures.tests.iter() {
+    for fixture in &fixtures.tests {
         if fixture.name.starts_with("error_") {
             test_error_fixture(fixture);
         }

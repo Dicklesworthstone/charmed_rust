@@ -1,10 +1,10 @@
-//! TestRunner - Executing conformance test suites
+//! `TestRunner` - Executing conformance test suites
 //!
 //! Provides a runner for executing conformance tests with:
 //! - Parallel execution via rayon
 //! - Filtering by crate/category/name
 //! - Result aggregation
-//! - Report generation (text, JSON, JUnit XML)
+//! - Report generation (text, JSON, `JUnit` XML)
 
 use std::collections::HashMap;
 use std::io::Write;
@@ -35,11 +35,13 @@ pub struct TestSummary {
 
 impl TestSummary {
     /// Check if all tests passed
-    pub fn is_success(&self) -> bool {
+    #[must_use] 
+    pub const fn is_success(&self) -> bool {
         self.failed == 0
     }
 
     /// Get results grouped by crate
+    #[must_use] 
     pub fn by_crate(&self) -> HashMap<&str, Vec<&TestRunResult>> {
         let mut grouped: HashMap<&str, Vec<&TestRunResult>> = HashMap::new();
         for result in &self.results {
@@ -49,6 +51,7 @@ impl TestSummary {
     }
 
     /// Get results grouped by category
+    #[must_use] 
     pub fn by_category(&self) -> HashMap<TestCategory, Vec<&TestRunResult>> {
         let mut grouped: HashMap<TestCategory, Vec<&TestRunResult>> = HashMap::new();
         for result in &self.results {
@@ -61,7 +64,7 @@ impl TestSummary {
 /// Result of a single test run
 #[derive(Debug, Clone, Serialize)]
 pub struct TestRunResult {
-    /// Test ID in format "crate::name"
+    /// Test ID in format "`crate::name`"
     pub id: String,
     /// Test name
     pub name: String,
@@ -109,6 +112,7 @@ impl Default for TestRunner {
 
 impl TestRunner {
     /// Create a new empty test runner
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             tests: Vec::new(),
@@ -136,25 +140,29 @@ impl TestRunner {
     }
 
     /// Filter tests by crate name
+    #[must_use] 
     pub fn filter_crate(mut self, crate_name: &str) -> Self {
         self.crate_filter = Some(crate_name.to_string());
         self
     }
 
     /// Filter tests by category
-    pub fn filter_category(mut self, category: TestCategory) -> Self {
+    #[must_use] 
+    pub const fn filter_category(mut self, category: TestCategory) -> Self {
         self.category_filter = Some(category);
         self
     }
 
     /// Filter tests by name pattern (substring match)
+    #[must_use] 
     pub fn filter_name(mut self, pattern: &str) -> Self {
         self.name_filter = Some(pattern.to_string());
         self
     }
 
     /// Enable or disable parallel execution
-    pub fn parallel(mut self, enabled: bool) -> Self {
+    #[must_use] 
+    pub const fn parallel(mut self, enabled: bool) -> Self {
         self.parallel = enabled;
         self
     }
@@ -256,6 +264,7 @@ impl TestRunner {
     /// Run all registered tests and return a summary
     ///
     /// Uses parallel execution if enabled (default), otherwise sequential.
+    #[must_use] 
     pub fn run(&self) -> TestSummary {
         if self.parallel {
             self.run_parallel()
@@ -265,11 +274,13 @@ impl TestRunner {
     }
 
     /// Get the number of registered tests
+    #[must_use] 
     pub fn test_count(&self) -> usize {
         self.tests.len()
     }
 
     /// Get the number of tests that will run after filtering
+    #[must_use] 
     pub fn filtered_count(&self) -> usize {
         self.tests
             .iter()
@@ -305,7 +316,7 @@ impl ReportGenerator {
         // Group by crate
         let by_crate = summary.by_crate();
         let mut crate_names: Vec<_> = by_crate.keys().copied().collect();
-        crate_names.sort();
+        crate_names.sort_unstable();
 
         for crate_name in crate_names {
             let crate_results = &by_crate[crate_name];
@@ -319,23 +330,22 @@ impl ReportGenerator {
             let status_char = if fail > 0 { '✗' } else { '✓' };
             write!(
                 writer,
-                "{} {}: {} pass, {} fail, {} skip",
-                status_char, crate_name, pass, fail, skip
+                "{status_char} {crate_name}: {pass} pass, {fail} fail, {skip} skip"
             )?;
 
             if config.show_timing {
                 let total_ms: u64 = crate_results.iter().map(|r| r.duration_ms).sum();
-                write!(writer, " ({}ms)", total_ms)?;
+                write!(writer, " ({total_ms}ms)")?;
             }
             writeln!(writer)?;
 
             if !config.summary_only && (config.verbose || fail > 0) {
-                for result in crate_results.iter() {
+                for result in crate_results {
                     let (icon, msg) = match &result.result {
                         TestResult::Pass => ("  ✓", String::new()),
-                        TestResult::Fail { reason } => ("  ✗", format!(" FAILED: {}", reason)),
+                        TestResult::Fail { reason } => ("  ✗", format!(" FAILED: {reason}")),
                         TestResult::Skipped { reason } => {
-                            ("  ○", format!(" (skipped: {})", reason))
+                            ("  ○", format!(" (skipped: {reason})"))
                         }
                     };
                     if config.verbose || result.result.is_fail() {
@@ -394,7 +404,7 @@ impl ReportGenerator {
         Ok(())
     }
 
-    /// Generate a JUnit XML report for CI integration
+    /// Generate a `JUnit` XML report for CI integration
     pub fn junit_xml<W: Write>(writer: &mut W, summary: &TestSummary) -> std::io::Result<()> {
         writeln!(writer, r#"<?xml version="1.0" encoding="UTF-8"?>"#)?;
         writeln!(
@@ -409,7 +419,7 @@ impl ReportGenerator {
         // Group by crate for test suites
         let by_crate = summary.by_crate();
         let mut crate_names: Vec<_> = by_crate.keys().copied().collect();
-        crate_names.sort();
+        crate_names.sort_unstable();
 
         for crate_name in crate_names {
             let crate_results = &by_crate[crate_name];
@@ -430,7 +440,7 @@ impl ReportGenerator {
                 total_time_ms as f64 / 1000.0
             )?;
 
-            for result in crate_results.iter() {
+            for result in crate_results {
                 writeln!(
                     writer,
                     r#"    <testcase name="{}" classname="{}" time="{:.3}">"#,
@@ -515,10 +525,10 @@ mod tests {
 
     struct DummyPassTest;
     impl ConformanceTest for DummyPassTest {
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "dummy_pass"
         }
-        fn crate_name(&self) -> &str {
+        fn crate_name(&self) -> &'static str {
             "test_crate"
         }
         fn category(&self) -> TestCategory {
@@ -531,10 +541,10 @@ mod tests {
 
     struct DummyFailTest;
     impl ConformanceTest for DummyFailTest {
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "dummy_fail"
         }
-        fn crate_name(&self) -> &str {
+        fn crate_name(&self) -> &'static str {
             "test_crate"
         }
         fn category(&self) -> TestCategory {

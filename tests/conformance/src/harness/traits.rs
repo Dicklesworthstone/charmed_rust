@@ -1,4 +1,4 @@
-//! ConformanceTest - Trait for implementing conformance tests
+//! `ConformanceTest` - Trait for implementing conformance tests
 //!
 //! Defines the interface that all conformance tests must implement.
 
@@ -22,12 +22,13 @@ pub enum TestCategory {
 
 impl TestCategory {
     /// Get the string name of the category
-    pub fn as_str(&self) -> &'static str {
+    #[must_use] 
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            TestCategory::Unit => "unit",
-            TestCategory::Integration => "integration",
-            TestCategory::EdgeCase => "edge_case",
-            TestCategory::Performance => "performance",
+            Self::Unit => "unit",
+            Self::Integration => "integration",
+            Self::EdgeCase => "edge_case",
+            Self::Performance => "performance",
         }
     }
 }
@@ -46,18 +47,21 @@ pub enum TestResult {
 
 impl TestResult {
     /// Returns true if the test passed
-    pub fn is_pass(&self) -> bool {
-        matches!(self, TestResult::Pass)
+    #[must_use] 
+    pub const fn is_pass(&self) -> bool {
+        matches!(self, Self::Pass)
     }
 
     /// Returns true if the test failed
-    pub fn is_fail(&self) -> bool {
-        matches!(self, TestResult::Fail { .. })
+    #[must_use] 
+    pub const fn is_fail(&self) -> bool {
+        matches!(self, Self::Fail { .. })
     }
 
     /// Returns true if the test was skipped
-    pub fn is_skipped(&self) -> bool {
-        matches!(self, TestResult::Skipped { .. })
+    #[must_use] 
+    pub const fn is_skipped(&self) -> bool {
+        matches!(self, Self::Skipped { .. })
     }
 }
 
@@ -108,7 +112,7 @@ pub trait ConformanceTest: Send + Sync {
     /// Which crate this test verifies
     fn crate_name(&self) -> &str;
 
-    /// Category of the test (unit, integration, edge_case, performance)
+    /// Category of the test (unit, integration, `edge_case`, performance)
     fn category(&self) -> TestCategory;
 
     /// Execute the test with the given context
@@ -121,7 +125,7 @@ pub trait ConformanceTest: Send + Sync {
         None
     }
 
-    /// Full test ID in the format "crate::name"
+    /// Full test ID in the format "`crate::name`"
     fn id(&self) -> String {
         format!("{}::{}", self.crate_name(), self.name())
     }

@@ -1,7 +1,7 @@
 //! Cross-crate integration tests
 //!
 //! This module contains tests that verify interactions between
-//! multiple charmed_rust crates, such as:
+//! multiple `charmed_rust` crates, such as:
 //!
 //! - bubbletea + lipgloss styling integration
 //! - glamour + lipgloss theme application
@@ -100,7 +100,7 @@ fn test_lipgloss_join_functions() -> Result<(), String> {
 fn test_viewport_rendering() -> Result<(), String> {
     let mut viewport = Viewport::new(40, 10);
     let content = (1..20)
-        .map(|i| format!("Line {}", i))
+        .map(|i| format!("Line {i}"))
         .collect::<Vec<_>>()
         .join("\n");
     viewport.set_content(&content);
@@ -111,8 +111,7 @@ fn test_viewport_rendering() -> Result<(), String> {
     let line_count = view.lines().count();
     if line_count > 10 {
         return Err(format!(
-            "Viewport should limit visible lines to height (10), got {}",
-            line_count
+            "Viewport should limit visible lines to height (10), got {line_count}"
         ));
     }
 
@@ -128,7 +127,7 @@ fn test_viewport_rendering() -> Result<(), String> {
 fn test_viewport_scrolling() -> Result<(), String> {
     let mut viewport = Viewport::new(40, 5);
     let content = (1..20)
-        .map(|i| format!("Line {}", i))
+        .map(|i| format!("Line {i}"))
         .collect::<Vec<_>>()
         .join("\n");
     viewport.set_content(&content);
@@ -156,7 +155,7 @@ fn test_textinput_value_handling() -> Result<(), String> {
 
     let value = input.value();
     if value != "test input" {
-        return Err(format!("Expected 'test input', got '{}'", value));
+        return Err(format!("Expected 'test input', got '{value}'"));
     }
 
     // Test view renders
@@ -242,7 +241,7 @@ fn test_glamour_style_variants() -> Result<(), String> {
         let output = renderer.render(markdown);
 
         if !output.contains("Test") {
-            return Err(format!("Style {:?} should render content", style));
+            return Err(format!("Style {style:?} should render content"));
         }
     }
 
@@ -297,12 +296,12 @@ fn test_harmonica_fps_values() -> Result<(), String> {
 
     // 60 FPS should be ~16.67ms
     if !(0.016..0.017).contains(&delta_60) {
-        return Err(format!("fps(60) should be ~0.0167, got {}", delta_60));
+        return Err(format!("fps(60) should be ~0.0167, got {delta_60}"));
     }
 
     // 30 FPS should be ~33.33ms
     if !(0.033..0.034).contains(&delta_30) {
-        return Err(format!("fps(30) should be ~0.0333, got {}", delta_30));
+        return Err(format!("fps(30) should be ~0.0333, got {delta_30}"));
     }
 
     Ok(())
@@ -726,25 +725,25 @@ mod tests {
             match result {
                 Ok(()) => {
                     passed += 1;
-                    println!("  PASS: {}", name);
+                    println!("  PASS: {name}");
                 }
                 Err(msg) => {
                     failed += 1;
                     failures.push((name, msg));
-                    println!("  FAIL: {} - {}", name, msg);
+                    println!("  FAIL: {name} - {msg}");
                 }
             }
         }
 
         println!("\nIntegration Test Results:");
-        println!("  Passed: {}", passed);
-        println!("  Failed: {}", failed);
+        println!("  Passed: {passed}");
+        println!("  Failed: {failed}");
         println!("  Total:  {}", results.len());
 
         if !failures.is_empty() {
             println!("\nFailures:");
             for (name, msg) in &failures {
-                println!("  {}: {}", name, msg);
+                println!("  {name}: {msg}");
             }
             panic!(
                 "Integration tests failed: {} of {} tests failed",

@@ -8,12 +8,12 @@
 //! - Input fields (input_*)
 //! - Text fields (text_*) - multiline textarea
 //! - Select fields (select_*)
-//! - MultiSelect fields (multiselect_*)
+//! - `MultiSelect` fields (multiselect_*)
 //! - Confirm fields (confirm_*)
 //! - Note fields (note_*)
 //! - Themes (theme_*)
-//! - Form with theme (form_with_theme)
-//! - Validation tests (validation_*) - required, min_length, email
+//! - Form with theme (`form_with_theme`)
+//! - Validation tests (validation_*) - required, `min_length`, email
 //!
 //! Additional direct tests (not from fixtures):
 //! - Form navigation (group/field navigation via messages)
@@ -27,10 +27,10 @@
 use crate::harness::{FixtureLoader, TestFixture};
 use bubbletea::{Message, Model};
 use huh::{
-    Confirm, EchoMode, Form, FormState, Group, Input, MultiSelect, NextFieldMsg, NextGroupMsg,
-    Note, PrevFieldMsg, PrevGroupMsg, Select, SelectOption, Text, theme_base, theme_base16,
-    theme_catppuccin, theme_charm, theme_dracula, validate_email, validate_min_length_8,
-    validate_required_name,
+    theme_base, theme_base16, theme_catppuccin, theme_charm, theme_dracula, validate_email,
+    validate_min_length_8, validate_required_name, Confirm, EchoMode, Form, FormState, Group,
+    Input, MultiSelect, NextFieldMsg, NextGroupMsg, Note, PrevFieldMsg, PrevGroupMsg, Select,
+    SelectOption, Text,
 };
 use serde::Deserialize;
 
@@ -232,10 +232,10 @@ fn run_input_test(fixture: &TestFixture) -> Result<(), String> {
 
     let input: InputInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
     let expected: InputOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Verify field type
     if expected.field_type != "input" {
@@ -276,8 +276,7 @@ fn run_input_test(fixture: &TestFixture) -> Result<(), String> {
     if let Some(expected_value) = &expected.value {
         if actual_value != *expected_value {
             return Err(format!(
-                "Value mismatch: expected {:?}, got {:?}",
-                expected_value, actual_value
+                "Value mismatch: expected {expected_value:?}, got {actual_value:?}"
             ));
         }
     }
@@ -288,8 +287,7 @@ fn run_input_test(fixture: &TestFixture) -> Result<(), String> {
             // If no initial_value was set in input, the field should be empty
             if input.initial_value.is_none() && !actual_value.is_empty() {
                 return Err(format!(
-                    "Expected empty initial value, got {:?}",
-                    actual_value
+                    "Expected empty initial value, got {actual_value:?}"
                 ));
             }
         }
@@ -304,8 +302,7 @@ fn run_input_test(fixture: &TestFixture) -> Result<(), String> {
         };
         if actual_echo_mode != expected_echo {
             return Err(format!(
-                "Echo mode mismatch: expected {}, got {}",
-                expected_echo, actual_echo_mode
+                "Echo mode mismatch: expected {expected_echo}, got {actual_echo_mode}"
             ));
         }
     }
@@ -317,10 +314,10 @@ fn run_input_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_text_test(fixture: &TestFixture) -> Result<(), String> {
     let input: TextInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
     let expected: TextOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Verify field type
     if expected.field_type != "text" {
@@ -353,8 +350,7 @@ fn run_text_test(fixture: &TestFixture) -> Result<(), String> {
     if let Some(expected_initial) = &expected.initial_value {
         if expected_initial.is_empty() && !actual_value.is_empty() {
             return Err(format!(
-                "Expected empty initial value, got {:?}",
-                actual_value
+                "Expected empty initial value, got {actual_value:?}"
             ));
         }
     }
@@ -366,10 +362,10 @@ fn run_text_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_select_test(fixture: &TestFixture) -> Result<(), String> {
     let input: SelectInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
     let expected: SelectOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Verify field type
     if expected.field_type != "select" {
@@ -405,7 +401,7 @@ fn run_select_test(fixture: &TestFixture) -> Result<(), String> {
                     }
                 }
             }
-        } else if options.first().map(|v| v.is_string()).unwrap_or(false) {
+        } else if options.first().is_some_and(serde_json::Value::is_string) {
             // String options
             let string_opts: Vec<String> = options
                 .iter()
@@ -437,9 +433,12 @@ fn run_select_test(fixture: &TestFixture) -> Result<(), String> {
                     }
                 }
             }
-        } else if options.first().map(|v| v.is_i64()).unwrap_or(false) {
+        } else if options.first().is_some_and(serde_json::Value::is_i64) {
             // Integer options
-            let int_opts: Vec<i64> = options.iter().filter_map(|v| v.as_i64()).collect();
+            let int_opts: Vec<i64> = options
+                .iter()
+                .filter_map(serde_json::Value::as_i64)
+                .collect();
 
             let select_opts: Vec<SelectOption<i64>> = int_opts
                 .iter()
@@ -494,10 +493,10 @@ fn run_select_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_multiselect_test(fixture: &TestFixture) -> Result<(), String> {
     let input: MultiSelectInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
     let expected: MultiSelectOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Verify field type
     if expected.field_type != "multiselect" {
@@ -559,8 +558,7 @@ fn run_multiselect_test(fixture: &TestFixture) -> Result<(), String> {
 
             if selected_sorted != expected_sorted {
                 return Err(format!(
-                    "Initial value mismatch: expected {:?}, got {:?}",
-                    expected_vals, selected_values
+                    "Initial value mismatch: expected {expected_vals:?}, got {selected_values:?}"
                 ));
             }
         }
@@ -568,8 +566,7 @@ fn run_multiselect_test(fixture: &TestFixture) -> Result<(), String> {
             // Expected null/empty selection
             if !selected_values.is_empty() {
                 return Err(format!(
-                    "Initial value mismatch: expected empty/null, got {:?}",
-                    selected_values
+                    "Initial value mismatch: expected empty/null, got {selected_values:?}"
                 ));
             }
         }
@@ -582,10 +579,10 @@ fn run_multiselect_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_confirm_test(fixture: &TestFixture) -> Result<(), String> {
     let input: ConfirmInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
     let expected: ConfirmOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Verify field type
     if expected.field_type != "confirm" {
@@ -630,10 +627,10 @@ fn run_confirm_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_note_test(fixture: &TestFixture) -> Result<(), String> {
     let input: NoteInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
     let expected: NoteOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Verify field type
     if expected.field_type != "note" {
@@ -667,10 +664,10 @@ fn run_note_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_validation_test(fixture: &TestFixture) -> Result<(), String> {
     let input: ValidationInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse validation input: {}", e))?;
+        .map_err(|e| format!("Failed to parse validation input: {e}"))?;
     let expected: ValidationOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse validation expected: {}", e))?;
+        .map_err(|e| format!("Failed to parse validation expected: {e}"))?;
 
     let validation_type = input
         .validation_type
@@ -688,8 +685,7 @@ fn run_validation_test(fixture: &TestFixture) -> Result<(), String> {
                 if let Some(expected_has_error) = expected.empty_has_error {
                     if has_error != expected_has_error {
                         return Err(format!(
-                            "Required validation empty check: expected has_error={}, got has_error={}",
-                            expected_has_error, has_error
+                            "Required validation empty check: expected has_error={expected_has_error}, got has_error={has_error}"
                         ));
                     }
                 }
@@ -698,8 +694,7 @@ fn run_validation_test(fixture: &TestFixture) -> Result<(), String> {
                 {
                     if result_msg != expected_msg {
                         return Err(format!(
-                            "Required validation error message: expected '{}', got '{}'",
-                            expected_msg, result_msg
+                            "Required validation error message: expected '{expected_msg}', got '{result_msg}'"
                         ));
                     }
                 }
@@ -712,8 +707,7 @@ fn run_validation_test(fixture: &TestFixture) -> Result<(), String> {
                 if let Some(expected_has_error) = expected.valid_has_error {
                     if has_error != expected_has_error {
                         return Err(format!(
-                            "Required validation valid check: expected has_error={}, got has_error={}",
-                            expected_has_error, has_error
+                            "Required validation valid check: expected has_error={expected_has_error}, got has_error={has_error}"
                         ));
                     }
                 }
@@ -729,8 +723,7 @@ fn run_validation_test(fixture: &TestFixture) -> Result<(), String> {
                 if let Some(expected_has_error) = expected.short_has_error {
                     if has_error != expected_has_error {
                         return Err(format!(
-                            "MinLength validation short check: expected has_error={}, got has_error={}",
-                            expected_has_error, has_error
+                            "MinLength validation short check: expected has_error={expected_has_error}, got has_error={has_error}"
                         ));
                     }
                 }
@@ -739,8 +732,7 @@ fn run_validation_test(fixture: &TestFixture) -> Result<(), String> {
                 {
                     if result_msg != expected_msg {
                         return Err(format!(
-                            "MinLength validation error message: expected '{}', got '{}'",
-                            expected_msg, result_msg
+                            "MinLength validation error message: expected '{expected_msg}', got '{result_msg}'"
                         ));
                     }
                 }
@@ -753,8 +745,7 @@ fn run_validation_test(fixture: &TestFixture) -> Result<(), String> {
                 if let Some(expected_has_error) = expected.valid_has_error {
                     if has_error != expected_has_error {
                         return Err(format!(
-                            "MinLength validation valid check: expected has_error={}, got has_error={}",
-                            expected_has_error, has_error
+                            "MinLength validation valid check: expected has_error={expected_has_error}, got has_error={has_error}"
                         ));
                     }
                 }
@@ -770,8 +761,7 @@ fn run_validation_test(fixture: &TestFixture) -> Result<(), String> {
                 if let Some(expected_has_error) = expected.empty_has_error {
                     if has_error != expected_has_error {
                         return Err(format!(
-                            "Email validation empty check: expected has_error={}, got has_error={}",
-                            expected_has_error, has_error
+                            "Email validation empty check: expected has_error={expected_has_error}, got has_error={has_error}"
                         ));
                     }
                 }
@@ -784,8 +774,7 @@ fn run_validation_test(fixture: &TestFixture) -> Result<(), String> {
                 if let Some(expected_has_error) = expected.invalid_has_error {
                     if has_error != expected_has_error {
                         return Err(format!(
-                            "Email validation invalid check: expected has_error={}, got has_error={}",
-                            expected_has_error, has_error
+                            "Email validation invalid check: expected has_error={expected_has_error}, got has_error={has_error}"
                         ));
                     }
                 }
@@ -798,15 +787,14 @@ fn run_validation_test(fixture: &TestFixture) -> Result<(), String> {
                 if let Some(expected_has_error) = expected.valid_has_error {
                     if has_error != expected_has_error {
                         return Err(format!(
-                            "Email validation valid check: expected has_error={}, got has_error={}",
-                            expected_has_error, has_error
+                            "Email validation valid check: expected has_error={expected_has_error}, got has_error={has_error}"
                         ));
                     }
                 }
             }
         }
         _ => {
-            return Err(format!("Unknown validation type: {}", validation_type));
+            return Err(format!("Unknown validation type: {validation_type}"));
         }
     }
 
@@ -817,10 +805,10 @@ fn run_validation_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_theme_test(fixture: &TestFixture) -> Result<(), String> {
     let input: ThemeInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
     let expected: ThemeOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Check if this is a theme availability test
     if let Some(theme_name) = &input.theme_name {
@@ -847,8 +835,7 @@ fn run_theme_test(fixture: &TestFixture) -> Result<(), String> {
         if let Some(expected_available) = expected.theme_available {
             if theme_available != expected_available {
                 return Err(format!(
-                    "Theme availability mismatch for '{}': expected {}, got {}",
-                    theme_name, expected_available, theme_available
+                    "Theme availability mismatch for '{theme_name}': expected {expected_available}, got {theme_available}"
                 ));
             }
         }
@@ -886,7 +873,7 @@ fn run_theme_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_test(fixture: &TestFixture) -> Result<(), String> {
     // Check for skip marker first
     if let Some(reason) = fixture.should_skip() {
-        return Err(format!("SKIPPED: {}", reason));
+        return Err(format!("SKIPPED: {reason}"));
     }
 
     // Route to appropriate test handler based on test name prefix
@@ -904,9 +891,7 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
         run_note_test(fixture)
     } else if fixture.name.starts_with("validation_") {
         run_validation_test(fixture)
-    } else if fixture.name.starts_with("theme_") {
-        run_theme_test(fixture)
-    } else if fixture.name.starts_with("form_") {
+    } else if fixture.name.starts_with("theme_") || fixture.name.starts_with("form_") {
         run_theme_test(fixture) // form_with_theme uses the theme test handler
     } else {
         Err(format!("Unhandled fixture: {}", fixture.name))
@@ -968,7 +953,7 @@ fn test_form_initial_group() -> Result<(), String> {
     Ok(())
 }
 
-/// Test: Form.len() returns number of groups
+/// Test: `Form.len()` returns number of groups
 fn test_form_len() -> Result<(), String> {
     let form = create_test_form();
     if form.len() != 3 {
@@ -977,7 +962,7 @@ fn test_form_len() -> Result<(), String> {
     Ok(())
 }
 
-/// Test: NextGroupMsg advances to next group
+/// Test: `NextGroupMsg` advances to next group
 fn test_next_group_navigation() -> Result<(), String> {
     let mut form = create_test_form();
 
@@ -996,7 +981,7 @@ fn test_next_group_navigation() -> Result<(), String> {
     Ok(())
 }
 
-/// Test: PrevGroupMsg goes back to previous group
+/// Test: `PrevGroupMsg` goes back to previous group
 fn test_prev_group_navigation() -> Result<(), String> {
     let mut form = create_test_form();
 
@@ -1016,7 +1001,7 @@ fn test_prev_group_navigation() -> Result<(), String> {
     Ok(())
 }
 
-/// Test: PrevGroupMsg at first group stays at group 0
+/// Test: `PrevGroupMsg` at first group stays at group 0
 fn test_prev_group_at_first() -> Result<(), String> {
     let mut form = create_test_form();
 
@@ -1035,7 +1020,7 @@ fn test_prev_group_at_first() -> Result<(), String> {
     Ok(())
 }
 
-/// Test: NextGroupMsg at last group completes the form
+/// Test: `NextGroupMsg` at last group completes the form
 fn test_next_group_at_last_completes() -> Result<(), String> {
     let mut form = create_test_form();
 
@@ -1096,7 +1081,7 @@ fn test_navigate_all_groups() -> Result<(), String> {
     Ok(())
 }
 
-/// Test: NextFieldMsg at last field of group triggers NextGroupMsg
+/// Test: `NextFieldMsg` at last field of group triggers `NextGroupMsg`
 fn test_next_field_crosses_group() -> Result<(), String> {
     let mut form = create_test_form();
 
@@ -1127,7 +1112,7 @@ fn test_next_field_crosses_group() -> Result<(), String> {
     Ok(())
 }
 
-/// Test: PrevFieldMsg at first field of group triggers PrevGroupMsg
+/// Test: `PrevFieldMsg` at first field of group triggers `PrevGroupMsg`
 fn test_prev_field_crosses_group() -> Result<(), String> {
     let mut form = create_test_form();
 
@@ -1187,11 +1172,11 @@ fn test_form_view_current_group() -> Result<(), String> {
     Ok(())
 }
 
-/// Test: Empty form has len 0 and is_empty true
+/// Test: Empty form has len 0 and `is_empty` true
 fn test_empty_form() -> Result<(), String> {
     let form = Form::new(vec![]);
 
-    if form.len() != 0 {
+    if !form.is_empty() {
         return Err(format!("Expected len 0, got {}", form.len()));
     }
     if !form.is_empty() {
@@ -1200,7 +1185,7 @@ fn test_empty_form() -> Result<(), String> {
     Ok(())
 }
 
-/// Test: Single-group form completes after NextGroupMsg
+/// Test: Single-group form completes after `NextGroupMsg`
 fn test_single_group_completion() -> Result<(), String> {
     let mut form = Form::new(vec![Group::new(vec![Box::new(
         Input::new().title("Name").key("name"),
@@ -1237,7 +1222,7 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
         Err(e) => {
             results.push((
                 "load_fixtures",
-                Err(format!("Failed to load fixtures: {}", e)),
+                Err(format!("Failed to load fixtures: {e}")),
             ));
             return results;
         }
@@ -1323,30 +1308,30 @@ mod tests {
             match result {
                 Ok(()) => {
                     passed += 1;
-                    println!("  PASS: {}", name);
+                    println!("  PASS: {name}");
                 }
                 Err(msg) if msg.starts_with("SKIPPED:") => {
                     skipped += 1;
-                    println!("  SKIP: {} - {}", name, msg);
+                    println!("  SKIP: {name} - {msg}");
                 }
                 Err(msg) => {
                     failed += 1;
                     failures.push((name, msg));
-                    println!("  FAIL: {} - {}", name, msg);
+                    println!("  FAIL: {name} - {msg}");
                 }
             }
         }
 
         println!("\nHuh Conformance Results:");
-        println!("  Passed:  {}", passed);
-        println!("  Failed:  {}", failed);
-        println!("  Skipped: {}", skipped);
+        println!("  Passed:  {passed}");
+        println!("  Failed:  {failed}");
+        println!("  Skipped: {skipped}");
         println!("  Total:   {}", results.len());
 
         if !failures.is_empty() {
             println!("\nFailures:");
             for (name, msg) in &failures {
-                println!("  {}: {}", name, msg);
+                println!("  {name}: {msg}");
             }
         }
 

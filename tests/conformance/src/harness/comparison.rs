@@ -1,4 +1,4 @@
-//! OutputComparator - Diff generation for comparing expected vs actual outputs
+//! `OutputComparator` - Diff generation for comparing expected vs actual outputs
 //!
 //! Provides utilities for comparing test outputs with:
 //! - ANSI escape sequence normalization
@@ -28,7 +28,7 @@ pub enum DiffType {
 }
 
 /// Detailed diff information
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diff {
     /// The expected value as string
     pub expected: String,
@@ -48,20 +48,21 @@ pub struct Diff {
 
 impl Diff {
     /// Get a human-readable description of the difference
+    #[must_use]
     pub fn describe(&self) -> String {
         let mut desc = String::new();
 
         match self.diff_type {
             DiffType::CharacterDiff => {
                 if let Some(pos) = self.first_diff_pos {
-                    desc.push_str(&format!("Character difference at position {}", pos));
+                    desc.push_str(&format!("Character difference at position {pos}"));
                 } else {
                     desc.push_str("Character difference detected");
                 }
             }
             DiffType::LineDiff => {
                 if let Some(line) = self.first_diff_line {
-                    desc.push_str(&format!("Line difference at line {}", line));
+                    desc.push_str(&format!("Line difference at line {line}"));
                 } else {
                     desc.push_str("Line difference detected");
                 }
@@ -85,6 +86,7 @@ impl Diff {
     }
 
     /// Format for plain text output
+    #[must_use]
     pub fn format_plain(&self) -> String {
         let mut output = String::new();
         output.push_str(&format!("Expected: {:?}\n", self.expected));
@@ -114,23 +116,23 @@ pub enum CompareResult {
 }
 
 impl CompareResult {
-    /// Returns true if the comparison passed (Equal or ApproximatelyEqual)
-    pub fn is_pass(&self) -> bool {
-        matches!(
-            self,
-            CompareResult::Equal | CompareResult::ApproximatelyEqual { .. }
-        )
+    /// Returns true if the comparison passed (Equal or `ApproximatelyEqual`)
+    #[must_use]
+    pub const fn is_pass(&self) -> bool {
+        matches!(self, Self::Equal | Self::ApproximatelyEqual { .. })
     }
 
     /// Returns true if the comparison failed
-    pub fn is_fail(&self) -> bool {
-        matches!(self, CompareResult::Different(_))
+    #[must_use]
+    pub const fn is_fail(&self) -> bool {
+        matches!(self, Self::Different(_))
     }
 
     /// Get the diff if this is a Different result
-    pub fn diff(&self) -> Option<&Diff> {
+    #[must_use]
+    pub const fn diff(&self) -> Option<&Diff> {
         match self {
-            CompareResult::Different(diff) => Some(diff),
+            Self::Different(diff) => Some(diff),
             _ => None,
         }
     }
@@ -174,6 +176,7 @@ pub struct OutputComparator {
 
 impl OutputComparator {
     /// Create a new comparator with default settings
+    #[must_use]
     pub fn new() -> Self {
         Self {
             options: CompareOptions::default(),
@@ -181,18 +184,21 @@ impl OutputComparator {
     }
 
     /// Create a comparator with custom options
-    pub fn with_options(options: CompareOptions) -> Self {
+    #[must_use]
+    pub const fn with_options(options: CompareOptions) -> Self {
         Self { options }
     }
 
     /// Enable ANSI escape sequence normalization
-    pub fn ansi_normalize(mut self, enabled: bool) -> Self {
+    #[must_use]
+    pub const fn ansi_normalize(mut self, enabled: bool) -> Self {
         self.options.ansi_normalize = enabled;
         self
     }
 
     /// Enable whitespace normalization
-    pub fn whitespace_normalize(mut self, enabled: bool) -> Self {
+    #[must_use]
+    pub const fn whitespace_normalize(mut self, enabled: bool) -> Self {
         self.options.whitespace_normalize = enabled;
         if enabled {
             self.options.whitespace_options = WhitespaceOptions {
@@ -206,19 +212,22 @@ impl OutputComparator {
     }
 
     /// Enable Unicode NFC normalization
-    pub fn unicode_normalize(mut self, enabled: bool) -> Self {
+    #[must_use]
+    pub const fn unicode_normalize(mut self, enabled: bool) -> Self {
         self.options.unicode_normalize = enabled;
         self
     }
 
     /// Set default float epsilon
-    pub fn float_epsilon(mut self, epsilon: f64) -> Self {
+    #[must_use]
+    pub const fn float_epsilon(mut self, epsilon: f64) -> Self {
         self.options.float_epsilon = Some(epsilon);
         self
     }
 
     /// Enable case-insensitive comparison
-    pub fn ignore_case(mut self, enabled: bool) -> Self {
+    #[must_use]
+    pub const fn ignore_case(mut self, enabled: bool) -> Self {
         self.options.ignore_case = enabled;
         self
     }
@@ -250,7 +259,7 @@ impl OutputComparator {
             if opts.trim_trailing {
                 result = result
                     .lines()
-                    .map(|line| line.trim_end())
+                    .map(str::trim_end)
                     .collect::<Vec<_>>()
                     .join("\n");
             }
@@ -296,10 +305,10 @@ impl OutputComparator {
             .zip(actual.chars())
             .position(|(e, a)| e != a)
             .or_else(|| {
-                if expected.len() != actual.len() {
-                    Some(expected.len().min(actual.len()))
-                } else {
+                if expected.len() == actual.len() {
                     None
+                } else {
+                    Some(expected.len().min(actual.len()))
                 }
             })
     }
@@ -336,13 +345,10 @@ impl OutputComparator {
                     )
                 }
                 (Some(e), None) => {
-                    format!(
-                        "At position {}: expected {:?}, but actual string ended",
-                        pos, e
-                    )
+                    format!("At position {pos}: expected {e:?}, but actual string ended")
                 }
                 (None, Some(a)) => {
-                    format!("At position {}: expected end, but got {:?}", pos, a)
+                    format!("At position {pos}: expected end, but got {a:?}")
                 }
                 (None, None) => String::new(),
             }
@@ -360,7 +366,7 @@ impl OutputComparator {
         result.push_str("+++ actual\n");
 
         for hunk in diff.unified_diff().iter_hunks() {
-            result.push_str(&format!("{}", hunk));
+            result.push_str(&format!("{hunk}"));
         }
 
         result
@@ -391,6 +397,7 @@ impl OutputComparator {
     }
 
     /// Compare two strings with all configured normalizations
+    #[must_use]
     pub fn compare_str(&self, expected: &str, actual: &str) -> CompareResult {
         let norm_expected = self.normalize(expected);
         let norm_actual = self.normalize(actual);
@@ -404,6 +411,7 @@ impl OutputComparator {
     }
 
     /// Compare two strings with ANSI escape sequence normalization
+    #[must_use]
     pub fn compare_ansi(&self, expected: &str, actual: &str) -> CompareResult {
         let norm_expected = normalize_ansi(expected);
         let norm_actual = normalize_ansi(actual);
@@ -417,6 +425,7 @@ impl OutputComparator {
     }
 
     /// Compare multi-line strings with line-based diff
+    #[must_use]
     pub fn compare_lines(&self, expected: &str, actual: &str) -> CompareResult {
         let norm_expected = self.normalize(expected);
         let norm_actual = self.normalize(actual);
@@ -429,6 +438,7 @@ impl OutputComparator {
     }
 
     /// Compare two floating point values with epsilon tolerance
+    #[must_use]
     pub fn compare_f64(&self, expected: f64, actual: f64, epsilon: f64) -> CompareResult {
         // Handle special cases
         if expected.is_nan() && actual.is_nan() {
@@ -448,10 +458,8 @@ impl OutputComparator {
         }
 
         // Handle infinity
-        if expected.is_infinite() && actual.is_infinite() {
-            if expected.signum() == actual.signum() {
-                return CompareResult::Equal;
-            }
+        if expected.is_infinite() && actual.is_infinite() && expected.signum() == actual.signum() {
+            return CompareResult::Equal;
         }
 
         let delta = (expected - actual).abs();
@@ -472,8 +480,7 @@ impl OutputComparator {
                 first_diff_pos: None,
                 first_diff_line: None,
                 inline_diff: format!(
-                    "delta {} exceeds epsilon {} (expected: {}, actual: {})",
-                    delta, epsilon, expected, actual
+                    "delta {delta} exceeds epsilon {epsilon} (expected: {expected}, actual: {actual})"
                 ),
                 unified_diff: String::new(),
                 diff_type: DiffType::FloatDiff,
@@ -483,8 +490,8 @@ impl OutputComparator {
 
     /// Compare two values using their Debug representation
     pub fn compare_debug<T: Debug>(&self, expected: &T, actual: &T) -> CompareResult {
-        let expected_str = format!("{:?}", expected);
-        let actual_str = format!("{:?}", actual);
+        let expected_str = format!("{expected:?}");
+        let actual_str = format!("{actual:?}");
 
         if expected_str == actual_str {
             return CompareResult::Equal;
@@ -494,6 +501,7 @@ impl OutputComparator {
     }
 
     /// Compare bytes
+    #[must_use]
     pub fn compare_bytes(&self, expected: &[u8], actual: &[u8]) -> CompareResult {
         if expected == actual {
             return CompareResult::Equal;
@@ -507,8 +515,8 @@ impl OutputComparator {
             .unwrap_or(expected.len().min(actual.len()));
 
         let diff = Diff {
-            expected: format!("{:?}", expected),
-            actual: format!("{:?}", actual),
+            expected: format!("{expected:?}"),
+            actual: format!("{actual:?}"),
             first_diff_pos: Some(first_diff),
             first_diff_line: None,
             inline_diff: format!(
@@ -518,10 +526,10 @@ impl OutputComparator {
                 actual.get(first_diff).copied().unwrap_or(0)
             ),
             unified_diff: String::new(),
-            diff_type: if expected.len() != actual.len() {
-                DiffType::LengthDiff
-            } else {
+            diff_type: if expected.len() == actual.len() {
                 DiffType::CharacterDiff
+            } else {
+                DiffType::LengthDiff
             },
         };
 
@@ -584,16 +592,20 @@ fn normalize_sgr(escape: &str) -> String {
         .collect();
 
     // Sort parameters (this normalizes "31;1" and "1;31" to the same form)
-    params.sort();
+    params.sort_unstable();
 
     // Reconstruct
-    let sorted_params: Vec<String> = params.iter().map(|p| p.to_string()).collect();
+    let sorted_params: Vec<String> = params
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
     format!("\x1b[{}m", sorted_params.join(";"))
 }
 
 /// Strip all ANSI escape sequences from a string
 ///
 /// Returns the plain text content without any ANSI formatting codes.
+#[must_use]
 pub fn strip_ansi(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     let mut chars = input.chars().peekable();
@@ -604,7 +616,7 @@ pub fn strip_ansi(input: &str) -> String {
             // Look for '[' which starts CSI sequences
             if chars.peek() == Some(&'[') {
                 chars.next(); // consume '['
-                // Skip until we hit a letter (the terminator)
+                              // Skip until we hit a letter (the terminator)
                 while let Some(&next) = chars.peek() {
                     chars.next();
                     if next.is_ascii_alphabetic() {
@@ -615,7 +627,7 @@ pub fn strip_ansi(input: &str) -> String {
             // Also handle other escape sequence types (OSC, etc.)
             else if chars.peek() == Some(&']') {
                 chars.next(); // consume ']'
-                // Skip until BEL (\x07) or ST (\x1b\\)
+                              // Skip until BEL (\x07) or ST (\x1b\\)
                 while let Some(next) = chars.next() {
                     if next == '\x07' {
                         break;
@@ -635,7 +647,7 @@ pub fn strip_ansi(input: &str) -> String {
 }
 
 /// Styled text span with style attributes
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct StyledSpan {
     /// The text content
     pub text: String,
@@ -655,24 +667,10 @@ pub struct StyledSpan {
     pub background: Option<String>,
 }
 
-impl Default for StyledSpan {
-    fn default() -> Self {
-        Self {
-            text: String::new(),
-            bold: false,
-            italic: false,
-            underline: false,
-            strikethrough: false,
-            faint: false,
-            foreground: None,
-            background: None,
-        }
-    }
-}
-
 impl StyledSpan {
     /// Check if this span has the same style as another (ignoring text)
-    pub fn same_style(&self, other: &StyledSpan) -> bool {
+    #[must_use]
+    pub fn same_style(&self, other: &Self) -> bool {
         self.bold == other.bold
             && self.italic == other.italic
             && self.underline == other.underline
@@ -801,8 +799,9 @@ impl StyleState {
 
 /// Extract styled spans from text with ANSI escape sequences
 ///
-/// Returns a vector of StyledSpan with text content and style attributes.
+/// Returns a vector of `StyledSpan` with text content and style attributes.
 /// Empty spans (no text) are filtered out.
+#[must_use]
 pub fn extract_styled_spans(input: &str) -> Vec<StyledSpan> {
     let mut spans = Vec::new();
     let mut state = StyleState::default();
@@ -870,12 +869,14 @@ pub struct SemanticCompareResult {
 
 impl SemanticCompareResult {
     /// Returns true if both text and styles match
-    pub fn is_match(&self) -> bool {
+    #[must_use]
+    pub const fn is_match(&self) -> bool {
         self.text_matches && self.styles_match
     }
 
     /// Returns true if at least the text content matches
-    pub fn text_only_match(&self) -> bool {
+    #[must_use]
+    pub const fn text_only_match(&self) -> bool {
         self.text_matches
     }
 }
@@ -887,18 +888,19 @@ impl SemanticCompareResult {
 /// 2. Style attributes applied to the text
 ///
 /// Returns detailed comparison results showing what matches and what doesn't.
+#[must_use]
 pub fn compare_styled_semantic(expected: &str, actual: &str) -> SemanticCompareResult {
     // Strip ANSI and normalize whitespace for text comparison
     let expected_text = strip_ansi(expected)
         .lines()
-        .map(|l| l.trim())
+        .map(str::trim)
         .filter(|l| !l.is_empty())
         .collect::<Vec<_>>()
         .join(" ");
 
     let actual_text = strip_ansi(actual)
         .lines()
-        .map(|l| l.trim())
+        .map(str::trim)
         .filter(|l| !l.is_empty())
         .collect::<Vec<_>>()
         .join(" ");
@@ -931,8 +933,7 @@ pub fn compare_styled_semantic(expected: &str, actual: &str) -> SemanticCompareR
     let actual_has_bold = actual_styles.iter().any(|s| s.bold);
     if expected_has_bold != actual_has_bold {
         style_mismatches.push(format!(
-            "Bold: expected={}, actual={}",
-            expected_has_bold, actual_has_bold
+            "Bold: expected={expected_has_bold}, actual={actual_has_bold}"
         ));
     }
 
@@ -941,8 +942,7 @@ pub fn compare_styled_semantic(expected: &str, actual: &str) -> SemanticCompareR
     let actual_has_italic = actual_styles.iter().any(|s| s.italic);
     if expected_has_italic != actual_has_italic {
         style_mismatches.push(format!(
-            "Italic: expected={}, actual={}",
-            expected_has_italic, actual_has_italic
+            "Italic: expected={expected_has_italic}, actual={actual_has_italic}"
         ));
     }
 
@@ -960,8 +960,7 @@ pub fn compare_styled_semantic(expected: &str, actual: &str) -> SemanticCompareR
 
     if expected_fgs != actual_fgs && !expected_fgs.is_empty() {
         style_mismatches.push(format!(
-            "Foreground colors: expected={:?}, actual={:?}",
-            expected_fgs, actual_fgs
+            "Foreground colors: expected={expected_fgs:?}, actual={actual_fgs:?}"
         ));
     }
 
@@ -979,12 +978,12 @@ pub fn compare_styled_semantic(expected: &str, actual: &str) -> SemanticCompareR
 /// Extract the color number from an ANSI color parameter string
 fn extract_color_number(color_param: &str) -> Option<u32> {
     // Handle "38;5;N" format
-    if color_param.starts_with("38;5;") {
-        return color_param[5..].parse().ok();
+    if let Some(stripped) = color_param.strip_prefix("38;5;") {
+        return stripped.parse().ok();
     }
     // Handle "48;5;N" format
-    if color_param.starts_with("48;5;") {
-        return color_param[5..].parse().ok();
+    if let Some(stripped) = color_param.strip_prefix("48;5;") {
+        return stripped.parse().ok();
     }
     // Handle plain number
     color_param.parse().ok()

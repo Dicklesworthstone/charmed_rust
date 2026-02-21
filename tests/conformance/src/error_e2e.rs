@@ -1,4 +1,4 @@
-//! E2E tests for error propagation across charmed_rust crates.
+//! E2E tests for error propagation across `charmed_rust` crates.
 //!
 //! These tests verify that errors:
 //! - Propagate correctly across crate boundaries
@@ -7,15 +7,15 @@
 //! - Have helpful display messages
 //!
 //! Note: Tests cover actual error types in the codebase:
-//! - bubbletea::Error (Io)
-//! - huh::FormError (UserAborted, Timeout, Validation, Io)
-//! - wish::Error (multiple variants) - requires `wish` feature
-//! - charmed_log::ParseLevelError
+//! - `bubbletea::Error` (Io)
+//! - `huh::FormError` (`UserAborted`, Timeout, Validation, Io)
+//! - `wish::Error` (multiple variants) - requires `wish` feature
+//! - `charmed_log::ParseLevelError`
 
 use std::error::Error as StdError;
 use std::io;
 
-/// Tests for cross-crate io::Error propagation
+/// Tests for cross-crate `io::Error` propagation
 mod io_error_propagation {
     use super::*;
 
@@ -70,7 +70,7 @@ mod io_error_propagation {
     }
 }
 
-/// Tests for huh::FormError in application contexts
+/// Tests for `huh::FormError` in application contexts
 mod form_error_handling {
     #![allow(unused_imports)]
     use super::*;
@@ -110,7 +110,7 @@ mod form_error_handling {
         assert!(result.is_err());
 
         if let Err(FormError::Validation(msg)) = result {
-            assert!(msg.contains("@"));
+            assert!(msg.contains('@'));
         } else {
             panic!("Expected Validation error");
         }
@@ -130,7 +130,7 @@ mod form_error_handling {
     }
 }
 
-/// Tests for wish::Error categorization
+/// Tests for `wish::Error` categorization
 #[cfg(feature = "wish")]
 mod wish_error_categorization {
     use super::*;
@@ -183,7 +183,7 @@ mod wish_error_categorization {
         use wish::Error;
 
         // From<io::Error>
-        let io_err = io::Error::new(io::ErrorKind::Other, "test");
+        let io_err = io::Error::other("test");
         let _: Error = io_err.into();
 
         // From<AddrParseError>
@@ -192,7 +192,7 @@ mod wish_error_categorization {
     }
 }
 
-/// Tests for charmed_log::ParseLevelError
+/// Tests for `charmed_log::ParseLevelError`
 mod log_level_error {
     #![allow(unused_imports)]
     use super::*;
@@ -217,7 +217,7 @@ mod log_level_error {
         use std::str::FromStr;
 
         fn parse_config_level(s: &str) -> ParseResult<Level> {
-            Ok(Level::from_str(s)?)
+            Level::from_str(s)
         }
 
         // Valid levels work
@@ -239,7 +239,7 @@ mod source_chain_preservation {
         use bubbletea::Error;
 
         let original_msg = "underlying cause";
-        let io_err = io::Error::new(io::ErrorKind::Other, original_msg);
+        let io_err = io::Error::other(original_msg);
         let bt_err: Error = io_err.into();
 
         // Get source
@@ -267,7 +267,7 @@ mod source_chain_preservation {
         use bubbletea::Error;
 
         // Create a chain: bt_err -> io_err
-        let io_err = io::Error::new(io::ErrorKind::Other, "root");
+        let io_err = io::Error::other("root");
         let bt_err: Error = io_err.into();
 
         // Measure depth
@@ -303,7 +303,7 @@ mod error_recovery {
                 }
             }
             Err(last_err
-                .unwrap_or_else(|| Error::Io(io::Error::new(io::ErrorKind::Other, "no attempts"))))
+                .unwrap_or_else(|| Error::Io(io::Error::other("no attempts"))))
         }
 
         // Simulate a flaky operation that succeeds on 3rd try
@@ -312,7 +312,7 @@ mod error_recovery {
             || {
                 attempts += 1;
                 if attempts < 3 {
-                    Err(Error::Io(io::Error::new(io::ErrorKind::Other, "retry")))
+                    Err(Error::Io(io::Error::other("retry")))
                 } else {
                     Ok("success")
                 }
@@ -331,7 +331,7 @@ mod error_recovery {
         fn get_input_with_fallback(result: Result<String, FormError>, default: &str) -> String {
             match result {
                 Ok(s) => s,
-                Err(FormError::UserAborted) | Err(FormError::Timeout) => default.to_string(),
+                Err(FormError::UserAborted | FormError::Timeout) => default.to_string(),
                 Err(e) => panic!("unexpected error: {e}"),
             }
         }
@@ -358,7 +358,7 @@ mod debug_output {
         let io_err = io::Error::new(io::ErrorKind::NotFound, "file.txt");
         let bt_err: Error = io_err.into();
 
-        let debug = format!("{:?}", bt_err);
+        let debug = format!("{bt_err:?}");
         assert!(debug.contains("Io"));
         assert!(debug.contains("NotFound"));
     }
@@ -369,7 +369,7 @@ mod debug_output {
         use wish::Error;
 
         let err = Error::Configuration("invalid setting".into());
-        let debug = format!("{:?}", err);
+        let debug = format!("{err:?}");
 
         assert!(debug.contains("Configuration"));
         assert!(debug.contains("invalid setting"));
@@ -380,7 +380,7 @@ mod debug_output {
         use huh::FormError;
 
         let err = FormError::Validation("field required".into());
-        let debug = format!("{:?}", err);
+        let debug = format!("{err:?}");
 
         assert!(debug.contains("Validation"));
         assert!(debug.contains("field required"));

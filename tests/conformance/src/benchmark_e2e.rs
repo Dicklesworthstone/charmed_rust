@@ -9,8 +9,6 @@
 //! Note: These tests are marked #[ignore] by default as they require
 //! a longer execution time. Run with `cargo test -- --ignored` to include them.
 
-#![cfg(test)]
-
 use std::env;
 use std::path::PathBuf;
 use std::process::{Command, Output};
@@ -92,8 +90,7 @@ mod compilation_tests {
         // Should compile successfully
         assert!(
             is_success(&output),
-            "Benchmark compilation failed:\n{}",
-            stderr
+            "Benchmark compilation failed:\n{stderr}"
         );
     }
 
@@ -160,9 +157,7 @@ mod execution_tests {
 
         assert!(
             is_success(&output),
-            "lipgloss benchmark execution failed:\nstdout:\n{}\nstderr:\n{}",
-            stdout,
-            stderr
+            "lipgloss benchmark execution failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
         );
 
         // Should contain benchmark results
@@ -193,9 +188,7 @@ mod execution_tests {
 
         assert!(
             is_success(&output),
-            "bubbletea benchmark execution failed:\nstdout:\n{}\nstderr:\n{}",
-            stdout,
-            stderr
+            "bubbletea benchmark execution failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
         );
     }
 
@@ -219,13 +212,11 @@ mod execution_tests {
 
         assert!(
             is_success(&output),
-            "Full benchmark suite failed:\nstdout:\n{}\nstderr:\n{}",
-            stdout,
-            stderr
+            "Full benchmark suite failed:\nstdout:\n{stdout}\nstderr:\n{stderr}"
         );
 
         // Verify multiple benchmark groups ran
-        let combined = format!("{}\n{}", stdout, stderr);
+        let combined = format!("{stdout}\n{stderr}");
         assert!(
             combined.contains("lipgloss") || combined.contains("Benchmarking"),
             "Should run lipgloss benchmarks"
@@ -372,7 +363,7 @@ mod ci_simulation_tests {
     #[test]
     fn test_benchmark_output_parsing() {
         // Sample benchmark output that CI would parse
-        let sample_output = r#"
+        let sample_output = r"
 Benchmarking lipgloss/style_creation/Style::new
 Benchmarking lipgloss/style_creation/Style::new: Warming up for 1.0000 s
 Benchmarking lipgloss/style_creation/Style::new: Collecting 10 samples
@@ -380,18 +371,18 @@ lipgloss/style_creation/Style::new
                         time:   [15.234 ns 15.456 ns 15.678 ns]
                         change: [-2.34% +0.12% +2.45%] (p = 0.08 > 0.05)
                         No change in performance detected.
-"#;
+";
 
         // Verify we can detect "no change"
         assert!(sample_output.contains("No change in performance detected"));
 
         // Sample regression output
-        let regression_output = r#"
+        let regression_output = r"
 lipgloss/style_creation/Style::new
                         time:   [18.234 ns 18.456 ns 18.678 ns]
                         change: [+18.34% +20.12% +22.45%] (p = 0.00 < 0.05)
                         Performance has regressed.
-"#;
+";
 
         // Verify we can detect regression
         assert!(regression_output.contains("Performance has regressed"));
@@ -424,7 +415,7 @@ lipgloss/style_creation/Style::new
             } else {
                 ":white_check_mark:"
             };
-            summary.push_str(&format!("- {} {} - {} ({})\n", status, name, time, change));
+            summary.push_str(&format!("- {status} {name} - {time} ({change})\n"));
         }
 
         if has_regressions {
@@ -544,7 +535,7 @@ mod harness_tests {
 
         // Run a benchmark
         let result = ctx.bench("compatibility_test", || {
-            let _ = black_box(vec![1, 2, 3, 4, 5].iter().sum::<i32>());
+            let _ = black_box([1, 2, 3, 4, 5].iter().sum::<i32>());
         });
 
         // Verify result structure matches expected format

@@ -5,13 +5,13 @@
 //! the behavior of the original Go library.
 //!
 //! Test categories:
-//! - KeyType: Key type enum values and string representations
+//! - `KeyType`: Key type enum values and string representations
 //! - Key sequences: ANSI escape sequence parsing
 //! - Mouse buttons: Mouse button enum values
 //! - Mouse actions: Mouse action enum values
 //! - Mouse events: Mouse event string serialization
 //! - Mouse parsing: X10 and SGR mouse protocol escape sequence parsing
-//! - Key strings: KeyMsg Display implementation
+//! - Key strings: `KeyMsg` Display implementation
 //! - Command model: batch/sequence command semantics
 
 use crate::harness::{FixtureLoader, TestFixture};
@@ -137,7 +137,7 @@ struct CommandListOutput {
     values: Vec<i32>,
 }
 
-/// Parse key type from Go name to Rust KeyType
+/// Parse key type from Go name to Rust `KeyType`
 fn parse_key_type(name: &str) -> Option<KeyType> {
     match name {
         "KeyNull" => Some(KeyType::Null),
@@ -198,7 +198,7 @@ fn parse_key_type(name: &str) -> Option<KeyType> {
     }
 }
 
-/// Parse mouse button from Go name to Rust MouseButton
+/// Parse mouse button from Go name to Rust `MouseButton`
 fn parse_mouse_button(name: &str) -> Option<MouseButton> {
     match name {
         "MouseButtonNone" => Some(MouseButton::None),
@@ -215,7 +215,7 @@ fn parse_mouse_button(name: &str) -> Option<MouseButton> {
     }
 }
 
-/// Parse mouse action from Go name to Rust MouseAction
+/// Parse mouse action from Go name to Rust `MouseAction`
 fn parse_mouse_action(name: &str) -> Option<MouseAction> {
     match name {
         "MouseActionPress" => Some(MouseAction::Press),
@@ -225,8 +225,8 @@ fn parse_mouse_action(name: &str) -> Option<MouseAction> {
     }
 }
 
-/// Convert numeric button to MouseButton
-fn button_from_value(val: u8) -> MouseButton {
+/// Convert numeric button to `MouseButton`
+const fn button_from_value(val: u8) -> MouseButton {
     match val {
         0 => MouseButton::None,
         1 => MouseButton::Left,
@@ -242,8 +242,8 @@ fn button_from_value(val: u8) -> MouseButton {
     }
 }
 
-/// Convert numeric action to MouseAction
-fn action_from_value(val: u8) -> MouseAction {
+/// Convert numeric action to `MouseAction`
+const fn action_from_value(val: u8) -> MouseAction {
     match val {
         0 => MouseAction::Press,
         1 => MouseAction::Release,
@@ -252,8 +252,8 @@ fn action_from_value(val: u8) -> MouseAction {
     }
 }
 
-/// Convert numeric key type value to KeyType
-fn key_type_from_value(val: i16) -> Option<KeyType> {
+/// Convert numeric key type value to `KeyType`
+const fn key_type_from_value(val: i16) -> Option<KeyType> {
     match val {
         0 => Some(KeyType::Null),
         1 => Some(KeyType::CtrlA),
@@ -325,11 +325,11 @@ fn key_type_from_value(val: i16) -> Option<KeyType> {
 fn run_keytype_test(fixture: &TestFixture) -> Result<(), String> {
     let input: KeyTypeInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: KeyTypeOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let key_type = parse_key_type(&input.key_type)
         .ok_or_else(|| format!("Unknown key type: {}", input.key_type))?;
@@ -359,11 +359,11 @@ fn run_keytype_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_mouse_button_test(fixture: &TestFixture) -> Result<(), String> {
     let input: MouseButtonInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: MouseButtonOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let button = parse_mouse_button(&input.button)
         .ok_or_else(|| format!("Unknown mouse button: {}", input.button))?;
@@ -398,11 +398,11 @@ fn run_mouse_button_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_mouse_action_test(fixture: &TestFixture) -> Result<(), String> {
     let input: MouseActionInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: MouseActionOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let action = parse_mouse_action(&input.action)
         .ok_or_else(|| format!("Unknown mouse action: {}", input.action))?;
@@ -428,11 +428,11 @@ fn run_mouse_action_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_mouse_event_test(fixture: &TestFixture) -> Result<(), String> {
     let input: MouseEventInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: MouseEventOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let mouse = MouseMsg {
         x: input.x,
@@ -460,15 +460,15 @@ fn run_mouse_event_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_mouse_parse_test(fixture: &TestFixture) -> Result<(), String> {
     let input: MouseParseInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: MouseParseOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Parse the mouse escape sequence
     let result = parse_mouse_event_sequence(input.sequence.as_bytes())
-        .map_err(|e| format!("Failed to parse mouse sequence: {}", e))?;
+        .map_err(|e| format!("Failed to parse mouse sequence: {e}"))?;
 
     // Compare all fields
     let expected_button = button_from_value(expected.button);
@@ -530,11 +530,11 @@ fn run_mouse_parse_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_key_string_test(fixture: &TestFixture) -> Result<(), String> {
     let input: KeyStringInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: KeyStringOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let key_type = key_type_from_value(input.key_type)
         .ok_or_else(|| format!("Unknown key type value: {}", input.key_type))?;
@@ -569,11 +569,11 @@ fn run_key_string_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_sequence_test(fixture: &TestFixture) -> Result<(), String> {
     let input: SequenceInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: SequenceOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Parse the sequence using our new parse_sequence function
     let result = parse_sequence(input.sequence.as_bytes())
@@ -685,7 +685,7 @@ fn run_command_batch_test(fixture: &TestFixture) -> Result<(), String> {
             }
             Ok(())
         }
-        other => Err(format!("Unknown expected result type: {}", other)),
+        other => Err(format!("Unknown expected result type: {other}")),
     }
 }
 
@@ -747,7 +747,7 @@ fn run_command_sequence_test(fixture: &TestFixture) -> Result<(), String> {
             }
             Ok(())
         }
-        other => Err(format!("Unknown expected result type: {}", other)),
+        other => Err(format!("Unknown expected result type: {other}")),
     }
 }
 
@@ -755,7 +755,7 @@ fn run_command_sequence_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_test(fixture: &TestFixture) -> Result<(), String> {
     // Skip if marked
     if let Some(reason) = fixture.should_skip() {
-        return Err(format!("SKIPPED: {}", reason));
+        return Err(format!("SKIPPED: {reason}"));
     }
 
     // Route to appropriate test runner based on test name
@@ -780,11 +780,12 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
     } else if name.starts_with("command_sequence_") {
         run_command_sequence_test(fixture)
     } else {
-        Err(format!("Unknown test type: {}", name))
+        Err(format!("Unknown test type: {name}"))
     }
 }
 
 /// Run all bubbletea conformance tests
+#[must_use] 
 pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let mut loader = FixtureLoader::new();
     let mut results = Vec::new();
@@ -795,7 +796,7 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
         Err(e) => {
             results.push((
                 "load_fixtures",
-                Err(format!("Failed to load fixtures: {}", e)),
+                Err(format!("Failed to load fixtures: {e}")),
             ));
             return results;
         }
@@ -836,30 +837,30 @@ mod tests {
             match result {
                 Ok(()) => {
                     passed += 1;
-                    println!("  PASS: {}", name);
+                    println!("  PASS: {name}");
                 }
                 Err(msg) if msg.starts_with("SKIPPED:") => {
                     skipped += 1;
-                    println!("  SKIP: {} - {}", name, msg);
+                    println!("  SKIP: {name} - {msg}");
                 }
                 Err(msg) => {
                     failed += 1;
                     failures.push((name, msg));
-                    println!("  FAIL: {} - {}", name, msg);
+                    println!("  FAIL: {name} - {msg}");
                 }
             }
         }
 
         println!("\nBubbletea Conformance Results:");
-        println!("  Passed:  {}", passed);
-        println!("  Failed:  {}", failed);
-        println!("  Skipped: {}", skipped);
+        println!("  Passed:  {passed}");
+        println!("  Failed:  {failed}");
+        println!("  Skipped: {skipped}");
         println!("  Total:   {}", results.len());
 
         if !failures.is_empty() {
             println!("\nFailures:");
             for (name, msg) in &failures {
-                println!("  {}: {}", name, msg);
+                println!("  {name}: {msg}");
             }
         }
 
@@ -870,7 +871,7 @@ mod tests {
         );
     }
 
-    /// Basic KeyType display test
+    /// Basic `KeyType` display test
     #[test]
     fn test_keytype_display() {
         assert_eq!(KeyType::Enter.to_string(), "enter");
@@ -879,7 +880,7 @@ mod tests {
         assert_eq!(KeyType::F1.to_string(), "f1");
     }
 
-    /// Basic KeyMsg display test
+    /// Basic `KeyMsg` display test
     #[test]
     fn test_keymsg_display() {
         let key = KeyMsg::from_type(KeyType::Enter);
@@ -892,7 +893,7 @@ mod tests {
         assert_eq!(key.to_string(), "alt+a");
     }
 
-    /// Basic MouseMsg display test
+    /// Basic `MouseMsg` display test
     #[test]
     fn test_mousemsg_display() {
         let mouse = MouseMsg {
@@ -1137,7 +1138,7 @@ mod lifecycle_tests {
         assert_eq!(sim.last_view(), Some("init_msg=yes"));
     }
 
-    /// Test run_until_empty processes all messages
+    /// Test `run_until_empty` processes all messages
     #[test]
     fn test_lifecycle_run_until_empty() {
         let model = TrackingModel::new();
@@ -1154,7 +1155,7 @@ mod lifecycle_tests {
         assert_eq!(sim.model().value, 55); // 1+2+3+4+5+6+7+8+9+10 = 55
     }
 
-    /// Test run_until_quit respects max_steps
+    /// Test `run_until_quit` respects `max_steps`
     #[test]
     fn test_lifecycle_run_until_quit_max_steps() {
         let model = TrackingModel::new();
@@ -1219,7 +1220,7 @@ mod lifecycle_tests {
 
 /// Integration with the conformance trait system
 pub mod integration {
-    use super::*;
+    use super::{run_test, FixtureLoader};
     use crate::harness::{ConformanceTest, TestCategory, TestContext, TestResult};
 
     /// Bubbletea conformance test
@@ -1228,6 +1229,7 @@ pub mod integration {
     }
 
     impl BubbleteaTest {
+        #[must_use] 
         pub fn new(name: &str) -> Self {
             Self {
                 name: name.to_string(),
@@ -1240,7 +1242,7 @@ pub mod integration {
             &self.name
         }
 
-        fn crate_name(&self) -> &str {
+        fn crate_name(&self) -> &'static str {
             "bubbletea"
         }
 
@@ -1253,12 +1255,12 @@ pub mod integration {
                 Ok(f) => f,
                 Err(e) => {
                     return TestResult::Fail {
-                        reason: format!("Failed to load fixture: {}", e),
+                        reason: format!("Failed to load fixture: {e}"),
                     };
                 }
             };
 
-            match run_test(&fixture) {
+            match run_test(fixture) {
                 Ok(()) => TestResult::Pass,
                 Err(msg) if msg.starts_with("SKIPPED:") => TestResult::Skipped {
                     reason: msg.replace("SKIPPED: ", ""),
@@ -1269,6 +1271,7 @@ pub mod integration {
     }
 
     /// Get all bubbletea conformance tests as trait objects
+    #[must_use] 
     pub fn all_tests() -> Vec<Box<dyn ConformanceTest>> {
         let mut loader = FixtureLoader::new();
         let fixtures = match loader.load_crate("bubbletea") {

@@ -9,16 +9,19 @@
 //! - Projectile motion: 3D physics with gravity
 //! - FPS utility: frame rate to delta time conversion
 
-#![allow(clippy::unreadable_literal)]
+#![allow(
+    clippy::unreadable_literal,
+    reason = "Physics conformance tests keep scientific literals explicit for Go parity"
+)]
 
 use crate::harness::{FixtureLoader, TestFixture};
-use harmonica::{Point, Projectile, Spring, Vector, fps};
+use harmonica::{fps, Point, Projectile, Spring, Vector};
 use serde::Deserialize;
 
 /// Epsilon for floating point comparisons
 /// Note: 1e-6 accounts for floating-point differences between Go and Rust
 /// due to compiler optimizations, order of operations, and math library differences.
-/// The spring physics equations involve exp(), cos(), sin() which can have small
+/// The spring physics equations involve `exp()`, `cos()`, `sin()` which can have small
 /// implementation differences. Velocity calculations tend to have larger deltas
 /// (up to ~2e-8) compared to position (up to ~3e-9) for single steps.
 const EPSILON: f64 = 1e-6;
@@ -145,11 +148,11 @@ struct FpsOutput {
 fn run_spring_test(fixture: &TestFixture) -> Result<(), String> {
     let input: SpringInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: SpringOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let spring = Spring::new(input.delta_time, input.frequency, input.damping);
     let (new_pos, new_vel) = spring.update(input.current_pos, input.velocity, input.target_pos);
@@ -179,11 +182,11 @@ fn run_spring_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_spring_convergence_test(fixture: &TestFixture) -> Result<(), String> {
     let input: SpringConvergenceInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: Vec<ConvergenceStep> = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let delta_time = fps(60); // 60 FPS as per Go tests
     let spring = Spring::new(delta_time, input.frequency, input.damping);
@@ -220,11 +223,11 @@ fn run_spring_convergence_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_projectile_test(fixture: &TestFixture) -> Result<(), String> {
     let input: ProjectileInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: ProjectileOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // In Go harmonica, positive gravity means downward acceleration (terminal coordinates)
     // negative gravity means upward acceleration (inverted)
@@ -292,11 +295,11 @@ fn run_projectile_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_trajectory_test(fixture: &TestFixture) -> Result<(), String> {
     let input: TrajectoryInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: Vec<TrajectoryStep> = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let delta_time = fps(60);
     let gravity = Vector::new(0.0, -input.gravity, 0.0);
@@ -353,11 +356,11 @@ fn run_trajectory_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_fps_test(fixture: &TestFixture) -> Result<(), String> {
     let input: FpsInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: FpsOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let actual = fps(input.fps);
 
@@ -372,6 +375,7 @@ fn run_fps_test(fixture: &TestFixture) -> Result<(), String> {
 }
 
 /// Run all harmonica conformance tests
+#[must_use]
 pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let mut loader = FixtureLoader::new();
     let mut results = Vec::new();
@@ -382,7 +386,7 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
         Err(e) => {
             results.push((
                 "load_fixtures",
-                Err(format!("Failed to load fixtures: {}", e)),
+                Err(format!("Failed to load fixtures: {e}")),
             ));
             return results;
         }
@@ -409,7 +413,7 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
 fn run_test(fixture: &TestFixture) -> Result<(), String> {
     // Skip if marked
     if let Some(reason) = fixture.should_skip() {
-        return Err(format!("SKIPPED: {}", reason));
+        return Err(format!("SKIPPED: {reason}"));
     }
 
     // Route to appropriate test runner based on test name
@@ -446,11 +450,11 @@ fn run_zero_gravity_test(fixture: &TestFixture) -> Result<(), String> {
 
     let input: ZeroGravityInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: ProjectileOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let delta_time = fps(60);
     let acceleration = Vector::new(
@@ -530,30 +534,30 @@ mod tests {
             match result {
                 Ok(()) => {
                     passed += 1;
-                    println!("  PASS: {}", name);
+                    println!("  PASS: {name}");
                 }
                 Err(msg) if msg.starts_with("SKIPPED:") => {
                     skipped += 1;
-                    println!("  SKIP: {} - {}", name, msg);
+                    println!("  SKIP: {name} - {msg}");
                 }
                 Err(msg) => {
                     failed += 1;
                     failures.push((name, msg));
-                    println!("  FAIL: {} - {}", name, msg);
+                    println!("  FAIL: {name} - {msg}");
                 }
             }
         }
 
         println!("\nHarmonica Conformance Results:");
-        println!("  Passed:  {}", passed);
-        println!("  Failed:  {}", failed);
-        println!("  Skipped: {}", skipped);
+        println!("  Passed:  {passed}");
+        println!("  Failed:  {failed}");
+        println!("  Skipped: {skipped}");
         println!("  Total:   {}", results.len());
 
         if !failures.is_empty() {
             println!("\nFailures:");
             for (name, msg) in &failures {
-                println!("  {}: {}", name, msg);
+                println!("  {name}: {msg}");
             }
         }
 
@@ -571,12 +575,8 @@ mod tests {
         let (pos, vel) = spring.update(0.0, 0.0, 1.0);
 
         // Expected from Go reference
-        assert!(
-            approx_eq(pos, 0.004678839798509582, EPSILON),
-            "pos = {}",
-            pos
-        );
-        assert!(approx_eq(vel, 0.5429024312770874, EPSILON), "vel = {}", vel);
+        assert!(approx_eq(pos, 0.004678839798509582, EPSILON), "pos = {pos}");
+        assert!(approx_eq(vel, 0.5429024312770874, EPSILON), "vel = {vel}");
     }
 
     /// Verify spring at target position
@@ -585,8 +585,8 @@ mod tests {
         let spring = Spring::new(fps(60), 6.0, 1.0);
         let (pos, vel) = spring.update(1.0, 0.0, 1.0);
 
-        assert!(approx_eq(pos, 1.0, EPSILON), "pos = {}", pos);
-        assert!(approx_eq(vel, 0.0, EPSILON), "vel = {}", vel);
+        assert!(approx_eq(pos, 1.0, EPSILON), "pos = {pos}");
+        assert!(approx_eq(vel, 0.0, EPSILON), "vel = {vel}");
     }
 
     /// Verify underdamped spring behavior
@@ -598,10 +598,9 @@ mod tests {
         // Expected from Go reference
         assert!(
             approx_eq(pos, 0.0048974149946585666, EPSILON),
-            "pos = {}",
-            pos
+            "pos = {pos}"
         );
-        assert!(approx_eq(vel, 0.5813845939323615, EPSILON), "vel = {}", vel);
+        assert!(approx_eq(vel, 0.5813845939323615, EPSILON), "vel = {vel}");
     }
 
     /// Verify overdamped spring behavior
@@ -611,16 +610,8 @@ mod tests {
         let (pos, vel) = spring.update(0.0, 0.0, 1.0);
 
         // Expected from Go reference
-        assert!(
-            approx_eq(pos, 0.004391441832238274, EPSILON),
-            "pos = {}",
-            pos
-        );
-        assert!(
-            approx_eq(vel, 0.49369831503171113, EPSILON),
-            "vel = {}",
-            vel
-        );
+        assert!(approx_eq(pos, 0.004391441832238274, EPSILON), "pos = {pos}");
+        assert!(approx_eq(vel, 0.49369831503171113, EPSILON), "vel = {vel}");
     }
 
     /// Verify FPS utility function
@@ -636,7 +627,7 @@ mod tests {
 
 /// Integration with the conformance trait system
 pub mod integration {
-    use super::*;
+    use super::{run_test, FixtureLoader};
     use crate::harness::{ConformanceTest, TestCategory, TestContext, TestResult};
 
     /// Spring physics conformance test
@@ -645,6 +636,7 @@ pub mod integration {
     }
 
     impl SpringPhysicsTest {
+        #[must_use]
         pub fn new(name: &str) -> Self {
             Self {
                 name: name.to_string(),
@@ -657,7 +649,7 @@ pub mod integration {
             &self.name
         }
 
-        fn crate_name(&self) -> &str {
+        fn crate_name(&self) -> &'static str {
             "harmonica"
         }
 
@@ -670,12 +662,12 @@ pub mod integration {
                 Ok(f) => f,
                 Err(e) => {
                     return TestResult::Fail {
-                        reason: format!("Failed to load fixture: {}", e),
+                        reason: format!("Failed to load fixture: {e}"),
                     };
                 }
             };
 
-            match run_test(&fixture) {
+            match run_test(fixture) {
                 Ok(()) => TestResult::Pass,
                 Err(msg) if msg.starts_with("SKIPPED:") => TestResult::Skipped {
                     reason: msg.replace("SKIPPED: ", ""),
@@ -686,6 +678,7 @@ pub mod integration {
     }
 
     /// Get all harmonica conformance tests as trait objects
+    #[must_use]
     pub fn all_tests() -> Vec<Box<dyn ConformanceTest>> {
         let mut loader = FixtureLoader::new();
         let fixtures = match loader.load_crate("harmonica") {

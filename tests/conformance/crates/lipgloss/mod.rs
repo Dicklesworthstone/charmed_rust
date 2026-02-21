@@ -16,7 +16,7 @@
 //! - Place: positioning within containers
 
 use crate::harness::{FixtureLoader, TestFixture};
-use lipgloss::{Border, Position, Style, join_horizontal, join_vertical, place};
+use lipgloss::{join_horizontal, join_vertical, place, Border, Position, Style};
 use serde::Deserialize;
 
 /// Input for style tests (text attributes)
@@ -169,11 +169,11 @@ fn strip_ansi(s: &str) -> String {
 fn run_style_test(fixture: &TestFixture) -> Result<(), String> {
     let input: StyleInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: StyleOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let mut style = Style::new();
 
@@ -267,8 +267,7 @@ fn run_style_test(fixture: &TestFixture) -> Result<(), String> {
         let actual_width = lipgloss::width(&rendered);
         if actual_width != expected_width {
             return Err(format!(
-                "Width mismatch: expected {}, got {}",
-                expected_width, actual_width
+                "Width mismatch: expected {expected_width}, got {actual_width}"
             ));
         }
     }
@@ -277,8 +276,7 @@ fn run_style_test(fixture: &TestFixture) -> Result<(), String> {
         let actual_height = lipgloss::height(&rendered);
         if actual_height != expected_height {
             return Err(format!(
-                "Height mismatch: expected {}, got {}",
-                expected_height, actual_height
+                "Height mismatch: expected {expected_height}, got {actual_height}"
             ));
         }
     }
@@ -290,11 +288,11 @@ fn run_style_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_border_test(fixture: &TestFixture, test_name: &str) -> Result<(), String> {
     let input: BorderInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: BorderOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let border = get_border(&input.border_type);
     let mut style = Style::new().border(border);
@@ -331,14 +329,18 @@ fn run_border_test(fixture: &TestFixture, test_name: &str) -> Result<(), String>
 fn run_join_test(fixture: &TestFixture, is_horizontal: bool) -> Result<(), String> {
     let input: JoinInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: JoinOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let position = parse_position(&input.position);
-    let blocks: Vec<&str> = input.blocks.iter().map(|s| s.as_str()).collect();
+    let blocks: Vec<&str> = input
+        .blocks
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
 
     let result = if is_horizontal {
         join_horizontal(position, &blocks)
@@ -360,11 +362,11 @@ fn run_join_test(fixture: &TestFixture, is_horizontal: bool) -> Result<(), Strin
 fn run_place_test(fixture: &TestFixture) -> Result<(), String> {
     let input: PlaceInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: PlaceOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Determine positions - use specific or combined position
     let h_pos = input
@@ -383,12 +385,10 @@ fn run_place_test(fixture: &TestFixture) -> Result<(), String> {
 
     let width = input
         .width
-        .map(|w| w as usize)
-        .unwrap_or_else(|| lipgloss::width(&input.text));
+        .map_or_else(|| lipgloss::width(&input.text), |w| w as usize);
     let height = input
         .height
-        .map(|h| h as usize)
-        .unwrap_or_else(|| lipgloss::height(&input.text));
+        .map_or_else(|| lipgloss::height(&input.text), |h| h as usize);
 
     let result = place(width, height, h_pos, v_pos, &input.text);
 
@@ -406,19 +406,19 @@ fn run_place_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_test(fixture: &TestFixture) -> Result<(), String> {
     // Skip if marked
     if let Some(reason) = fixture.should_skip() {
-        return Err(format!("SKIPPED: {}", reason));
+        return Err(format!("SKIPPED: {reason}"));
     }
 
     // Route to appropriate test runner based on test name
     let name = &fixture.name;
 
-    if name.starts_with("style_") || name.starts_with("color_") {
-        run_style_test(fixture)
-    } else if name.starts_with("padding_") || name.starts_with("margin_") {
-        run_style_test(fixture)
-    } else if name.starts_with("dimension_") {
-        run_style_test(fixture)
-    } else if name.starts_with("align_") {
+    if name.starts_with("style_")
+        || name.starts_with("color_")
+        || name.starts_with("padding_")
+        || name.starts_with("margin_")
+        || name.starts_with("dimension_")
+        || name.starts_with("align_")
+    {
         run_style_test(fixture)
     } else if name.starts_with("border_") {
         run_border_test(fixture, name)
@@ -429,11 +429,12 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
     } else if name.starts_with("place_") {
         run_place_test(fixture)
     } else {
-        Err(format!("Unknown test type: {}", name))
+        Err(format!("Unknown test type: {name}"))
     }
 }
 
 /// Run all lipgloss conformance tests
+#[must_use]
 pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let mut loader = FixtureLoader::new();
     let mut results = Vec::new();
@@ -444,7 +445,7 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
         Err(e) => {
             results.push((
                 "load_fixtures",
-                Err(format!("Failed to load fixtures: {}", e)),
+                Err(format!("Failed to load fixtures: {e}")),
             ));
             return results;
         }
@@ -485,30 +486,30 @@ mod tests {
             match result {
                 Ok(()) => {
                     passed += 1;
-                    println!("  PASS: {}", name);
+                    println!("  PASS: {name}");
                 }
                 Err(msg) if msg.starts_with("SKIPPED:") => {
                     skipped += 1;
-                    println!("  SKIP: {} - {}", name, msg);
+                    println!("  SKIP: {name} - {msg}");
                 }
                 Err(msg) => {
                     failed += 1;
                     failures.push((name, msg));
-                    println!("  FAIL: {} - {}", name, msg);
+                    println!("  FAIL: {name} - {msg}");
                 }
             }
         }
 
         println!("\nLipgloss Conformance Results:");
-        println!("  Passed:  {}", passed);
-        println!("  Failed:  {}", failed);
-        println!("  Skipped: {}", skipped);
+        println!("  Passed:  {passed}");
+        println!("  Failed:  {failed}");
+        println!("  Skipped: {skipped}");
         println!("  Total:   {}", results.len());
 
         if !failures.is_empty() {
             println!("\nFailures:");
             for (name, msg) in &failures {
-                println!("  {}: {}", name, msg);
+                println!("  {name}: {msg}");
             }
         }
 
@@ -543,13 +544,11 @@ mod tests {
         let stripped = strip_ansi(&rendered);
         assert!(
             stripped.contains("Normal"),
-            "Should contain 'Normal': {}",
-            stripped
+            "Should contain 'Normal': {stripped}"
         );
         assert!(
-            stripped.contains("┌") || stripped.contains("+"),
-            "Should have border chars: {}",
-            stripped
+            stripped.contains("┌") || stripped.contains('+'),
+            "Should have border chars: {stripped}"
         );
     }
 
@@ -561,13 +560,11 @@ mod tests {
         let stripped = strip_ansi(&rendered);
         assert!(
             stripped.contains("Rounded"),
-            "Should contain 'Rounded': {}",
-            stripped
+            "Should contain 'Rounded': {stripped}"
         );
         assert!(
             stripped.contains("╭"),
-            "Should have rounded corner: {}",
-            stripped
+            "Should have rounded corner: {stripped}"
         );
     }
 
@@ -609,7 +606,7 @@ mod tests {
 
 /// Integration with the conformance trait system
 pub mod integration {
-    use super::*;
+    use super::{run_test, FixtureLoader};
     use crate::harness::{ConformanceTest, TestCategory, TestContext, TestResult};
 
     /// Lipgloss conformance test
@@ -618,6 +615,7 @@ pub mod integration {
     }
 
     impl LipglossStyleTest {
+        #[must_use]
         pub fn new(name: &str) -> Self {
             Self {
                 name: name.to_string(),
@@ -630,7 +628,7 @@ pub mod integration {
             &self.name
         }
 
-        fn crate_name(&self) -> &str {
+        fn crate_name(&self) -> &'static str {
             "lipgloss"
         }
 
@@ -643,12 +641,12 @@ pub mod integration {
                 Ok(f) => f,
                 Err(e) => {
                     return TestResult::Fail {
-                        reason: format!("Failed to load fixture: {}", e),
+                        reason: format!("Failed to load fixture: {e}"),
                     };
                 }
             };
 
-            match run_test(&fixture) {
+            match run_test(fixture) {
                 Ok(()) => TestResult::Pass,
                 Err(msg) if msg.starts_with("SKIPPED:") => TestResult::Skipped {
                     reason: msg.replace("SKIPPED: ", ""),
@@ -659,6 +657,7 @@ pub mod integration {
     }
 
     /// Get all lipgloss conformance tests as trait objects
+    #[must_use]
     pub fn all_tests() -> Vec<Box<dyn ConformanceTest>> {
         let mut loader = FixtureLoader::new();
         let fixtures = match loader.load_crate("lipgloss") {

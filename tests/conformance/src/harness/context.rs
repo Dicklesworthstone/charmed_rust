@@ -1,4 +1,4 @@
-//! TestContext - Integration layer for conformance tests
+//! `TestContext` - Integration layer for conformance tests
 //!
 //! Combines logging, comparison, and fixture loading into a unified
 //! interface for running conformance tests.
@@ -38,6 +38,7 @@ impl Default for TestContext {
 
 impl TestContext {
     /// Create a new test context with default settings
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             logger: TestLogger::new(),
@@ -49,6 +50,7 @@ impl TestContext {
     }
 
     /// Set the current test name
+    #[must_use] 
     pub fn with_test_name(mut self, name: &str) -> Self {
         self.test_name = name.to_string();
         self.logger.set_test_name(name);
@@ -56,6 +58,7 @@ impl TestContext {
     }
 
     /// Set the logger's test name without changing fixture lookup name
+    #[must_use] 
     pub fn with_logger_test_name(mut self, name: &str) -> Self {
         self.logger.set_test_name(name);
         self
@@ -84,22 +87,24 @@ impl TestContext {
     }
 
     /// Get a reference to the logger
-    pub fn logger(&mut self) -> &mut TestLogger {
+    pub const fn logger(&mut self) -> &mut TestLogger {
         &mut self.logger
     }
 
     /// Get a reference to the fixture loader
-    pub fn fixtures(&self) -> &FixtureLoader {
+    #[must_use] 
+    pub const fn fixtures(&self) -> &FixtureLoader {
         &self.fixtures
     }
 
     /// Get a mutable reference to the fixture loader
-    pub fn fixtures_mut(&mut self) -> &mut FixtureLoader {
+    pub const fn fixtures_mut(&mut self) -> &mut FixtureLoader {
         &mut self.fixtures
     }
 
     /// Get a reference to the comparator
-    pub fn comparator(&self) -> &OutputComparator {
+    #[must_use] 
+    pub const fn comparator(&self) -> &OutputComparator {
         &self.comparator
     }
 
@@ -175,13 +180,14 @@ impl TestContext {
     where
         F: FnOnce(&mut Self),
     {
-        self.logger.info(&format!("Section: {}", name));
+        self.logger.info(&format!("Section: {name}"));
         self.logger.indent();
         f(self);
         self.logger.dedent();
     }
 
     /// Get the final test result
+    #[must_use] 
     pub fn result(&self) -> TestResult {
         if self.has_failures {
             TestResult::Fail {
@@ -200,8 +206,7 @@ impl TestContext {
             }
             CompareResult::ApproximatelyEqual { delta, epsilon, .. } => {
                 self.logger.info(&format!(
-                    "Assertion: PASS (approximately equal, delta={} <= epsilon={})",
-                    delta, epsilon
+                    "Assertion: PASS (approximately equal, delta={delta} <= epsilon={epsilon})"
                 ));
             }
             CompareResult::Different(diff) => {
@@ -209,7 +214,7 @@ impl TestContext {
                 self.logger.section("Diff", |logger| {
                     logger.info(&format!("Expected: {}", diff.expected));
                     logger.info(&format!("Actual: {}", diff.actual));
-                    logger.info(&format!("{}", diff.describe()));
+                    logger.info(&diff.describe());
                     if !diff.inline_diff.is_empty() {
                         logger.info(&format!("Inline: {}", diff.inline_diff));
                     }

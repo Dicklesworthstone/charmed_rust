@@ -1,4 +1,4 @@
-//! TestLogger - Hierarchical logging for conformance tests
+//! `TestLogger` - Hierarchical logging for conformance tests
 //!
 //! Provides detailed, formatted output for test execution including:
 //! - Timestamps (ISO8601)
@@ -53,24 +53,26 @@ pub enum LogLevel {
 
 impl LogLevel {
     /// Get the string representation
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            LogLevel::Trace => "TRACE",
-            LogLevel::Debug => "DEBUG",
-            LogLevel::Info => "INFO",
-            LogLevel::Warn => "WARN",
-            LogLevel::Error => "ERROR",
+            Self::Trace => "TRACE",
+            Self::Debug => "DEBUG",
+            Self::Info => "INFO",
+            Self::Warn => "WARN",
+            Self::Error => "ERROR",
         }
     }
 
     /// Get the color for this level
-    pub fn color(&self) -> Option<Color> {
+    #[must_use]
+    pub const fn color(&self) -> Option<Color> {
         match self {
-            LogLevel::Trace => Some(Color::Magenta),
-            LogLevel::Debug => Some(Color::Blue),
-            LogLevel::Info => Some(Color::Green),
-            LogLevel::Warn => Some(Color::Yellow),
-            LogLevel::Error => Some(Color::Red),
+            Self::Trace => Some(Color::Magenta),
+            Self::Debug => Some(Color::Blue),
+            Self::Info => Some(Color::Green),
+            Self::Warn => Some(Color::Yellow),
+            Self::Error => Some(Color::Red),
         }
     }
 }
@@ -112,7 +114,7 @@ struct JsonLogEntry<'a> {
 }
 
 impl<'a> JsonLogEntry<'a> {
-    fn new(level: &'a str, message: &'a str) -> Self {
+    const fn new(level: &'a str, message: &'a str) -> Self {
         Self {
             timestamp: None,
             level,
@@ -138,36 +140,36 @@ enum OutputWriter {
 impl OutputWriter {
     fn write_colored(&mut self, spec: &ColorSpec, text: &str) -> io::Result<()> {
         match self {
-            OutputWriter::Colored(stream) => {
+            Self::Colored(stream) => {
                 stream.set_color(spec)?;
-                write!(stream, "{}", text)?;
+                write!(stream, "{text}")?;
                 stream.reset()?;
                 Ok(())
             }
-            OutputWriter::Plain(writer) => {
-                write!(writer, "{}", text)
+            Self::Plain(writer) => {
+                write!(writer, "{text}")
             }
         }
     }
 
     fn write_plain(&mut self, text: &str) -> io::Result<()> {
         match self {
-            OutputWriter::Colored(stream) => write!(stream, "{}", text),
-            OutputWriter::Plain(writer) => write!(writer, "{}", text),
+            Self::Colored(stream) => write!(stream, "{text}"),
+            Self::Plain(writer) => write!(writer, "{text}"),
         }
     }
 
     fn newline(&mut self) -> io::Result<()> {
         match self {
-            OutputWriter::Colored(stream) => writeln!(stream),
-            OutputWriter::Plain(writer) => writeln!(writer),
+            Self::Colored(stream) => writeln!(stream),
+            Self::Plain(writer) => writeln!(writer),
         }
     }
 
     fn flush(&mut self) -> io::Result<()> {
         match self {
-            OutputWriter::Colored(stream) => stream.flush(),
-            OutputWriter::Plain(writer) => writer.flush(),
+            Self::Colored(stream) => stream.flush(),
+            Self::Plain(writer) => writer.flush(),
         }
     }
 }
@@ -204,6 +206,7 @@ impl Default for TestLogger {
 
 impl TestLogger {
     /// Create a new logger with default settings (stdout, Info level)
+    #[must_use]
     pub fn new() -> Self {
         Self {
             level: LogLevel::Info,
@@ -220,24 +223,28 @@ impl TestLogger {
     }
 
     /// Set the minimum log level
-    pub fn with_level(mut self, level: LogLevel) -> Self {
+    #[must_use]
+    pub const fn with_level(mut self, level: LogLevel) -> Self {
         self.level = level;
         self
     }
 
     /// Set the output format
-    pub fn with_format(mut self, format: OutputFormat) -> Self {
+    #[must_use]
+    pub const fn with_format(mut self, format: OutputFormat) -> Self {
         self.format = format;
         self
     }
 
     /// Set whether to include timestamps
-    pub fn with_timestamps(mut self, timestamps: bool) -> Self {
+    #[must_use]
+    pub const fn with_timestamps(mut self, timestamps: bool) -> Self {
         self.timestamps = timestamps;
         self
     }
 
     /// Set whether to use colors
+    #[must_use]
     pub fn with_colors(mut self, colors: bool) -> Self {
         self.colors = colors;
         if colors {
@@ -302,7 +309,7 @@ impl TestLogger {
 
         // Timestamp
         if let Some(ts) = self.timestamp_str() {
-            let _ = self.output.write_plain(&format!("[{}] ", ts));
+            let _ = self.output.write_plain(&format!("[{ts}] "));
         }
 
         // Level with color
@@ -321,13 +328,11 @@ impl TestLogger {
 
         // Test name
         if let Some(ref test_name) = self.test_name {
-            let _ = self.output.write_plain(&format!(" {}", test_name));
+            let _ = self.output.write_plain(&format!(" {test_name}"));
         }
 
         // Message with indentation
-        let _ = self
-            .output
-            .write_plain(&format!(" {}{}", indent_str, message));
+        let _ = self.output.write_plain(&format!(" {indent_str}{message}"));
         let _ = self.output.newline();
         let _ = self.output.flush();
     }
@@ -374,36 +379,36 @@ impl TestLogger {
 
     /// Log a key-value pair
     pub fn key_value<K: Display, V: Debug>(&mut self, key: K, value: &V) {
-        let message = format!("{}: {:?}", key, value);
+        let message = format!("{key}: {value:?}");
         self.write_log(LogLevel::Info, &message);
     }
 
     /// Log a key-value pair with raw string value (no Debug formatting)
     pub fn key_value_raw<K: Display>(&mut self, key: K, value: &str) {
-        let message = format!("{}: {}", key, value);
+        let message = format!("{key}: {value}");
         self.write_log(LogLevel::Info, &message);
     }
 
     /// Log an input value
     pub fn log_input<T: Debug>(&mut self, name: &str, value: &T) {
-        self.key_value(format!("Input {}", name), value);
+        self.key_value(format!("Input {name}"), value);
     }
 
     /// Log an expected value
     pub fn log_expected<T: Debug>(&mut self, name: &str, value: &T) {
-        self.key_value(format!("Expected {}", name), value);
+        self.key_value(format!("Expected {name}"), value);
     }
 
     /// Log an actual value
     pub fn log_actual<T: Debug>(&mut self, name: &str, value: &T) {
-        self.key_value(format!("Actual {}", name), value);
+        self.key_value(format!("Actual {name}"), value);
     }
 
     /// Log an ANSI string with escape sequence debugging
     pub fn ansi_debug(&mut self, name: &str, ansi_str: &str) {
         self.section(name, |log| {
             // Raw representation
-            log.key_value_raw("Raw", &format!("{:?}", ansi_str));
+            log.key_value_raw("Raw", &format!("{ansi_str:?}"));
 
             // Parse and describe escape codes
             let mut codes_desc = String::new();
@@ -414,7 +419,7 @@ impl TestLogger {
             for c in ansi_str.chars() {
                 if c == '\x1b' {
                     if !text_buf.is_empty() {
-                        codes_desc.push_str(&format!("\"{}\" ", text_buf));
+                        codes_desc.push_str(&format!("\"{text_buf}\" "));
                         text_buf.clear();
                     }
                     in_escape = true;
@@ -425,7 +430,7 @@ impl TestLogger {
                     if c.is_ascii_alphabetic() {
                         // End of escape sequence
                         let desc = Self::describe_ansi_escape(&escape_buf);
-                        codes_desc.push_str(&format!("[{}] ", desc));
+                        codes_desc.push_str(&format!("[{desc}] "));
                         in_escape = false;
                     }
                 } else {
@@ -433,7 +438,7 @@ impl TestLogger {
                 }
             }
             if !text_buf.is_empty() {
-                codes_desc.push_str(&format!("\"{}\"", text_buf));
+                codes_desc.push_str(&format!("\"{text_buf}\""));
             }
 
             log.key_value_raw("Codes", &codes_desc);
@@ -473,7 +478,7 @@ impl TestLogger {
                     "45" => "bg-magenta".to_string(),
                     "46" => "bg-cyan".to_string(),
                     "47" => "bg-white".to_string(),
-                    _ => format!("SGR {}", code),
+                    _ => format!("SGR {code}"),
                 })
                 .collect();
             format!("SGR {}", descriptions.join("+"))
@@ -483,12 +488,12 @@ impl TestLogger {
     }
 
     /// Increase indentation for a nested section
-    pub fn indent(&mut self) {
+    pub const fn indent(&mut self) {
         self.indent += 1;
     }
 
     /// Decrease indentation after a nested section
-    pub fn dedent(&mut self) {
+    pub const fn dedent(&mut self) {
         self.indent = self.indent.saturating_sub(1);
     }
 
@@ -498,7 +503,7 @@ impl TestLogger {
         F: FnOnce(&mut Self) -> R,
     {
         // Log section header
-        let header = format!("{}:", name);
+        let header = format!("{name}:");
         if self.colors {
             let mut spec = ColorSpec::new();
             spec.set_fg(Some(Color::Cyan)).set_bold(true);
@@ -525,8 +530,7 @@ impl TestLogger {
     pub fn stop_timing(&mut self) -> Duration {
         self.timing_start
             .take()
-            .map(|start| start.elapsed())
-            .unwrap_or(Duration::ZERO)
+            .map_or(Duration::ZERO, |start| start.elapsed())
     }
 
     /// Log a passing result
@@ -598,7 +602,7 @@ impl TestLogger {
         } else {
             0
         };
-        let msg = format!("[{}/{}] {}% - {}", current, total, pct, test_name);
+        let msg = format!("[{current}/{total}] {pct}% - {test_name}");
         self.info(&msg);
     }
 }
@@ -663,7 +667,7 @@ mod tests {
             }
         }
 
-        fn to_string(&self) -> String {
+        fn as_string(&self) -> String {
             String::from_utf8(self.inner.lock().clone()).unwrap()
         }
     }
@@ -690,7 +694,7 @@ mod tests {
         logger.key_value("input", &42);
         logger.key_value("expected", &"hello");
 
-        let output = buffer.to_string();
+        let output = buffer.as_string();
         assert!(output.contains("Test started"));
         assert!(output.contains("input: 42"));
         assert!(output.contains("expected: \"hello\""));
@@ -710,7 +714,7 @@ mod tests {
             });
         });
 
-        let output = buffer.to_string();
+        let output = buffer.as_string();
         assert!(output.contains("Outer:"));
         assert!(output.contains("In outer"));
         assert!(output.contains("Inner:"));
@@ -728,7 +732,7 @@ mod tests {
         logger.set_test_name("my_test");
         logger.info("test message");
 
-        let output = buffer.to_string();
+        let output = buffer.as_string();
         assert!(output.contains("\"test\":\"my_test\""));
         assert!(output.contains("\"message\":\"test message\""));
     }
@@ -755,7 +759,7 @@ mod tests {
         logger.warn("warn message");
         logger.error("error message");
 
-        let output = buffer.to_string();
+        let output = buffer.as_string();
         assert!(!output.contains("debug message"));
         assert!(!output.contains("info message"));
         assert!(output.contains("warn message"));
@@ -771,7 +775,7 @@ mod tests {
                 let logger = logger.clone();
                 std::thread::spawn(move || {
                     for j in 0..100 {
-                        logger.info(&format!("Thread {} msg {}", i, j));
+                        logger.info(&format!("Thread {i} msg {j}"));
                     }
                 })
             })
@@ -792,7 +796,7 @@ mod tests {
 
         logger.ansi_debug("styled", "\x1b[31;1mHello\x1b[0m");
 
-        let output = buffer.to_string();
+        let output = buffer.as_string();
         assert!(output.contains("red"));
         assert!(output.contains("bold"));
     }
@@ -807,7 +811,7 @@ mod tests {
         logger.log_pass(Duration::from_millis(5));
         logger.log_fail("assertion failed", Duration::from_millis(10));
 
-        let output = buffer.to_string();
+        let output = buffer.as_string();
         assert!(output.contains("PASS"));
         assert!(output.contains("FAIL"));
         assert!(output.contains("assertion failed"));
@@ -822,7 +826,7 @@ mod tests {
 
         logger.progress(5, 10, "test_foo");
 
-        let output = buffer.to_string();
+        let output = buffer.as_string();
         assert!(output.contains("[5/10]"));
         assert!(output.contains("50%"));
         assert!(output.contains("test_foo"));

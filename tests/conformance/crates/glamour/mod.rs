@@ -15,12 +15,15 @@
 //! - Horizontal rules: various syntaxes
 //! - Style presets: dark, light, ascii, notty, dracula
 
-#![allow(clippy::unreadable_literal)]
+#![allow(
+    clippy::unreadable_literal,
+    reason = "Fixture parity assertions use exact numeric literals from benchmark and renderer outputs"
+)]
 
 use crate::harness::{
-    FixtureLoader, TestFixture, compare_styled_semantic, extract_styled_spans, strip_ansi,
+    compare_styled_semantic, extract_styled_spans, strip_ansi, FixtureLoader, TestFixture,
 };
-use glamour::{Style, render};
+use glamour::{render, Style};
 use serde::Deserialize;
 use std::collections::HashSet;
 
@@ -107,15 +110,15 @@ fn extract_foreground_colors(text: &str) -> HashSet<u32> {
             // - "38;5;N" for 256-color mode
             // - "38;2;R;G;B" for true color mode
             // - "31" etc for basic ANSI colors
-            if fg.starts_with("38;5;") {
+            if let Some(stripped) = fg.strip_prefix("38;5;") {
                 // 256-color mode: 38;5;N
-                if let Ok(n) = fg[5..].parse::<u32>() {
+                if let Ok(n) = stripped.parse::<u32>() {
                     colors.insert(n);
                 }
-            } else if fg.starts_with("38;2;") {
+            } else if let Some(stripped) = fg.strip_prefix("38;2;") {
                 // True color mode: 38;2;R;G;B
                 // Parse RGB values and combine into a unique identifier
-                let parts: Vec<&str> = fg[5..].split(';').collect();
+                let parts: Vec<&str> = stripped.split(';').collect();
                 if parts.len() == 3 {
                     if let (Ok(r), Ok(g), Ok(b)) = (
                         parts[0].parse::<u32>(),
@@ -157,14 +160,14 @@ fn compare_syntax_highlighting(
     // Strip ANSI and normalize for text comparison
     let expected_text = strip_ansi(expected)
         .lines()
-        .map(|l| l.trim())
+        .map(str::trim)
         .filter(|l| !l.is_empty())
         .collect::<Vec<_>>()
         .join(" ");
 
     let actual_text = strip_ansi(actual)
         .lines()
-        .map(|l| l.trim())
+        .map(str::trim)
         .filter(|l| !l.is_empty())
         .collect::<Vec<_>>()
         .join(" ");
@@ -195,11 +198,11 @@ fn compare_syntax_highlighting(
 fn run_glamour_test_with_mode(fixture: &TestFixture, mode: CompareMode) -> Result<(), String> {
     let input: GlamourInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: GlamourOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let style = parse_style(&input.style);
 
@@ -211,8 +214,7 @@ fn run_glamour_test_with_mode(fixture: &TestFixture, mode: CompareMode) -> Resul
         match result {
             Err(_) => Ok(()),
             Ok(output) => Err(format!(
-                "Expected error but got success with output:\n{}",
-                output
+                "Expected error but got success with output:\n{output}"
             )),
         }
     } else {
@@ -253,13 +255,13 @@ fn run_glamour_test_with_mode(fixture: &TestFixture, mode: CompareMode) -> Resul
                 CompareMode::TextOnly => {
                     let expected_text = strip_ansi(&expected.output)
                         .lines()
-                        .map(|l| l.trim())
+                        .map(str::trim)
                         .filter(|l| !l.is_empty())
                         .collect::<Vec<_>>()
                         .join(" ");
                     let actual_text = strip_ansi(&actual)
                         .lines()
-                        .map(|l| l.trim())
+                        .map(str::trim)
                         .filter(|l| !l.is_empty())
                         .collect::<Vec<_>>()
                         .join(" ");
@@ -268,8 +270,7 @@ fn run_glamour_test_with_mode(fixture: &TestFixture, mode: CompareMode) -> Resul
                         Ok(())
                     } else {
                         Err(format!(
-                            "Text content mismatch:\n  Expected: {:?}\n  Actual: {:?}",
-                            expected_text, actual_text
+                            "Text content mismatch:\n  Expected: {expected_text:?}\n  Actual: {actual_text:?}"
                         ))
                     }
                 }
@@ -322,8 +323,7 @@ fn run_glamour_test_with_mode(fixture: &TestFixture, mode: CompareMode) -> Resul
                         Ok(())
                     } else {
                         Err(format!(
-                            "Table content mismatch:\n  Expected: {:?}\n  Actual: {:?}",
-                            expected_text, actual_text
+                            "Table content mismatch:\n  Expected: {expected_text:?}\n  Actual: {actual_text:?}"
                         ))
                     }
                 }
@@ -357,7 +357,7 @@ fn run_glamour_test_with_mode(fixture: &TestFixture, mode: CompareMode) -> Resul
                     }
                 }
             },
-            Err(e) => Err(format!("Expected success but got error: {}", e)),
+            Err(e) => Err(format!("Expected success but got error: {e}")),
         }
     }
 }
@@ -368,6 +368,7 @@ fn run_glamour_test(fixture: &TestFixture) -> Result<(), String> {
 }
 
 /// Run all glamour conformance tests
+#[must_use]
 pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let mut loader = FixtureLoader::new();
     let mut results = Vec::new();
@@ -378,7 +379,7 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
         Err(e) => {
             results.push((
                 "load_fixtures",
-                Err(format!("Failed to load fixtures: {}", e)),
+                Err(format!("Failed to load fixtures: {e}")),
             ));
             return results;
         }
@@ -405,7 +406,7 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
 fn run_test(fixture: &TestFixture) -> Result<(), String> {
     // Skip if marked
     if let Some(reason) = fixture.should_skip() {
-        return Err(format!("SKIPPED: {}", reason));
+        return Err(format!("SKIPPED: {reason}"));
     }
 
     // Use TableContent comparison for table tests since column width calculations
@@ -436,30 +437,30 @@ mod tests {
             match result {
                 Ok(()) => {
                     passed += 1;
-                    println!("  PASS: {}", name);
+                    println!("  PASS: {name}");
                 }
                 Err(msg) if msg.starts_with("SKIPPED:") => {
                     skipped += 1;
-                    println!("  SKIP: {} - {}", name, msg);
+                    println!("  SKIP: {name} - {msg}");
                 }
                 Err(msg) => {
                     failed += 1;
                     failures.push((name, msg));
-                    println!("  FAIL: {} - {}", name, msg);
+                    println!("  FAIL: {name} - {msg}");
                 }
             }
         }
 
         println!("\nGlamour Conformance Results:");
-        println!("  Passed:  {}", passed);
-        println!("  Failed:  {}", failed);
-        println!("  Skipped: {}", skipped);
+        println!("  Passed:  {passed}");
+        println!("  Failed:  {failed}");
+        println!("  Skipped: {skipped}");
         println!("  Total:   {}", results.len());
 
         if !failures.is_empty() {
             println!("\nFailures:");
             for (name, msg) in &failures {
-                println!("  {}: {}", name, msg);
+                println!("  {name}: {msg}");
             }
         }
 
@@ -508,8 +509,7 @@ mod tests {
         let plain = strip_ansi(&output);
         assert!(
             plain.contains("fn main()"),
-            "Code block should contain 'fn main()' but got: {}",
-            plain
+            "Code block should contain 'fn main()' but got: {plain}"
         );
     }
 
@@ -647,10 +647,7 @@ mod tests {
         // - println! (macro)
         // - "Hello" (string)
         // - {} () ; (punctuation)
-        println!(
-            "Syntax highlighting verification - Rust code block colors: {:?}",
-            colors
-        );
+        println!("Syntax highlighting verification - Rust code block colors: {colors:?}");
         println!(
             "Actual: {} distinct colors - {}",
             colors.len(),
@@ -679,10 +676,7 @@ mod tests {
 
         let colors = extract_foreground_colors(&output);
 
-        println!(
-            "Syntax highlighting verification - Go code block colors: {:?}",
-            colors
-        );
+        println!("Syntax highlighting verification - Go code block colors: {colors:?}");
         println!(
             "Actual: {} distinct colors - {}",
             colors.len(),
@@ -711,8 +705,7 @@ mod tests {
         let mut loader = FixtureLoader::new();
 
         fn fixture_load_failed(e: impl std::fmt::Display) -> ! {
-            assert!(false, "Failed to load fixtures: {}", e);
-            loop {}
+            panic!("Failed to load fixtures: {e}");
         }
 
         // Code block fixtures to test for syntax highlighting
@@ -741,22 +734,19 @@ mod tests {
                 match result {
                     Ok(()) => {
                         passes.push(*test_name);
-                        println!("  PASS: {} (text + syntax highlighting present)", test_name);
+                        println!("  PASS: {test_name} (text + syntax highlighting present)");
                     }
                     Err(msg) if msg.starts_with("SYNTAX_HIGHLIGHT_GAP") => {
                         gaps.push((*test_name, msg.clone()));
-                        println!(
-                            "  GAP:  {} (text matches, but Rust lacks highlighting)",
-                            test_name
-                        );
+                        println!("  GAP:  {test_name} (text matches, but Rust lacks highlighting)");
                     }
                     Err(msg) => {
                         text_failures.push((*test_name, msg));
-                        println!("  FAIL: {}", test_name);
+                        println!("  FAIL: {test_name}");
                     }
                 }
             } else {
-                println!("  SKIP: {} (fixture not found)", test_name);
+                println!("  SKIP: {test_name} (fixture not found)");
             }
         }
 
@@ -769,8 +759,7 @@ mod tests {
         // Text content should always match
         assert!(
             text_failures.is_empty(),
-            "Text content should match: {:?}",
-            text_failures
+            "Text content should match: {text_failures:?}"
         );
 
         // With syntax highlighting implemented, we expect core languages to work properly.
@@ -786,7 +775,7 @@ mod tests {
         if !unexpected_gaps.is_empty() {
             println!("\nUnexpected syntax highlighting gaps:");
             for (name, msg) in &unexpected_gaps {
-                println!("  - {}: {}", name, msg);
+                println!("  - {name}: {msg}");
             }
         }
 
@@ -801,7 +790,7 @@ mod tests {
 
 /// Integration with the conformance trait system
 pub mod integration {
-    use super::*;
+    use super::{run_test, FixtureLoader};
     use crate::harness::{ConformanceTest, TestCategory, TestContext, TestResult};
 
     /// Glamour rendering conformance test
@@ -810,6 +799,7 @@ pub mod integration {
     }
 
     impl GlamourRenderTest {
+        #[must_use]
         pub fn new(name: &str) -> Self {
             Self {
                 name: name.to_string(),
@@ -822,7 +812,7 @@ pub mod integration {
             &self.name
         }
 
-        fn crate_name(&self) -> &str {
+        fn crate_name(&self) -> &'static str {
             "glamour"
         }
 
@@ -835,12 +825,12 @@ pub mod integration {
                 Ok(f) => f,
                 Err(e) => {
                     return TestResult::Fail {
-                        reason: format!("Failed to load fixture: {}", e),
+                        reason: format!("Failed to load fixture: {e}"),
                     };
                 }
             };
 
-            match run_test(&fixture) {
+            match run_test(fixture) {
                 Ok(()) => TestResult::Pass,
                 Err(msg) if msg.starts_with("SKIPPED:") => TestResult::Skipped {
                     reason: msg.replace("SKIPPED: ", ""),
@@ -851,6 +841,7 @@ pub mod integration {
     }
 
     /// Get all glamour conformance tests as trait objects
+    #[must_use]
     pub fn all_tests() -> Vec<Box<dyn ConformanceTest>> {
         let mut loader = FixtureLoader::new();
         let fixtures = match loader.load_crate("glamour") {

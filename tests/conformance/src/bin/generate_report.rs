@@ -1,13 +1,16 @@
-#![allow(clippy::type_complexity)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::stable_sort_primitive)]
-#![allow(clippy::map_unwrap_or)]
-#![allow(clippy::wildcard_in_or_patterns)]
-#![allow(clippy::if_same_then_else)]
-#![allow(clippy::match_same_arms)]
-#![allow(clippy::needless_pass_by_value)]
-#![allow(clippy::format_push_string)]
+#![allow(
+    clippy::type_complexity,
+    clippy::uninlined_format_args,
+    clippy::explicit_iter_loop,
+    clippy::stable_sort_primitive,
+    clippy::map_unwrap_or,
+    clippy::wildcard_in_or_patterns,
+    clippy::if_same_then_else,
+    clippy::match_same_arms,
+    clippy::needless_pass_by_value,
+    clippy::format_push_string,
+    reason = "Report generation favors explicit formatting and stable serialization over micro-style lints"
+)]
 //! Generate Conformance Report
 //!
 //! Binary for generating conformance test reports in various formats.

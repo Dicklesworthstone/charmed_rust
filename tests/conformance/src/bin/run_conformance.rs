@@ -1,9 +1,12 @@
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::stable_sort_primitive)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::explicit_iter_loop)]
-#![allow(clippy::branches_sharing_code)]
-#![allow(clippy::type_complexity)]
+#![allow(
+    clippy::doc_markdown,
+    clippy::stable_sort_primitive,
+    clippy::uninlined_format_args,
+    clippy::explicit_iter_loop,
+    clippy::branches_sharing_code,
+    clippy::type_complexity,
+    reason = "CLI reporting code prioritizes readability and output stability for operators"
+)]
 //! Run Conformance Tests
 //!
 //! Binary for executing all conformance tests and generating reports.

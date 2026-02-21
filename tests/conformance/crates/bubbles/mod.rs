@@ -619,11 +619,11 @@ fn spinner_from_name(name: &str) -> Option<Spinner> {
 fn run_progress_test(fixture: &TestFixture) -> Result<(), String> {
     let input: ProgressInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: ProgressOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let mut progress = if fixture.name == "progress_basic" {
         Progress::with_gradient()
@@ -635,7 +635,7 @@ fn run_progress_test(fixture: &TestFixture) -> Result<(), String> {
         progress = progress.width(width);
     }
 
-    if let Some(false) = input.show_percentage {
+    if input.show_percentage == Some(false) {
         progress = progress.without_percentage();
     }
 
@@ -649,8 +649,7 @@ fn run_progress_test(fixture: &TestFixture) -> Result<(), String> {
     if let Some(expected_view) = expected.view {
         if stripped_view != expected_view {
             return Err(format!(
-                "View mismatch: expected {:?}, got {:?}",
-                expected_view, stripped_view
+                "View mismatch: expected {expected_view:?}, got {stripped_view:?}"
             ));
         }
     }
@@ -659,8 +658,7 @@ fn run_progress_test(fixture: &TestFixture) -> Result<(), String> {
         let actual_len = stripped_view.len();
         if actual_len != expected_len {
             return Err(format!(
-                "View length mismatch: expected {}, got {}",
-                expected_len, actual_len
+                "View length mismatch: expected {expected_len}, got {actual_len}"
             ));
         }
     }
@@ -678,8 +676,7 @@ fn run_progress_test(fixture: &TestFixture) -> Result<(), String> {
         let actual_anim = progress.is_animating();
         if actual_anim != expected_anim {
             return Err(format!(
-                "Animation mismatch: expected {}, got {}",
-                expected_anim, actual_anim
+                "Animation mismatch: expected {expected_anim}, got {actual_anim}"
             ));
         }
     }
@@ -690,11 +687,11 @@ fn run_progress_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_spinner_test(fixture: &TestFixture) -> Result<(), String> {
     let input: SpinnerInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: SpinnerOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     if fixture.name == "spinner_model_view" {
         let spinner = spinner_from_name(&input.spinner_type)
@@ -705,8 +702,7 @@ fn run_spinner_test(fixture: &TestFixture) -> Result<(), String> {
         if let Some(expected_view) = expected.view {
             if view != expected_view {
                 return Err(format!(
-                    "View mismatch: expected {:?}, got {:?}",
-                    expected_view, view
+                    "View mismatch: expected {expected_view:?}, got {view:?}"
                 ));
             }
         }
@@ -715,8 +711,7 @@ fn run_spinner_test(fixture: &TestFixture) -> Result<(), String> {
             let actual_bytes = view.len();
             if actual_bytes != expected_bytes {
                 return Err(format!(
-                    "View byte length mismatch: expected {}, got {}",
-                    expected_bytes, actual_bytes
+                    "View byte length mismatch: expected {expected_bytes}, got {actual_bytes}"
                 ));
             }
         }
@@ -737,8 +732,7 @@ fn run_spinner_test(fixture: &TestFixture) -> Result<(), String> {
         let actual_count = spinner.frames.len();
         if actual_count != expected_count {
             return Err(format!(
-                "Frame count mismatch: expected {}, got {}",
-                expected_count, actual_count
+                "Frame count mismatch: expected {expected_count}, got {actual_count}"
             ));
         }
     }
@@ -747,8 +741,7 @@ fn run_spinner_test(fixture: &TestFixture) -> Result<(), String> {
         let actual_ms = spinner.frame_duration().as_millis() as u64;
         if actual_ms != expected_fps_ms {
             return Err(format!(
-                "Frame duration mismatch: expected {}ms, got {}ms",
-                expected_fps_ms, actual_ms
+                "Frame duration mismatch: expected {expected_fps_ms}ms, got {actual_ms}ms"
             ));
         }
     }
@@ -759,11 +752,11 @@ fn run_spinner_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_stopwatch_test(fixture: &TestFixture) -> Result<(), String> {
     let input: StopwatchInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: StopwatchOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let mut stopwatch = Stopwatch::new();
 
@@ -804,8 +797,7 @@ fn run_stopwatch_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = stopwatch.view();
         if actual != expected_elapsed {
             return Err(format!(
-                "Elapsed mismatch: expected {:?}, got {:?}",
-                expected_elapsed, actual
+                "Elapsed mismatch: expected {expected_elapsed:?}, got {actual:?}"
             ));
         }
     }
@@ -814,8 +806,7 @@ fn run_stopwatch_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = stopwatch.view();
         if actual != expected_view {
             return Err(format!(
-                "View mismatch: expected {:?}, got {:?}",
-                expected_view, actual
+                "View mismatch: expected {expected_view:?}, got {actual:?}"
             ));
         }
     }
@@ -824,8 +815,7 @@ fn run_stopwatch_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = stopwatch.elapsed().as_millis() as u64;
         if actual != expected_elapsed_ms {
             return Err(format!(
-                "Elapsed ms mismatch: expected {}, got {}",
-                expected_elapsed_ms, actual
+                "Elapsed ms mismatch: expected {expected_elapsed_ms}, got {actual}"
             ));
         }
     }
@@ -834,8 +824,7 @@ fn run_stopwatch_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = stopwatch.interval().as_millis() as u64;
         if actual != expected_interval_ms {
             return Err(format!(
-                "Interval ms mismatch: expected {}, got {}",
-                expected_interval_ms, actual
+                "Interval ms mismatch: expected {expected_interval_ms}, got {actual}"
             ));
         }
     }
@@ -844,8 +833,7 @@ fn run_stopwatch_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = stopwatch.running();
         if actual != expected_running {
             return Err(format!(
-                "Running mismatch: expected {}, got {}",
-                expected_running, actual
+                "Running mismatch: expected {expected_running}, got {actual}"
             ));
         }
     }
@@ -856,11 +844,11 @@ fn run_stopwatch_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_timer_test(fixture: &TestFixture) -> Result<(), String> {
     let input: TimerInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: TimerOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let timeout = input.timeout_secs.unwrap_or(0);
     let mut timer = Timer::new(Duration::from_secs(timeout));
@@ -887,8 +875,7 @@ fn run_timer_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = timer.view();
         if actual != expected_remaining {
             return Err(format!(
-                "Remaining mismatch: expected {:?}, got {:?}",
-                expected_remaining, actual
+                "Remaining mismatch: expected {expected_remaining:?}, got {actual:?}"
             ));
         }
     }
@@ -897,8 +884,7 @@ fn run_timer_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = timer.view();
         if actual != expected_view {
             return Err(format!(
-                "View mismatch: expected {:?}, got {:?}",
-                expected_view, actual
+                "View mismatch: expected {expected_view:?}, got {actual:?}"
             ));
         }
     }
@@ -907,8 +893,7 @@ fn run_timer_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = timer.remaining().as_millis() as u64;
         if actual != expected_remaining_ms {
             return Err(format!(
-                "Remaining ms mismatch: expected {}, got {}",
-                expected_remaining_ms, actual
+                "Remaining ms mismatch: expected {expected_remaining_ms}, got {actual}"
             ));
         }
     }
@@ -917,8 +902,7 @@ fn run_timer_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = timer.interval().as_millis() as u64;
         if actual != expected_interval_ms {
             return Err(format!(
-                "Interval ms mismatch: expected {}, got {}",
-                expected_interval_ms, actual
+                "Interval ms mismatch: expected {expected_interval_ms}, got {actual}"
             ));
         }
     }
@@ -927,8 +911,7 @@ fn run_timer_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = timer.running();
         if actual != expected_running {
             return Err(format!(
-                "Running mismatch: expected {}, got {}",
-                expected_running, actual
+                "Running mismatch: expected {expected_running}, got {actual}"
             ));
         }
     }
@@ -937,8 +920,7 @@ fn run_timer_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = timer.timed_out();
         if actual != expected_timed_out {
             return Err(format!(
-                "Timed out mismatch: expected {}, got {}",
-                expected_timed_out, actual
+                "Timed out mismatch: expected {expected_timed_out}, got {actual}"
             ));
         }
     }
@@ -949,11 +931,11 @@ fn run_timer_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
     let input: ListInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: ListOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let width = input.width.unwrap_or(80);
     let height = input.height.unwrap_or(24);
@@ -967,7 +949,7 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
     } else if let Some(count) = input.items_count {
         (1..=count)
             .map(|i| TestListItem {
-                title: format!("Item {}", i),
+                title: format!("Item {i}"),
             })
             .collect()
     } else {
@@ -1078,8 +1060,7 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = list.paginator().page();
                 if actual != expected_current_page {
                     return Err(format!(
-                        "Current page mismatch: expected {}, got {}",
-                        expected_current_page, actual
+                        "Current page mismatch: expected {expected_current_page}, got {actual}"
                     ));
                 }
             }
@@ -1088,8 +1069,7 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = list.paginator().get_total_pages();
                 if actual != expected_total_pages {
                     return Err(format!(
-                        "Total pages mismatch: expected {}, got {}",
-                        expected_total_pages, actual
+                        "Total pages mismatch: expected {expected_total_pages}, got {actual}"
                     ));
                 }
             }
@@ -1098,8 +1078,7 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = list.paginator().get_per_page();
                 if actual != expected_items_per_page {
                     return Err(format!(
-                        "Items per page mismatch: expected {}, got {}",
-                        expected_items_per_page, actual
+                        "Items per page mismatch: expected {expected_items_per_page}, got {actual}"
                     ));
                 }
             }
@@ -1119,11 +1098,10 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
                 }
             }
             if let Some(ref expected_title) = expected.selected_title {
-                let actual_title = list.selected_item().map(|i| i.filter_value()).unwrap_or("");
+                let actual_title = list.selected_item().map_or("", bubbles::list::Item::filter_value);
                 if actual_title != expected_title {
                     return Err(format!(
-                        "Selected title mismatch: expected {:?}, got {:?}",
-                        expected_title, actual_title
+                        "Selected title mismatch: expected {expected_title:?}, got {actual_title:?}"
                     ));
                 }
             }
@@ -1159,8 +1137,7 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
         let actual_count = list.items().len();
         if actual_count != expected_items_count {
             return Err(format!(
-                "Items count mismatch: expected {}, got {}",
-                expected_items_count, actual_count
+                "Items count mismatch: expected {expected_items_count}, got {actual_count}"
             ));
         }
     }
@@ -1173,8 +1150,7 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
         };
         if actual_state != expected_filter_state {
             return Err(format!(
-                "Filter state mismatch: expected {:?}, got {:?}",
-                expected_filter_state, actual_state
+                "Filter state mismatch: expected {expected_filter_state:?}, got {actual_state:?}"
             ));
         }
     }
@@ -1203,11 +1179,11 @@ fn run_list_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_table_test(fixture: &TestFixture) -> Result<(), String> {
     let input: TableInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: TableOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Build columns from input
     let columns: Vec<Column> = input
@@ -1385,8 +1361,7 @@ fn run_table_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual_row = table.selected_row();
                 if actual_row != Some(expected_row) {
                     return Err(format!(
-                        "Selected row mismatch: expected {:?}, got {:?}",
-                        expected_row, actual_row
+                        "Selected row mismatch: expected {expected_row:?}, got {actual_row:?}"
                     ));
                 }
             }
@@ -1398,8 +1373,7 @@ fn run_table_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = table.get_width();
                 if actual != expected_width {
                     return Err(format!(
-                        "Width mismatch: expected {}, got {}",
-                        expected_width, actual
+                        "Width mismatch: expected {expected_width}, got {actual}"
                     ));
                 }
             }
@@ -1407,8 +1381,7 @@ fn run_table_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = table.get_height();
                 if actual != expected_height {
                     return Err(format!(
-                        "Height mismatch: expected {}, got {}",
-                        expected_height, actual
+                        "Height mismatch: expected {expected_height}, got {actual}"
                     ));
                 }
             }
@@ -1473,8 +1446,7 @@ fn run_table_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = table.get_columns().len();
         if actual != expected_columns {
             return Err(format!(
-                "Columns count mismatch: expected {}, got {}",
-                expected_columns, actual
+                "Columns count mismatch: expected {expected_columns}, got {actual}"
             ));
         }
     }
@@ -1483,8 +1455,7 @@ fn run_table_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = table.get_rows().len();
         if actual != expected_rows {
             return Err(format!(
-                "Rows count mismatch: expected {}, got {}",
-                expected_rows, actual
+                "Rows count mismatch: expected {expected_rows}, got {actual}"
             ));
         }
     }
@@ -1493,8 +1464,7 @@ fn run_table_test(fixture: &TestFixture) -> Result<(), String> {
         let actual_row = table.selected_row();
         if actual_row != Some(expected_row) {
             return Err(format!(
-                "Selected row mismatch: expected {:?}, got {:?}",
-                expected_row, actual_row
+                "Selected row mismatch: expected {expected_row:?}, got {actual_row:?}"
             ));
         }
     }
@@ -1505,11 +1475,11 @@ fn run_table_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_paginator_test(fixture: &TestFixture) -> Result<(), String> {
     let input: PaginatorInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: PaginatorOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Build paginator based on input
     let mut paginator = Paginator::new();
@@ -1541,8 +1511,7 @@ fn run_paginator_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = paginator.view();
                 if actual != *expected_view {
                     return Err(format!(
-                        "View mismatch: expected {:?}, got {:?}",
-                        expected_view, actual
+                        "View mismatch: expected {expected_view:?}, got {actual:?}"
                     ));
                 }
             }
@@ -1696,11 +1665,11 @@ fn run_paginator_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_help_test(fixture: &TestFixture) -> Result<(), String> {
     let input: HelpInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: HelpOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Build help view based on input
     let mut help = Help::new();
@@ -1716,8 +1685,7 @@ fn run_help_test(fixture: &TestFixture) -> Result<(), String> {
             if let Some(ref expected_view) = expected.short_view {
                 if view != *expected_view {
                     return Err(format!(
-                        "Short view mismatch: expected {:?}, got {:?}",
-                        expected_view, view
+                        "Short view mismatch: expected {expected_view:?}, got {view:?}"
                     ));
                 }
             }
@@ -1748,8 +1716,7 @@ fn run_help_test(fixture: &TestFixture) -> Result<(), String> {
                 let stripped_view = strip_ansi(&short_view);
                 if stripped_view != *expected_view {
                     return Err(format!(
-                        "Short view mismatch: expected {:?}, got {:?}",
-                        expected_view, stripped_view
+                        "Short view mismatch: expected {expected_view:?}, got {stripped_view:?}"
                     ));
                 }
             }
@@ -1774,8 +1741,7 @@ fn run_help_test(fixture: &TestFixture) -> Result<(), String> {
                 let stripped_view = strip_ansi(&full_view);
                 if stripped_view != *expected_view {
                     return Err(format!(
-                        "Full view mismatch: expected {:?}, got {:?}",
-                        expected_view, stripped_view
+                        "Full view mismatch: expected {expected_view:?}, got {stripped_view:?}"
                     ));
                 }
             }
@@ -1811,8 +1777,7 @@ fn run_help_test(fixture: &TestFixture) -> Result<(), String> {
                 let stripped_view = strip_ansi(&short_view);
                 if stripped_view != *expected_view {
                     return Err(format!(
-                        "Short view mismatch: expected {:?}, got {:?}",
-                        expected_view, stripped_view
+                        "Short view mismatch: expected {expected_view:?}, got {stripped_view:?}"
                     ));
                 }
             }
@@ -1828,11 +1793,11 @@ fn run_help_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_viewport_test(fixture: &TestFixture) -> Result<(), String> {
     let input: ViewportInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: ViewportOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let width = input.width.unwrap_or(80);
     let height = input.height.unwrap_or(24);
@@ -1950,8 +1915,7 @@ fn run_viewport_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = viewport.scroll_percent();
         if (actual - expected_scroll_percent).abs() > 0.01 {
             return Err(format!(
-                "Scroll percent mismatch: expected {}, got {}",
-                expected_scroll_percent, actual
+                "Scroll percent mismatch: expected {expected_scroll_percent}, got {actual}"
             ));
         }
     }
@@ -2018,11 +1982,11 @@ fn run_viewport_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_cursor_test(fixture: &TestFixture) -> Result<(), String> {
     let input: CursorInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: CursorOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     use bubbles::cursor::{Cursor, Mode};
 
@@ -2044,8 +2008,7 @@ fn run_cursor_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = cursor.mode().to_string();
                 if actual != *expected_str {
                     return Err(format!(
-                        "Mode string mismatch: expected {:?}, got {:?}",
-                        expected_str, actual
+                        "Mode string mismatch: expected {expected_str:?}, got {actual:?}"
                     ));
                 }
             }
@@ -2059,8 +2022,7 @@ fn run_cursor_test(fixture: &TestFixture) -> Result<(), String> {
                 };
                 if actual != expected_val {
                     return Err(format!(
-                        "Mode value mismatch: expected {}, got {}",
-                        expected_val, actual
+                        "Mode value mismatch: expected {expected_val}, got {actual}"
                     ));
                 }
             }
@@ -2075,8 +2037,7 @@ fn run_cursor_test(fixture: &TestFixture) -> Result<(), String> {
                 };
                 if actual != expected_mode {
                     return Err(format!(
-                        "Mode mismatch: expected {}, got {}",
-                        expected_mode, actual
+                        "Mode mismatch: expected {expected_mode}, got {actual}"
                     ));
                 }
             }
@@ -2092,11 +2053,11 @@ fn run_cursor_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_binding_test(fixture: &TestFixture) -> Result<(), String> {
     let input: BindingInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: BindingOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     match fixture.name.as_str() {
         concat!("ke", "ybinding_simple") => {
@@ -2136,8 +2097,7 @@ fn run_binding_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual_keys = binding.get_keys();
                 if actual_keys != *expected_keys {
                     return Err(format!(
-                        "Bindings mismatch: expected {:?}, got {:?}",
-                        expected_keys, actual_keys
+                        "Bindings mismatch: expected {expected_keys:?}, got {actual_keys:?}"
                     ));
                 }
             }
@@ -2180,8 +2140,7 @@ fn run_binding_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual_keys = binding.get_keys();
                 if actual_keys != *expected_keys {
                     return Err(format!(
-                        "Bindings mismatch: expected {:?}, got {:?}",
-                        expected_keys, actual_keys
+                        "Bindings mismatch: expected {expected_keys:?}, got {actual_keys:?}"
                     ));
                 }
             }
@@ -2213,8 +2172,7 @@ fn run_binding_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual_keys = binding.get_keys();
                 if actual_keys != *expected_keys {
                     return Err(format!(
-                        "Bindings mismatch: expected {:?}, got {:?}",
-                        expected_keys, actual_keys
+                        "Bindings mismatch: expected {expected_keys:?}, got {actual_keys:?}"
                     ));
                 }
             }
@@ -2271,11 +2229,11 @@ fn run_binding_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_filepicker_test(fixture: &TestFixture) -> Result<(), String> {
     let input: FilePickerInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: FilePickerOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let mut filepicker = FilePicker::new();
 
@@ -2324,8 +2282,7 @@ fn run_filepicker_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = filepicker.current_directory().to_string_lossy();
                 if actual != *expected_dir {
                     return Err(format!(
-                        "Current directory mismatch: expected {:?}, got {:?}",
-                        expected_dir, actual
+                        "Current directory mismatch: expected {expected_dir:?}, got {actual:?}"
                     ));
                 }
             }
@@ -2380,8 +2337,7 @@ fn run_filepicker_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = filepicker.current_directory().to_string_lossy();
                 if actual != *expected_dir {
                     return Err(format!(
-                        "Current directory mismatch: expected {:?}, got {:?}",
-                        expected_dir, actual
+                        "Current directory mismatch: expected {expected_dir:?}, got {actual:?}"
                     ));
                 }
             }
@@ -2450,8 +2406,7 @@ fn run_filepicker_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = filepicker.key_map.up.get_keys();
                 if actual != *expected_up {
                     return Err(format!(
-                        "Up bindings mismatch: expected {:?}, got {:?}",
-                        expected_up, actual
+                        "Up bindings mismatch: expected {expected_up:?}, got {actual:?}"
                     ));
                 }
             }
@@ -2460,8 +2415,7 @@ fn run_filepicker_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = filepicker.key_map.down.get_keys();
                 if actual != *expected_down {
                     return Err(format!(
-                        "Down bindings mismatch: expected {:?}, got {:?}",
-                        expected_down, actual
+                        "Down bindings mismatch: expected {expected_down:?}, got {actual:?}"
                     ));
                 }
             }
@@ -2470,8 +2424,7 @@ fn run_filepicker_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = filepicker.key_map.open.get_keys();
                 if actual != *expected_open {
                     return Err(format!(
-                        "Open bindings mismatch: expected {:?}, got {:?}",
-                        expected_open, actual
+                        "Open bindings mismatch: expected {expected_open:?}, got {actual:?}"
                     ));
                 }
             }
@@ -2480,8 +2433,7 @@ fn run_filepicker_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = filepicker.key_map.back.get_keys();
                 if actual != *expected_back {
                     return Err(format!(
-                        "Back bindings mismatch: expected {:?}, got {:?}",
-                        expected_back, actual
+                        "Back bindings mismatch: expected {expected_back:?}, got {actual:?}"
                     ));
                 }
             }
@@ -2490,8 +2442,7 @@ fn run_filepicker_test(fixture: &TestFixture) -> Result<(), String> {
                 let actual = filepicker.key_map.select.get_keys();
                 if actual != *expected_select {
                     return Err(format!(
-                        "Select bindings mismatch: expected {:?}, got {:?}",
-                        expected_select, actual
+                        "Select bindings mismatch: expected {expected_select:?}, got {actual:?}"
                     ));
                 }
             }
@@ -2505,8 +2456,7 @@ fn run_filepicker_test(fixture: &TestFixture) -> Result<(), String> {
                     let actual = format_file_size(*size);
                     if actual != *expected_fmt {
                         return Err(format!(
-                            "Format size mismatch for {}: expected {:?}, got {:?}",
-                            size, expected_fmt, actual
+                            "Format size mismatch for {size}: expected {expected_fmt:?}, got {actual:?}"
                         ));
                     }
                 }
@@ -2540,8 +2490,7 @@ fn run_filepicker_test(fixture: &TestFixture) -> Result<(), String> {
 
                     if !has_dirs_first {
                         return Err(format!(
-                            "Sort order does not have directories before files: {:?}",
-                            expected_order
+                            "Sort order does not have directories before files: {expected_order:?}"
                         ));
                     }
                 }
@@ -2552,8 +2501,7 @@ fn run_filepicker_test(fixture: &TestFixture) -> Result<(), String> {
             if let Some(ref expected_contains) = expected.view_contains {
                 if !view.contains(expected_contains) {
                     return Err(format!(
-                        "View should contain {:?}, got {:?}",
-                        expected_contains, view
+                        "View should contain {expected_contains:?}, got {view:?}"
                     ));
                 }
             }
@@ -2566,7 +2514,7 @@ fn run_filepicker_test(fixture: &TestFixture) -> Result<(), String> {
     Ok(())
 }
 
-/// Helper function to format file size (mirrors FilePicker's internal format_size)
+/// Helper function to format file size (mirrors `FilePicker`'s internal `format_size`)
 fn format_file_size(size: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = KB * 1024;
@@ -2579,7 +2527,7 @@ fn format_file_size(size: u64) -> String {
     } else if size >= KB {
         format!("{:.1}K", size as f64 / KB as f64)
     } else {
-        format!("{}B", size)
+        format!("{size}B")
     }
 }
 
@@ -2589,24 +2537,23 @@ fn parse_textinput_echo_mode(mode: &str, fixture_name: &str) -> Result<EchoMode,
         "password" => Ok(textinput_masked_echo_mode()),
         "none" => Ok(EchoMode::None),
         unknown => Err(format!(
-            "Unknown textinput echo_mode {:?} in fixture {} (expected normal|password|none)",
-            unknown, fixture_name
+            "Unknown textinput echo_mode {unknown:?} in fixture {fixture_name} (expected normal|password|none)"
         )),
     }
 }
 
-fn textinput_masked_echo_mode() -> EchoMode {
+const fn textinput_masked_echo_mode() -> EchoMode {
     paste! { EchoMode::[<Pass word>] }
 }
 
 fn run_textinput_test(fixture: &TestFixture) -> Result<(), String> {
     let input: TextInputInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: TextInputOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let mut textinput = TextInput::new();
 
@@ -2741,8 +2688,7 @@ fn run_textinput_test(fixture: &TestFixture) -> Result<(), String> {
         let actual_length = textinput.value().len();
         if actual_length != expected_length {
             return Err(format!(
-                "Length mismatch: expected {}, got {}",
-                expected_length, actual_length
+                "Length mismatch: expected {expected_length}, got {actual_length}"
             ));
         }
     }
@@ -2783,8 +2729,7 @@ fn run_textinput_test(fixture: &TestFixture) -> Result<(), String> {
         };
         if actual_mode != expected_echo_mode {
             return Err(format!(
-                "Echo mode mismatch: expected {}, got {}",
-                expected_echo_mode, actual_mode
+                "Echo mode mismatch: expected {expected_echo_mode}, got {actual_mode}"
             ));
         }
     }
@@ -2805,11 +2750,11 @@ fn run_textinput_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_textarea_test(fixture: &TestFixture) -> Result<(), String> {
     let input: TextAreaInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: TextAreaOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let mut textarea = TextArea::new();
 
@@ -2857,32 +2802,28 @@ fn run_textarea_test(fixture: &TestFixture) -> Result<(), String> {
             if let Some(expected_after_down) = expected.after_down {
                 if after_down != expected_after_down {
                     return Err(format!(
-                        "After down mismatch: expected {}, got {}",
-                        expected_after_down, after_down
+                        "After down mismatch: expected {expected_after_down}, got {after_down}"
                     ));
                 }
             }
             if let Some(expected_after_end) = expected.after_end {
                 if after_end != expected_after_end {
                     return Err(format!(
-                        "After end mismatch: expected {}, got {}",
-                        expected_after_end, after_end
+                        "After end mismatch: expected {expected_after_end}, got {after_end}"
                     ));
                 }
             }
             if let Some(expected_after_start) = expected.after_start {
                 if after_start != expected_after_start {
                     return Err(format!(
-                        "After start mismatch: expected {}, got {}",
-                        expected_after_start, after_start
+                        "After start mismatch: expected {expected_after_start}, got {after_start}"
                     ));
                 }
             }
             if let Some(expected_after_up) = expected.after_up {
                 if after_up != expected_after_up {
                     return Err(format!(
-                        "After up mismatch: expected {}, got {}",
-                        expected_after_up, after_up
+                        "After up mismatch: expected {expected_after_up}, got {after_up}"
                     ));
                 }
             }
@@ -2896,16 +2837,14 @@ fn run_textarea_test(fixture: &TestFixture) -> Result<(), String> {
             if let Some(expected_focused) = expected.focused {
                 if focused != expected_focused {
                     return Err(format!(
-                        "Focused mismatch: expected {}, got {}",
-                        expected_focused, focused
+                        "Focused mismatch: expected {expected_focused}, got {focused}"
                     ));
                 }
             }
             if let Some(expected_blurred) = expected.blurred {
                 if blurred != expected_blurred {
                     return Err(format!(
-                        "Blurred mismatch: expected {}, got {}",
-                        expected_blurred, blurred
+                        "Blurred mismatch: expected {expected_blurred}, got {blurred}"
                     ));
                 }
             }
@@ -2925,8 +2864,7 @@ fn run_textarea_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = textarea.value();
         if &actual != expected_value {
             return Err(format!(
-                "Value mismatch: expected {:?}, got {:?}",
-                expected_value, actual
+                "Value mismatch: expected {expected_value:?}, got {actual:?}"
             ));
         }
     }
@@ -3005,8 +2943,7 @@ fn run_textarea_test(fixture: &TestFixture) -> Result<(), String> {
         let actual = textarea.view();
         if &actual != expected_view {
             return Err(format!(
-                "View mismatch: expected {:?}, got {:?}",
-                expected_view, actual
+                "View mismatch: expected {expected_view:?}, got {actual:?}"
             ));
         }
     }
@@ -3016,7 +2953,7 @@ fn run_textarea_test(fixture: &TestFixture) -> Result<(), String> {
 
 fn run_test(fixture: &TestFixture) -> Result<(), String> {
     if let Some(reason) = fixture.should_skip() {
-        return Err(format!("SKIPPED: {}", reason));
+        return Err(format!("SKIPPED: {reason}"));
     }
 
     if fixture.name.starts_with("progress_") {
@@ -3053,6 +2990,7 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
 }
 
 /// Run all bubbles conformance tests
+#[must_use] 
 pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let mut loader = FixtureLoader::new();
     let mut results = Vec::new();
@@ -3062,7 +3000,7 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
         Err(e) => {
             results.push((
                 "load_fixtures",
-                Err(format!("Failed to load fixtures: {}", e)),
+                Err(format!("Failed to load fixtures: {e}")),
             ));
             return results;
         }
@@ -3101,30 +3039,30 @@ mod tests {
             match result {
                 Ok(()) => {
                     passed += 1;
-                    println!("  PASS: {}", name);
+                    println!("  PASS: {name}");
                 }
                 Err(msg) if msg.starts_with("SKIPPED:") => {
                     skipped += 1;
-                    println!("  SKIP: {} - {}", name, msg);
+                    println!("  SKIP: {name} - {msg}");
                 }
                 Err(msg) => {
                     failed += 1;
                     failures.push((name, msg));
-                    println!("  FAIL: {} - {}", name, msg);
+                    println!("  FAIL: {name} - {msg}");
                 }
             }
         }
 
         println!("\nBubbles Conformance Results:");
-        println!("  Passed:  {}", passed);
-        println!("  Failed:  {}", failed);
-        println!("  Skipped: {}", skipped);
+        println!("  Passed:  {passed}");
+        println!("  Failed:  {failed}");
+        println!("  Skipped: {skipped}");
         println!("  Total:   {}", results.len());
 
         if !failures.is_empty() {
             println!("\nFailures:");
             for (name, msg) in &failures {
-                println!("  {}: {}", name, msg);
+                println!("  {name}: {msg}");
             }
         }
 
@@ -3170,6 +3108,7 @@ pub mod integration {
     }
 
     impl BubblesTest {
+        #[must_use] 
         pub fn new(name: &str) -> Self {
             Self {
                 name: name.to_string(),
@@ -3182,7 +3121,7 @@ pub mod integration {
             &self.name
         }
 
-        fn crate_name(&self) -> &str {
+        fn crate_name(&self) -> &'static str {
             "bubbles"
         }
 
@@ -3195,12 +3134,12 @@ pub mod integration {
                 Ok(f) => f,
                 Err(e) => {
                     return TestResult::Fail {
-                        reason: format!("Failed to load fixture: {}", e),
+                        reason: format!("Failed to load fixture: {e}"),
                     };
                 }
             };
 
-            match run_test(&fixture) {
+            match run_test(fixture) {
                 Ok(()) => TestResult::Pass,
                 Err(msg) if msg.starts_with("SKIPPED:") => TestResult::Skipped {
                     reason: msg.replace("SKIPPED: ", ""),
@@ -3210,6 +3149,7 @@ pub mod integration {
         }
     }
 
+    #[must_use] 
     pub fn all_tests() -> Vec<Box<dyn ConformanceTest>> {
         let mut loader = FixtureLoader::new();
         let fixtures = match loader.load_crate("bubbles") {

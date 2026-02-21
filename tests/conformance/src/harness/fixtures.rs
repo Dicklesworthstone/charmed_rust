@@ -1,4 +1,4 @@
-//! FixtureLoader - Test fixture loading and management
+//! `FixtureLoader` - Test fixture loading and management
 //!
 //! Provides infrastructure for loading and managing test fixtures including:
 //! - Go reference outputs with versioning and staleness detection
@@ -112,11 +112,13 @@ impl TestFixture {
     }
 
     /// Get expected output as string (common case)
+    #[must_use] 
     pub fn expected_str(&self) -> Option<&str> {
         self.expected_output.as_str()
     }
 
     /// Check if fixture should be skipped
+    #[must_use] 
     pub fn should_skip(&self) -> Option<&str> {
         self.skip_reason.as_deref()
     }
@@ -183,6 +185,7 @@ impl Default for FixtureLoader {
 
 impl FixtureLoader {
     /// Create a new fixture loader with default paths
+    #[must_use] 
     pub fn new() -> Self {
         let base_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         Self {
@@ -209,33 +212,39 @@ impl FixtureLoader {
     }
 
     /// Configure expected Go library versions for staleness detection
+    #[must_use] 
     pub fn with_go_versions(mut self, versions: HashMap<String, String>) -> Self {
         self.expected_versions = versions;
         self
     }
 
     /// Enable or disable caching
-    pub fn with_caching(mut self, enabled: bool) -> Self {
+    #[must_use] 
+    pub const fn with_caching(mut self, enabled: bool) -> Self {
         self.caching_enabled = enabled;
         self
     }
 
     /// Get the path to Go outputs directory
+    #[must_use] 
     pub fn go_outputs_path(&self) -> &Path {
         &self.go_outputs_path
     }
 
     /// Get the path to inputs directory
+    #[must_use] 
     pub fn inputs_path(&self) -> &Path {
         &self.inputs_path
     }
 
     /// Get the path to a Go reference output file (JSON format)
+    #[must_use] 
     pub fn go_output_path(&self, crate_name: &str) -> PathBuf {
         self.go_outputs_path.join(format!("{crate_name}.json"))
     }
 
     /// Get the path to an input fixture file
+    #[must_use] 
     pub fn input_path(&self, filename: &str) -> PathBuf {
         self.inputs_path.join(filename)
     }
@@ -273,7 +282,7 @@ impl FixtureLoader {
             if fixture_set.metadata.library_version != *expected {
                 return Err(FixtureError::Stale {
                     path: path_str,
-                    captured: fixture_set.metadata.library_version.clone(),
+                    captured: fixture_set.metadata.library_version,
                     current: expected.clone(),
                 });
             }
@@ -317,6 +326,7 @@ impl FixtureLoader {
     }
 
     /// Load a Go reference output as a string (legacy format)
+    #[must_use] 
     pub fn load_go_output(&self, crate_name: &str, test_name: &str) -> Option<String> {
         let path = self
             .go_outputs_path
@@ -326,6 +336,7 @@ impl FixtureLoader {
     }
 
     /// Load an input fixture as a string
+    #[must_use] 
     pub fn load_input(&self, filename: &str) -> Option<String> {
         let path = self.input_path(filename);
         fs::read_to_string(path).ok()
@@ -367,6 +378,7 @@ impl FixtureLoader {
     }
 
     /// Check fixture status without fully loading
+    #[must_use] 
     pub fn status(&self, crate_name: &str) -> FixtureStatus {
         let path = self.go_output_path(crate_name);
         let exists = path.exists();
@@ -422,11 +434,13 @@ impl FixtureLoader {
     }
 
     /// Check if a fixture exists
+    #[must_use] 
     pub fn fixture_exists(&self, crate_name: &str) -> bool {
         self.go_output_path(crate_name).exists()
     }
 
     /// List available crates with fixtures
+    #[must_use] 
     pub fn list_crates(&self) -> Vec<String> {
         if !self.go_outputs_path.exists() {
             return Vec::new();
@@ -450,6 +464,7 @@ impl FixtureLoader {
     }
 
     /// List all fixture files in a subdirectory
+    #[must_use] 
     pub fn list_fixtures(&self, subdir: &str) -> Vec<PathBuf> {
         let path = self.base_path.join(subdir);
         if !path.exists() {
@@ -468,6 +483,7 @@ impl FixtureLoader {
     }
 
     /// Get all stale fixtures
+    #[must_use] 
     pub fn stale_fixtures(&self) -> Vec<FixtureStatus> {
         self.list_crates()
             .into_iter()

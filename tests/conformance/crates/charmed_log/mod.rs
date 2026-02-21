@@ -1,4 +1,4 @@
-//! Conformance tests for the charmed_log crate
+//! Conformance tests for the `charmed_log` crate
 //!
 //! This module contains conformance tests verifying that the Rust
 //! implementation of structured logging matches the behavior of
@@ -83,7 +83,7 @@ fn level_from_name(name: &str) -> Option<Level> {
     }
 }
 
-fn level_from_value(value: i32) -> Option<Level> {
+const fn level_from_value(value: i32) -> Option<Level> {
     match value {
         -4 => Some(Level::Debug),
         0 => Some(Level::Info),
@@ -103,11 +103,11 @@ fn level_string_from_value(value: i32) -> String {
 fn run_level_test(fixture: &TestFixture) -> Result<(), String> {
     let input: LevelInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: LevelOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let level = level_from_name(&input.level)
         .ok_or_else(|| format!("Unknown level name: {}", input.level))?;
@@ -135,11 +135,11 @@ fn run_level_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_parse_level_test(fixture: &TestFixture) -> Result<(), String> {
     let input: ParseLevelInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: ParseLevelOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let parsed = Level::from_str(&input.input);
     let (is_valid, level) = match parsed {
@@ -167,11 +167,11 @@ fn run_parse_level_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_level_string_test(fixture: &TestFixture) -> Result<(), String> {
     let input: LevelStringInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: LevelStringOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let actual = level_string_from_value(input.value);
 
@@ -188,11 +188,11 @@ fn run_level_string_test(fixture: &TestFixture) -> Result<(), String> {
 fn run_level_compare_test(fixture: &TestFixture) -> Result<(), String> {
     let input: LevelCompareInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: LevelCompareOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     let level1 = level_from_value(input.level1)
         .ok_or_else(|| format!("Unknown level value: {}", input.level1))?;
@@ -234,7 +234,7 @@ fn run_level_compare_test(fixture: &TestFixture) -> Result<(), String> {
 
 fn run_test(fixture: &TestFixture) -> Result<(), String> {
     if let Some(reason) = fixture.should_skip() {
-        return Err(format!("SKIPPED: {}", reason));
+        return Err(format!("SKIPPED: {reason}"));
     }
 
     if fixture.name.starts_with("level_compare_") {
@@ -250,7 +250,8 @@ fn run_test(fixture: &TestFixture) -> Result<(), String> {
     }
 }
 
-/// Run all charmed_log conformance tests
+/// Run all `charmed_log` conformance tests
+#[must_use] 
 pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let mut loader = FixtureLoader::new();
     let mut results = Vec::new();
@@ -260,7 +261,7 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
         Err(e) => {
             results.push((
                 "load_fixtures",
-                Err(format!("Failed to load fixtures: {}", e)),
+                Err(format!("Failed to load fixtures: {e}")),
             ));
             return results;
         }
@@ -298,30 +299,30 @@ mod tests {
             match result {
                 Ok(()) => {
                     passed += 1;
-                    println!("  PASS: {}", name);
+                    println!("  PASS: {name}");
                 }
                 Err(msg) if msg.starts_with("SKIPPED:") => {
                     skipped += 1;
-                    println!("  SKIP: {} - {}", name, msg);
+                    println!("  SKIP: {name} - {msg}");
                 }
                 Err(msg) => {
                     failed += 1;
                     failures.push((name, msg));
-                    println!("  FAIL: {} - {}", name, msg);
+                    println!("  FAIL: {name} - {msg}");
                 }
             }
         }
 
         println!("\nCharmed Log Conformance Results:");
-        println!("  Passed:  {}", passed);
-        println!("  Failed:  {}", failed);
-        println!("  Skipped: {}", skipped);
+        println!("  Passed:  {passed}");
+        println!("  Failed:  {failed}");
+        println!("  Skipped: {skipped}");
         println!("  Total:   {}", results.len());
 
         if !failures.is_empty() {
             println!("\nFailures:");
             for (name, msg) in &failures {
-                println!("  {}: {}", name, msg);
+                println!("  {name}: {msg}");
             }
         }
 
@@ -335,7 +336,7 @@ mod tests {
 
 /// Integration with the conformance trait system
 pub mod integration {
-    use super::*;
+    use super::{run_test, FixtureLoader};
     use crate::harness::{ConformanceTest, TestCategory, TestContext, TestResult};
 
     pub struct CharmedLogTest {
@@ -343,6 +344,7 @@ pub mod integration {
     }
 
     impl CharmedLogTest {
+        #[must_use] 
         pub fn new(name: &str) -> Self {
             Self {
                 name: name.to_string(),
@@ -355,7 +357,7 @@ pub mod integration {
             &self.name
         }
 
-        fn crate_name(&self) -> &str {
+        fn crate_name(&self) -> &'static str {
             "charmed_log"
         }
 
@@ -368,12 +370,12 @@ pub mod integration {
                 Ok(f) => f,
                 Err(e) => {
                     return TestResult::Fail {
-                        reason: format!("Failed to load fixture: {}", e),
+                        reason: format!("Failed to load fixture: {e}"),
                     };
                 }
             };
 
-            match run_test(&fixture) {
+            match run_test(fixture) {
                 Ok(()) => TestResult::Pass,
                 Err(msg) if msg.starts_with("SKIPPED:") => TestResult::Skipped {
                     reason: msg.replace("SKIPPED: ", ""),
@@ -383,6 +385,7 @@ pub mod integration {
         }
     }
 
+    #[must_use] 
     pub fn all_tests() -> Vec<Box<dyn ConformanceTest>> {
         let mut loader = FixtureLoader::new();
         let fixtures = match loader.load_crate("charmed_log") {

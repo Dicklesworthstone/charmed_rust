@@ -10,9 +10,12 @@
 //! - Style: style parsing and selection
 //! - Stash: document organization
 
-#![allow(clippy::unreadable_literal)]
+#![allow(
+    clippy::unreadable_literal,
+    reason = "Conformance fixtures encode color and threshold literals that should remain verbatim"
+)]
 
-use crate::harness::{FixtureLoader, TestFixture, compare_styled_semantic, extract_styled_spans};
+use crate::harness::{compare_styled_semantic, extract_styled_spans, FixtureLoader, TestFixture};
 use glow::{Config, Reader, Stash};
 use serde::Deserialize;
 use std::collections::HashSet;
@@ -53,11 +56,11 @@ struct GlowOutput {
 fn run_glow_test(fixture: &TestFixture) -> Result<(), String> {
     let input: GlowInput = fixture
         .input_as()
-        .map_err(|e| format!("Failed to parse input: {}", e))?;
+        .map_err(|e| format!("Failed to parse input: {e}"))?;
 
     let expected: GlowOutput = fixture
         .expected_as()
-        .map_err(|e| format!("Failed to parse expected output: {}", e))?;
+        .map_err(|e| format!("Failed to parse expected output: {e}"))?;
 
     // Handle different test types based on fixture name
     if fixture.name.starts_with("config_") {
@@ -105,7 +108,7 @@ fn run_config_test(name: &str, input: &GlowInput, expected: &GlowOutput) -> Resu
             let reader = Reader::new(config);
             let result = reader.render_markdown("# Test");
             if result.is_err() {
-                return Err(format!("Width {} config should work", width));
+                return Err(format!("Width {width} config should work"));
             }
             Ok(())
         }
@@ -115,7 +118,7 @@ fn run_config_test(name: &str, input: &GlowInput, expected: &GlowOutput) -> Resu
             let reader = Reader::new(config);
             let result = reader.render_markdown("# Test");
             if result.is_err() {
-                return Err(format!("Style {} should be valid", style));
+                return Err(format!("Style {style} should be valid"));
             }
             Ok(())
         }
@@ -131,7 +134,7 @@ fn run_config_test(name: &str, input: &GlowInput, expected: &GlowOutput) -> Resu
             }
             Ok(())
         }
-        _ => Err(format!("Unknown config test: {}", name)),
+        _ => Err(format!("Unknown config test: {name}")),
     }
 }
 
@@ -184,7 +187,7 @@ fn run_reader_test(name: &str, input: &GlowInput, expected: &GlowOutput) -> Resu
                 }
                 Ok(())
             }
-            Err(e) => Err(format!("Expected success but got error: {}", e)),
+            Err(e) => Err(format!("Expected success but got error: {e}")),
         }
     }
 }
@@ -269,8 +272,7 @@ fn run_style_test(input: &GlowInput, expected: &GlowOutput) -> Result<(), String
 
     if is_valid != expected_valid {
         return Err(format!(
-            "Style '{}' validity mismatch: expected {}, got {}",
-            style, expected_valid, is_valid
+            "Style '{style}' validity mismatch: expected {expected_valid}, got {is_valid}"
         ));
     }
     Ok(())
@@ -304,11 +306,12 @@ fn run_stash_test(name: &str) -> Result<(), String> {
             }
             Ok(())
         }
-        _ => Err(format!("Unknown stash test: {}", name)),
+        _ => Err(format!("Unknown stash test: {name}")),
     }
 }
 
 /// Run all glow conformance tests
+#[must_use]
 pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
     let mut loader = FixtureLoader::new();
     let mut results = Vec::new();
@@ -319,7 +322,7 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
         Err(e) => {
             results.push((
                 "load_fixtures",
-                Err(format!("Failed to load fixtures: {}", e)),
+                Err(format!("Failed to load fixtures: {e}")),
             ));
             return results;
         }
@@ -345,7 +348,7 @@ pub fn run_all_tests() -> Vec<(&'static str, Result<(), String>)> {
 fn run_test(fixture: &TestFixture) -> Result<(), String> {
     // Skip if marked
     if let Some(reason) = fixture.should_skip() {
-        return Err(format!("SKIPPED: {}", reason));
+        return Err(format!("SKIPPED: {reason}"));
     }
 
     run_glow_test(fixture)
@@ -374,7 +377,7 @@ fn run_basic_tests() -> Vec<(&'static str, Result<(), String>)> {
                     Ok(())
                 }
             }
-            Err(e) => Err(format!("Render failed: {}", e)),
+            Err(e) => Err(format!("Render failed: {e}")),
         }
     }
 
@@ -384,7 +387,7 @@ fn run_basic_tests() -> Vec<(&'static str, Result<(), String>)> {
             let config = Config::new().style(style);
             let reader = Reader::new(config);
             if reader.render_markdown("test").is_err() {
-                return Err(format!("Style {} should work", style));
+                return Err(format!("Style {style} should work"));
             }
         }
         Ok(())
@@ -435,30 +438,30 @@ mod tests {
             match result {
                 Ok(()) => {
                     passed += 1;
-                    println!("  PASS: {}", name);
+                    println!("  PASS: {name}");
                 }
                 Err(msg) if msg.starts_with("SKIPPED:") => {
                     skipped += 1;
-                    println!("  SKIP: {} - {}", name, msg);
+                    println!("  SKIP: {name} - {msg}");
                 }
                 Err(msg) => {
                     failed += 1;
                     failures.push((name, msg));
-                    println!("  FAIL: {} - {}", name, msg);
+                    println!("  FAIL: {name} - {msg}");
                 }
             }
         }
 
         println!("\nGlow Conformance Results:");
-        println!("  Passed:  {}", passed);
-        println!("  Failed:  {}", failed);
-        println!("  Skipped: {}", skipped);
+        println!("  Passed:  {passed}");
+        println!("  Failed:  {failed}");
+        println!("  Skipped: {skipped}");
         println!("  Total:   {}", results.len());
 
         if !failures.is_empty() {
             println!("\nFailures:");
             for (name, msg) in &failures {
-                println!("  {}: {}", name, msg);
+                println!("  {name}: {msg}");
             }
         }
 
@@ -498,7 +501,7 @@ mod tests {
             let config = Config::new().style(style);
             let reader = Reader::new(config);
             let result = reader.render_markdown("test");
-            assert!(result.is_ok(), "Style '{}' should be valid", style);
+            assert!(result.is_ok(), "Style '{style}' should be valid");
         }
     }
 
@@ -511,7 +514,7 @@ mod tests {
             let config = Config::new().style(style);
             let reader = Reader::new(config);
             let result = reader.render_markdown("test");
-            assert!(result.is_err(), "Style '{}' should be invalid", style);
+            assert!(result.is_err(), "Style '{style}' should be invalid");
         }
     }
 
@@ -540,14 +543,14 @@ mod tests {
             let config = Config::new().width(width);
             let reader = Reader::new(config);
             let result = reader.render_markdown(markdown);
-            assert!(result.is_ok(), "Width {} should work", width);
+            assert!(result.is_ok(), "Width {width} should work");
         }
     }
 }
 
 /// Integration with the conformance trait system
 pub mod integration {
-    use super::*;
+    use super::{run_test, FixtureLoader};
     use crate::harness::{ConformanceTest, TestCategory, TestContext, TestResult};
 
     /// Glow rendering conformance test
@@ -556,6 +559,7 @@ pub mod integration {
     }
 
     impl GlowRenderTest {
+        #[must_use]
         pub fn new(name: &str) -> Self {
             Self {
                 name: name.to_string(),
@@ -568,7 +572,7 @@ pub mod integration {
             &self.name
         }
 
-        fn crate_name(&self) -> &str {
+        fn crate_name(&self) -> &'static str {
             "glow"
         }
 
@@ -581,12 +585,12 @@ pub mod integration {
                 Ok(f) => f,
                 Err(e) => {
                     return TestResult::Fail {
-                        reason: format!("Failed to load fixture: {}", e),
+                        reason: format!("Failed to load fixture: {e}"),
                     };
                 }
             };
 
-            match run_test(&fixture) {
+            match run_test(fixture) {
                 Ok(()) => TestResult::Pass,
                 Err(msg) if msg.starts_with("SKIPPED:") => TestResult::Skipped {
                     reason: msg.replace("SKIPPED: ", ""),
@@ -597,6 +601,7 @@ pub mod integration {
     }
 
     /// Get all glow conformance tests as trait objects
+    #[must_use]
     pub fn all_tests() -> Vec<Box<dyn ConformanceTest>> {
         let mut loader = FixtureLoader::new();
         let fixtures = match loader.load_crate("glow") {

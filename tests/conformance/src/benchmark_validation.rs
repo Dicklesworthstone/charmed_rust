@@ -9,9 +9,7 @@
 //! 2. The output is correct/valid
 //! 3. Edge cases are handled properly
 
-#![cfg(test)]
-
-use lipgloss::{Border, Color, Position, RgbColor, Style, join_horizontal, join_vertical, place};
+use lipgloss::{join_horizontal, join_vertical, place, Border, Color, Position, RgbColor, Style};
 
 // ============================================================================
 // LIPGLOSS BENCHMARK VALIDATION
@@ -178,7 +176,7 @@ mod lipgloss_validation {
 // ============================================================================
 
 mod bubbletea_validation {
-    use bubbletea::{Cmd, Message, Model, batch, parse_sequence, sequence};
+    use bubbletea::{batch, parse_sequence, sequence, Cmd, Message, Model};
 
     #[derive(Clone, Debug)]
     enum TestMsg {
@@ -284,7 +282,7 @@ mod bubbletea_validation {
         let view = model.view();
 
         assert_eq!(model.count, 1);
-        assert!(view.contains("1"));
+        assert!(view.contains('1'));
     }
 }
 
@@ -293,7 +291,7 @@ mod bubbletea_validation {
 // ============================================================================
 
 mod bubbles_validation {
-    use bubbles::spinner::{SpinnerModel, spinners};
+    use bubbles::spinner::{spinners, SpinnerModel};
 
     #[test]
     fn validate_spinner_creation() {
