@@ -2498,6 +2498,12 @@ mod tests {
 
     #[test]
     fn test_thread_panic_handled_gracefully() {
+        // This test intentionally verifies panic propagation through thread join.
+        // On aarch64 macOS, panic init can abort in some toolchain/linker combos
+        // before join observes Err. See:
+        // - https://github.com/rust-lang/rust/issues/113783
+        // - https://github.com/rust-lang/rust/issues/105988
+        // - https://github.com/rust-lang/rust/issues/88622
         // Spawn a thread that will panic
         let handle = thread::spawn(|| {
             panic!("Intentional panic for testing");

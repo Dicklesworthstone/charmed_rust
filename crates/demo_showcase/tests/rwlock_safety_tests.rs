@@ -15,12 +15,17 @@
 //! ## Comparison with `std::sync::RwLock`
 //! - Demonstrate that `std::sync::RwLock` DOES poison (for documentation)
 
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
 // On aarch64 macOS in this environment, any intentional panic in tests can abort the
 // process with `failed to initiate panic, error 5` before `catch_unwind` observes it.
 // Keep panic-based poisoning proofs enabled everywhere else, and run local non-panic
 // invariants on this target so the lock-state contract remains covered.
+//
+// Reference issues:
+// - https://github.com/rust-lang/rust/issues/113783
+// - https://github.com/rust-lang/rust/issues/105988
+// - https://github.com/rust-lang/rust/issues/88622
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 const PANIC_PROBES_ABORT_IN_TEST_RUNTIME: bool = true;
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]

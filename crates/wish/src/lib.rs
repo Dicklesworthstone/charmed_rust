@@ -2816,6 +2816,12 @@ mod tests {
     }
 
     #[tokio::test]
+    // On aarch64 macOS this deliberate panic-path test can abort with
+    // `failed to initiate panic, error 5` before middleware recovery assertions run.
+    // Track upstream runtime reports:
+    // - https://github.com/rust-lang/rust/issues/113783
+    // - https://github.com/rust-lang/rust/issues/105988
+    // - https://github.com/rust-lang/rust/issues/88622
     #[cfg_attr(
         all(target_os = "macos", target_arch = "aarch64"),
         ignore = "panic runtime aborts on this target during deliberate panic probes"
