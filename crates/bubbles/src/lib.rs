@@ -2,8 +2,6 @@
 // Allow pedantic lints for early-stage API ergonomics.
 #![allow(clippy::doc_markdown)]
 #![allow(clippy::missing_fields_in_debug)]
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
 #![allow(clippy::suspicious_operation_groupings)]
 
 //! # Bubbles
@@ -44,22 +42,36 @@
 //! let tick_msg = spinner.tick();
 //! ```
 
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod cursor;
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod help;
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod key;
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod paginator;
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod progress;
 pub mod runeutil;
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod spinner;
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod stopwatch;
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod textarea;
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod textinput;
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod timer;
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod viewport;
 
 // Complex components
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod filepicker;
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod list;
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod table;
 
 /// Prelude module for convenient imports.
