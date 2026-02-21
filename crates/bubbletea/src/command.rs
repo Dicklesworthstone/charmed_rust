@@ -218,14 +218,14 @@ impl CommandKind {
     /// Execute the command, handling both sync and async variants.
     pub async fn execute(self) -> Option<Message> {
         match self {
-            CommandKind::Sync(cmd) => {
+            Self::Sync(cmd) => {
                 // Run blocking code on tokio's blocking thread pool
                 tokio::task::spawn_blocking(move || cmd.execute())
                     .await
                     .ok()
                     .flatten()
             }
-            CommandKind::Async(cmd) => cmd.execute().await,
+            Self::Async(cmd) => cmd.execute().await,
         }
     }
 }
@@ -233,14 +233,14 @@ impl CommandKind {
 #[cfg(feature = "async")]
 impl From<Cmd> for CommandKind {
     fn from(cmd: Cmd) -> Self {
-        CommandKind::Sync(cmd)
+        Self::Sync(cmd)
     }
 }
 
 #[cfg(feature = "async")]
 impl From<AsyncCmd> for CommandKind {
     fn from(cmd: AsyncCmd) -> Self {
-        CommandKind::Async(cmd)
+        Self::Async(cmd)
     }
 }
 
@@ -1040,17 +1040,16 @@ mod tests {
             // Mix of sync and async commands
             for i in 0..6 {
                 let counter = Arc::clone(&counter);
+                let sync_counter = Arc::clone(&counter);
                 let kind: CommandKind = if i % 2 == 0 {
                     // Sync command (runs via spawn_blocking)
-                    let counter = Arc::clone(&counter);
                     Cmd::new(move || {
-                        counter.fetch_add(1, Ordering::SeqCst);
+                        sync_counter.fetch_add(1, Ordering::SeqCst);
                         Message::new(i)
                     })
                     .into()
                 } else {
                     // Async command
-                    let counter = Arc::clone(&counter);
                     AsyncCmd::new(move || async move {
                         counter.fetch_add(1, Ordering::SeqCst);
                         Message::new(i)

@@ -46,6 +46,10 @@ impl Message {
     /// Returns `Ok(M)` if the message is of type `M`, otherwise returns
     /// `Err(Message)` with the original message intact. This is useful when
     /// you need to try multiple downcast targets in sequence without cloning.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(Self)` when the wrapped value is not of type `M`.
     pub fn try_downcast<M: Any + Send + 'static>(self) -> Result<M, Self> {
         match self.0.downcast::<M>() {
             Ok(b) => Ok(*b),
@@ -217,7 +221,7 @@ mod tests {
         struct TestMsg;
 
         let msg = Message::new(TestMsg);
-        let debug_str = format!("{:?}", msg);
+        let debug_str = format!("{msg:?}");
         // Debug should output something reasonable
         assert!(debug_str.contains("Message"));
     }

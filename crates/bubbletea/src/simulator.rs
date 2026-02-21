@@ -976,7 +976,7 @@ mod tests {
 
         assert_eq!(processed, 500);
         // Sum of 0..500 = 499*500/2 = 124750
-        assert_eq!(sim.model().value, 124750);
+        assert_eq!(sim.model().value, 124_750);
     }
 
     #[test]

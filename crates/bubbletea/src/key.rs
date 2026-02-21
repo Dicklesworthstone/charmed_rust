@@ -66,12 +66,14 @@ impl KeyMsg {
     }
 
     /// Set the alt modifier.
+    #[must_use]
     pub fn with_alt(mut self) -> Self {
         self.alt = true;
         self
     }
 
     /// Set the paste flag.
+    #[must_use]
     pub fn with_paste(mut self) -> Self {
         self.paste = true;
         self
@@ -88,7 +90,7 @@ impl fmt::Display for KeyMsg {
                 write!(f, "[")?;
             }
             for c in &self.runes {
-                write!(f, "{}", c)?;
+                write!(f, "{c}")?;
             }
             if self.paste {
                 write!(f, "]")?;
@@ -290,6 +292,10 @@ pub enum KeyType {
 }
 
 impl fmt::Display for KeyType {
+    #[allow(
+        clippy::use_self,
+        reason = "Large enum match kept explicit for readability during port parity work"
+    )]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = match self {
             KeyType::Null => "ctrl+@",
@@ -382,7 +388,7 @@ impl fmt::Display for KeyType {
             KeyType::CtrlEnter => "ctrl+enter",
             KeyType::CtrlShiftEnter => "ctrl+shift+enter",
         };
-        write!(f, "{}", name)
+        write!(f, "{name}")
     }
 }
 
@@ -394,6 +400,10 @@ impl KeyType {
     }
 
     /// Check if this is a function key (F1-F20).
+    #[allow(
+        clippy::use_self,
+        reason = "Grouped match is easier to scan with explicit variants"
+    )]
     pub fn is_function_key(&self) -> bool {
         matches!(
             self,
@@ -421,6 +431,10 @@ impl KeyType {
     }
 
     /// Check if this is a cursor movement key.
+    #[allow(
+        clippy::use_self,
+        reason = "Grouped match is easier to scan with explicit variants"
+    )]
     pub fn is_cursor(&self) -> bool {
         matches!(
             self,
@@ -457,6 +471,10 @@ impl KeyType {
 }
 
 /// Convert a crossterm KeyCode to our KeyType.
+#[allow(
+    clippy::too_many_lines,
+    reason = "Direct mapping table mirrors terminal key protocol variants"
+)]
 pub fn from_crossterm_key(
     code: crossterm::event::KeyCode,
     modifiers: crossterm::event::KeyModifiers,
@@ -673,9 +691,8 @@ pub fn parse_sequence_prefix(input: &[u8]) -> Option<(KeyMsg, usize)> {
 ///
 /// Returns `true` if the input is a prefix of a known sequence, `false` otherwise.
 pub fn is_sequence_prefix(input: &[u8]) -> bool {
-    let s = match std::str::from_utf8(input) {
-        Ok(s) => s,
-        Err(_) => return false,
+    let Ok(s) = std::str::from_utf8(input) else {
+        return false;
     };
 
     SEQUENCES.keys().any(|seq| seq.starts_with(s))
