@@ -197,10 +197,10 @@ fn create_password_auth(
     // Use RateLimitedAuth to prevent brute-force attacks
     let auth = CallbackAuth::new(move |ctx, pwd| {
         // Check username if required
-        if let Some(ref required) = username {
-            if ctx.username() != required {
-                return false;
-            }
+        if let Some(ref required) = username
+            && ctx.username() != required
+        {
+            return false;
         }
         // Check password (CallbackAuth does basic comparison)
         pwd == password
@@ -444,7 +444,7 @@ mod tests {
                 assert_eq!(username, Some("demo".to_string()));
                 assert_eq!(password, "secret");
             }
-            _ => panic!("Expected Password mode"),
+            AuthMode::AcceptAll => panic!("Expected Password mode"),
         }
     }
 
@@ -459,7 +459,7 @@ mod tests {
                 assert!(username.is_none());
                 assert_eq!(password, "secret");
             }
-            _ => panic!("Expected Password mode"),
+            AuthMode::AcceptAll => panic!("Expected Password mode"),
         }
     }
 

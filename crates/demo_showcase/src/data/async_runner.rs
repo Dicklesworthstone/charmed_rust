@@ -290,21 +290,21 @@ impl AsyncRunner {
     pub fn start_async(&mut self, operation: AsyncOperation) -> bubbletea::AsyncCmd {
         use bubbletea::AsyncCmd;
 
+        let op = operation;
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1);
         let generation = self.generation;
-        let duration = operation.base_duration(self.profile);
+        let duration = op.base_duration(self.profile);
         let seed = self.seed.wrapping_add(id);
 
         self.pending.insert(
             id,
             PendingOperation {
-                operation: operation.clone(),
+                operation: op.clone(),
                 generation,
             },
         );
 
-        let op = operation.clone();
         AsyncCmd::new(move || async move {
             // Simulate async delay
             tokio::time::sleep(duration).await;
@@ -327,21 +327,21 @@ impl AsyncRunner {
     /// The result will be delivered as an `AsyncOperationMsg`.
     #[cfg(feature = "async")]
     pub fn start(&mut self, operation: AsyncOperation) -> Cmd {
+        let op = operation;
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1);
         let generation = self.generation;
-        let duration = operation.base_duration(self.profile);
+        let duration = op.base_duration(self.profile);
         let seed = self.seed.wrapping_add(id);
 
         self.pending.insert(
             id,
             PendingOperation {
-                operation: operation.clone(),
+                operation: op.clone(),
                 generation,
             },
         );
 
-        let op = operation.clone();
         Cmd::new(move || {
             // Use tokio's current runtime to run async work
             let rt = tokio::runtime::Handle::current();

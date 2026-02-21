@@ -151,7 +151,7 @@ pub struct SshArgs {
     /// Password for SSH authentication
     ///
     /// If set, clients must provide this password to connect.
-    /// Can also be set via DEMO_SSH_PASSWORD environment variable.
+    /// Can also be set via `DEMO_SSH_PASSWORD` environment variable.
     #[arg(long, env = "DEMO_SSH_PASSWORD")]
     pub password: Option<String>,
 

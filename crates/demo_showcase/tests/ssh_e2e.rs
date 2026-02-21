@@ -46,13 +46,10 @@ fn find_available_port() -> Result<u16, String> {
 
 /// Probe server availability with an explicit connect+shutdown cycle.
 fn probe_server(port: u16) -> bool {
-    match TcpStream::connect(format!("127.0.0.1:{port}")) {
-        Ok(stream) => {
-            let _ = stream.shutdown(Shutdown::Both);
-            true
-        }
-        Err(_) => false,
-    }
+    TcpStream::connect(format!("127.0.0.1:{port}")).is_ok_and(|stream| {
+        let _ = stream.shutdown(Shutdown::Both);
+        true
+    })
 }
 
 fn generate_test_password(port: u16) -> String {
@@ -104,7 +101,7 @@ fn cleanup_temp_host_key(key_path: &PathBuf) {
     let _ = std::fs::remove_file(key_path.with_extension("pub"));
 }
 
-/// Get the path to the demo_showcase binary.
+/// Get the path to the `demo_showcase` binary.
 fn demo_showcase_binary() -> Option<PathBuf> {
     // Try different locations for the binary
     let possible_paths = [
@@ -153,7 +150,7 @@ impl SshTestHarness {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| format!("Failed to start server: {}", e))?;
+            .map_err(|e| format!("Failed to start server: {e}"))?;
 
         let harness = Self {
             server_process,
@@ -177,7 +174,7 @@ impl SshTestHarness {
             }
             std::thread::sleep(Duration::from_millis(100));
         }
-        Err(format!("Server did not become ready within {:?}", timeout))
+        Err(format!("Server did not become ready within {timeout:?}"))
     }
 
     /// Connect to the SSH server using the ssh command.
@@ -206,13 +203,13 @@ impl SshTestHarness {
                 "-o",
                 "ConnectTimeout=10",
                 "-tt", // Force pseudo-terminal allocation
-                &format!("testuser@127.0.0.1"),
+                "testuser@127.0.0.1",
             ])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| format!("Failed to spawn ssh: {}", e))?;
+            .map_err(|e| format!("Failed to spawn ssh: {e}"))?;
 
         // Give the session time to start
         std::thread::sleep(Duration::from_secs(2));
@@ -226,7 +223,7 @@ impl SshTestHarness {
         // Wait for exit with timeout
         let output = child
             .wait_with_output()
-            .map_err(|e| format!("SSH wait failed: {}", e))?;
+            .map_err(|e| format!("SSH wait failed: {e}"))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -241,8 +238,7 @@ impl SshTestHarness {
             Ok(stdout)
         } else {
             Err(format!(
-                "SSH connection failed. stdout: {}, stderr: {}",
-                stdout, stderr
+                "SSH connection failed. stdout: {stdout}, stderr: {stderr}"
             ))
         }
     }
@@ -267,12 +263,12 @@ impl Drop for SshTestHarness {
 ///
 /// This test is ignored by default - run with `--ignored` to execute.
 #[test]
-#[ignore]
+#[ignore = "requires local ssh tooling and network setup"]
 fn ssh_e2e_server_starts() {
     let harness = match SshTestHarness::start() {
         Ok(h) => h,
         Err(e) => {
-            eprintln!("Skipping SSH test: {}", e);
+            eprintln!("Skipping SSH test: {e}");
             return;
         }
     };
@@ -292,12 +288,12 @@ fn ssh_e2e_server_starts() {
 /// This test requires `sshpass` to be installed.
 /// Run with `--ignored` to execute.
 #[test]
-#[ignore]
+#[ignore = "requires local ssh tooling and network setup"]
 fn ssh_e2e_renders_ui() {
     let harness = match SshTestHarness::start() {
         Ok(h) => h,
         Err(e) => {
-            eprintln!("Skipping SSH test: {}", e);
+            eprintln!("Skipping SSH test: {e}");
             return;
         }
     };
@@ -321,13 +317,12 @@ fn ssh_e2e_renders_ui() {
         Err(e) => {
             // sshpass may not be installed - that's OK for CI
             if e.contains("sshpass not installed") {
-                eprintln!("Skipping UI verification: {}", e);
+                eprintln!("Skipping UI verification: {e}");
                 return;
             }
             assert!(
                 e.contains("sshpass not installed"),
-                "SSH connection failed: {}",
-                e
+                "SSH connection failed: {e}"
             );
         }
     }
@@ -337,12 +332,12 @@ fn ssh_e2e_renders_ui() {
 ///
 /// Run with `--ignored` to execute.
 #[test]
-#[ignore]
+#[ignore = "requires local ssh tooling and network setup"]
 fn ssh_e2e_clean_disconnect() {
     let harness = match SshTestHarness::start() {
         Ok(h) => h,
         Err(e) => {
-            eprintln!("Skipping SSH test: {}", e);
+            eprintln!("Skipping SSH test: {e}");
             return;
         }
     };
@@ -370,12 +365,12 @@ fn ssh_e2e_clean_disconnect() {
 ///
 /// Run with `--ignored` to execute.
 #[test]
-#[ignore]
+#[ignore = "requires local ssh tooling and network setup"]
 fn ssh_e2e_rejects_bad_password() {
     let harness = match SshTestHarness::start() {
         Ok(h) => h,
         Err(e) => {
-            eprintln!("Skipping SSH test: {}", e);
+            eprintln!("Skipping SSH test: {e}");
             return;
         }
     };
@@ -402,7 +397,7 @@ fn ssh_e2e_rejects_bad_password() {
             "ConnectTimeout=5",
             "-o",
             "NumberOfPasswordPrompts=1",
-            &format!("testuser@127.0.0.1"),
+            "testuser@127.0.0.1",
             "echo",
             "should_not_see_this",
         ])
@@ -439,7 +434,7 @@ fn ssh_e2e_rejects_bad_password() {
 ///
 /// Run with `--ignored` to execute.
 #[test]
-#[ignore]
+#[ignore = "requires local ssh tooling and network setup"]
 fn ssh_e2e_smoke_test() {
     println!("=== SSH E2E Smoke Test ===");
 
@@ -448,7 +443,7 @@ fn ssh_e2e_smoke_test() {
     let harness = match SshTestHarness::start() {
         Ok(h) => h,
         Err(e) => {
-            eprintln!("Cannot run smoke test: {}", e);
+            eprintln!("Cannot run smoke test: {e}");
             return;
         }
     };
@@ -476,15 +471,15 @@ fn ssh_e2e_smoke_test() {
             println!("Skipping SSH verification (sshpass not available)");
         }
         Err(e) => {
-            println!("SSH connection warning: {}", e);
+            println!("SSH connection warning: {e}");
         }
     }
 
     // Phase 4: Verify server handles multiple connections
     println!("\n[Phase 4] Testing connection resilience...");
     for i in 1..=3 {
-        assert!(probe_server(harness.port), "Connection {} failed", i);
-        println!("Connection {} successful", i);
+        assert!(probe_server(harness.port), "Connection {i} failed");
+        println!("Connection {i} successful");
         std::thread::sleep(Duration::from_millis(100));
     }
 
