@@ -1610,10 +1610,10 @@ impl<M: Model> Program<M> {
                                                 let cmd_kind: CommandKind = cmd.into();
                                                 cmd_kind.execute().await
                                             } => {
-                                                if let Some(msg) = result {
-                                                    if tx_clone.send(msg).await.is_err() {
-                                                        debug!(target: "bubbletea::command", "async batch command result dropped — receiver disconnected");
-                                                    }
+                                                if let Some(msg) = result
+                                                    && tx_clone.send(msg).await.is_err()
+                                                {
+                                                    debug!(target: "bubbletea::command", "async batch command result dropped — receiver disconnected");
                                                 }
                                             }
                                             _ = cancel.cancelled() => {
@@ -1627,11 +1627,11 @@ impl<M: Model> Program<M> {
                             if let Some(seq) = msg.downcast::<SequenceMsg>() {
                                 for cmd in seq.0 {
                                     let cmd_kind: CommandKind = cmd.into();
-                                    if let Some(msg) = cmd_kind.execute().await {
-                                        if tx.send(msg).await.is_err() {
-                                            debug!(target: "bubbletea::command", "async sequence command result dropped — receiver disconnected");
-                                            break;
-                                        }
+                                    if let Some(msg) = cmd_kind.execute().await
+                                        && tx.send(msg).await.is_err()
+                                    {
+                                        debug!(target: "bubbletea::command", "async sequence command result dropped — receiver disconnected");
+                                        break;
                                     }
                                 }
                             }
@@ -1660,10 +1660,10 @@ impl<M: Model> Program<M> {
                             let tx_clone = tx.clone();
                             tokio::spawn(async move {
                                 let cmd_kind: CommandKind = cmd.into();
-                                if let Some(msg) = cmd_kind.execute().await {
-                                    if tx_clone.send(msg).await.is_err() {
-                                        debug!(target: "bubbletea::command", "legacy async batch command result dropped — receiver disconnected");
-                                    }
+                                if let Some(msg) = cmd_kind.execute().await
+                                    && tx_clone.send(msg).await.is_err()
+                                {
+                                    debug!(target: "bubbletea::command", "legacy async batch command result dropped — receiver disconnected");
                                 }
                             });
                         }
@@ -1672,11 +1672,11 @@ impl<M: Model> Program<M> {
                     if let Some(seq) = msg.downcast::<SequenceMsg>() {
                         for cmd in seq.0 {
                             let cmd_kind: CommandKind = cmd.into();
-                            if let Some(msg) = cmd_kind.execute().await {
-                                if tx.send(msg).await.is_err() {
-                                    debug!(target: "bubbletea::command", "legacy async sequence command result dropped — receiver disconnected");
-                                    break;
-                                }
+                            if let Some(msg) = cmd_kind.execute().await
+                                && tx.send(msg).await.is_err()
+                            {
+                                debug!(target: "bubbletea::command", "legacy async sequence command result dropped — receiver disconnected");
+                                break;
                             }
                         }
                     }
