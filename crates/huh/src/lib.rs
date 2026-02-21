@@ -1,7 +1,32 @@
 #![forbid(unsafe_code)]
-// Allow pedantic lints for early-stage API ergonomics.
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
+#![allow(
+    clippy::must_use_candidate,
+    reason = "public API favors ergonomic builder-style chaining and query helpers"
+)]
+#![allow(
+    clippy::return_self_not_must_use,
+    reason = "builder methods intentionally return Self for optional fluent composition"
+)]
+#![allow(
+    clippy::missing_const_for_fn,
+    reason = "most APIs are runtime-oriented trait impls and keeping them non-const avoids noisy signatures"
+)]
+#![allow(
+    clippy::cast_precision_loss,
+    reason = "human-readable file-size formatting intentionally uses lossy f64 division"
+)]
+#![allow(
+    clippy::struct_excessive_bools,
+    reason = "field configuration state is explicit and mirrors the source library semantics"
+)]
+#![allow(
+    clippy::too_many_lines,
+    reason = "form update loop stays co-located to keep control flow readable"
+)]
+#![allow(
+    clippy::used_underscore_binding,
+    reason = "underscore-prefixed storage fields mark intentionally non-primary state"
+)]
 
 //! # Huh
 //!
@@ -20,7 +45,7 @@
 //! - **bubbletea** provides the runtime and update loop.
 //! - **bubbles** supplies reusable widgets (text input, list, etc.).
 //! - **lipgloss** handles consistent styling and themes.
-//! - **demo_showcase** uses huh to demonstrate multi-step workflows.
+//! - **`demo_showcase`** uses huh to demonstrate multi-step workflows.
 //!
 //! ## Example
 //!
@@ -126,7 +151,7 @@ fn next_id() -> usize {
 /// }
 /// ```
 ///
-/// # Note on Clone and PartialEq
+/// # Note on Clone and `PartialEq`
 ///
 /// This error type implements `Clone` and `PartialEq` to support
 /// testing and comparison. As a result, the `Io` variant stores
@@ -315,13 +340,13 @@ impl<T: Clone + PartialEq + std::fmt::Display> SelectOption<T> {
 }
 
 /// Creates options from string values.
-pub fn new_options<S: Into<String> + Clone>(
+pub fn new_options<S: Into<String>>(
     values: impl IntoIterator<Item = S>,
 ) -> Vec<SelectOption<String>> {
     values
         .into_iter()
         .map(|v| {
-            let s: String = v.clone().into();
+            let s: String = v.into();
             SelectOption::new(s.clone(), s)
         })
         .collect()
@@ -635,7 +660,6 @@ pub fn theme_catppuccin() -> Theme {
     let text = "#cdd6f4";
     let subtext1 = "#bac2de";
     let subtext0 = "#a6adc8";
-    let _overlay1 = "#7f849c";
     let overlay0 = "#6c7086";
     let green = "#a6e3a1";
     let red = "#f38ba8";
@@ -1114,7 +1138,7 @@ impl FieldPosition {
 // Helper for key matching
 // -----------------------------------------------------------------------------
 
-/// Check if a KeyMsg matches a Binding.
+/// Check if a `KeyMsg` matches a `Binding`.
 fn binding_matches(binding: &Binding, key: &KeyMsg) -> bool {
     if !binding.enabled() {
         return false;
@@ -1330,7 +1354,7 @@ impl Input {
         self
     }
 
-    /// Sets password mode (shorthand for echo_mode).
+    /// Sets password mode (shorthand for `echo_mode`).
     pub fn password(self, password: bool) -> Self {
         if password {
             self.echo_mode(EchoMode::Password)
@@ -1482,8 +1506,7 @@ impl Field for Input {
                             .value
                             .char_indices()
                             .nth(self.cursor_pos)
-                            .map(|(i, _)| i)
-                            .unwrap_or(self.value.len());
+                            .map_or(self.value.len(), |(i, _)| i);
 
                         // Build the new string efficiently for bulk insert
                         let insert_str: String = chars_to_add.iter().collect();
@@ -1851,11 +1874,9 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for Select<T>
     }
 
     fn get_value(&self) -> Box<dyn Any> {
-        if let Some(opt) = self.options.get(self.selected) {
-            Box::new(opt.value.clone())
-        } else {
-            Box::new(T::default())
-        }
+        self.options
+            .get(self.selected)
+            .map_or_else(|| Box::new(T::default()), |opt| Box::new(opt.value.clone()))
     }
 
     fn error(&self) -> Option<&str> {
@@ -3198,8 +3219,7 @@ impl Text {
             .value
             .lines()
             .nth(self.cursor_row)
-            .map(|l| l.chars().count())
-            .unwrap_or(0);
+            .map_or(0, |l| l.chars().count());
         if self.cursor_col < new_line_len {
             self.cursor_col += 1;
         }
@@ -3364,7 +3384,7 @@ impl Field for Text {
                             self.cursor_row = self.cursor_row.saturating_sub(1);
                             let lines = self.visible_lines();
                             self.cursor_col =
-                                lines.get(self.cursor_row).map(|l| l.len()).unwrap_or(0);
+                                lines.get(self.cursor_row).map_or(0, |l| l.len());
                         } else {
                             self.cursor_col = self.cursor_col.saturating_sub(1);
                         }
@@ -3394,7 +3414,7 @@ impl Field for Text {
                 }
                 KeyType::Right => {
                     let lines = self.visible_lines();
-                    let current_line_len = lines.get(self.cursor_row).map(|l| l.len()).unwrap_or(0);
+                    let current_line_len = lines.get(self.cursor_row).map_or(0, |l| l.len());
                     if self.cursor_col < current_line_len {
                         self.cursor_col += 1;
                     }
@@ -3404,7 +3424,7 @@ impl Field for Text {
                 }
                 KeyType::End => {
                     let lines = self.visible_lines();
-                    self.cursor_col = lines.get(self.cursor_row).map(|l| l.len()).unwrap_or(0);
+                    self.cursor_col = lines.get(self.cursor_row).map_or(0, |l| l.len());
                 }
                 _ => {}
             }
@@ -3515,8 +3535,7 @@ impl Field for Text {
     fn with_height(&mut self, height: usize) {
         self.height = height;
         // Adjust lines based on height minus title/description
-        let adjust = if self.title.is_empty() { 0 } else { 1 }
-            + if self.description.is_empty() { 0 } else { 1 };
+        let adjust = usize::from(!self.title.is_empty()) + usize::from(!self.description.is_empty());
         if height > adjust {
             self.lines = height - adjust;
         }
@@ -3533,7 +3552,7 @@ impl Field for Text {
 
 /// A file picker field for selecting files and directories.
 ///
-/// The FilePicker field allows users to browse the filesystem and select files
+/// The `FilePicker` field allows users to browse the filesystem and select files
 /// or directories. It can be configured to filter by file type, show/hide hidden
 /// files, and control whether files and/or directories can be selected.
 ///
@@ -3737,7 +3756,7 @@ impl FilePicker {
         // Read directory contents
         if let Ok(entries) = std::fs::read_dir(&self.current_directory) {
             let mut entries: Vec<_> = entries
-                .filter_map(|e| e.ok())
+                .filter_map(std::result::Result::ok)
                 .filter_map(|entry| {
                     let name = entry.file_name().to_string_lossy().to_string();
 
@@ -3804,7 +3823,7 @@ impl FilePicker {
         } else if size >= KB {
             format!("{:.1}K", size as f64 / KB as f64)
         } else {
-            format!("{}B", size)
+            format!("{size}B")
         }
     }
 
@@ -4012,7 +4031,9 @@ impl Field for FilePicker {
 
                 // Size
                 if self.show_size && !entry.is_dir {
-                    entry_str.push_str(&format!(" ({})", Self::format_size(entry.size)));
+                    entry_str.push_str(" (");
+                    entry_str.push_str(&Self::format_size(entry.size));
+                    entry_str.push(')');
                 }
 
                 if is_selected && is_selectable {
@@ -4183,7 +4204,7 @@ impl Group {
 
     /// Returns whether this group should be hidden.
     pub fn is_hidden(&self) -> bool {
-        self.hide.as_ref().map(|f| f()).unwrap_or(false)
+        self.hide.as_ref().is_some_and(|f| f())
     }
 
     /// Returns the current field index.
@@ -4203,7 +4224,7 @@ impl Group {
 
     /// Returns a reference to the current field.
     pub fn current_field(&self) -> Option<&dyn Field> {
-        self.fields.get(self.current).map(|f| f.as_ref())
+        self.fields.get(self.current).map(std::convert::AsRef::as_ref)
     }
 
     /// Returns a mutable reference to the current field.
@@ -4499,7 +4520,7 @@ impl Layout for LayoutColumns {
                 // Keep render path panic-free even if future refactors alter row_parts population.
                 rows.push(row_parts.into_iter().next().unwrap_or_default());
             } else {
-                let row_refs: Vec<&str> = row_parts.iter().map(|s| s.as_str()).collect();
+                let row_refs: Vec<&str> = row_parts.iter().map(std::string::String::as_str).collect();
                 rows.push(lipgloss::join_horizontal(
                     lipgloss::Position::Top,
                     &row_refs,
@@ -4595,7 +4616,7 @@ impl Layout for LayoutGrid {
                 // Keep render path panic-free even if future refactors alter row_parts population.
                 rows.push(row_parts.into_iter().next().unwrap_or_default());
             } else {
-                let row_refs: Vec<&str> = row_parts.iter().map(|s| s.as_str()).collect();
+                let row_refs: Vec<&str> = row_parts.iter().map(std::string::String::as_str).collect();
                 rows.push(lipgloss::join_horizontal(
                     lipgloss::Position::Top,
                     &row_refs,
@@ -4836,7 +4857,7 @@ impl Form {
         self.groups
             .iter()
             .flat_map(|g| g.errors())
-            .map(|s| s.to_string())
+            .map(str::to_string)
             .collect()
     }
 
@@ -5058,10 +5079,10 @@ mod tests {
     #[test]
     fn test_form_error_display() {
         let err = FormError::UserAborted;
-        assert_eq!(format!("{}", err), "user aborted");
+        assert_eq!(format!("{err}"), "user aborted");
 
         let err = FormError::Validation("invalid input".to_string());
-        assert_eq!(format!("{}", err), "validation error: invalid input");
+        assert_eq!(format!("{err}"), "validation error: invalid input");
     }
 
     #[test]
@@ -5531,14 +5552,12 @@ mod tests {
 
     #[test]
     fn test_layout_default() {
-        let _layout = LayoutDefault;
-        // Just ensure it compiles and can be created
+        assert_eq!(std::mem::size_of::<LayoutDefault>(), 0);
     }
 
     #[test]
     fn test_layout_stack() {
-        let _layout = LayoutStack;
-        // Just ensure it compiles and can be created
+        assert_eq!(std::mem::size_of::<LayoutStack>(), 0);
     }
 
     #[test]
@@ -5810,13 +5829,13 @@ mod tests {
         use super::*;
         use bubbletea::{KeyMsg, Message};
 
-        /// Helper to create a paste KeyMsg from a string
+        /// Helper to create a paste `KeyMsg` from a string.
         fn paste_msg(s: &str) -> Message {
             let key = KeyMsg::from_runes(s.chars().collect()).with_paste();
             Message::new(key)
         }
 
-        /// Helper to create a regular typing KeyMsg from a string
+        /// Helper to create a regular typing `KeyMsg` from a string.
         fn type_msg(s: &str) -> Message {
             let key = KeyMsg::from_runes(s.chars().collect());
             Message::new(key)
@@ -6042,7 +6061,12 @@ mod tests {
             input.focused = true;
 
             // Paste a large amount of text (simulating a real paste operation)
-            let large_text: String = (0..1000).map(|i| format!("word{} ", i)).collect();
+            let mut large_text = String::new();
+            for i in 0..1000 {
+                large_text.push_str("word");
+                large_text.push_str(&i.to_string());
+                large_text.push(' ');
+            }
             let msg = paste_msg(&large_text);
             input.update(&msg);
 
@@ -6056,7 +6080,12 @@ mod tests {
             text.focused = true;
 
             // Paste large multi-line text
-            let large_text: String = (0..100).map(|i| format!("line {}\n", i)).collect();
+            let mut large_text = String::new();
+            for i in 0..100 {
+                large_text.push_str("line ");
+                large_text.push_str(&i.to_string());
+                large_text.push('\n');
+            }
             let msg = paste_msg(&large_text);
             text.update(&msg);
 
@@ -6210,7 +6239,7 @@ mod tests {
     // FilePicker edge case tests (bd-1isw)
     // -------------------------------------------------------------------------
 
-    /// Helper to create a FilePicker pre-loaded with synthetic FileEntry items
+    /// Helper to create a `FilePicker` pre-loaded with synthetic `FileEntry` items
     /// (avoids filesystem I/O in unit tests).
     fn filepicker_with_entries(entries: Vec<(&str, bool)>) -> FilePicker {
         let mut picker = FilePicker::new();
