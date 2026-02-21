@@ -39,15 +39,15 @@
 use darling::FromDeriveInput;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, parse2};
+use syn::{parse2, DeriveInput};
 
 use crate::attributes::ModelInput;
 use crate::error::MacroError;
-use crate::state::{StateField, generate_state_snapshot_with_generics};
+use crate::state::{generate_state_snapshot_with_generics, StateField};
 
 /// Main implementation for the derive macro.
 ///
-/// This function is called by the proc_macro entry point and handles
+/// This function is called by the `proc_macro` entry point and handles
 /// parsing the input and generating the output token stream.
 pub fn derive_model_impl(input: TokenStream) -> TokenStream {
     match derive_model_inner(input) {
@@ -105,7 +105,7 @@ fn derive_model_inner(input: TokenStream) -> Result<TokenStream, MacroError> {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     #[cfg(debug_assertions)]
-    eprintln!("[bubbletea-macros] Deriving Model for: {}", name);
+    eprintln!("[bubbletea-macros] Deriving Model for: {name}");
 
     // Parse fields using darling for #[state] attribute handling
     let parsed = ModelInput::from_derive_input(&input)?;
@@ -213,9 +213,7 @@ mod tests {
         let output_str = output.to_string();
 
         // Should handle lifetimes
-        assert!(
-            output_str.contains("impl < 'a > :: bubbletea :: Model for AppWithLifetime < 'a >")
-        );
+        assert!(output_str.contains("impl < 'a > :: bubbletea :: Model for AppWithLifetime < 'a >"));
     }
 
     #[test]
@@ -339,10 +337,7 @@ mod tests {
         let output_str = output.to_string();
 
         // Print for debugging
-        eprintln!(
-            "Generated code for multiple combined eq+debug:\n{}",
-            output_str
-        );
+        eprintln!("Generated code for multiple combined eq+debug:\n{output_str}");
 
         // Should use both custom equality functions
         assert!(
@@ -510,11 +505,8 @@ mod tests {
         let output_str = output.to_string();
 
         // Should handle multiple generics and lifetimes
-        assert!(
-            output_str.contains(
-                "impl < 'a , T , U > :: bubbletea :: Model for MultiGeneric < 'a , T , U >"
-            )
-        );
+        assert!(output_str
+            .contains("impl < 'a , T , U > :: bubbletea :: Model for MultiGeneric < 'a , T , U >"));
     }
 
     #[test]

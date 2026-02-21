@@ -85,6 +85,7 @@ impl MacroError {
     }
 
     /// Creates a duplicate method error.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn duplicate_method(method: &'static str, span: Span) -> Self {
         Self::DuplicateMethod { method, span }
     }
@@ -149,6 +150,7 @@ impl MacroError {
     }
 
     /// Returns the span where this error occurred.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn span(&self) -> Span {
         match self {
             Self::Parse(_, span)
@@ -221,14 +223,14 @@ impl MacroError {
             Self::MissingMethod { method, .. } => {
                 let example = match *method {
                     "init" => {
-                        r#"Add an `init` method that returns an initial command:
+                        r"Add an `init` method that returns an initial command:
 
     fn init(&self) -> Option<Cmd> {
         None // or Some(Cmd::batch([...]))
-    }"#
+    }"
                     }
                     "update" => {
-                        r#"Add an `update` method that handles messages:
+                        r"Add an `update` method that handles messages:
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
         // Handle your messages here
@@ -236,7 +238,7 @@ impl MacroError {
             // handle key press
         }
         None
-    }"#
+    }"
                     }
                     "view" => {
                         r#"Add a `view` method that returns a String:
@@ -353,11 +355,13 @@ impl ErrorAccumulator {
     }
 
     /// Returns true if no errors have been collected.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn is_empty(&self) -> bool {
         self.errors.is_empty()
     }
 
     /// Returns the number of collected errors.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn len(&self) -> usize {
         self.errors.len()
     }
@@ -371,7 +375,11 @@ impl ErrorAccumulator {
         }
 
         // Combine all error messages
-        let combined: Vec<TokenStream> = self.errors.iter().map(|e| e.to_compile_error()).collect();
+        let combined: Vec<TokenStream> = self
+            .errors
+            .iter()
+            .map(MacroError::to_compile_error)
+            .collect();
 
         quote_spanned! {self.errors[0].span()=>
             #(#combined)*
@@ -380,11 +388,10 @@ impl ErrorAccumulator {
 
     /// Returns the first error if any exist, consuming the accumulator.
     pub fn into_result<T>(self, ok_value: T) -> Result<T, MacroError> {
-        if let Some(first) = self.errors.into_iter().next() {
-            Err(first)
-        } else {
-            Ok(ok_value)
-        }
+        self.errors
+            .into_iter()
+            .next()
+            .map_or_else(|| Ok(ok_value), Err)
     }
 }
 
@@ -468,7 +475,7 @@ mod tests {
             Span::call_site(),
         );
         let error_str = err.to_string();
-        assert!(error_str.contains("T"));
+        assert!(error_str.contains('T'));
         assert!(error_str.contains("Clone"));
         assert!(error_str.contains("Send"));
     }

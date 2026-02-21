@@ -2,8 +2,11 @@
 //!
 //! This module provides types and utilities for parsing the custom attributes
 //! used by the derive macro (`#[state]`, `#[init]`, `#[update]`, `#[view]`).
+#![allow(clippy::needless_continue, clippy::option_if_let_else)]
+// darling derives expand to control-flow patterns clippy flags, but the
+// generated code is upstream and not hand-editable in this crate.
 
-use darling::{FromDeriveInput, FromField, FromMeta, ast};
+use darling::{ast, FromDeriveInput, FromField, FromMeta};
 use proc_macro2::Span;
 use syn::{Attribute, FnArg, Ident, ImplItem, ImplItemFn, ItemImpl, ReturnType, Signature, Type};
 
@@ -15,6 +18,7 @@ use syn::{Attribute, FnArg, Ident, ImplItem, ImplItemFn, ItemImpl, ReturnType, S
 ///
 /// This struct is populated by darling from the annotated struct definition.
 #[allow(dead_code)] // Constructed via darling derive
+#[allow(clippy::needless_continue)] // Triggered by darling-generated parsing code
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(model), supports(struct_named))]
 pub struct ModelInput {
@@ -27,7 +31,7 @@ pub struct ModelInput {
     /// The parsed fields of the struct.
     pub data: ast::Data<(), ModelField>,
 
-    /// Optional custom message type path (defaults to using bubbletea::Message).
+    /// Optional custom message type path (defaults to using `bubbletea::Message`).
     /// Use `message_type()` to get this as a `syn::Type`.
     #[darling(default)]
     pub message: Option<syn::Path>,
@@ -56,10 +60,11 @@ pub struct ModelInput {
 /// }
 /// ```
 #[allow(dead_code)] // Used by macro expansion
+#[allow(clippy::option_if_let_else)] // Triggered by darling-generated parsing code
 #[derive(Debug, Default, Clone, FromMeta)]
 pub struct StateFieldArgs {
     /// Custom equality function for change detection.
-    /// If not specified, PartialEq is used.
+    /// If not specified, `PartialEq` is used.
     #[darling(default)]
     pub eq: Option<syn::Path>,
 
@@ -74,6 +79,7 @@ pub struct StateFieldArgs {
 
 /// A single field in the Model struct.
 #[allow(dead_code)] // Constructed via darling derive
+#[allow(clippy::needless_continue)] // Triggered by darling-generated parsing code
 #[derive(Debug, FromField)]
 #[darling(forward_attrs(state))]
 pub struct ModelField {
@@ -121,7 +127,7 @@ impl ModelInput {
     pub fn fields(&self) -> Vec<&ModelField> {
         match &self.data {
             ast::Data::Struct(fields) => fields.iter().collect(),
-            _ => Vec::new(),
+            ast::Data::Enum(_) => Vec::new(),
         }
     }
 
@@ -161,6 +167,7 @@ impl ModelInput {
 /// fn init(&self) -> Option<Cmd> { ... }
 /// ```
 #[allow(dead_code)] // Used by macro expansion in future tasks
+#[allow(clippy::option_if_let_else)] // Triggered by darling-generated parsing code
 #[derive(Debug, Default, Clone, FromMeta)]
 pub struct InitArgs {
     /// Custom command function to call (defaults to returning None).
@@ -298,7 +305,7 @@ impl ParsedMethods {
     }
 
     /// Returns true if all required methods are present.
-    #[allow(dead_code)]
+    #[allow(dead_code, clippy::missing_const_for_fn)]
     pub fn is_complete(&self) -> bool {
         self.init.is_some() && self.update.is_some() && self.view.is_some()
     }
@@ -604,12 +611,10 @@ mod tests {
         };
         let result = validate_init_signature(&sig);
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .message
-                .contains("no additional parameters")
-        );
+        assert!(result
+            .unwrap_err()
+            .message
+            .contains("no additional parameters"));
     }
 
     #[test]

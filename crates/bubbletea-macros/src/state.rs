@@ -22,7 +22,7 @@ pub struct StateField<'a> {
 }
 
 impl<'a> StateField<'a> {
-    /// Create a StateField from a ModelField if it's tracked.
+    /// Create a `StateField` from a `ModelField` if it's tracked.
     pub fn from_model_field(field: &'a ModelField) -> Option<Self> {
         let ident = field.ident.as_ref()?;
         let args = field.state_args()?;
@@ -36,6 +36,47 @@ impl<'a> StateField<'a> {
             ty: &field.ty,
             args,
         })
+    }
+}
+
+fn generate_field_comparison(
+    struct_name: &Ident,
+    ident: &Ident,
+    args: &StateFieldArgs,
+) -> TokenStream {
+    match (&args.eq, args.debug) {
+        (Some(eq_fn), true) => quote! {
+            {
+                let __changed = !#eq_fn(&self.#ident, &__prev.#ident);
+                if __changed {
+                    eprintln!(
+                        "[bubbletea::state] {}.{} changed",
+                        stringify!(#struct_name),
+                        stringify!(#ident)
+                    );
+                }
+                __changed
+            }
+        },
+        (Some(eq_fn), false) => quote! {
+            !#eq_fn(&self.#ident, &__prev.#ident)
+        },
+        (None, true) => quote! {
+            {
+                let __changed = self.#ident != __prev.#ident;
+                if __changed {
+                    eprintln!(
+                        "[bubbletea::state] {}.{} changed",
+                        stringify!(#struct_name),
+                        stringify!(#ident)
+                    );
+                }
+                __changed
+            }
+        },
+        (None, false) => quote! {
+            self.#ident != __prev.#ident
+        },
     }
 }
 
@@ -93,48 +134,7 @@ pub fn generate_state_snapshot(struct_name: &Ident, fields: &[StateField<'_>]) -
         .iter()
         .map(|f| {
             let ident = f.ident;
-
-            // Use custom equality function if provided, otherwise use PartialEq
-            // Debug logging is handled via a separate function to avoid attribute issues
-            if let Some(eq_fn) = &f.args.eq {
-                if f.args.debug {
-                    quote! {
-                        {
-                            let __changed = !#eq_fn(&self.#ident, &__prev.#ident);
-                            if __changed {
-                                eprintln!(
-                                    "[bubbletea::state] {}.{} changed",
-                                    stringify!(#struct_name),
-                                    stringify!(#ident)
-                                );
-                            }
-                            __changed
-                        }
-                    }
-                } else {
-                    quote! {
-                        !#eq_fn(&self.#ident, &__prev.#ident)
-                    }
-                }
-            } else if f.args.debug {
-                quote! {
-                    {
-                        let __changed = self.#ident != __prev.#ident;
-                        if __changed {
-                            eprintln!(
-                                "[bubbletea::state] {}.{} changed",
-                                stringify!(#struct_name),
-                                stringify!(#ident)
-                            );
-                        }
-                        __changed
-                    }
-                }
-            } else {
-                quote! {
-                    self.#ident != __prev.#ident
-                }
-            }
+            generate_field_comparison(struct_name, ident, &f.args)
         })
         .collect();
 
@@ -224,46 +224,7 @@ pub fn generate_state_snapshot_with_generics(
         .iter()
         .map(|f| {
             let ident = f.ident;
-
-            if let Some(eq_fn) = &f.args.eq {
-                if f.args.debug {
-                    quote! {
-                        {
-                            let __changed = !#eq_fn(&self.#ident, &__prev.#ident);
-                            if __changed {
-                                eprintln!(
-                                    "[bubbletea::state] {}.{} changed",
-                                    stringify!(#struct_name),
-                                    stringify!(#ident)
-                                );
-                            }
-                            __changed
-                        }
-                    }
-                } else {
-                    quote! {
-                        !#eq_fn(&self.#ident, &__prev.#ident)
-                    }
-                }
-            } else if f.args.debug {
-                quote! {
-                    {
-                        let __changed = self.#ident != __prev.#ident;
-                        if __changed {
-                            eprintln!(
-                                "[bubbletea::state] {}.{} changed",
-                                stringify!(#struct_name),
-                                stringify!(#ident)
-                            );
-                        }
-                        __changed
-                    }
-                }
-            } else {
-                quote! {
-                    self.#ident != __prev.#ident
-                }
-            }
+            generate_field_comparison(struct_name, ident, &f.args)
         })
         .collect();
 
@@ -406,6 +367,6 @@ mod tests {
         );
 
         // Print for debugging
-        println!("Generated code for combined eq+debug:\n{}", output_str);
+        println!("Generated code for combined eq+debug:\n{output_str}");
     }
 }

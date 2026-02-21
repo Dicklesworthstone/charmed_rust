@@ -1,6 +1,4 @@
 #![forbid(unsafe_code)]
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
 
 //! # bubbletea-macros
 //!
@@ -13,7 +11,7 @@
 //!
 //! bubbletea-macros is an optional ergonomic layer for the core framework:
 //! - **bubbletea** re-exports the derive macro when the `macros` feature is enabled.
-//! - **demo_showcase** uses the derive macro for concise models in examples and tests.
+//! - **`demo_showcase`** uses the derive macro for concise models in examples and tests.
 //!
 //! ## Quick Start
 //!
