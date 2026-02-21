@@ -1,4 +1,8 @@
 //! Core authentication handler trait and types.
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::use_self)]
 
 use std::net::SocketAddr;
 

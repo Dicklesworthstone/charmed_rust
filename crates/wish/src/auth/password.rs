@@ -1,4 +1,8 @@
 //! Password authentication handlers.
+#![allow(clippy::map_unwrap_or)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::return_self_not_must_use)]
 
 use std::sync::Arc;
 

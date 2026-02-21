@@ -2,6 +2,11 @@
 //!
 //! This module provides flexible authentication handlers supporting
 //! password, public key, and keyboard-interactive authentication methods.
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::needless_continue)]
+#![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::uninlined_format_args)]
 //!
 //! # Example
 //!

@@ -1,4 +1,8 @@
 //! Session manager for tracking and cleaning up SSH sessions.
+#![allow(clippy::ip_constant)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::significant_drop_in_scrutinee)]
+#![allow(clippy::significant_drop_tightening)]
 
 use super::handle::{SessionHandle, SessionInfo};
 use crate::Error;

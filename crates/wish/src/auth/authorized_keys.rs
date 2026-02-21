@@ -2,6 +2,16 @@
 //!
 //! Parses OpenSSH `authorized_keys` files and provides authentication
 //! against the keys contained within.
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::needless_raw_string_hashes)]
+#![allow(clippy::redundant_clone)]
+#![allow(clippy::redundant_closure_for_method_calls)]
+#![allow(clippy::significant_drop_tightening)]
+#![allow(clippy::suspicious_operation_groupings)]
+#![allow(clippy::unused_async)]
 
 use std::collections::HashMap;
 use std::io;

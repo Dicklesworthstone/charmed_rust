@@ -2,6 +2,10 @@
 //!
 //! This module implements the `russh::server::Handler` trait to bridge
 //! the russh SSH server with Wish's session and middleware system.
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::single_match_else)]
 
 use std::collections::HashMap;
 use std::net::SocketAddr;

@@ -1,4 +1,7 @@
 //! Session handle and info types.
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::ip_constant)]
+#![allow(clippy::must_use_candidate)]
 
 use crate::auth::SessionId;
 use std::net::SocketAddr;

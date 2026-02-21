@@ -1,8 +1,5 @@
 #![forbid(unsafe_code)]
-// Allow pedantic lints for early-stage API ergonomics.
 #![allow(clippy::doc_markdown)]
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
 
 //! # Wish
 //!
@@ -255,6 +252,7 @@ pub struct PublicKey {
     pub comment: Option<String>,
 }
 
+#[allow(clippy::missing_const_for_fn, clippy::must_use_candidate, clippy::return_self_not_must_use)]
 impl PublicKey {
     /// Creates a new public key.
     pub fn new(key_type: impl Into<String>, data: Vec<u8>) -> Self {
@@ -311,6 +309,7 @@ pub struct Context {
     values: Arc<RwLock<HashMap<String, String>>>,
 }
 
+#[allow(clippy::missing_const_for_fn, clippy::must_use_candidate)]
 impl Context {
     /// Creates a new context.
     pub fn new(user: impl Into<String>, remote_addr: SocketAddr, local_addr: SocketAddr) -> Self {
@@ -410,6 +409,7 @@ pub enum SessionOutput {
     Close,
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl fmt::Debug for Session {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Session")
@@ -421,6 +421,13 @@ impl fmt::Debug for Session {
     }
 }
 
+#[allow(
+    clippy::cast_sign_loss,
+    clippy::missing_const_for_fn,
+    clippy::missing_errors_doc,
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use
+)]
 impl Session {
     /// Creates a new session.
     pub fn new(context: Context) -> Self {
@@ -548,7 +555,7 @@ impl Session {
     pub fn exit(&self, code: i32) -> io::Result<()> {
         *self.exit_code.write() = Some(code);
         if let Some(tx) = &self.output_tx {
-            let _ = tx.send(SessionOutput::Exit(code as u32));
+            let _ = tx.send(SessionOutput::Exit(code.cast_unsigned()));
         }
         Ok(())
     }
@@ -606,6 +613,7 @@ impl Session {
 }
 
 // Implement Write for Session
+#[allow(clippy::use_self)]
 impl Write for Session {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         Session::write(self, buf)
@@ -627,7 +635,7 @@ pub fn print(session: &Session, args: impl fmt::Display) {
 
 /// Writes to the session's stdout with a newline.
 pub fn println(session: &Session, args: impl fmt::Display) {
-    let msg = format!("{}\r\n", args);
+    let msg = format!("{args}\r\n");
     let _ = session.write(msg.as_bytes());
 }
 
@@ -649,7 +657,7 @@ pub fn error(session: &Session, args: impl fmt::Display) {
 
 /// Writes to the session's stderr with a newline.
 pub fn errorln(session: &Session, args: impl fmt::Display) {
-    let msg = format!("{}\r\n", args);
+    let msg = format!("{args}\r\n");
     let _ = session.write_stderr(msg.as_bytes());
 }
 
@@ -686,6 +694,7 @@ pub fn fatalf(session: &Session, format: impl fmt::Display, args: &[&dyn fmt::Di
 }
 
 /// Writes a string to the session's stdout.
+#[allow(clippy::missing_errors_doc)]
 pub fn write_string(session: &Session, s: &str) -> io::Result<usize> {
     session.write(s.as_bytes())
 }
@@ -713,11 +722,13 @@ where
 }
 
 /// Creates a no-op handler.
+#[allow(clippy::must_use_candidate)]
 pub fn noop_handler() -> Handler {
     Arc::new(|_| Box::pin(async {}))
 }
 
 /// Composes multiple middleware into a single middleware.
+#[allow(clippy::must_use_candidate)]
 pub fn compose_middleware(middlewares: Vec<Middleware>) -> Middleware {
     Arc::new(move |h| {
         let mut handler = h;
@@ -824,6 +835,7 @@ impl Default for ServerOptions {
     }
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl fmt::Debug for ServerOptions {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ServerOptions")
@@ -900,6 +912,7 @@ pub fn with_host_key_path(path: impl Into<String>) -> ServerOption {
 }
 
 /// Sets the host key from PEM data.
+#[allow(clippy::must_use_candidate)]
 pub fn with_host_key_pem(pem: Vec<u8>) -> ServerOption {
     Box::new(move |opts| {
         opts.host_key_pem = Some(pem);
@@ -918,6 +931,7 @@ pub fn with_auth_handler<H: AuthHandler + 'static>(handler: H) -> ServerOption {
 }
 
 /// Sets the maximum authentication attempts.
+#[allow(clippy::must_use_candidate)]
 pub fn with_max_auth_attempts(max: u32) -> ServerOption {
     Box::new(move |opts| {
         opts.max_auth_attempts = max;
@@ -926,6 +940,7 @@ pub fn with_max_auth_attempts(max: u32) -> ServerOption {
 }
 
 /// Sets the authentication rejection delay in milliseconds.
+#[allow(clippy::must_use_candidate)]
 pub fn with_auth_rejection_delay(delay_ms: u64) -> ServerOption {
     Box::new(move |opts| {
         opts.auth_rejection_delay_ms = delay_ms;
@@ -967,6 +982,7 @@ where
 }
 
 /// Sets the idle timeout.
+#[allow(clippy::must_use_candidate)]
 pub fn with_idle_timeout(duration: Duration) -> ServerOption {
     Box::new(move |opts| {
         opts.idle_timeout = Some(duration);
@@ -975,6 +991,7 @@ pub fn with_idle_timeout(duration: Duration) -> ServerOption {
 }
 
 /// Sets the maximum connection timeout.
+#[allow(clippy::must_use_candidate)]
 pub fn with_max_timeout(duration: Duration) -> ServerOption {
     Box::new(move |opts| {
         opts.max_timeout = Some(duration);
@@ -1014,6 +1031,7 @@ impl fmt::Debug for Server {
     }
 }
 
+#[allow(clippy::missing_const_for_fn, clippy::missing_errors_doc, clippy::must_use_candidate)]
 impl Server {
     /// Creates a new server with the given options.
     pub fn new(options: impl IntoIterator<Item = ServerOption>) -> Result<Self> {
@@ -1216,6 +1234,7 @@ impl Server {
 }
 
 /// Creates a new server with default options and the provided middleware.
+#[allow(clippy::missing_errors_doc)]
 pub fn new_server(options: impl IntoIterator<Item = ServerOption>) -> Result<Server> {
     Server::new(options)
 }
@@ -1230,6 +1249,7 @@ pub struct ServerBuilder {
     options: ServerOptions,
 }
 
+#[allow(clippy::missing_const_for_fn, clippy::must_use_candidate, clippy::return_self_not_must_use)]
 impl ServerBuilder {
     /// Creates a new server builder.
     pub fn new() -> Self {
@@ -1381,6 +1401,7 @@ impl ServerBuilder {
     }
 
     /// Builds the server.
+    #[allow(clippy::missing_errors_doc)]
     pub fn build(self) -> Result<Server> {
         Ok(Server {
             options: self.options,
@@ -1394,6 +1415,17 @@ impl ServerBuilder {
 
 /// Built-in middleware implementations.
 pub mod middleware {
+    #![allow(
+        clippy::cast_precision_loss,
+        clippy::implicit_clone,
+        clippy::missing_panics_doc,
+        clippy::must_use_candidate,
+        clippy::needless_pass_by_value,
+        clippy::redundant_clone,
+        clippy::suboptimal_flops,
+        clippy::uninlined_format_args,
+        clippy::wildcard_imports
+    )]
     use super::*;
     use std::time::Instant;
 
@@ -1442,7 +1474,7 @@ pub mod middleware {
                         if allowed.iter().any(|c| c == first_cmd) {
                             next(session).await;
                         } else {
-                            println(&session, format!("Command is not allowed: {}", first_cmd));
+                            println(&session, format!("Command is not allowed: {first_cmd}"));
                             let _ = session.exit(1);
                         }
                     })
@@ -2076,6 +2108,7 @@ pub mod middleware {
 
         /// Rate limiter implementations should check if a given session is allowed.
         pub trait RateLimiter: Send + Sync {
+            #[allow(clippy::missing_errors_doc)]
             fn allow(&self, session: &Session) -> std::result::Result<(), RateLimitError>;
         }
 
@@ -2250,6 +2283,7 @@ pub mod middleware {
 
 /// BubbleTea integration for serving TUI apps over SSH.
 pub mod tea {
+    #![allow(clippy::map_unwrap_or, clippy::must_use_candidate, clippy::wildcard_imports)]
     use super::*;
     use bubbletea::{Model, Program};
 
@@ -2350,6 +2384,7 @@ pub mod prelude {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::significant_drop_tightening, clippy::unnested_or_patterns)]
     use super::*;
     use std::fmt;
     use std::sync::Arc;

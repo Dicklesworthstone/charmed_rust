@@ -1,4 +1,9 @@
 //! Public key authentication handlers.
+#![allow(clippy::map_unwrap_or)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::redundant_closure_for_method_calls)]
 
 use std::sync::Arc;
 
