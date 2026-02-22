@@ -547,11 +547,11 @@ impl Model for Counter {
     }
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
-        if let Some(_) = msg.downcast::<IncrementMsg>() {
+        if msg.is::<IncrementMsg>() {
             self.count += 1;
-        } else if let Some(_) = msg.downcast::<DecrementMsg>() {
+        } else if msg.is::<DecrementMsg>() {
             self.count -= 1;
-        } else if let Some(key) = msg.downcast::<KeyMsg>() {
+        } else if let Some(key) = msg.downcast_ref::<KeyMsg>() {
             match key.key_type {
                 KeyType::CtrlC | KeyType::Esc => return Some(quit()),
                 KeyType::Runes if key.runes == vec!['q'] => return Some(quit()),
