@@ -51,6 +51,7 @@ pub mod cursor;
 #[allow(
     clippy::missing_const_for_fn,
     clippy::redundant_closure_for_method_calls,
+    clippy::single_char_pattern,
     clippy::uninlined_format_args
 )]
 pub mod help;
@@ -67,6 +68,7 @@ pub mod paginator;
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::cast_sign_loss,
+    clippy::float_cmp,
     clippy::format_push_string,
     clippy::literal_string_with_formatting_args,
     clippy::many_single_char_names,
@@ -87,6 +89,7 @@ pub mod runeutil;
 )]
 pub mod spinner;
 #[allow(
+    clippy::duration_suboptimal_units,
     clippy::missing_const_for_fn,
     clippy::must_use_candidate,
     clippy::needless_pass_by_value,
@@ -101,6 +104,7 @@ pub mod stopwatch;
     clippy::missing_const_for_fn,
     clippy::range_plus_one,
     clippy::redundant_closure_for_method_calls,
+    clippy::single_char_pattern,
     clippy::too_many_lines,
     clippy::use_self
 )]
@@ -109,11 +113,13 @@ pub mod textarea;
     clippy::if_not_else,
     clippy::missing_const_for_fn,
     clippy::range_plus_one,
+    clippy::single_char_pattern,
     clippy::uninlined_format_args,
     clippy::use_self
 )]
 pub mod textinput;
 #[allow(
+    clippy::duration_suboptimal_units,
     clippy::missing_const_for_fn,
     clippy::needless_pass_by_value,
     clippy::redundant_else,
@@ -138,6 +144,7 @@ pub mod viewport;
     clippy::struct_excessive_bools,
     clippy::too_many_lines,
     clippy::uninlined_format_args,
+    clippy::unreadable_literal,
     clippy::use_self
 )]
 pub mod filepicker;

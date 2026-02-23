@@ -27,6 +27,13 @@
 //! - An available port is automatically selected
 
 #![cfg(feature = "ssh")]
+#![allow(
+    clippy::doc_markdown,
+    clippy::ignore_without_reason,
+    clippy::option_if_let_else,
+    clippy::uninlined_format_args,
+    clippy::useless_format
+)]
 
 use std::io::Write;
 use std::net::{Shutdown, TcpListener, TcpStream};

@@ -190,12 +190,16 @@ mod attributes;
     clippy::missing_const_for_fn,
     clippy::needless_raw_string_hashes,
     clippy::option_if_let_else,
-    clippy::redundant_closure_for_method_calls
+    clippy::redundant_closure_for_method_calls,
+    clippy::single_char_pattern
 )]
 mod error;
 #[allow(clippy::uninlined_format_args)]
 mod model;
-#[allow(clippy::option_if_let_else)]
+#[allow(
+    clippy::option_if_let_else,
+    clippy::uninlined_format_args
+)]
 mod state;
 
 /// Derive macro for implementing the `Model` trait.

@@ -44,12 +44,14 @@
     clippy::explicit_iter_loop,
     clippy::format_push_string,
     clippy::if_not_else,
+    clippy::inherent_to_string,
     clippy::manual_checked_ops,
     clippy::manual_let_else,
     clippy::manual_midpoint,
     clippy::manual_strip,
     clippy::map_unwrap_or,
     clippy::match_same_arms,
+    clippy::match_wildcard_for_single_variants,
     clippy::missing_const_for_fn,
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
@@ -63,6 +65,7 @@
     clippy::struct_excessive_bools,
     clippy::suboptimal_flops,
     clippy::uninlined_format_args,
+    clippy::unnecessary_literal_bound,
     clippy::unnecessary_wraps,
     clippy::unused_self,
     clippy::use_self,
@@ -73,12 +76,15 @@ pub mod harness;
 // Crate-specific conformance tests
 #[path = "../crates/mod.rs"]
 #[allow(
+    clippy::assertions_on_constants,
     clippy::assigning_clones,
     clippy::bool_to_int_with_if,
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
     clippy::default_constructed_unit_structs,
+    clippy::empty_loop,
     clippy::equatable_if_let,
+    clippy::explicit_iter_loop,
     clippy::if_same_then_else,
     clippy::io_other_error,
     clippy::items_after_statements,
@@ -95,6 +101,7 @@ pub mod harness;
     clippy::option_if_let_else,
     clippy::redundant_clone,
     clippy::redundant_closure_for_method_calls,
+    clippy::single_char_pattern,
     clippy::struct_excessive_bools,
     clippy::too_many_lines,
     clippy::uninlined_format_args,
@@ -120,12 +127,17 @@ mod benchmark_validation;
 
 // Benchmark e2e tests - verify full benchmark workflow
 #[cfg(test)]
-#[allow(clippy::pedantic, clippy::nursery)]
+#[allow(clippy::pedantic, clippy::nursery, clippy::useless_vec)]
 mod benchmark_e2e;
 
 // Error propagation e2e tests - verify errors work across crate boundaries
 #[cfg(test)]
-#[allow(clippy::pedantic, clippy::nursery)]
+#[allow(
+    clippy::pedantic,
+    clippy::nursery,
+    clippy::io_other_error,
+    clippy::needless_question_mark
+)]
 mod error_e2e;
 
 // Re-export the crates under test for convenience

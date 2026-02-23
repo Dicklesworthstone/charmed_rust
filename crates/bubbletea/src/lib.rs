@@ -177,10 +177,12 @@
 //! ```
 
 #[allow(
+    clippy::branches_sharing_code,
     clippy::cast_possible_truncation,
     clippy::map_unwrap_or,
     clippy::missing_const_for_fn,
-    clippy::must_use_candidate
+    clippy::must_use_candidate,
+    clippy::use_self
 )]
 pub mod command;
 #[allow(
@@ -194,7 +196,11 @@ pub mod command;
     clippy::use_self
 )]
 pub mod key;
-#[allow(clippy::missing_errors_doc, clippy::must_use_candidate)]
+#[allow(
+    clippy::missing_errors_doc,
+    clippy::must_use_candidate,
+    clippy::uninlined_format_args
+)]
 pub mod message;
 #[allow(
     clippy::cast_lossless,
@@ -213,17 +219,23 @@ pub mod mouse;
 #[allow(
     clippy::cast_lossless,
     clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::collapsible_if,
     clippy::doc_markdown,
     clippy::if_not_else,
+    clippy::ignored_unit_patterns,
     clippy::items_after_statements,
+    clippy::map_unwrap_or,
     clippy::missing_const_for_fn,
     clippy::missing_errors_doc,
     clippy::must_use_candidate,
     clippy::needless_pass_by_value,
     clippy::option_if_let_else,
     clippy::redundant_clone,
+    clippy::redundant_closure_for_method_calls,
     clippy::return_self_not_must_use,
     clippy::semicolon_if_nothing_returned,
+    clippy::stable_sort_primitive,
     clippy::struct_excessive_bools,
     clippy::too_many_lines,
     clippy::uninlined_format_args,
@@ -236,7 +248,8 @@ pub mod screen;
 #[allow(
     clippy::doc_markdown,
     clippy::missing_const_for_fn,
-    clippy::must_use_candidate
+    clippy::must_use_candidate,
+    clippy::unreadable_literal
 )]
 pub mod simulator;
 

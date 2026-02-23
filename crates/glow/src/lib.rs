@@ -3,6 +3,7 @@
 #![allow(clippy::missing_const_for_fn)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::must_use_candidate)]
+#![allow(clippy::needless_raw_string_hashes)]
 #![allow(clippy::return_self_not_must_use)]
 
 //! # Glow
@@ -61,12 +62,22 @@
     clippy::cast_precision_loss,
     clippy::if_not_else,
     clippy::manual_let_else,
+    clippy::needless_collect,
     clippy::option_if_let_else,
     clippy::uninlined_format_args
 )]
 pub mod browser;
 
 #[cfg(feature = "github")]
+#[allow(
+    clippy::cast_sign_loss,
+    clippy::derive_partial_eq_without_eq,
+    clippy::duration_suboptimal_units,
+    clippy::manual_is_multiple_of,
+    clippy::manual_let_else,
+    clippy::missing_panics_doc,
+    clippy::option_if_let_else
+)]
 pub mod github;
 
 use std::io;

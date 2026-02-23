@@ -12,6 +12,8 @@
 #![allow(clippy::missing_const_for_fn)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::must_use_candidate)]
+#![allow(clippy::needless_raw_string_hashes)]
+#![allow(clippy::range_plus_one)]
 #![allow(clippy::redundant_closure_for_method_calls)]
 #![allow(clippy::return_self_not_must_use)]
 #![allow(clippy::single_char_pattern)]
@@ -77,8 +79,10 @@
 #[allow(
     clippy::cast_lossless,
     clippy::cast_sign_loss,
+    clippy::format_collect,
     clippy::match_same_arms,
     clippy::missing_panics_doc,
+    clippy::similar_names,
     clippy::suboptimal_flops
 )]
 pub mod syntax;
@@ -90,6 +94,7 @@ pub mod syntax;
     clippy::cast_sign_loss,
     clippy::match_same_arms,
     clippy::missing_panics_doc,
+    clippy::needless_collect,
     clippy::option_if_let_else
 )]
 pub mod table;

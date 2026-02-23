@@ -3,6 +3,7 @@
 #![allow(clippy::bool_to_int_with_if)]
 #![allow(clippy::cast_precision_loss)]
 #![allow(clippy::doc_markdown)]
+#![allow(clippy::format_collect)]
 #![allow(clippy::format_push_string)]
 #![allow(clippy::map_unwrap_or)]
 #![allow(clippy::missing_const_for_fn)]

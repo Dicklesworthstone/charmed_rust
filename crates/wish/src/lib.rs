@@ -3,6 +3,7 @@
 #![allow(clippy::cast_precision_loss)]
 #![allow(clippy::cast_sign_loss)]
 #![allow(clippy::doc_markdown)]
+#![allow(clippy::duration_suboptimal_units)]
 #![allow(clippy::implicit_clone)]
 #![allow(clippy::map_unwrap_or)]
 #![allow(clippy::missing_const_for_fn)]
@@ -11,10 +12,13 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::must_use_candidate)]
 #![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::needless_raw_string_hashes)]
 #![allow(clippy::redundant_clone)]
 #![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::significant_drop_tightening)]
 #![allow(clippy::suboptimal_flops)]
 #![allow(clippy::uninlined_format_args)]
+#![allow(clippy::unnested_or_patterns)]
 #![allow(clippy::use_self)]
 #![allow(clippy::wildcard_imports)]
 
@@ -102,6 +106,7 @@ mod handler;
 #[allow(
     clippy::cast_possible_truncation,
     clippy::duration_suboptimal_units,
+    clippy::ip_constant,
     clippy::significant_drop_in_scrutinee,
     clippy::significant_drop_tightening
 )]

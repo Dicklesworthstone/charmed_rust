@@ -27,16 +27,22 @@
 
 pub mod app;
 pub mod assets;
+#[allow(clippy::doc_markdown)]
 pub mod cli;
 pub mod components;
 pub mod config;
 pub mod content;
+#[allow(clippy::needless_pass_by_value, clippy::redundant_clone)]
 pub mod data;
 pub mod keymap;
 pub mod messages;
 pub mod pages;
 pub mod shell_action;
 #[cfg(feature = "ssh")]
+#[allow(
+    clippy::collapsible_if,
+    clippy::match_wildcard_for_single_variants
+)]
 pub mod ssh;
 pub mod test_support;
 pub mod theme;
