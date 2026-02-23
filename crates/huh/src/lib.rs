@@ -1,7 +1,21 @@
 #![forbid(unsafe_code)]
-// Allow pedantic lints for early-stage API ergonomics.
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
+// Per-lint allows for huh's form/prompt components.
+#![allow(clippy::bool_to_int_with_if)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::format_push_string)]
+#![allow(clippy::map_unwrap_or)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::no_effect_underscore_binding)]
+#![allow(clippy::option_if_let_else)]
+#![allow(clippy::redundant_clone)]
+#![allow(clippy::redundant_closure_for_method_calls)]
+#![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::struct_excessive_bools)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::used_underscore_binding)]
 
 //! # Huh
 //!

@@ -1,7 +1,4 @@
-#![allow(clippy::all)]
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
-#![allow(clippy::style)]
+#![allow(clippy::doc_markdown)] // Test harness docs reference crate names freely.
 //! Conformance Testing Harness for Charmed Rust
 //!
 //! This crate provides a unified testing framework for verifying that the Rust
@@ -37,26 +34,98 @@
 
 #![forbid(unsafe_code)]
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::collapsible_if,
+    clippy::derivable_impls,
+    clippy::derive_partial_eq_without_eq,
+    clippy::explicit_iter_loop,
+    clippy::format_push_string,
+    clippy::if_not_else,
+    clippy::manual_checked_ops,
+    clippy::manual_let_else,
+    clippy::manual_midpoint,
+    clippy::manual_strip,
+    clippy::map_unwrap_or,
+    clippy::match_same_arms,
+    clippy::missing_const_for_fn,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::option_if_let_else,
+    clippy::or_fun_call,
+    clippy::redundant_clone,
+    clippy::redundant_closure_for_method_calls,
+    clippy::return_self_not_must_use,
+    clippy::stable_sort_primitive,
+    clippy::struct_excessive_bools,
+    clippy::suboptimal_flops,
+    clippy::uninlined_format_args,
+    clippy::unnecessary_wraps,
+    clippy::unused_self,
+    clippy::use_self,
+    clippy::useless_format
+)]
 pub mod harness;
 
 // Crate-specific conformance tests
 #[path = "../crates/mod.rs"]
+#[allow(
+    clippy::assigning_clones,
+    clippy::bool_to_int_with_if,
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::default_constructed_unit_structs,
+    clippy::equatable_if_let,
+    clippy::if_same_then_else,
+    clippy::io_other_error,
+    clippy::items_after_statements,
+    clippy::large_stack_frames,
+    clippy::len_zero,
+    clippy::manual_let_else,
+    clippy::manual_strip,
+    clippy::map_unwrap_or,
+    clippy::match_same_arms,
+    clippy::match_wildcard_for_single_variants,
+    clippy::missing_const_for_fn,
+    clippy::must_use_candidate,
+    clippy::needless_borrow,
+    clippy::option_if_let_else,
+    clippy::redundant_clone,
+    clippy::redundant_closure_for_method_calls,
+    clippy::struct_excessive_bools,
+    clippy::too_many_lines,
+    clippy::uninlined_format_args,
+    clippy::unnecessary_literal_bound,
+    clippy::unnecessary_wraps,
+    clippy::vec_init_then_push,
+    clippy::wildcard_imports
+)]
 pub mod crates;
 
 // Cross-crate integration tests
 #[path = "../integration/mod.rs"]
+#[allow(
+    clippy::pedantic,
+    clippy::nursery
+)]
 pub mod integration;
 
 // Benchmark validation tests - verify benchmarked operations produce correct results
 #[cfg(test)]
+#[allow(clippy::pedantic, clippy::nursery)]
 mod benchmark_validation;
 
 // Benchmark e2e tests - verify full benchmark workflow
 #[cfg(test)]
+#[allow(clippy::pedantic, clippy::nursery)]
 mod benchmark_e2e;
 
 // Error propagation e2e tests - verify errors work across crate boundaries
 #[cfg(test)]
+#[allow(clippy::pedantic, clippy::nursery)]
 mod error_e2e;
 
 // Re-export the crates under test for convenience

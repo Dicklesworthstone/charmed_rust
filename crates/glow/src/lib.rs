@@ -1,7 +1,9 @@
 #![forbid(unsafe_code)]
-// Allow pedantic lints for early-stage API ergonomics.
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
+// Per-lint allows for glow's reader/config code in lib.rs.
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::return_self_not_must_use)]
 
 //! # Glow
 //!
@@ -55,6 +57,13 @@
 //! - `github`: enable GitHub README fetching utilities
 //! - `default`: core markdown rendering via `glamour`
 
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::if_not_else,
+    clippy::manual_let_else,
+    clippy::option_if_let_else,
+    clippy::uninlined_format_args
+)]
 pub mod browser;
 
 #[cfg(feature = "github")]

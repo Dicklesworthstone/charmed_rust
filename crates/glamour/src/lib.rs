@@ -1,9 +1,26 @@
 #![forbid(unsafe_code)]
-// Allow pedantic lints for early-stage API ergonomics.
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
+// Per-lint allows for glamour's rendering code in lib.rs.
+#![allow(clippy::assigning_clones)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::explicit_iter_loop)]
+#![allow(clippy::format_push_string)]
+#![allow(clippy::if_not_else)]
+#![allow(clippy::items_after_statements)]
 #![allow(clippy::len_zero)]
+#![allow(clippy::map_unwrap_or)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::redundant_closure_for_method_calls)]
+#![allow(clippy::return_self_not_must_use)]
 #![allow(clippy::single_char_pattern)]
+#![allow(clippy::struct_excessive_bools)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::unused_self)]
+#![allow(clippy::use_self)]
+#![allow(clippy::useless_let_if_seq)]
 
 //! # Glamour
 //!
@@ -57,9 +74,24 @@
 
 // Syntax highlighting module (optional feature)
 #[cfg(feature = "syntax-highlighting")]
+#[allow(
+    clippy::cast_lossless,
+    clippy::cast_sign_loss,
+    clippy::match_same_arms,
+    clippy::missing_panics_doc,
+    clippy::suboptimal_flops
+)]
 pub mod syntax;
 
 // Table parsing module for markdown tables
+#[allow(
+    clippy::bool_to_int_with_if,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::match_same_arms,
+    clippy::missing_panics_doc,
+    clippy::option_if_let_else
+)]
 pub mod table;
 
 use lipgloss::Style as LipglossStyle;

@@ -1,7 +1,15 @@
 #![forbid(unsafe_code)]
-// Allow pedantic lints for early-stage API ergonomics.
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
+// Per-lint allows for charmed_log's logging infrastructure.
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::format_push_string)]
+#![allow(clippy::map_unwrap_or)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::option_if_let_else)]
+#![allow(clippy::redundant_closure_for_method_calls)]
+#![allow(clippy::similar_names)]
+#![allow(clippy::struct_excessive_bools)]
+#![allow(clippy::unused_self)]
 
 //! # Charmed Log
 //!

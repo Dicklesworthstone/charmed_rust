@@ -1,9 +1,7 @@
 #![forbid(unsafe_code)]
-// Allow pedantic lints for early-stage API ergonomics.
+// Crate-wide allows for doc formatting and Debug impl flexibility.
 #![allow(clippy::doc_markdown)]
 #![allow(clippy::missing_fields_in_debug)]
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
 #![allow(clippy::suspicious_operation_groupings)]
 
 //! # Bubbles
@@ -44,22 +42,122 @@
 //! let tick_msg = spinner.tick();
 //! ```
 
+#[allow(
+    clippy::missing_const_for_fn,
+    clippy::needless_pass_by_value,
+    clippy::use_self
+)]
 pub mod cursor;
+#[allow(
+    clippy::missing_const_for_fn,
+    clippy::redundant_closure_for_method_calls,
+    clippy::uninlined_format_args
+)]
 pub mod help;
+#[allow(clippy::missing_const_for_fn)]
 pub mod key;
+#[allow(
+    clippy::missing_const_for_fn,
+    clippy::needless_pass_by_value,
+    clippy::use_self
+)]
 pub mod paginator;
+#[allow(
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::format_push_string,
+    clippy::literal_string_with_formatting_args,
+    clippy::many_single_char_names,
+    clippy::missing_const_for_fn,
+    clippy::needless_pass_by_value,
+    clippy::option_if_let_else,
+    clippy::suboptimal_flops,
+    clippy::uninlined_format_args,
+    clippy::unnecessary_wraps,
+    clippy::use_self
+)]
 pub mod progress;
 pub mod runeutil;
+#[allow(
+    clippy::missing_const_for_fn,
+    clippy::needless_pass_by_value,
+    clippy::use_self
+)]
 pub mod spinner;
+#[allow(
+    clippy::missing_const_for_fn,
+    clippy::must_use_candidate,
+    clippy::needless_pass_by_value,
+    clippy::redundant_else,
+    clippy::uninlined_format_args,
+    clippy::use_self
+)]
 pub mod stopwatch;
+#[allow(
+    clippy::if_not_else,
+    clippy::items_after_statements,
+    clippy::missing_const_for_fn,
+    clippy::range_plus_one,
+    clippy::redundant_closure_for_method_calls,
+    clippy::too_many_lines,
+    clippy::use_self
+)]
 pub mod textarea;
+#[allow(
+    clippy::if_not_else,
+    clippy::missing_const_for_fn,
+    clippy::range_plus_one,
+    clippy::uninlined_format_args,
+    clippy::use_self
+)]
 pub mod textinput;
+#[allow(
+    clippy::missing_const_for_fn,
+    clippy::needless_pass_by_value,
+    clippy::redundant_else,
+    clippy::uninlined_format_args
+)]
 pub mod timer;
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::missing_const_for_fn,
+    clippy::use_self
+)]
 pub mod viewport;
 
 // Complex components
+#[allow(
+    clippy::assigning_clones,
+    clippy::cast_precision_loss,
+    clippy::missing_const_for_fn,
+    clippy::must_use_candidate,
+    clippy::needless_pass_by_value,
+    clippy::struct_excessive_bools,
+    clippy::too_many_lines,
+    clippy::uninlined_format_args,
+    clippy::use_self
+)]
 pub mod filepicker;
+#[allow(
+    clippy::format_push_string,
+    clippy::missing_const_for_fn,
+    clippy::must_use_candidate,
+    clippy::struct_excessive_bools,
+    clippy::too_many_lines,
+    clippy::uninlined_format_args,
+    clippy::unnecessary_literal_bound,
+    clippy::use_self
+)]
 pub mod list;
+#[allow(
+    clippy::map_unwrap_or,
+    clippy::missing_const_for_fn,
+    clippy::uninlined_format_args,
+    clippy::use_self
+)]
 pub mod table;
 
 /// Prelude module for convenient imports.

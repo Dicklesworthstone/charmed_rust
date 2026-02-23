@@ -1,8 +1,22 @@
 #![forbid(unsafe_code)]
-// Allow pedantic lints for early-stage API ergonomics.
+// Per-lint allows for wish's SSH server/session code.
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_sign_loss)]
 #![allow(clippy::doc_markdown)]
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
+#![allow(clippy::implicit_clone)]
+#![allow(clippy::map_unwrap_or)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_fields_in_debug)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::redundant_clone)]
+#![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::suboptimal_flops)]
+#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::use_self)]
+#![allow(clippy::wildcard_imports)]
 
 //! # Wish
 //!
@@ -69,8 +83,28 @@ use thiserror::Error;
 use tokio::net::TcpListener;
 use tracing::{debug, error, info, warn};
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::items_after_statements,
+    clippy::needless_continue,
+    clippy::redundant_closure_for_method_calls,
+    clippy::significant_drop_tightening,
+    clippy::suspicious_operation_groupings,
+    clippy::unused_async
+)]
 pub mod auth;
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::items_after_statements,
+    clippy::single_match_else
+)]
 mod handler;
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::duration_suboptimal_units,
+    clippy::significant_drop_in_scrutinee,
+    clippy::significant_drop_tightening
+)]
 pub mod session;
 
 pub use auth::{

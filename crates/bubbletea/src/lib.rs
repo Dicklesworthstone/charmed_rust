@@ -1,11 +1,5 @@
 #![forbid(unsafe_code)]
-// Allow pedantic lints for API ergonomics in early development.
-#![allow(clippy::cast_possible_truncation)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::missing_const_for_fn)]
-#![allow(clippy::must_use_candidate)]
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
+#![allow(clippy::doc_markdown)] // Module-level docs reference crate names like bubbletea/lipgloss.
 
 //! # Bubbletea
 //!
@@ -182,12 +176,68 @@
 //! let cmd = screen::enable_mouse_cell_motion();
 //! ```
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::map_unwrap_or,
+    clippy::missing_const_for_fn,
+    clippy::must_use_candidate
+)]
 pub mod command;
+#[allow(
+    clippy::doc_markdown,
+    clippy::manual_let_else,
+    clippy::missing_const_for_fn,
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use,
+    clippy::too_many_lines,
+    clippy::uninlined_format_args,
+    clippy::use_self
+)]
 pub mod key;
+#[allow(clippy::missing_errors_doc, clippy::must_use_candidate)]
 pub mod message;
+#[allow(
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::doc_markdown,
+    clippy::items_after_statements,
+    clippy::match_same_arms,
+    clippy::missing_const_for_fn,
+    clippy::missing_errors_doc,
+    clippy::must_use_candidate,
+    clippy::uninlined_format_args,
+    clippy::use_self
+)]
 pub mod mouse;
+#[allow(
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::doc_markdown,
+    clippy::if_not_else,
+    clippy::items_after_statements,
+    clippy::missing_const_for_fn,
+    clippy::missing_errors_doc,
+    clippy::must_use_candidate,
+    clippy::needless_pass_by_value,
+    clippy::option_if_let_else,
+    clippy::redundant_clone,
+    clippy::return_self_not_must_use,
+    clippy::semicolon_if_nothing_returned,
+    clippy::struct_excessive_bools,
+    clippy::too_many_lines,
+    clippy::uninlined_format_args,
+    clippy::unused_self,
+    clippy::useless_let_if_seq
+)]
 pub mod program;
+#[allow(clippy::doc_markdown, clippy::must_use_candidate)]
 pub mod screen;
+#[allow(
+    clippy::doc_markdown,
+    clippy::missing_const_for_fn,
+    clippy::must_use_candidate
+)]
 pub mod simulator;
 
 // Re-exports

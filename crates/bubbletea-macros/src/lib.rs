@@ -1,6 +1,5 @@
 #![forbid(unsafe_code)]
-#![allow(clippy::nursery)]
-#![allow(clippy::pedantic)]
+#![allow(clippy::doc_markdown)] // Crate docs reference bubbletea, darling, etc.
 
 //! # bubbletea-macros
 //!
@@ -180,9 +179,23 @@
 use proc_macro::TokenStream;
 use proc_macro_error2::proc_macro_error;
 
+#[allow(
+    clippy::match_wildcard_for_single_variants,
+    clippy::missing_const_for_fn,
+    clippy::needless_continue,
+    clippy::option_if_let_else
+)]
 mod attributes;
+#[allow(
+    clippy::missing_const_for_fn,
+    clippy::needless_raw_string_hashes,
+    clippy::option_if_let_else,
+    clippy::redundant_closure_for_method_calls
+)]
 mod error;
+#[allow(clippy::uninlined_format_args)]
 mod model;
+#[allow(clippy::option_if_let_else)]
 mod state;
 
 /// Derive macro for implementing the `Model` trait.
