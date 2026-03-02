@@ -45,7 +45,7 @@ jobs:
 
       - name: Download baseline (for PRs)
         if: github.event_name == 'pull_request'
-        uses: dawidd6/action-download-artifact@5c98f0b039f36ef966fdb7dfa9779262785ecb05 # v14
+        uses: dawidd6/action-download-artifact@2536c51d3d126276eb39f74d6bc9c72ac6ef30d3 # v16
         with:
           workflow: benchmarks.yml
           branch: ${{ github.base_ref }}
@@ -179,7 +179,7 @@ jobs:
 
       - name: Upload baseline artifact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: criterion-baseline
           path: criterion-baseline/
