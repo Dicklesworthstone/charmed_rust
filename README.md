@@ -6,7 +6,6 @@
 
 <div align="center">
 
-[![CI](https://github.com/Dicklesworthstone/charmed_rust/actions/workflows/ci.yml/badge.svg)](https://github.com/Dicklesworthstone/charmed_rust/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT%2BOpenAI%2FAnthropic%20Rider-blue.svg)](./LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org/)
 [![Edition](https://img.shields.io/badge/edition-2024-blue.svg)](https://doc.rust-lang.org/edition-guide/)
