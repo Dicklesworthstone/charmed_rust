@@ -32,7 +32,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -71,7 +71,7 @@ jobs:
           if (Get-Command ssh-keygen -ErrorAction SilentlyContinue) { ssh-keygen -h } else { Write-Host "ssh-keygen not found" }
 
       - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           key: ${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
 
@@ -97,7 +97,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache cargo registry and build
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           workspaces: examples
           key: examples-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('examples/Cargo.lock') }}
