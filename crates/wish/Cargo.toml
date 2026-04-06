@@ -20,7 +20,7 @@ bubbletea = { workspace = true }
 lipgloss = { workspace = true }
 charmed_log = { workspace = true }
 async-trait = "0.1"
-tokio = { version = "1.35", features = ["full", "sync", "time", "net", "io-util", "macros", "rt-multi-thread"] }
+tokio = { version = "1.51", features = ["full", "sync", "time", "net", "io-util", "macros", "rt-multi-thread"] }
 thiserror = "2"
 tracing = "0.1"
 futures = "0.3"
