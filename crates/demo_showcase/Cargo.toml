@@ -40,7 +40,7 @@ tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 
 # CLI
-clap = { version = "4.4", features = ["derive", "env"] }
+clap = { version = "4.6", features = ["derive", "env"] }
 
 # Error handling
 thiserror.workspace = true
@@ -51,7 +51,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json.workspace = true
 
 # Async runtime
-tokio = { version = "1.40", features = ["full"] }
+tokio = { version = "1.50", features = ["full"] }
 
 # Terminal handling
 crossterm.workspace = true
@@ -60,8 +60,8 @@ crossterm.workspace = true
 unicode-width.workspace = true
 parking_lot = "0.12"
 chrono = { version = "0.4", features = ["serde"] }
-rand = "0.9"
-rand_pcg = "0.9"
+rand = "0.10"
+rand_pcg = "0.10"
 
 [dev-dependencies]
 tempfile.workspace = true
