@@ -57,3 +57,6 @@ crates/demo_showcase/demo_showcase_exports/
 
 # Insta snapshot pending files
 *.snap.new
+
+# Reference/upstream read-only clones (local-only, not vendored into the repo)
+reference/
