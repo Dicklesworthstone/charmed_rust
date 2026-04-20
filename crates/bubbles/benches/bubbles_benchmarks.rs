@@ -10,10 +10,8 @@ use bubbles::table::{Column, Row, Table};
 use bubbles::textinput::TextInput;
 use bubbles::viewport::Viewport;
 use bubbletea::{KeyMsg, KeyType, Message};
+use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
-use criterion::{
-    BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main,
-};
 
 /// Simple item for benchmarking.
 #[derive(Clone)]

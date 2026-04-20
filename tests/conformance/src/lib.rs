@@ -114,10 +114,7 @@ pub mod crates;
 
 // Cross-crate integration tests
 #[path = "../integration/mod.rs"]
-#[allow(
-    clippy::pedantic,
-    clippy::nursery
-)]
+#[allow(clippy::pedantic, clippy::nursery)]
 pub mod integration;
 
 // Benchmark validation tests - verify benchmarked operations produce correct results

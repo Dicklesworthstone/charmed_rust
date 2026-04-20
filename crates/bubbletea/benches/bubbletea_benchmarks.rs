@@ -1,9 +1,9 @@
 #![forbid(unsafe_code)]
 
 use bubbletea::{Cmd, Message, Model, batch, parse_sequence, sequence};
-use std::hint::black_box;
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use crossterm::event::{KeyCode, KeyModifiers};
+use std::hint::black_box;
 
 #[derive(Clone, Copy, Debug)]
 enum BenchMsg {

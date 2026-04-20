@@ -196,10 +196,7 @@ mod attributes;
 mod error;
 #[allow(clippy::uninlined_format_args)]
 mod model;
-#[allow(
-    clippy::option_if_let_else,
-    clippy::uninlined_format_args
-)]
+#[allow(clippy::option_if_let_else, clippy::uninlined_format_args)]
 mod state;
 
 /// Derive macro for implementing the `Model` trait.

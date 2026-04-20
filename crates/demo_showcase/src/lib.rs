@@ -39,10 +39,7 @@ pub mod messages;
 pub mod pages;
 pub mod shell_action;
 #[cfg(feature = "ssh")]
-#[allow(
-    clippy::collapsible_if,
-    clippy::match_wildcard_for_single_variants
-)]
+#[allow(clippy::collapsible_if, clippy::match_wildcard_for_single_variants)]
 pub mod ssh;
 pub mod test_support;
 pub mod theme;
