@@ -100,11 +100,11 @@ async fn main() -> Result<(), wish::Error> {
 Wish supports multiple auth modes (password, public key, keyboard-interactive).
 See `wish::auth` for helpers and policies.
 
-### Security notice — keyboard-interactive auth (russh 0.46)
+### Security notice for keyboard-interactive auth on russh 0.46
 
 Wish currently pins `russh = 0.46`, which is exposed to
-[GHSA-f5v4-2wr6-hqmg](https://github.com/Eugeny/russh/security/advisories/GHSA-f5v4-2wr6-hqmg)
-— an unauthenticated denial-of-service in russh's keyboard-interactive auth
+[GHSA-f5v4-2wr6-hqmg](https://github.com/Eugeny/russh/security/advisories/GHSA-f5v4-2wr6-hqmg),
+an unauthenticated denial-of-service in russh's keyboard-interactive auth
 path that can drive the process into a multi-GB allocation and OOM kill.
 
 **Until Wish upgrades past russh 0.46, do not enable

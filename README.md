@@ -755,7 +755,7 @@ Users connect with: `ssh -p 2222 localhost`
 > (unauthenticated DoS in the keyboard-interactive auth path). Until Wish
 > upgrades past russh 0.46, do **not** enable `MethodSet::KEYBOARD_INTERACTIVE`
 > on a server reachable from untrusted networks. Use password and/or
-> public-key auth instead. See [crates/wish/README.md](crates/wish/README.md#security-notice--keyboard-interactive-auth-russh-046)
+> public-key auth instead. See [crates/wish/README.md](crates/wish/README.md#security-notice-for-keyboard-interactive-auth-on-russh-046)
 > for details and [issue #44](https://github.com/Dicklesworthstone/charmed_rust/issues/44)
 > for upgrade tracking.
 
