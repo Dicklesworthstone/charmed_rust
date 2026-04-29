@@ -107,10 +107,10 @@ Wish currently pins `russh = 0.46`, which is exposed to
 an unauthenticated denial-of-service in russh's keyboard-interactive auth
 path that can drive the process into a multi-GB allocation and OOM kill.
 
-**Until Wish upgrades past russh 0.46, do not enable
-`MethodSet::KEYBOARD_INTERACTIVE` (or `with_keyboard_interactive_auth(...)`)
-on a server reachable from untrusted networks.** Use password and/or
-public-key auth instead; both are unaffected.
+**Until Wish upgrades past russh 0.46, do not call
+`with_keyboard_interactive_auth(...)` (or otherwise set
+`MethodSet::KEYBOARD_INTERACTIVE`) on a server reachable from untrusted
+networks.** Use password and/or public-key auth instead; both are unaffected.
 
 The upgrade is blocked on a transient pre-release pkcs8 / ed25519-dalek
 conflict in the RustCrypto ecosystem. Tracking: [charmed_rust#44](https://github.com/Dicklesworthstone/charmed_rust/issues/44).
