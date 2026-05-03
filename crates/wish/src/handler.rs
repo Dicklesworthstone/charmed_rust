@@ -7,16 +7,14 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use bubbletea::{
     KeyMsg, Message, WindowSizeMsg,
     key::{is_sequence_prefix, parse_sequence_prefix},
 };
 use parking_lot::RwLock;
-use russh::MethodSet;
+use russh::{MethodKind, MethodSet};
 use russh::server::{Auth, Handler as RusshHandler, Msg, Session as RusshSession};
 use russh::{Channel, ChannelId};
-use russh_keys::PublicKeyBase64;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info, trace, warn};
 
@@ -163,7 +161,7 @@ pub struct WishHandler {
     /// User after authentication.
     user: Option<String>,
     /// Public key if auth'd via key.
-    public_key: Option<russh_keys::key::PublicKey>,
+    public_key: Option<russh::keys::PublicKey>,
     /// PTY info if allocated.
     pty: Option<Pty>,
     /// Current window dimensions.
@@ -226,34 +224,62 @@ impl WishHandler {
     }
 
     fn method_set_from(methods: &[AuthMethod]) -> Option<MethodSet> {
+        // russh 0.49 reshaped MethodSet from a bitflags struct into an
+        // ordered Vec<MethodKind>. Use `push(MethodKind::…)` instead of
+        // `|= MethodSet::…`. push is idempotent (existing entries move
+        // to the end), preserving the OR semantic the bitflags form had.
         let mut set = MethodSet::empty();
         for method in methods {
             match method {
-                AuthMethod::None => set |= MethodSet::NONE,
-                AuthMethod::Password => set |= MethodSet::PASSWORD,
-                AuthMethod::PublicKey => set |= MethodSet::PUBLICKEY,
-                AuthMethod::KeyboardInteractive => set |= MethodSet::KEYBOARD_INTERACTIVE,
-                AuthMethod::HostBased => set |= MethodSet::HOSTBASED,
+                AuthMethod::None => set.push(MethodKind::None),
+                AuthMethod::Password => set.push(MethodKind::Password),
+                AuthMethod::PublicKey => set.push(MethodKind::PublicKey),
+                AuthMethod::KeyboardInteractive => set.push(MethodKind::KeyboardInteractive),
+                AuthMethod::HostBased => set.push(MethodKind::HostBased),
             }
         }
         if set.is_empty() { None } else { Some(set) }
     }
 
     fn map_auth_result(result: AuthResult) -> Auth {
+        // russh 0.49 added a `partial_success` flag to `Auth::Reject` so
+        // the server can advertise "this method authenticated you, but you
+        // still need another method" without committing to Accept yet.
+        // We don't model partial-success on the wish side — the public
+        // `AuthResult::Partial { next_methods }` shape only carries the
+        // remaining-methods hint — so we always set `partial_success:
+        // false`. If we ever expose two-factor auth from wish, that's the
+        // knob to flip.
         match result {
             AuthResult::Accept => Auth::Accept,
             AuthResult::Reject => Auth::Reject {
                 proceed_with_methods: None,
+                partial_success: false,
             },
             AuthResult::Partial { next_methods } => Auth::Reject {
                 proceed_with_methods: Self::method_set_from(&next_methods),
+                partial_success: false,
             },
         }
     }
 
     /// Converts a russh public key to our PublicKey type.
-    fn convert_public_key(key: &russh_keys::key::PublicKey) -> PublicKey {
-        let key_name = key.name();
+    ///
+    /// russh-keys 0.49 re-exports `ssh_key::PublicKey`, so the legacy
+    /// `key.name()` and `key.public_key_bytes()` accessors moved to
+    /// `key.algorithm().as_str()` and `key.to_bytes()?`. `to_bytes()`
+    /// returns a `Result`; the only documented failure is an `ssh_key`
+    /// encode error on a malformed key. Map it to an empty byte buffer
+    /// so the conversion stays infallible at the call site (the caller
+    /// uses the bytes only for downstream identification, not crypto
+    /// verification).
+    fn convert_public_key(key: &russh::keys::PublicKey) -> PublicKey {
+        // `algorithm()` returns a temporary `Algorithm` that owns its
+        // string; bind it to a local so `as_str()` gets a stable borrow
+        // for the match below. Inlining `key.algorithm().as_str()`
+        // dropped the temporary at end-of-statement.
+        let algorithm = key.algorithm();
+        let key_name = algorithm.as_str();
         let key_type = match key_name {
             "ssh-ed25519" => "ssh-ed25519",
             "rsa-sha2-256" | "rsa-sha2-512" | "ssh-rsa" => "ssh-rsa",
@@ -263,7 +289,7 @@ impl WishHandler {
             other => other,
         };
 
-        let key_bytes = key.public_key_bytes();
+        let key_bytes = key.to_bytes().unwrap_or_default();
         PublicKey::new(key_type, key_bytes)
     }
 
@@ -275,20 +301,47 @@ impl WishHandler {
     }
 }
 
-#[async_trait]
+// russh 0.60's `server::Handler` is a native-AFIT trait
+// (`fn …() -> impl Future<Output = …> + Send`). Each `async fn` here is
+// the AFIT form of that signature. Don't add `#[async_trait]` — mixing
+// the macro with the native trait triggers E0195 lifetime mismatches on
+// every method (the macro rewrites to `Pin<Box<dyn Future + 'async_trait>>`
+// which doesn't unify with `impl Future + Send`). See charmed_rust#44.
 impl RusshHandler for WishHandler {
     type Error = Error;
+
+    /// Provide the SSH authentication banner shown before login.
+    ///
+    /// The pre-0.60 path was `Config::auth_banner = Some(banner)` set
+    /// at server-config build time; russh 0.60 removed that field and
+    /// expects the banner to come from this trait method instead. We
+    /// surface `ServerOptions.banner_handler` first (dynamic, per-
+    /// connection) and fall back to the static `ServerOptions.banner`
+    /// if no handler was registered — preserving the pre-upgrade
+    /// behaviour where the static banner was always shown.
+    async fn authentication_banner(
+        &mut self,
+    ) -> std::result::Result<Option<String>, Self::Error> {
+        if let Some(handler) = &self.server_state.options.banner_handler {
+            // Dynamic banner gets a connection context to personalise on.
+            // No user yet at this point in the SSH handshake; use empty
+            // string for the user field.
+            let ctx = self.make_context("");
+            return Ok(Some(handler(&ctx)));
+        }
+        Ok(self.server_state.options.banner.clone())
+    }
 
     /// Handle public key authentication.
     async fn auth_publickey(
         &mut self,
         user: &str,
-        public_key: &russh_keys::key::PublicKey,
+        public_key: &russh::keys::PublicKey,
     ) -> std::result::Result<Auth, Self::Error> {
         debug!(
             connection_id = self.connection_id,
             user = user,
-            key_type = public_key.name(),
+            key_type = public_key.algorithm().as_str(),
             "Public key auth attempt"
         );
 
@@ -333,6 +386,7 @@ impl RusshHandler for WishHandler {
         );
         Ok(Auth::Reject {
             proceed_with_methods: None,
+            partial_success: false,
         })
     }
 
@@ -384,6 +438,7 @@ impl RusshHandler for WishHandler {
         );
         Ok(Auth::Reject {
             proceed_with_methods: None,
+            partial_success: false,
         })
     }
 
@@ -435,15 +490,22 @@ impl RusshHandler for WishHandler {
 
         Ok(Auth::Reject {
             proceed_with_methods: None,
+            partial_success: false,
         })
     }
 
     /// Handle keyboard-interactive authentication.
-    async fn auth_keyboard_interactive(
-        &mut self,
+    ///
+    /// `Response<'a>` carries a borrow tied to the same lifetime as `&'a
+    /// mut self`; the trait declares `<'a>` explicitly so the impl must
+    /// mirror it. The `'async_trait` placeholder we used while the
+    /// `#[async_trait]` macro was in play is no longer in scope now
+    /// that we're on native AFIT.
+    async fn auth_keyboard_interactive<'a>(
+        &'a mut self,
         user: &str,
         submethods: &str,
-        response: Option<russh::server::Response<'async_trait>>,
+        response: Option<russh::server::Response<'a>>,
     ) -> std::result::Result<Auth, Self::Error> {
         debug!(
             connection_id = self.connection_id,
@@ -462,6 +524,7 @@ impl RusshHandler for WishHandler {
         if !has_handler {
             return Ok(Auth::Reject {
                 proceed_with_methods: None,
+                partial_success: false,
             });
         }
 
@@ -486,10 +549,12 @@ impl RusshHandler for WishHandler {
             });
         }
 
+        // russh 0.49 changed `Response` to yield `bytes::Bytes` rather
+        // than `&[u8]`; deref the Bytes to a slice for `from_utf8_lossy`.
         let responses: Vec<String> = response
             .into_iter()
             .flatten()
-            .map(|bytes| String::from_utf8_lossy(bytes).to_string())
+            .map(|bytes| String::from_utf8_lossy(&bytes).to_string())
             .collect();
 
         if let Some(handler) = self.server_state.options.auth_handler.clone() {
@@ -532,6 +597,7 @@ impl RusshHandler for WishHandler {
         self.keyboard_interactive = None;
         Ok(Auth::Reject {
             proceed_with_methods: None,
+            partial_success: false,
         })
     }
 
@@ -651,7 +717,7 @@ impl RusshHandler for WishHandler {
             state.session = state.session.clone().with_pty(pty);
         }
 
-        session.channel_success(channel);
+        session.channel_success(channel)?;
         Ok(())
     }
 
@@ -674,7 +740,7 @@ impl RusshHandler for WishHandler {
                     channel = ?channel,
                     "Shell already started"
                 );
-                session.channel_failure(channel);
+                session.channel_failure(channel)?;
                 return Ok(());
             }
 
@@ -690,9 +756,9 @@ impl RusshHandler for WishHandler {
                 debug!(connection_id, "Handler completed");
             });
 
-            session.channel_success(channel);
+            session.channel_success(channel)?;
         } else {
-            session.channel_failure(channel);
+            session.channel_failure(channel)?;
         }
 
         Ok(())
@@ -715,7 +781,7 @@ impl RusshHandler for WishHandler {
 
         if let Some(state) = self.channels.get_mut(&channel) {
             if state.started {
-                session.channel_failure(channel);
+                session.channel_failure(channel)?;
                 return Ok(());
             }
 
@@ -742,9 +808,9 @@ impl RusshHandler for WishHandler {
                 debug!(connection_id, "Exec handler completed");
             });
 
-            session.channel_success(channel);
+            session.channel_success(channel)?;
         } else {
-            session.channel_failure(channel);
+            session.channel_failure(channel)?;
         }
 
         Ok(())
@@ -773,7 +839,7 @@ impl RusshHandler for WishHandler {
                 .with_env(variable_name, variable_value);
         }
 
-        session.channel_success(channel);
+        session.channel_success(channel)?;
         Ok(())
     }
 
@@ -796,7 +862,7 @@ impl RusshHandler for WishHandler {
             && let Some(state) = self.channels.get_mut(&channel)
         {
             if state.started {
-                session.channel_failure(channel);
+                session.channel_failure(channel)?;
                 return Ok(());
             }
 
@@ -818,11 +884,11 @@ impl RusshHandler for WishHandler {
                 debug!(connection_id, "Subsystem handler completed");
             });
 
-            session.channel_success(channel);
+            session.channel_success(channel)?;
             return Ok(());
         }
 
-        session.channel_failure(channel);
+        session.channel_failure(channel)?;
         Ok(())
     }
 

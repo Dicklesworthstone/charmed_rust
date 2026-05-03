@@ -750,14 +750,11 @@ fn main() {
 
 Users connect with: `ssh -p 2222 localhost`
 
-> **Security notice:** Wish currently pins `russh = 0.46`, which is exposed to
-> [GHSA-f5v4-2wr6-hqmg](https://github.com/Eugeny/russh/security/advisories/GHSA-f5v4-2wr6-hqmg)
-> (unauthenticated DoS in the keyboard-interactive auth path). Until Wish
-> upgrades past russh 0.46, do **not** call `with_keyboard_interactive_auth(...)`
-> (or otherwise set `MethodSet::KEYBOARD_INTERACTIVE`) on a server reachable
-> from untrusted networks. Use password and/or public-key auth instead. See [crates/wish/README.md](crates/wish/README.md#security-notice-for-keyboard-interactive-auth-on-russh-046)
-> for details and [issue #44](https://github.com/Dicklesworthstone/charmed_rust/issues/44)
-> for upgrade tracking.
+Wish ships against `russh = 0.60`, which carries the
+[GHSA-f5v4-2wr6-hqmg](https://github.com/Eugeny/russh/security/advisories/GHSA-f5v4-2wr6-hqmg)
+keyboard-interactive DoS fix. The earlier 0.46 advisory is no longer
+applicable; `with_keyboard_interactive_auth(...)` is safe on
+internet-facing servers.
 
 ---
 

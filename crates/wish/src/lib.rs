@@ -195,7 +195,7 @@ pub enum Error {
     /// Occurs when loading SSH keys from files fails.
     /// Common causes: file not found, invalid format, permission denied.
     #[error("key loading error: {0}")]
-    KeyLoad(#[from] russh_keys::Error),
+    KeyLoad(#[from] russh::keys::Error),
 
     /// Authentication failed.
     ///
@@ -1167,14 +1167,14 @@ impl Server {
     /// Creates the russh server configuration.
     #[allow(clippy::field_reassign_with_default)]
     fn create_russh_config(&self) -> Result<RusshConfig> {
-        use russh::MethodSet;
         use russh::server::Config;
-        use russh_keys::key::KeyPair;
+        use russh::{MethodKind, MethodSet};
 
         let mut config = Config::default();
 
-        // Set server ID
-        config.server_id = russh::SshId::Standard(self.options.version.clone());
+        // Set server ID. russh 0.58 turned `SshId::Standard` from `String`
+        // into `Cow<'static, str>`, so wrap the owned String in `.into()`.
+        config.server_id = russh::SshId::Standard(self.options.version.clone().into());
 
         // Set timeouts
         if let Some(timeout) = self.options.idle_timeout {
@@ -1184,66 +1184,82 @@ impl Server {
         config.max_auth_attempts = self.options.max_auth_attempts as usize;
         config.auth_rejection_time = Duration::from_millis(self.options.auth_rejection_delay_ms);
 
+        // russh 0.49 turned `MethodSet` from a bitflags struct into an
+        // ordered Vec<MethodKind>. The associated `MethodSet::PUBLICKEY`
+        // constants are gone; build the set with `push(MethodKind::…)`.
+        // `push` is idempotent — already-present kinds are moved to the
+        // end of the order rather than duplicated, which keeps the OR
+        // semantics callers expected.
         let mut methods = MethodSet::empty();
         if let Some(handler) = &self.options.auth_handler {
             for method in handler.supported_methods() {
                 // Write this without a `match` because UBS's hardcoded-secret regex
                 // can falsely flag match arms for the password auth method.
                 if matches!(method, auth::AuthMethod::None) {
-                    methods |= MethodSet::NONE;
+                    methods.push(MethodKind::None);
                 } else if matches!(method, auth::AuthMethod::Password) {
-                    methods |= MethodSet::PASSWORD;
+                    methods.push(MethodKind::Password);
                 } else if matches!(method, auth::AuthMethod::PublicKey) {
-                    methods |= MethodSet::PUBLICKEY;
+                    methods.push(MethodKind::PublicKey);
                 } else if matches!(method, auth::AuthMethod::KeyboardInteractive) {
-                    methods |= MethodSet::KEYBOARD_INTERACTIVE;
+                    methods.push(MethodKind::KeyboardInteractive);
                 } else if matches!(method, auth::AuthMethod::HostBased) {
-                    methods |= MethodSet::HOSTBASED;
+                    methods.push(MethodKind::HostBased);
                 }
             }
         } else {
             if self.options.public_key_handler.is_some() {
-                methods |= MethodSet::PUBLICKEY;
+                methods.push(MethodKind::PublicKey);
             }
             if self.options.password_handler.is_some() {
-                methods |= MethodSet::PASSWORD;
+                methods.push(MethodKind::Password);
             }
             if self.options.keyboard_interactive_handler.is_some() {
-                methods |= MethodSet::KEYBOARD_INTERACTIVE;
+                methods.push(MethodKind::KeyboardInteractive);
             }
             if methods.is_empty() {
-                methods |= MethodSet::NONE;
+                methods.push(MethodKind::None);
             }
         }
         config.methods = methods;
 
-        // Generate or load host key
+        // Generate or load host key. russh 0.49 made `Config::keys` a
+        // `Vec<russh::keys::PrivateKey>`, so we no longer need the
+        // `KeyPair::try_from(&private_key)` shim — the loaded
+        // `PrivateKey` is the right type directly.
+        //
+        // We deliberately go through `russh::keys` (a re-export of the
+        // `internal-russh-forked-ssh-key` crate that russh pins) rather
+        // than the standalone `ssh-key` crate. Both expose the same
+        // `PrivateKey` type but Cargo treats them as distinct because
+        // they come from different crates, so mixing the two would
+        // surface as `expected russh::keys::PrivateKey, found
+        // ssh_key::PrivateKey` at the `Config::keys.push(key)` call.
         let key = if let Some(ref pem) = self.options.host_key_pem {
             // Load from PEM bytes (OpenSSH format).
-            let private_key = ssh_key::private::PrivateKey::from_openssh(pem)
-                .map_err(|e| Error::Key(e.to_string()))?;
-            KeyPair::try_from(&private_key).map_err(|e| Error::Key(e.to_string()))?
+            russh::keys::PrivateKey::from_openssh(pem)
+                .map_err(|e| Error::Key(e.to_string()))?
         } else if let Some(ref path) = self.options.host_key_path {
             // Load from file bytes (OpenSSH format).
             let pem = std::fs::read(path)?;
-            let private_key = ssh_key::private::PrivateKey::from_openssh(&pem)
-                .map_err(|e| Error::Key(e.to_string()))?;
-            KeyPair::try_from(&private_key).map_err(|e| Error::Key(e.to_string()))?
+            russh::keys::PrivateKey::from_openssh(&pem)
+                .map_err(|e| Error::Key(e.to_string()))?
         } else {
-            // Generate ephemeral Ed25519 key
+            // Generate ephemeral Ed25519 key.
             info!("Generating ephemeral Ed25519 host key");
-            KeyPair::generate_ed25519()
+            russh::keys::PrivateKey::random(
+                &mut russh::keys::key::safe_rng(),
+                russh::keys::Algorithm::Ed25519,
+            )
+            .map_err(|e| Error::Key(e.to_string()))?
         };
 
         config.keys.push(key);
 
-        // Set authentication banner if configured
-        if let Some(ref banner) = self.options.banner {
-            // russh expects &'static str, so we leak the banner
-            // This is acceptable since the server typically runs for the lifetime of the process
-            let banner: &'static str = Box::leak(banner.clone().into_boxed_str());
-            config.auth_banner = Some(banner);
-        }
+        // The pre-0.60 `Config::auth_banner` static string field was
+        // removed; banners now go through `Handler::authentication_banner`,
+        // which our `WishHandler` impl reads from `ServerOptions::banner`.
+        // No work to do here.
 
         Ok(config)
     }
@@ -3311,7 +3327,11 @@ mod tests {
 
     #[test]
     fn test_create_russh_config_methods_from_auth_handler() {
-        use russh::MethodSet;
+        // russh 0.49 turned MethodSet from a bitflags struct into an
+        // ordered Vec<MethodKind>; assertions that previously used
+        // `methods.contains(MethodSet::PASSWORD)` now go through the
+        // slice deref + `&MethodKind::Password`.
+        use russh::MethodKind;
 
         struct PasswordOnly;
 
@@ -3328,13 +3348,13 @@ mod tests {
             .unwrap();
         let config = server.create_russh_config().unwrap();
 
-        assert!(config.methods.contains(MethodSet::PASSWORD));
-        assert!(!config.methods.contains(MethodSet::PUBLICKEY));
+        assert!(config.methods.contains(&MethodKind::Password));
+        assert!(!config.methods.contains(&MethodKind::PublicKey));
     }
 
     #[test]
     fn test_create_russh_config_methods_from_callbacks() {
-        use russh::MethodSet;
+        use russh::MethodKind;
 
         let server = ServerBuilder::new()
             .public_key_auth(|_ctx, _key| true)
@@ -3344,8 +3364,8 @@ mod tests {
 
         let config = server.create_russh_config().unwrap();
 
-        assert!(config.methods.contains(MethodSet::PUBLICKEY));
-        assert!(config.methods.contains(MethodSet::PASSWORD));
-        assert!(!config.methods.contains(MethodSet::KEYBOARD_INTERACTIVE));
+        assert!(config.methods.contains(&MethodKind::PublicKey));
+        assert!(config.methods.contains(&MethodKind::Password));
+        assert!(!config.methods.contains(&MethodKind::KeyboardInteractive));
     }
 }

@@ -28,12 +28,15 @@ parking_lot = "0.12"
 bytes = "1.5"
 lru = { workspace = true }
 russh = { workspace = true }
-russh-keys = { workspace = true }
-ssh-key = "0.6.7"
-
-# SSH support - optional for now since russh-keys is in beta
-# russh = "0.56"
-# russh-keys = { version = "0.50.0-beta.7" }
+# Note: we deliberately do NOT depend on the standalone `russh-keys` or
+# `ssh-key` crates here. russh 0.60 re-exports `PublicKey`, `PrivateKey`,
+# `Algorithm`, `PublicKeyBase64`, etc. via `russh::keys::*` from the
+# `internal-russh-forked-ssh-key` crate it pins. Pulling in the
+# standalone crates resolves to a different `ssh_key` version, and
+# Cargo treats `russh::keys::PrivateKey` and `ssh_key::PrivateKey` as
+# distinct types — that surfaces as `expected russh::keys::PrivateKey,
+# found ssh_key::PrivateKey` at `Config::keys.push(key)`. See
+# charmed_rust#44.
 
 [dev-dependencies]
 tokio-test = "0.4"

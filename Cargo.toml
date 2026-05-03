@@ -70,8 +70,21 @@ tokio = { version = "1.50", features = ["full"] }
 pulldown-cmark = "0.13"
 
 # SSH (for wish)
-russh = "0.46"
-russh-keys = "0.46"
+# 0.60 ships the GHSA-f5v4-2wr6-hqmg keyboard-interactive DoS fix and
+# unblocks once internal-russh-forked-ssh-key 0.6.18 + ed25519-dalek
+# 3.0.0-pre.6 line up against the published pkcs8 0.11.0 (verified
+# 2026-05-02). We drop the `async-trait` feature: russh's `Handler`
+# trait uses native return-position-impl-Future signatures and the
+# wish workspace is on edition 2024 / Rust 1.85, which supports AFIT
+# in trait impls natively. Mixing `#[async_trait]` on the impl side
+# while the trait uses native AFIT triggers E0195 lifetime mismatches
+# on every method. See charmed_rust#44.
+russh = "0.60"
+# `russh-keys` is intentionally absent. russh 0.60 re-exports its key
+# types via `russh::keys::*` from `internal-russh-forked-ssh-key`;
+# pulling in standalone `russh-keys` resolves to a different `ssh_key`
+# version and creates type-mismatch friction at the boundary. See the
+# matching note in crates/wish/Cargo.toml.
 
 # Regex
 regex = "1.11"
