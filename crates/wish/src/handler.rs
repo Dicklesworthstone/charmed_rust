@@ -243,13 +243,14 @@ impl WishHandler {
 
     fn map_auth_result(result: AuthResult) -> Auth {
         // russh 0.49 added a `partial_success` flag to `Auth::Reject` so
-        // the server can advertise "this method authenticated you, but you
-        // still need another method" without committing to Accept yet.
-        // We don't model partial-success on the wish side — the public
-        // `AuthResult::Partial { next_methods }` shape only carries the
-        // remaining-methods hint — so we always set `partial_success:
-        // false`. If we ever expose two-factor auth from wish, that's the
-        // knob to flip.
+        // the server can advertise "this method authenticated the client,
+        // but additional methods are still required" (RFC 4252 §5.1)
+        // without committing to Accept yet. The wish-side
+        // `AuthResult::Partial { next_methods }` is documented as
+        // "Authentication partially succeeded, continue with additional
+        // methods", which is precisely the partial-success case — so it
+        // must map to `partial_success: true`. A plain `AuthResult::Reject`
+        // is `false` (the method failed outright).
         match result {
             AuthResult::Accept => Auth::Accept,
             AuthResult::Reject => Auth::Reject {
@@ -258,7 +259,7 @@ impl WishHandler {
             },
             AuthResult::Partial { next_methods } => Auth::Reject {
                 proceed_with_methods: Self::method_set_from(&next_methods),
-                partial_success: false,
+                partial_success: true,
             },
         }
     }
@@ -268,11 +269,16 @@ impl WishHandler {
     /// russh-keys 0.49 re-exports `ssh_key::PublicKey`, so the legacy
     /// `key.name()` and `key.public_key_bytes()` accessors moved to
     /// `key.algorithm().as_str()` and `key.to_bytes()?`. `to_bytes()`
-    /// returns a `Result`; the only documented failure is an `ssh_key`
-    /// encode error on a malformed key. Map it to an empty byte buffer
-    /// so the conversion stays infallible at the call site (the caller
-    /// uses the bytes only for downstream identification, not crypto
-    /// verification).
+    /// is now fallible; the only documented failure shape is an
+    /// `ssh_key` encode error on a key the parser produced from the
+    /// wire but cannot serialise back, which in practice means the
+    /// SSH parser already accepted something we cannot identify.
+    /// We surface that with a warn-log and an empty byte buffer so
+    /// the conversion stays infallible at the call site (downstream
+    /// callers compare `pk.data` against stored authorized keys; an
+    /// empty buffer cannot match a real stored key, so the worst
+    /// case is a silent reject — never a silent accept). The log is
+    /// the only diagnostic the operator gets if this ever fires.
     fn convert_public_key(key: &russh::keys::PublicKey) -> PublicKey {
         // `algorithm()` returns a temporary `Algorithm` that owns its
         // string; bind it to a local so `as_str()` gets a stable borrow
@@ -289,7 +295,17 @@ impl WishHandler {
             other => other,
         };
 
-        let key_bytes = key.to_bytes().unwrap_or_default();
+        let key_bytes = match key.to_bytes() {
+            Ok(bytes) => bytes,
+            Err(err) => {
+                warn!(
+                    key_type = key_name,
+                    error = %err,
+                    "ssh_key::PublicKey::to_bytes failed; presented key will not match any authorized entry"
+                );
+                Vec::new()
+            }
+        };
         PublicKey::new(key_type, key_bytes)
     }
 
