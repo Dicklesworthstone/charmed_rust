@@ -22,11 +22,27 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use bubbletea::KeyType;
 use demo_showcase::config::{AnimationMode, ColorMode, Config};
 use demo_showcase::messages::Page;
 use demo_showcase::test_support::E2ERunner;
+
+/// Global lock that serializes any test which touches the shared export
+/// directory. Without this, parallel tests race on `cleanup_exports()` —
+/// one test's cleanup wipes another test's freshly-written export file.
+///
+/// We can't fix this with a per-test directory: `LogsPage::export_dir()`
+/// reads a process-wide env var, and Rust's libtest runs tests as threads
+/// inside a single process, so the env var is shared. Serialising the
+/// affected tests is the simplest correct fix.
+fn export_lock() -> MutexGuard<'static, ()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -170,6 +186,7 @@ fn e2e_logs_scroll_navigation() {
 /// Verify that export creates a file in the artifact directory.
 #[test]
 fn e2e_logs_export_creates_file() {
+    let _guard = export_lock();
     cleanup_exports();
     let initial_count = count_log_exports();
 
@@ -220,6 +237,7 @@ fn e2e_logs_export_creates_file() {
 /// Verify that export with no logs doesn't crash.
 #[test]
 fn e2e_logs_export_after_clear() {
+    let _guard = export_lock();
     let mut runner = create_logs_runner("logs_export_empty");
 
     runner.step("Navigate to Logs page");
@@ -249,6 +267,7 @@ fn e2e_logs_export_after_clear() {
 /// Verify that copy viewport action works.
 #[test]
 fn e2e_logs_copy_viewport() {
+    let _guard = export_lock();
     cleanup_exports();
 
     let mut runner = create_logs_runner("logs_copy_viewport");
@@ -296,6 +315,7 @@ fn e2e_logs_copy_viewport() {
 /// Verify that copy all action works.
 #[test]
 fn e2e_logs_copy_all() {
+    let _guard = export_lock();
     cleanup_exports();
 
     let mut runner = create_logs_runner("logs_copy_all");
@@ -386,6 +406,7 @@ fn e2e_logs_clear_multiple_times() {
 /// Comprehensive logs scenario: navigation, export, copy, and clear.
 #[test]
 fn e2e_logs_comprehensive_scenario() {
+    let _guard = export_lock();
     cleanup_exports();
     let mut runner = create_logs_runner("logs_comprehensive");
 
@@ -453,6 +474,7 @@ fn e2e_logs_comprehensive_scenario() {
 /// Verify that filtered logs are exported correctly.
 #[test]
 fn e2e_logs_export_filtered() {
+    let _guard = export_lock();
     cleanup_exports();
     let mut runner = create_logs_runner("logs_export_filtered");
 
@@ -481,6 +503,7 @@ fn e2e_logs_export_filtered() {
 /// Verify that search filter + export works.
 #[test]
 fn e2e_logs_search_then_export() {
+    let _guard = export_lock();
     let mut runner = create_logs_runner("logs_search_export");
 
     runner.step("Navigate to Logs page");
@@ -516,6 +539,7 @@ fn e2e_logs_search_then_export() {
 /// Verify that resize during export doesn't crash.
 #[test]
 fn e2e_logs_resize_during_export() {
+    let _guard = export_lock();
     let mut runner = create_logs_runner("logs_resize_export");
 
     runner.step("Navigate to Logs page");
@@ -538,6 +562,7 @@ fn e2e_logs_resize_during_export() {
 /// Verify rapid action sequences don't crash.
 #[test]
 fn e2e_logs_rapid_actions() {
+    let _guard = export_lock();
     let mut runner = create_logs_runner("logs_rapid_actions");
 
     runner.step("Navigate to Logs page");

@@ -446,10 +446,15 @@ impl LogsPage {
 
     /// Get the export directory path based on mode.
     ///
-    /// In E2E/test mode, writes to `target/demo_showcase_e2e/logs/`.
-    /// Otherwise, writes to `./demo_showcase_exports/`.
+    /// Resolution order:
+    /// 1. `DEMO_SHOWCASE_E2E_ARTIFACTS` (set by E2E harness/tests for
+    ///    per-test isolation — must take precedence).
+    /// 2. `DEMO_SHOWCASE_E2E` set: write to `target/demo_showcase_e2e/logs/`.
+    /// 3. Default: `./demo_showcase_exports/`.
     fn export_dir() -> PathBuf {
-        // Check for E2E mode via environment variable
+        if let Ok(dir) = std::env::var("DEMO_SHOWCASE_E2E_ARTIFACTS") {
+            return PathBuf::from(dir);
+        }
         if std::env::var("DEMO_SHOWCASE_E2E").is_ok() {
             PathBuf::from("target/demo_showcase_e2e/logs")
         } else {
