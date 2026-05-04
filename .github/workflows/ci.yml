@@ -63,12 +63,29 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
+          # Skip install if ssh is already on PATH (windows-latest images
+          # ship OpenSSH preinstalled, so this should be the common case).
+          if (Get-Command ssh -ErrorAction SilentlyContinue) {
+            Write-Host "ssh already available, skipping install."
+          } else {
             Write-Host "ssh not found; installing OpenSSH.Client..."
-            Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0
+            try {
+              Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0
+            } catch {
+              Write-Host "Add-WindowsCapability failed: $_; falling back to choco."
+              choco install openssh -y --no-progress
+            }
           }
+
+          # Diagnostic: print the OpenSSH version. Do NOT invoke `ssh-keygen -h`
+          # here — on Windows OpenSSH `-h` is the *host-key* flag (not help),
+          # which prompts interactively for a save path and hangs the runner.
           ssh -V
-          if (Get-Command ssh-keygen -ErrorAction SilentlyContinue) { ssh-keygen -h } else { Write-Host "ssh-keygen not found" }
+          if (Get-Command ssh-keygen -ErrorAction SilentlyContinue) {
+            Write-Host "ssh-keygen found at: $((Get-Command ssh-keygen).Source)"
+          } else {
+            Write-Host "ssh-keygen not found"
+          }
 
       - name: Cache cargo registry and build
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
