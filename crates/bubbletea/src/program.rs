@@ -933,8 +933,22 @@ impl<M: Model> Program<M> {
                 needs_render = true;
             }
 
-            // Exit main loop if quit was requested
+            // Exit main loop if quit was requested.
+            //
+            // Render the final frame *before* breaking so the model state at
+            // the moment of quit is observable on the writer. Without this,
+            // a model that handles its last update and immediately returns
+            // `quit()` (or where the QuitMsg races with the next loop tick)
+            // can quit with `needs_render = true` and skip the render —
+            // leaving the writer showing a stale earlier frame. Manifested
+            // as flaky failures of `multiple_updates_produce_multiple_renders`
+            // on slower runners (notably ubuntu-24.04-arm) where the
+            // QuitMsg from the spawned `quit()` command consistently won
+            // the race against the render path.
             if should_quit {
+                if needs_render {
+                    self.render(writer, &mut last_view)?;
+                }
                 break;
             }
 
