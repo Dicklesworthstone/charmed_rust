@@ -151,10 +151,19 @@ fn e2e_shell_out_headless_instant() {
     runner.press_key('D');
     let elapsed = start.elapsed();
 
-    runner.step("Verify D key was fast (< 100ms)");
+    // Verify D key returns quickly. In headless mode the pager is skipped,
+    // so press_key('D') should never block. We use a generous 2 s budget
+    // because CI runners (especially shared GitHub Actions hosts) are
+    // wildly variable in latency — `generate_diagnostics()` reads
+    // workspace metadata and that single syscall can occasionally take
+    // ~300 ms under load. The point of the test is to catch a
+    // *blocking* shell-out (e.g. spawning `less` and waiting), which
+    // would block for seconds or until SIGKILL — not to gate on
+    // sub-100 ms latency that is below CI noise floor.
+    runner.step("Verify D key did not block on a pager (< 2 s)");
     assert!(
-        elapsed.as_millis() < 100,
-        "D key in headless mode should be instant, took {}ms",
+        elapsed.as_secs() < 2,
+        "D key in headless mode should not block, took {}ms",
         elapsed.as_millis()
     );
 
