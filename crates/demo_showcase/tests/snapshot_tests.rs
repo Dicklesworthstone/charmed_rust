@@ -102,23 +102,26 @@ fn redact_dynamic_times(input: &str) -> String {
 
 /// Normalize diagnostics fields that depend on the test environment.
 fn normalize_terminal_diagnostics(input: &str) -> String {
-    // Keep the size and alignment, but normalize environment-dependent terminal text.
-    //
-    // This prevents snapshot flakiness across environments like `TERM=dumb`.
-    let re = regex::Regex::new(r"Terminal:\s*[^|]*\|").unwrap();
+    // Replace the entire `Terminal: <term> (<colorterm>) | WxH<padding>` line
+    // segment from "Terminal:" through end-of-line with a fixed-width
+    // sentinel that's padded to the *original line length*. The variable
+    // text inside (TERM/COLORTERM) makes the position of the `|` separator
+    // and the trailing padding shift between hosts (e.g. `xterm-256color`
+    // on x86 vs `dumb` on ubuntu-24.04-arm), which causes the snapshot to
+    // diff purely on whitespace alignment. By scrubbing the whole tail of
+    // the line and re-padding to the same length, snapshot output is
+    // invariant w.r.t. the runner's `$TERM`.
+    let re = regex::Regex::new(r"(?m)Terminal:[^\n]*").unwrap();
     re.replace_all(input, |caps: &regex::Captures<'_>| {
         let matched = caps.get(0).expect("match exists").as_str();
         let total_len = matched.len();
-
-        let base = "Terminal: [TERM]";
-        let mut content = base.to_string();
-
-        // Ensure `content` leaves room for the trailing `|`.
-        let max_content_len = total_len.saturating_sub(1);
-        content.truncate(max_content_len);
-
-        let pad_len = total_len.saturating_sub(1 + content.len());
-        format!("{content}{}|", " ".repeat(pad_len))
+        let sentinel = "Terminal: [TERM] | [WxH]";
+        if sentinel.len() >= total_len {
+            sentinel[..total_len].to_string()
+        } else {
+            let pad = " ".repeat(total_len - sentinel.len());
+            format!("{sentinel}{pad}")
+        }
     })
     .to_string()
 }
