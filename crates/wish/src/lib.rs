@@ -1237,13 +1237,11 @@ impl Server {
         // ssh_key::PrivateKey` at the `Config::keys.push(key)` call.
         let key = if let Some(ref pem) = self.options.host_key_pem {
             // Load from PEM bytes (OpenSSH format).
-            russh::keys::PrivateKey::from_openssh(pem)
-                .map_err(|e| Error::Key(e.to_string()))?
+            russh::keys::PrivateKey::from_openssh(pem).map_err(|e| Error::Key(e.to_string()))?
         } else if let Some(ref path) = self.options.host_key_path {
             // Load from file bytes (OpenSSH format).
             let pem = std::fs::read(path)?;
-            russh::keys::PrivateKey::from_openssh(&pem)
-                .map_err(|e| Error::Key(e.to_string()))?
+            russh::keys::PrivateKey::from_openssh(&pem).map_err(|e| Error::Key(e.to_string()))?
         } else {
             // Generate ephemeral Ed25519 key.
             info!("Generating ephemeral Ed25519 host key");

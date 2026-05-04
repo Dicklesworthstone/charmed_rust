@@ -36,10 +36,8 @@ impl Model for App {
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
             match key.key_type {
                 KeyType::Enter | KeyType::CtrlC | KeyType::Esc => return Some(quit()),
-                KeyType::Runes => {
-                    if key.runes.len() == 1 && key.runes[0] == 'q' {
-                        return Some(quit());
-                    }
+                KeyType::Runes if key.runes.len() == 1 && key.runes[0] == 'q' => {
+                    return Some(quit());
                 }
                 _ => {}
             }

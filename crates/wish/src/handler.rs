@@ -12,9 +12,9 @@ use bubbletea::{
     key::{is_sequence_prefix, parse_sequence_prefix},
 };
 use parking_lot::RwLock;
-use russh::{MethodKind, MethodSet};
 use russh::server::{Auth, Handler as RusshHandler, Msg, Session as RusshSession};
 use russh::{Channel, ChannelId};
+use russh::{MethodKind, MethodSet};
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info, trace, warn};
 
@@ -335,9 +335,7 @@ impl RusshHandler for WishHandler {
     /// connection) and fall back to the static `ServerOptions.banner`
     /// if no handler was registered — preserving the pre-upgrade
     /// behaviour where the static banner was always shown.
-    async fn authentication_banner(
-        &mut self,
-    ) -> std::result::Result<Option<String>, Self::Error> {
+    async fn authentication_banner(&mut self) -> std::result::Result<Option<String>, Self::Error> {
         if let Some(handler) = &self.server_state.options.banner_handler {
             // Dynamic banner gets a connection context to personalise on.
             // No user yet at this point in the SSH handshake; use empty

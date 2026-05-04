@@ -962,10 +962,8 @@ impl PageModel for SettingsPage {
                     // 'd' is copy diagnostics shortcut (from any section)
                     ['d'] => return self.handle_about_shortcut('c'),
                     // 'p' is pager shortcut (only from About section to avoid conflicts)
-                    ['p'] => {
-                        if self.section == SettingsSection::About {
-                            return self.handle_about_shortcut('p');
-                        }
+                    ['p'] if self.section == SettingsSection::About => {
+                        return self.handle_about_shortcut('p');
                     }
                     _ => {}
                 },

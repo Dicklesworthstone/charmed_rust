@@ -410,8 +410,11 @@ fn e2e_logs_comprehensive_scenario() {
     runner.drain();
 
     runner.step("Phase 4: Filter by level (toggle INFO)");
-    runner.press_key('3'); // Toggle INFO level (1=ERROR, 2=WARN, 3=INFO, 4=DEBUG, 5=TRACE)
+    // Level filter uses Shift+number: !=ERROR, @=WARN, #=INFO, $=DEBUG, %=TRACE
+    // Plain 1-5 are reserved for top-level page navigation.
+    runner.press_key('#'); // Toggle INFO level
     runner.drain();
+    runner.assert_page(Page::Logs); // Must still be on Logs (no nav happened)
     runner.assert_view_not_empty();
 
     runner.step("Phase 5: Copy viewport");

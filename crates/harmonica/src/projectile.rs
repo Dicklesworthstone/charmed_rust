@@ -772,20 +772,23 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::assertions_on_constants)]
+    #[allow(clippy::assertions_on_constants, clippy::float_cmp)]
     fn test_terminal_gravity_direction() {
-        // Terminal gravity points in positive y (down in terminal coords)
+        // Terminal gravity points in positive y (down in terminal coords).
+        // The x/z components are compile-time `0.0` constants, so an exact
+        // float equality check is appropriate here.
         assert!(TERMINAL_GRAVITY.y > 0.0);
-        assert!(TERMINAL_GRAVITY.x == 0.0);
-        assert!(TERMINAL_GRAVITY.z == 0.0);
+        assert_eq!(TERMINAL_GRAVITY.x, 0.0);
+        assert_eq!(TERMINAL_GRAVITY.z, 0.0);
     }
 
     #[test]
-    #[allow(clippy::assertions_on_constants)]
+    #[allow(clippy::assertions_on_constants, clippy::float_cmp)]
     fn test_standard_gravity_direction() {
-        // Standard gravity points in negative y (down in traditional coords)
+        // Standard gravity points in negative y (down in traditional coords).
+        // x/z are compile-time `0.0`, so exact float equality is fine.
         assert!(GRAVITY.y < 0.0);
-        assert!(GRAVITY.x == 0.0);
-        assert!(GRAVITY.z == 0.0);
+        assert_eq!(GRAVITY.x, 0.0);
+        assert_eq!(GRAVITY.z, 0.0);
     }
 }

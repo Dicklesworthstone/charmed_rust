@@ -991,7 +991,7 @@ fn test_tmux_real_terminal() {
 
     // Display first part of output
     println!("=== PTY captured output (first 2000 chars) ===");
-    println!("{}", &screen_content.chars().take(2000).collect::<String>());
+    println!("{}", screen_content.chars().take(2000).collect::<String>());
     println!("=== End capture ===\n");
 
     // Check for expected content

@@ -694,10 +694,8 @@ fn run_error_fixture(fixture: &TestFixture) -> Result<(), String> {
                             saw_stderr = true;
                         }
                     }
-                    wish::SessionOutput::Exit(code) => {
-                        if code == 1 {
-                            saw_exit = true;
-                        }
+                    wish::SessionOutput::Exit(1) => {
+                        saw_exit = true;
                     }
                     _ => {}
                 }

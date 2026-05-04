@@ -740,24 +740,20 @@ impl StyleState {
                 38 => {
                     if i + 1 < params.len() {
                         match params[i + 1] {
-                            5 => {
-                                // 256 color
-                                if i + 2 < params.len() {
-                                    self.foreground = Some(format!("38;5;{}", params[i + 2]));
-                                    i += 2;
-                                }
+                            // 256 color
+                            5 if i + 2 < params.len() => {
+                                self.foreground = Some(format!("38;5;{}", params[i + 2]));
+                                i += 2;
                             }
-                            2 => {
-                                // True color
-                                if i + 4 < params.len() {
-                                    self.foreground = Some(format!(
-                                        "38;2;{};{};{}",
-                                        params[i + 2],
-                                        params[i + 3],
-                                        params[i + 4]
-                                    ));
-                                    i += 4;
-                                }
+                            // True color
+                            2 if i + 4 < params.len() => {
+                                self.foreground = Some(format!(
+                                    "38;2;{};{};{}",
+                                    params[i + 2],
+                                    params[i + 3],
+                                    params[i + 4]
+                                ));
+                                i += 4;
                             }
                             _ => {}
                         }
@@ -767,22 +763,18 @@ impl StyleState {
                 48 => {
                     if i + 1 < params.len() {
                         match params[i + 1] {
-                            5 => {
-                                if i + 2 < params.len() {
-                                    self.background = Some(format!("48;5;{}", params[i + 2]));
-                                    i += 2;
-                                }
+                            5 if i + 2 < params.len() => {
+                                self.background = Some(format!("48;5;{}", params[i + 2]));
+                                i += 2;
                             }
-                            2 => {
-                                if i + 4 < params.len() {
-                                    self.background = Some(format!(
-                                        "48;2;{};{};{}",
-                                        params[i + 2],
-                                        params[i + 3],
-                                        params[i + 4]
-                                    ));
-                                    i += 4;
-                                }
+                            2 if i + 4 < params.len() => {
+                                self.background = Some(format!(
+                                    "48;2;{};{};{}",
+                                    params[i + 2],
+                                    params[i + 3],
+                                    params[i + 4]
+                                ));
+                                i += 4;
                             }
                             _ => {}
                         }

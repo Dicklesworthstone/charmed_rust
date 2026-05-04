@@ -792,14 +792,17 @@ impl App {
                     self.cycle_theme();
                     return None;
                 }
-                ['e'] => {
-                    // Export current view as plain text
+                // Generic export of the current view (plain-text / HTML).
+                // The Logs page owns its own 'e'/'E' shortcuts for exporting
+                // the log buffer to `demo_showcase_exports/logs_*.txt`, so we
+                // skip the global handler when on that page and let the
+                // page-level update see the keystroke.
+                ['e'] if self.current_page != Page::Logs => {
                     return Some(Cmd::new(|| {
                         ExportMsg::Export(ExportFormat::PlainText).into_message()
                     }));
                 }
-                ['E'] => {
-                    // Export current view as HTML
+                ['E'] if self.current_page != Page::Logs => {
                     return Some(Cmd::new(|| {
                         ExportMsg::Export(ExportFormat::Html).into_message()
                     }));

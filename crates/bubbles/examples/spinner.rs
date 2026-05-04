@@ -31,11 +31,9 @@ impl Model for App {
                     self.quitting = true;
                     return Some(quit());
                 }
-                KeyType::Runes => {
-                    if key.runes.len() == 1 && key.runes[0] == 'q' {
-                        self.quitting = true;
-                        return Some(quit());
-                    }
+                KeyType::Runes if key.runes.len() == 1 && key.runes[0] == 'q' => {
+                    self.quitting = true;
+                    return Some(quit());
                 }
                 _ => {}
             }

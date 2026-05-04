@@ -1,5 +1,6 @@
 ---
 source: crates/demo_showcase/tests/snapshot_tests.rs
+assertion_line: 278
 expression: view
 ---
  Charmed Control Center   Connected                                                                            [Dark]  
@@ -53,9 +54,9 @@ expression: view
                                                                                                                        
                 About + Diagnostics                                                                                    
                                                                                                                        
-                  charmed_rust  v0.2.0                                                                                 
+                  charmed_rust  v0.2.1                                                                                 
                                                                                                                        
-                  Terminal: [TERM]             | 80x24                                                                 
+                  Terminal: [TERM]                     | 80x24                                                         
                   Features:  syntax                                                                                    
                                                                                                                        
                                                                                                                        

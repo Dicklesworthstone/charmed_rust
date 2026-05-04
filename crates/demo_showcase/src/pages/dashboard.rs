@@ -1365,10 +1365,8 @@ impl PageModel for DashboardPage {
                 KeyType::Tab | KeyType::Down | KeyType::Right => self.select_next_card(),
                 KeyType::Up | KeyType::Left => self.select_prev_card(),
                 // Enter opens the details panel for the selected card (bd-qkxb)
-                KeyType::Enter => {
-                    if self.selected_card != DashboardCard::None {
-                        self.open_details();
-                    }
+                KeyType::Enter if self.selected_card != DashboardCard::None => {
+                    self.open_details();
                 }
                 // Esc and other keys do nothing when details are closed
                 _ => {}

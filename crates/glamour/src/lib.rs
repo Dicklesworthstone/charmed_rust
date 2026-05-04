@@ -1953,7 +1953,7 @@ impl<'a> RenderContext<'a> {
             if let Some(last) = self.list_item_number.last_mut() {
                 *last += 1;
             }
-            format!("{}{}", num, &self.options.styles.enumeration.block_prefix)
+            format!("{}{}", num, self.options.styles.enumeration.block_prefix)
         } else {
             self.options.styles.item.block_prefix.clone()
         };
@@ -2562,14 +2562,14 @@ mod tests {
     #[test]
     fn test_dark_style() {
         let config = dark_style();
-        assert!(config.heading.style.bold == Some(true));
+        assert_eq!(config.heading.style.bold, Some(true));
         assert!(config.document.margin.is_some());
     }
 
     #[test]
     fn test_light_style() {
         let config = light_style();
-        assert!(config.heading.style.bold == Some(true));
+        assert_eq!(config.heading.style.bold, Some(true));
     }
 
     #[test]
@@ -2602,7 +2602,7 @@ mod tests {
         assert_eq!(config.h2.style.prefix, "## ");
         assert_eq!(config.h3.style.prefix, "### ");
         // Heading should be bold and purple
-        assert!(config.heading.style.bold == Some(true));
+        assert_eq!(config.heading.style.bold, Some(true));
         assert!(config.heading.style.color.is_some());
         // Dracula uses specific colors
         assert_eq!(config.heading.style.color.as_deref(), Some("#bd93f9")); // purple
