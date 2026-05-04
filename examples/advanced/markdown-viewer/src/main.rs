@@ -202,11 +202,7 @@ impl App {
         let indicator_style = Style::new().foreground("241");
         let y_offset = self.viewport.y_offset();
         let total = self.viewport.total_line_count();
-        let percent = if total > 0 {
-            (y_offset * 100) / total
-        } else {
-            0
-        };
+        let percent = (y_offset * 100).checked_div(total).unwrap_or(0);
         output.push_str(&format!(
             "  {}\n\n",
             indicator_style.render(&format!("Scroll: {}%", percent))

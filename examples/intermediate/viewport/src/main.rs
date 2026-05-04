@@ -170,11 +170,7 @@ impl App {
         } else {
             // Approximate percentage based on offset
             let total_lines = self.viewport.total_line_count();
-            if total_lines > 0 {
-                (y_offset * 100) / total_lines
-            } else {
-                0
-            }
+            (y_offset * 100).checked_div(total_lines).unwrap_or(0)
         };
         output.push_str(&format!(
             "  {}\n\n",
