@@ -64,7 +64,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 
 # Async runtime (for bubbletea event loop)
-tokio = { version = "1.50", features = ["full"] }
+tokio = { version = "1.52", features = ["full"] }
 
 # Markdown parsing (for glamour/glow)
 pulldown-cmark = "0.13"

@@ -29,7 +29,7 @@ parking_lot = "0.12"       # Thread-safe primitives
 once_cell = "1"            # Lazy statics
 chrono = { workspace = true } # Timestamps
 rayon = { workspace = true }  # Parallel test execution
-tokio = { version = "1.50", features = ["rt", "sync"] }
+tokio = { version = "1.52", features = ["rt", "sync"] }
 paste = "1.0.15"
 
 [features]
