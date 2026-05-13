@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, TimeDelta, Utc};
-use rand::Rng;
+use rand::RngExt;
 use rand::prelude::IndexedRandom;
 use rand_pcg::Pcg64;
 

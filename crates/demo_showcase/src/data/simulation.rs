@@ -27,7 +27,7 @@
 //! ```
 
 use bubbletea::Message;
-use rand::Rng;
+use rand::RngExt;
 use rand_pcg::Pcg64;
 
 use super::generator::GeneratedData;
