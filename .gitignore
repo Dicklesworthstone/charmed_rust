@@ -41,6 +41,9 @@ charmed_rust_illustration.png
 # NTM agent coordination
 .ntm/
 
+# Claude Code local config (settings.local.json, scheduled_tasks.lock, etc.)
+.claude/
+
 # Profiling artifacts
 perf.data
 perf.data.*
