@@ -40,7 +40,7 @@ fn spawn_batch(f: impl FnOnce() + Send + 'static) {
 }
 
 use crossterm::{
-    cursor::{Hide, MoveTo, Show},
+    cursor::{self, Hide, MoveTo, Show},
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind},
     execute,
     terminal::{
@@ -1103,8 +1103,29 @@ impl<M: Model> Program<M> {
             return Ok(());
         }
 
-        // Render only changed rows to reduce full-screen flicker on
-        // high-frequency updates (spinner ticks, streaming token deltas).
+        if self.options.alt_screen {
+            self.render_alt_screen(writer, last_view, &view)?;
+        } else {
+            self.render_inline(writer, last_view, &view)?;
+        }
+
+        *last_view = view;
+        Ok(())
+    }
+
+    /// Render in alternate-screen mode using absolute cursor positioning.
+    ///
+    /// Each row is addressed absolutely from the top-left of the screen
+    /// (`MoveTo(0, row)`), which is correct because the TUI owns the whole
+    /// alternate buffer. Only rows that actually changed are rewritten to
+    /// reduce flicker on high-frequency updates (spinner ticks, streaming
+    /// token deltas).
+    fn render_alt_screen<W: Write>(
+        &self,
+        writer: &mut W,
+        last_view: &str,
+        view: &str,
+    ) -> Result<()> {
         let old_lines: Vec<&str> = last_view.split('\n').collect();
         let new_lines: Vec<&str> = view.split('\n').collect();
         let max_lines = old_lines.len().max(new_lines.len());
@@ -1133,8 +1154,59 @@ impl<M: Model> Program<M> {
             }
         }
         writer.flush()?;
+        Ok(())
+    }
 
-        *last_view = view;
+    /// Render in inline (non-alternate-screen) mode using *relative* cursor
+    /// movement.
+    ///
+    /// In inline mode the TUI does not own the whole screen — it is drawn at
+    /// wherever the cursor happens to be (e.g. just below the shell prompt),
+    /// so absolute `MoveTo(0, row)` is wrong: it would jump to absolute row
+    /// `row` of the viewport, clobbering unrelated terminal content and, on
+    /// subsequent frames, producing a "staircase" because the origin drifts.
+    /// (See issue #54: "Linebreaks seem off (do not reset column)".)
+    ///
+    /// Instead we anchor on the first line of the previously rendered block:
+    /// move the cursor up by `prev_lines - 1`, carriage-return to column 0,
+    /// clear everything from there to the end of the screen, then write the
+    /// whole view back joining lines with `\r\n` so every newline resets the
+    /// column. When `last_view` is empty (initial frame, or a forced full
+    /// redraw after printing above the TUI) there is nothing to rewind over,
+    /// so we simply draw at the current cursor position.
+    fn render_inline<W: Write>(&self, writer: &mut W, last_view: &str, view: &str) -> Result<()> {
+        // Number of terminal rows the previous frame occupied. Empty means
+        // "no previous block on screen" -> draw at the current cursor.
+        let prev_lines = if last_view.is_empty() {
+            0
+        } else {
+            last_view.split('\n').count()
+        };
+
+        // Rewind to the top-left of the previously rendered block.
+        if prev_lines > 1 {
+            let up = (prev_lines - 1).min(u16::MAX as usize) as u16;
+            execute!(writer, cursor::MoveUp(up))?;
+        }
+        // Always return to column 0 and clear the old block so shorter frames
+        // don't leave stale trailing rows behind.
+        execute!(
+            writer,
+            cursor::MoveToColumn(0),
+            Clear(ClearType::FromCursorDown)
+        )?;
+
+        // Write the view, normalizing every newline to `\r\n` so the column is
+        // reset on each line regardless of raw-mode line discipline.
+        let mut first = true;
+        for line in view.split('\n') {
+            if !first {
+                write!(writer, "\r\n")?;
+            }
+            first = false;
+            write!(writer, "{}", line.trim_end_matches('\r'))?;
+        }
+        writer.flush()?;
         Ok(())
     }
 }
