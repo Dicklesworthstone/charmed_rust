@@ -1,4 +1,12 @@
 #![forbid(unsafe_code)]
+// `clippy::unused_async_trait_impl` was promoted in a June-2026 nightly and fires on the many
+// async trait methods in this crate (e.g. `auth/authorized_keys.rs`, `handler.rs`) whose bodies
+// contain no `.await`. Those methods must keep their `async` signature to satisfy the trait
+// contract (`#[async_trait]` / AFIT `RusshHandler`, `AuthHandler`), so dropping `async` is not an
+// option — we accommodate the new lint here. `unknown_lints` is allowed alongside so this stays
+// clean on older nightlies that don't yet know the lint name.
+#![allow(unknown_lints)]
+#![allow(clippy::unused_async_trait_impl)]
 // Per-lint allows for wish's SSH server/session code.
 #![allow(clippy::cast_precision_loss)]
 #![allow(clippy::cast_sign_loss)]
