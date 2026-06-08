@@ -68,9 +68,14 @@ jobs:
             # Run comparison benchmarks (only named Criterion benchmarks)
             cargo bench --bench bubbles_benchmarks --bench bubbletea_benchmarks --bench glamour_benchmarks --bench lipgloss_benchmarks -- --baseline main 2>&1 | tee benchmark-results.txt
 
-            # Parse results for regressions
-            WARNINGS=$(grep -c "Performance has regressed" benchmark-results.txt || echo "0")
-            CRITICAL=$(grep -E -c "change: \\+[2-9][0-9]\\.[0-9]+%|\\+[1-9][0-9]{2,}\\.[0-9]+%" benchmark-results.txt || echo "0")
+            # Parse results for regressions.
+            # NOTE: `grep -c` prints its count AND exits 1 when there are zero matches, so the
+            # old `grep -c ... || echo "0"` appended a SECOND line, making WARNINGS="0\n0".
+            # Writing that multiline value to "$GITHUB_OUTPUT" without heredoc syntax breaks
+            # the step ("Invalid format '0'"). Count with `grep -c ... || true` so a no-match
+            # (exit 1) is swallowed by errexit/pipefail and we keep grep's single-line "0".
+            WARNINGS=$(grep -F -c "Performance has regressed" benchmark-results.txt || true)
+            CRITICAL=$(grep -E -c "change: \\+[2-9][0-9]\\.[0-9]+%|\\+[1-9][0-9]{2,}\\.[0-9]+%" benchmark-results.txt || true)
 
             echo "warnings=$WARNINGS" >> "$GITHUB_OUTPUT"
             echo "critical=$CRITICAL" >> "$GITHUB_OUTPUT"
