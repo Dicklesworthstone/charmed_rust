@@ -643,6 +643,12 @@ impl RusshHandler for WishHandler {
         // Get session handle for sending exit status from spawned task
         let handle = session.handle();
 
+        // Split channel into read/write half
+        let (mut read_half, write_half) = channel.split();
+
+        // Drain read half to prevent deadlock
+        tokio::spawn(async move { while let Some(_) = read_half.wait().await {} });
+
         // Spawn output pump
         let connection_id = self.connection_id;
         tokio::spawn(async move {
@@ -650,18 +656,18 @@ impl RusshHandler for WishHandler {
             while let Some(msg) = output_rx.recv().await {
                 match msg {
                     SessionOutput::Stdout(data) => {
-                        let _ = channel.data(&data[..]).await;
+                        let _ = write_half.data(&data[..]).await;
                     }
                     SessionOutput::Stderr(data) => {
-                        let _ = channel.extended_data(1, &data[..]).await;
+                        let _ = write_half.extended_data(1, &data[..]).await;
                     }
                     SessionOutput::Exit(code) => {
                         let _ = handle.exit_status_request(channel_id, code).await;
-                        let _ = channel.close().await;
+                        let _ = write_half.close().await;
                         break;
                     }
                     SessionOutput::Close => {
-                        let _ = channel.close().await;
+                        let _ = write_half.close().await;
                         break;
                     }
                 }
