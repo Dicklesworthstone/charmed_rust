@@ -643,29 +643,66 @@ impl RusshHandler for WishHandler {
         // Get session handle for sending exit status from spawned task
         let handle = session.handle();
 
-        // Spawn output pump
+        // Split the channel into independent read and write halves.
+        //
+        // russh delivers *all* inbound channel events (client data, EOF,
+        // close, and crucially `WindowAdjusted`) into the channel's internal
+        // mpsc receiver, which is bounded by `channel_buffer_size` (default
+        // 100). The russh session task `.await`s a bounded `send` to push
+        // each event in; if nobody drains the read half, that buffer fills
+        // after 100 events and the send blocks the *entire* session loop.
+        // Once the loop is wedged it can no longer process the client's
+        // `CHANNEL_WINDOW_ADJUST` packets, so the output pump's write window
+        // is never replenished and `data(...).await` stalls forever — the
+        // "session freezes after 100 messages" deadlock (charmed_rust#58).
+        //
+        // We never consume inbound bytes through this read half (real input
+        // is routed via the `data()` handler into `input_tx`), so the only
+        // requirement is to keep the receiver drained. We spawn a dedicated
+        // drain task for that and pump output through the write half.
+        let (mut read_half, write_half) = channel.split();
         let connection_id = self.connection_id;
+
+        // Spawn the read-half drain task. `wait()` yields `None` once the
+        // channel is closed (the session task drops the sender), so the loop
+        // terminates cleanly without a leak. Closing the write half on the
+        // output side also tears the channel down, which ends this task.
+        let drain_task = tokio::spawn(async move {
+            while read_half.wait().await.is_some() {
+                // Discard every inbound message: its job was already done when
+                // russh handed it to us (data is mirrored to the `data()`
+                // handler; window adjustments mutate the shared window before
+                // the message is ever enqueued). Dropping it here keeps the
+                // bounded receiver from filling up and stalling the session.
+            }
+        });
+
+        // Spawn output pump.
         tokio::spawn(async move {
             debug!(connection_id, channel = ?channel_id, "Starting output pump");
             while let Some(msg) = output_rx.recv().await {
                 match msg {
                     SessionOutput::Stdout(data) => {
-                        let _ = channel.data(&data[..]).await;
+                        let _ = write_half.data(&data[..]).await;
                     }
                     SessionOutput::Stderr(data) => {
-                        let _ = channel.extended_data(1, &data[..]).await;
+                        let _ = write_half.extended_data(1, &data[..]).await;
                     }
                     SessionOutput::Exit(code) => {
                         let _ = handle.exit_status_request(channel_id, code).await;
-                        let _ = channel.close().await;
+                        let _ = write_half.close().await;
                         break;
                     }
                     SessionOutput::Close => {
-                        let _ = channel.close().await;
+                        let _ = write_half.close().await;
                         break;
                     }
                 }
             }
+            // The pump is done (handler closed the channel or the output
+            // sender was dropped). Stop the drain task so it can't outlive the
+            // session if the peer never sends an explicit close.
+            drain_task.abort();
             debug!(connection_id, channel = ?channel_id, "Output pump finished");
         });
 
@@ -1172,5 +1209,61 @@ mod tests {
         let state = ServerState::new(options);
         assert_eq!(state.next_connection_id(), 1);
         assert_eq!(state.next_connection_id(), 2);
+    }
+
+    /// Regression for charmed_rust#58 ("session freezes after 100 messages").
+    ///
+    /// russh routes every inbound channel event into the channel's internal
+    /// mpsc receiver, bounded by `channel_buffer_size` (default 100), via an
+    /// `.await`ed `send`. If the session's read half is never drained, that
+    /// bounded buffer fills after 100 events and the session task wedges on
+    /// the blocking send — at which point it can no longer process the
+    /// client's window-adjust packets and the output pump deadlocks.
+    ///
+    /// `channel_open_session` now `split()`s the channel and spawns a drain
+    /// task that consumes the read half until close. This test models the
+    /// exact russh invariant — a producer doing `.await`ed sends into a
+    /// bounded(100) channel — and proves that (a) with the drain task running
+    /// the producer never stalls beyond the buffer bound, and (b) the drain
+    /// task terminates cleanly (no leak) once the channel is closed (the
+    /// sender is dropped), mirroring `ChannelReadHalf::wait()` returning
+    /// `None`.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn drain_task_keeps_bounded_read_half_from_wedging_session() {
+        // Matches russh `Config::default().channel_buffer_size`.
+        const CHANNEL_BUFFER_SIZE: usize = 100;
+        // Well past the buffer bound; without a drain this would block forever
+        // at message 100.
+        const INBOUND_EVENTS: usize = CHANNEL_BUFFER_SIZE * 5;
+
+        let (tx, mut rx) = mpsc::channel::<Vec<u8>>(CHANNEL_BUFFER_SIZE);
+
+        // Drain task: the same shape as the one we spawn in
+        // `channel_open_session` — pull until the channel closes, then exit.
+        let drain = tokio::spawn(async move { while rx.recv().await.is_some() {} });
+
+        // Producer: emulates russh's session loop pushing inbound events with
+        // an `.await`ed bounded send. If this future never completes, the
+        // session is wedged.
+        let produce = async move {
+            for i in 0..INBOUND_EVENTS {
+                tx.send(vec![i as u8]).await.expect("send into read half");
+            }
+            // Dropping `tx` closes the channel; the drain task's `recv()`
+            // then yields `None` and the loop ends.
+        };
+
+        // With virtual time, a real deadlock would hang the executor forever;
+        // a generous virtual timeout converts that into a test failure.
+        tokio::time::timeout(std::time::Duration::from_secs(60), produce)
+            .await
+            .expect("producer must not wedge when the read half is drained");
+
+        // The drain task must finish on its own once the channel closed —
+        // proving the spawned task does not leak past the session lifetime.
+        tokio::time::timeout(std::time::Duration::from_secs(60), drain)
+            .await
+            .expect("drain task must terminate when the channel closes")
+            .expect("drain task must not panic");
     }
 }
