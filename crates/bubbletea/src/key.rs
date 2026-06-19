@@ -521,6 +521,11 @@ pub fn from_crossterm_key(
         KeyCode::Backspace => (KeyType::Backspace, Vec::new()),
         KeyCode::Tab if shift => (KeyType::ShiftTab, Vec::new()),
         KeyCode::Tab => (KeyType::Tab, Vec::new()),
+        // Crossterm reports Shift+Tab (terminal "back-tab", ESC [ Z) as the
+        // dedicated `BackTab` variant rather than `Tab` + SHIFT, so it must be
+        // mapped explicitly. Without this arm it fell through to the catch-all
+        // `_ => Runes` below and Shift+Tab was never delivered as ShiftTab.
+        KeyCode::BackTab => (KeyType::ShiftTab, Vec::new()),
         KeyCode::Esc => (KeyType::Esc, Vec::new()),
         KeyCode::Delete => (KeyType::Delete, Vec::new()),
         KeyCode::Insert => (KeyType::Insert, Vec::new()),
@@ -778,6 +783,8 @@ static SEQUENCES: LazyLock<HashMap<&'static str, KeyMsg>> = LazyLock::new(|| {
 
     // Shift+Tab
     m.insert("\x1b[Z", KeyMsg::from_type(KeyType::ShiftTab));
+    // Shift+Tab encoded via the Kitty / CSI-u protocol (Tab=9, shift modifier=2).
+    m.insert("\x1b[9;2u", KeyMsg::from_type(KeyType::ShiftTab));
 
     // Insert
     m.insert("\x1b[2~", KeyMsg::from_type(KeyType::Insert));
@@ -1066,6 +1073,59 @@ mod tests {
             parse_sequence(b"\x1b[6~"),
             Some(KeyMsg::from_type(KeyType::PgDown))
         );
+    }
+
+    /// Regression for charmed_rust#59: Shift+Tab must be delivered as
+    /// `KeyType::ShiftTab` on every input path.
+    #[test]
+    fn test_shift_tab_back_tab_csi_z_sequence() {
+        // Terminals encode Shift+Tab as the ANSI back-tab sequence
+        // CSI Z = ESC [ Z = bytes 0x1b 0x5b 0x5a.
+        assert_eq!(
+            parse_sequence(&[0x1b, 0x5b, 0x5a]),
+            Some(KeyMsg::from_type(KeyType::ShiftTab))
+        );
+        assert_eq!(
+            parse_sequence(b"\x1b[Z"),
+            Some(KeyMsg::from_type(KeyType::ShiftTab))
+        );
+    }
+
+    /// Regression for charmed_rust#59: Shift+Tab via the Kitty / CSI-u
+    /// protocol (ESC [ 9 ; 2 u) must also resolve to `KeyType::ShiftTab`.
+    #[test]
+    fn test_shift_tab_kitty_csi_u_sequence() {
+        assert_eq!(
+            parse_sequence(b"\x1b[9;2u"),
+            Some(KeyMsg::from_type(KeyType::ShiftTab))
+        );
+    }
+
+    /// Regression for charmed_rust#59: crossterm reports Shift+Tab as the
+    /// dedicated `KeyCode::BackTab` variant (see crossterm's unix/windows
+    /// parsers), NOT as `Tab` + SHIFT. Before the fix this fell through to the
+    /// catch-all `_ => Runes` arm and Shift+Tab was silently dropped.
+    #[test]
+    fn test_shift_tab_from_crossterm_back_tab() {
+        use crossterm::event::{KeyCode, KeyModifiers};
+
+        // The common case: BackTab with no modifiers reported by crossterm.
+        let key = from_crossterm_key(KeyCode::BackTab, KeyModifiers::NONE);
+        assert_eq!(key.key_type, KeyType::ShiftTab);
+        assert!(key.runes.is_empty());
+        assert!(!key.alt);
+
+        // Some backends attach the SHIFT modifier to BackTab; still ShiftTab.
+        let key = from_crossterm_key(KeyCode::BackTab, KeyModifiers::SHIFT);
+        assert_eq!(key.key_type, KeyType::ShiftTab);
+
+        // The legacy Tab + SHIFT path must keep working too.
+        let key = from_crossterm_key(KeyCode::Tab, KeyModifiers::SHIFT);
+        assert_eq!(key.key_type, KeyType::ShiftTab);
+
+        // Plain Tab is unaffected.
+        let key = from_crossterm_key(KeyCode::Tab, KeyModifiers::NONE);
+        assert_eq!(key.key_type, KeyType::Tab);
     }
 
     #[test]
