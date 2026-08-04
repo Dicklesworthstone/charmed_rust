@@ -428,8 +428,9 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
     let bytes = input.as_bytes();
     let mut output = Vec::with_capacity(bytes.len() * 3 / 4);
 
-    for (index, chunk) in bytes.chunks_exact(4).enumerate() {
-        let is_last_chunk = index == (bytes.len() / 4).saturating_sub(1);
+    let (chunks, _remainder) = bytes.as_chunks::<4>();
+    for (index, chunk) in chunks.iter().enumerate() {
+        let is_last_chunk = index == chunks.len().saturating_sub(1);
 
         let a = decode_char(chunk[0], &DECODE_TABLE)?;
         let b = decode_char(chunk[1], &DECODE_TABLE)?;
