@@ -198,7 +198,7 @@ pub enum KeyAction {
 ///
 /// Global actions are handled at the app level before page delegation.
 #[must_use]
-pub fn match_global(key: &KeyMsg) -> Option<KeyAction> {
+pub const fn match_global(key: &KeyMsg) -> Option<KeyAction> {
     match key.key_type {
         KeyType::CtrlC => Some(KeyAction::Quit),
         KeyType::Esc => Some(KeyAction::Escape),
@@ -227,7 +227,7 @@ pub fn match_global(key: &KeyMsg) -> Option<KeyAction> {
 ///
 /// Navigation actions are used in lists, tables, and trees.
 #[must_use]
-pub fn match_navigation(key: &KeyMsg) -> Option<KeyAction> {
+pub const fn match_navigation(key: &KeyMsg) -> Option<KeyAction> {
     match key.key_type {
         KeyType::Up => Some(KeyAction::Up),
         KeyType::Down => Some(KeyAction::Down),
@@ -254,7 +254,7 @@ pub fn match_navigation(key: &KeyMsg) -> Option<KeyAction> {
 
 /// Check if a key event matches a selection/action binding.
 #[must_use]
-pub fn match_selection(key: &KeyMsg) -> Option<KeyAction> {
+pub const fn match_selection(key: &KeyMsg) -> Option<KeyAction> {
     match key.key_type {
         KeyType::Enter => Some(KeyAction::Select),
         KeyType::Space => Some(KeyAction::Toggle),
@@ -274,7 +274,7 @@ pub fn match_selection(key: &KeyMsg) -> Option<KeyAction> {
 
 /// Check if a key event matches a search action.
 #[must_use]
-pub fn match_search(key: &KeyMsg) -> Option<KeyAction> {
+pub const fn match_search(key: &KeyMsg) -> Option<KeyAction> {
     match key.key_type {
         KeyType::Esc => Some(KeyAction::ClearSearch),
         KeyType::Runes => match key.runes.as_slice() {

@@ -72,13 +72,24 @@ impl SessionHandle {
         self.channel_count.fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Decrements the channel count.
+    /// Decrements the channel count (saturating at zero).
+    ///
+    /// Implemented as a manual CAS loop: `fetch_update` is deprecated in
+    /// favor of `try_update` on recent nightlies, but `try_update` is only
+    /// stable since Rust 1.95 and this workspace declares an MSRV of 1.85.
     pub fn remove_channel(&self) {
-        let _ = self
-            .channel_count
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |count| {
-                count.checked_sub(1)
-            });
+        let mut current = self.channel_count.load(Ordering::Relaxed);
+        while let Some(next) = current.checked_sub(1) {
+            match self.channel_count.compare_exchange_weak(
+                current,
+                next,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(actual) => current = actual,
+            }
+        }
     }
 
     /// Returns the current channel count.

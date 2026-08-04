@@ -12,7 +12,9 @@ use bubbletea::{
     key::{is_sequence_prefix, parse_sequence_prefix},
 };
 use parking_lot::RwLock;
-use russh::server::{Auth, Handler as RusshHandler, Msg, Session as RusshSession};
+use russh::server::{
+    Auth, ChannelOpenHandle, Handler as RusshHandler, Msg, Session as RusshSession,
+};
 use russh::{Channel, ChannelId};
 use russh::{MethodKind, MethodSet};
 use tokio::sync::{broadcast, mpsc};
@@ -619,8 +621,9 @@ impl RusshHandler for WishHandler {
     async fn channel_open_session(
         &mut self,
         channel: Channel<Msg>,
+        reply: ChannelOpenHandle,
         session: &mut RusshSession,
-    ) -> std::result::Result<bool, Self::Error> {
+    ) -> std::result::Result<(), Self::Error> {
         let channel_id = channel.id();
         debug!(
             connection_id = self.connection_id,
@@ -726,7 +729,11 @@ impl RusshHandler for WishHandler {
             },
         );
 
-        Ok(true)
+        // russh 0.62.5 replaced the `Ok(bool)` accept/reject return with an
+        // explicit reply handle; accepting here mirrors the old `Ok(true)`.
+        reply.accept().await;
+
+        Ok(())
     }
 
     /// Handle PTY request.

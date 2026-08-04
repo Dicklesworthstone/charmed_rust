@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn test_error_from_io() {
-        let io_err = io::Error::new(io::ErrorKind::Other, "test");
+        let io_err = io::Error::other("test");
         let err: Error = io_err.into();
         assert!(matches!(err, Error::Io(_)));
         assert!(err.to_string().starts_with("io error:"));
@@ -256,7 +256,7 @@ mod tests {
     fn test_error_source_chain() {
         use std::error::Error as StdError;
 
-        let inner = io::Error::new(io::ErrorKind::Other, "inner error");
+        let inner = io::Error::other("inner error");
         let err = Error::Io(inner);
 
         let source = err.source().expect("should have source");

@@ -138,6 +138,7 @@ impl ModelInput {
     pub fn message_type(&self) -> Option<Type> {
         self.message.as_ref().map(|path| {
             Type::Path(syn::TypePath {
+                attrs: Vec::new(),
                 qself: None,
                 path: path.clone(),
             })
@@ -330,6 +331,15 @@ fn parse_attribute_args<T: FromMeta + Default>(attr: &Attribute) -> Result<T, At
 // Method Signature Validation
 // =============================================================================
 
+/// Returns `true` if the receiver is mutable (`&mut self` or `mut self`).
+///
+/// syn 3 split reference mutability out of `Receiver::mutability` (which now
+/// only covers the `mut self` binding) into `ReceiverKind::Reference`, so a
+/// `&mut self` check must inspect both.
+fn receiver_is_mutable(recv: &syn::Receiver) -> bool {
+    recv.mutability.is_some() || matches!(recv.kind, syn::ReceiverKind::Reference(_, _, Some(_)))
+}
+
 /// Validates the signature of an `#[init]` method.
 ///
 /// Requirements:
@@ -347,7 +357,7 @@ pub fn validate_init_signature(sig: &Signature) -> Result<(), AttributeError> {
     for input in &sig.inputs {
         match input {
             FnArg::Receiver(recv) => {
-                if recv.mutability.is_some() {
+                if receiver_is_mutable(recv) {
                     return Err(AttributeError::new(
                         "#[init] method should take &self, not &mut self",
                         recv.self_token.span,
@@ -403,7 +413,7 @@ pub fn validate_update_signature(sig: &Signature) -> Result<(), AttributeError> 
     for input in &sig.inputs {
         match input {
             FnArg::Receiver(recv) => {
-                if recv.mutability.is_none() {
+                if !receiver_is_mutable(recv) {
                     return Err(AttributeError::new(
                         "#[update] method must take &mut self, not &self",
                         recv.self_token.span,
@@ -458,7 +468,7 @@ pub fn validate_view_signature(sig: &Signature) -> Result<(), AttributeError> {
     for input in &sig.inputs {
         match input {
             FnArg::Receiver(recv) => {
-                if recv.mutability.is_some() {
+                if receiver_is_mutable(recv) {
                     return Err(AttributeError::new(
                         "#[view] method should take &self, not &mut self (view should be pure)",
                         recv.self_token.span,
