@@ -147,6 +147,9 @@ impl AuthResult {
 ///     }
 /// }
 /// ```
+// `#[async_trait]` expands default methods to return `Pin<Box<dyn Future>>` (already
+// `#[must_use]`) while copying the attribute it adds, tripping `double_must_use`.
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait AuthHandler: Send + Sync {
     /// Authenticate with password.

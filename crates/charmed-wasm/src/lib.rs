@@ -86,6 +86,6 @@ mod tests {
     #[test]
     fn test_version() {
         let v = version();
-        assert!(!v.is_empty());
+        assert_ne!(v, "");
     }
 }

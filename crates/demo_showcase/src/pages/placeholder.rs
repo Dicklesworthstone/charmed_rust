@@ -77,7 +77,7 @@ mod tests {
         let view = page.view(80, 24, &theme);
 
         // View should not be empty
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
         // View should contain page name
         assert!(view.contains("Services") || view.contains("Service"));
     }
@@ -96,7 +96,7 @@ mod tests {
         let page = PlaceholderPage::new(Page::Services);
         let hints = page.hints();
         // Default hints from PageModel trait
-        assert!(!hints.is_empty());
+        assert_ne!(hints, "");
     }
 
     #[test]

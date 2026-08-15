@@ -1092,7 +1092,7 @@ mod tests {
         if let Some(idx) = first_dir_idx {
             page.selected = idx;
             page.enter_directory();
-            assert!(!page.virtual_path.is_empty());
+            assert_ne!(page.virtual_path, Vec::<&str>::new());
         }
     }
 
@@ -1108,7 +1108,7 @@ mod tests {
 
             // Now go back
             page.go_back();
-            assert!(page.virtual_path.is_empty());
+            assert_eq!(page.virtual_path, Vec::<&str>::new());
         }
     }
 

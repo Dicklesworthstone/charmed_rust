@@ -1501,8 +1501,8 @@ mod tests {
     #[test]
     fn dashboard_creates_with_data() {
         let page = DashboardPage::new();
-        assert!(!page.services().is_empty());
-        assert!(!page.jobs().is_empty());
+        assert_ne!(page.services(), Vec::<Service>::new());
+        assert_ne!(page.jobs(), Vec::<Job>::new());
     }
 
     #[test]
@@ -1837,7 +1837,7 @@ mod tests {
         let view = page.view(100, 40, &theme);
 
         // View should contain something (not empty)
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     #[test]

@@ -1575,7 +1575,7 @@ mod tests {
     #[test]
     fn jobs_page_creates_with_data() {
         let page = JobsPage::new();
-        assert!(!page.jobs.is_empty());
+        assert_ne!(page.jobs, Vec::<Job>::new());
         assert_eq!(page.jobs.len(), 20); // Default from generator
     }
 
@@ -1627,17 +1627,17 @@ mod tests {
         // Row has 7 columns: ID, Name, Kind, Status, Progress, Duration, Started (bd-3aio)
         assert_eq!(row.len(), 7);
         assert!(row[0].starts_with('#')); // ID
-        assert!(!row[1].is_empty()); // Name
-        assert!(!row[3].is_empty()); // Status with icon
+        assert_ne!(row[1], ""); // Name
+        assert_ne!(row[3], ""); // Status with icon
         // Progress column now shows status-aware format:
         // - Running: "50%" or "50% ~2m"
         // - Queued: "◌ queued"
         // - Completed: "✓ done"
         // - Failed: "✕ error"
         // - Cancelled: "⊘ cancel"
-        assert!(!row[4].is_empty()); // Progress cell is not empty
+        assert_ne!(row[4], ""); // Progress cell is not empty
         // Duration column (bd-3aio)
-        assert!(!row[5].is_empty()); // Duration cell is not empty
+        assert_ne!(row[5], ""); // Duration cell is not empty
     }
 
     // =========================================================================

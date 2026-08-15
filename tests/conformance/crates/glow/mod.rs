@@ -476,7 +476,7 @@ mod tests {
         let result = reader.render_markdown("# Hello World");
         assert!(result.is_ok());
         let output = result.unwrap();
-        assert!(!output.is_empty());
+        assert_ne!(output, "");
     }
 
     /// Test config builder methods
@@ -519,7 +519,7 @@ mod tests {
     #[test]
     fn test_stash_operations() {
         let mut stash = Stash::new();
-        assert!(stash.documents().is_empty());
+        assert_eq!(stash.documents(), Vec::<String>::new());
 
         stash.add("file1.md");
         assert_eq!(stash.documents().len(), 1);

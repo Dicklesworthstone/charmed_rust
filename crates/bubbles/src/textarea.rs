@@ -1327,8 +1327,8 @@ mod tests {
     #[test]
     fn test_keymap_default() {
         let km = KeyMap::default();
-        assert!(!km.character_forward.get_keys().is_empty());
-        assert!(!km.insert_newline.get_keys().is_empty());
+        assert_ne!(km.character_forward.get_keys(), Vec::<String>::new());
+        assert_ne!(km.insert_newline.get_keys(), Vec::<String>::new());
     }
 
     // Model trait implementation tests

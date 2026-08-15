@@ -1034,7 +1034,7 @@ fn test_session_basic() {
     let session = Session::new(ctx);
 
     assert_eq!(session.user(), "testuser");
-    assert!(session.command().is_empty());
+    assert_eq!(session.command(), Vec::<String>::new());
     assert!(session.public_key().is_none());
     assert!(session.subsystem().is_none());
 }

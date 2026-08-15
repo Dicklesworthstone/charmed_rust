@@ -2356,7 +2356,7 @@ mod tests {
         let theme = Theme::dark();
         let style = theme.style();
         // Style should be empty/default
-        assert!(style.value().is_empty());
+        assert_eq!(style.value(), "");
     }
 
     #[test]

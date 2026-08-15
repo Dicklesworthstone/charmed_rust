@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn test_binding_new() {
         let binding = Binding::new();
-        assert!(binding.get_keys().is_empty());
+        assert_eq!(binding.get_keys(), Vec::<String>::new());
         assert!(!binding.enabled());
     }
 
@@ -247,8 +247,8 @@ mod tests {
     fn test_binding_unbind() {
         let mut binding = Binding::new().keys(&["q"]).help("q", "quit");
         binding.unbind();
-        assert!(binding.get_keys().is_empty());
-        assert!(binding.get_help().key.is_empty());
+        assert_eq!(binding.get_keys(), Vec::<String>::new());
+        assert_eq!(binding.get_help().key, "");
     }
 
     #[test]

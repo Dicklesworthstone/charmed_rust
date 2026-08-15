@@ -58,7 +58,7 @@ fn test_form_initializes_in_simulator() {
 
     // Should have captured initial view
     assert!(sim.is_initialized());
-    assert!(!sim.views().is_empty());
+    assert_ne!(sim.views(), Vec::<String>::new());
 
     // View should contain the form
     let view = sim.last_view().unwrap();
@@ -73,7 +73,7 @@ fn test_form_shows_placeholder() {
 
     let view = sim.last_view().unwrap();
     // Placeholder might be rendered with styling, just check form renders
-    assert!(!view.is_empty());
+    assert_ne!(view, "");
 }
 
 // =============================================================================
@@ -142,7 +142,7 @@ fn test_form_tab_advances_field() {
     let after_tab = sim.last_view().unwrap();
     assert!(sim.stats().update_calls > 0);
     // The view should have been updated
-    assert!(!after_tab.is_empty());
+    assert_ne!(after_tab, "");
 }
 
 #[test]
@@ -387,7 +387,7 @@ fn test_multi_group_navigation() {
 
     // Initial view should show first group
     let initial = sim.last_view().unwrap();
-    assert!(!initial.is_empty());
+    assert_ne!(initial, "");
 
     // Navigate through fields to reach next group
     // (Tab moves between fields, completing a group may advance to next)

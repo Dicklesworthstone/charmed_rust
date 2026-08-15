@@ -865,7 +865,7 @@ mod performance_tests {
         // Process many view renders (frame advances naturally via tick messages)
         for _ in 0..1000 {
             let view = sim.model().view();
-            assert!(!view.is_empty());
+            assert_ne!(view, "");
         }
 
         let elapsed = start.elapsed();

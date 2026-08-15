@@ -467,7 +467,7 @@ mod tests {
     #[test]
     fn test_generate_diagnostics_not_empty() {
         let diag = generate_diagnostics();
-        assert!(!diag.is_empty());
+        assert_ne!(diag, "");
         assert!(diag.contains("DEMO SHOWCASE DIAGNOSTICS"));
         assert!(diag.contains("Version Information"));
         assert!(diag.contains("Environment"));

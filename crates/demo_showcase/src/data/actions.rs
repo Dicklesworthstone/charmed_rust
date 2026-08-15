@@ -904,7 +904,7 @@ mod tests {
         // Verify result
         assert!(result.changed);
         assert!(result.effects.is_empty());
-        assert!(result.alerts.is_empty());
+        assert_eq!(result.alerts, Vec::<Alert>::new());
 
         // Verify notification
         assert_eq!(result.notifications.len(), 1);

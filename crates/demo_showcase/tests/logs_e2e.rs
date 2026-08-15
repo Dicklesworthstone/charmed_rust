@@ -173,8 +173,8 @@ fn e2e_logs_scroll_navigation() {
 
     let after_scroll = runner.view();
     // Both views should be valid
-    assert!(!before_scroll.is_empty());
-    assert!(!after_scroll.is_empty());
+    assert_ne!(before_scroll, "");
+    assert_ne!(after_scroll, "");
 
     runner.finish().expect("logs scrolling should work");
 }
@@ -349,7 +349,7 @@ fn e2e_logs_clear_empties_viewer() {
 
     runner.step("Verify logs are present before clear");
     let before_clear = runner.view();
-    assert!(!before_clear.is_empty());
+    assert_ne!(before_clear, "");
     // Should have log content visible
     let has_log_content = before_clear.contains("INFO")
         || before_clear.contains("ERROR")
@@ -362,7 +362,7 @@ fn e2e_logs_clear_empties_viewer() {
 
     runner.step("Verify view is updated after clear");
     let after_clear = runner.view();
-    assert!(!after_clear.is_empty());
+    assert_ne!(after_clear, "");
 
     // If we had log content before, it should be different or empty now
     if has_log_content {

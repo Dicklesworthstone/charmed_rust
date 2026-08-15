@@ -692,7 +692,7 @@ mod tests {
         palette.selected = 5;
         palette.show();
         assert!(palette.visible);
-        assert!(palette.query.is_empty());
+        assert_eq!(palette.query, "");
         assert_eq!(palette.selected, 0);
     }
 
@@ -715,7 +715,7 @@ mod tests {
         let mut palette = CommandPalette::new();
         palette.query = "dashboard".to_string();
         palette.update_filter();
-        assert!(!palette.filtered_commands.is_empty());
+        assert_ne!(palette.filtered_commands, Vec::<usize>::new());
         // Should include the dashboard command
         assert!(
             palette
@@ -730,7 +730,7 @@ mod tests {
         let mut palette = CommandPalette::new();
         palette.query = "metrics".to_string();
         palette.update_filter();
-        assert!(!palette.filtered_commands.is_empty());
+        assert_ne!(palette.filtered_commands, Vec::<usize>::new());
         // "metrics" is a keyword for dashboard
         assert!(
             palette
@@ -838,18 +838,18 @@ mod tests {
 
     #[test]
     fn command_categories_have_icons() {
-        assert!(!CommandCategory::Navigation.icon().is_empty());
-        assert!(!CommandCategory::Settings.icon().is_empty());
-        assert!(!CommandCategory::View.icon().is_empty());
-        assert!(!CommandCategory::Utility.icon().is_empty());
+        assert_ne!(CommandCategory::Navigation.icon(), "");
+        assert_ne!(CommandCategory::Settings.icon(), "");
+        assert_ne!(CommandCategory::View.icon(), "");
+        assert_ne!(CommandCategory::Utility.icon(), "");
     }
 
     #[test]
     fn all_commands_have_required_fields() {
         for cmd in COMMANDS {
-            assert!(!cmd.id.is_empty());
-            assert!(!cmd.title.is_empty());
-            assert!(!cmd.description.is_empty());
+            assert_ne!(cmd.id, "");
+            assert_ne!(cmd.title, "");
+            assert_ne!(cmd.description, "");
         }
     }
 
@@ -858,7 +858,7 @@ mod tests {
         let palette = CommandPalette::new();
         let theme = Theme::dark();
         let view = palette.view(80, 24, &theme);
-        assert!(view.is_empty());
+        assert_eq!(view, "");
     }
 
     #[test]
@@ -867,7 +867,7 @@ mod tests {
         palette.show();
         let theme = Theme::dark();
         let view = palette.view(80, 24, &theme);
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
         assert!(view.contains("Command Palette"));
     }
 }

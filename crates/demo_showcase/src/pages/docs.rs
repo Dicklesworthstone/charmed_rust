@@ -971,7 +971,7 @@ mod tests {
         // Enter search mode
         page.enter_search();
         assert_eq!(page.focus, DocsFocus::Search);
-        assert!(page.search_query.is_empty());
+        assert_eq!(page.search_query, "");
 
         // Exit search mode
         page.exit_search();

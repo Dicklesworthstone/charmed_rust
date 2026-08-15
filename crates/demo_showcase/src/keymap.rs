@@ -616,13 +616,13 @@ mod tests {
 
     #[test]
     fn action_labels_are_nonempty() {
-        assert!(!action_label(KeyAction::Help).is_empty());
-        assert!(!action_label(KeyAction::Quit).is_empty());
+        assert_ne!(action_label(KeyAction::Help), "");
+        assert_ne!(action_label(KeyAction::Quit), "");
     }
 
     #[test]
     fn action_hints_are_nonempty() {
-        assert!(!action_hint(KeyAction::Help).is_empty());
-        assert!(!action_hint(KeyAction::Down).is_empty());
+        assert_ne!(action_hint(KeyAction::Help), "");
+        assert_ne!(action_hint(KeyAction::Down), "");
     }
 }

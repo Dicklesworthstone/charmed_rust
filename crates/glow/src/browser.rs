@@ -873,7 +873,7 @@ mod tests {
         browser.scan().unwrap();
 
         let view = browser.view();
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
         // Should contain help text
         assert!(view.contains("quit"));
     }

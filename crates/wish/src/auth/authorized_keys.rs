@@ -530,7 +530,7 @@ mod tests {
         let key = &keys[0];
         assert_eq!(key.key_type, "ssh-ed25519");
         assert_eq!(key.comment, Some("user@example.com".to_string()));
-        assert!(key.options.is_empty());
+        assert_eq!(key.options, Vec::<String>::new());
     }
 
     #[test]

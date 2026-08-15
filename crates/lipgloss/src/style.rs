@@ -2472,7 +2472,7 @@ mod tests {
 
         // Should render without panicking
         let rendered = style.render("Hello");
-        assert!(!rendered.is_empty());
+        assert_ne!(rendered, "");
         assert!(rendered.contains("Hello"));
     }
 

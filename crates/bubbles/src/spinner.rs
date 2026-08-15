@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn test_spinner_new() {
         let spinner = SpinnerModel::new();
-        assert!(!spinner.spinner.frames.is_empty());
+        assert_ne!(spinner.spinner.frames, Vec::<String>::new());
         assert!(spinner.id() > 0);
     }
 
@@ -325,7 +325,7 @@ mod tests {
     fn test_spinner_view() {
         let spinner = SpinnerModel::new();
         let view = spinner.view();
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     #[test]

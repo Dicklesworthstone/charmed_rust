@@ -1112,7 +1112,7 @@ mod tests {
         // The common case: BackTab with no modifiers reported by crossterm.
         let key = from_crossterm_key(KeyCode::BackTab, KeyModifiers::NONE);
         assert_eq!(key.key_type, KeyType::ShiftTab);
-        assert!(key.runes.is_empty());
+        assert_eq!(key.runes, Vec::<char>::new());
         assert!(!key.alt);
 
         // Some backends attach the SHIFT modifier to BackTab; still ShiftTab.

@@ -302,7 +302,7 @@ mod tests {
     fn notes_modal_creates() {
         let modal = NotesModal::new();
         assert!(!modal.is_open());
-        assert!(modal.content().is_empty());
+        assert_eq!(modal.content(), "");
     }
 
     #[test]
@@ -324,7 +324,7 @@ mod tests {
         assert_eq!(modal.content(), "Test note content");
 
         modal.clear();
-        assert!(modal.content().is_empty());
+        assert_eq!(modal.content(), "");
     }
 
     #[test]
@@ -352,7 +352,7 @@ mod tests {
         let modal = NotesModal::new();
         let theme = Theme::dark();
         let view = modal.view(&theme);
-        assert!(view.is_empty());
+        assert_eq!(view, "");
     }
 
     #[test]
@@ -361,7 +361,7 @@ mod tests {
         modal.open();
         let theme = Theme::dark();
         let view = modal.view(&theme);
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
         assert!(view.contains("Notes") || view.contains("save"));
     }
 
@@ -392,7 +392,7 @@ mod tests {
         modal.set_size(40, 10);
         let theme = Theme::dark();
         let view = modal.view_centered(&theme, 80, 24);
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
         // Should have some empty lines for centering
         assert!(view.lines().count() <= 24);
     }

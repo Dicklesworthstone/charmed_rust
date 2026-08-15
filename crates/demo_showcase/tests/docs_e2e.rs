@@ -97,8 +97,8 @@ fn e2e_docs_switch_between_documents() {
     let back_view = runner.view();
     // After going down and back up, the selection should be preserved
     // Views might differ slightly due to state changes, but both should be valid
-    assert!(!first_view.is_empty());
-    assert!(!back_view.is_empty());
+    assert_ne!(first_view, "");
+    assert_ne!(back_view, "");
 
     runner.finish().expect("docs switching should work");
 }
@@ -185,7 +185,7 @@ fn e2e_docs_search_finds_matches() {
     runner.step("Verify view updates (search results shown)");
     let search_view = runner.view();
     // The view should contain something after searching
-    assert!(!search_view.is_empty());
+    assert_ne!(search_view, "");
 
     runner.step("Exit search and verify view");
     runner.press_special(KeyType::Enter);
@@ -223,8 +223,8 @@ fn e2e_docs_search_match_navigation() {
     let after_n = runner.view();
 
     // Views may or may not visually differ, but no panic should occur
-    assert!(!before_n.is_empty());
-    assert!(!after_n.is_empty());
+    assert_ne!(before_n, "");
+    assert_ne!(after_n, "");
 
     runner.step("Navigate to previous match with N");
     runner.press_key('N');
@@ -250,7 +250,7 @@ fn e2e_docs_resize_reflow() {
 
     runner.step("Capture view at 120x40");
     let wide_view = runner.view();
-    assert!(!wide_view.is_empty());
+    assert_ne!(wide_view, "");
 
     runner.step("Resize to 80x24 (narrower)");
     runner.resize(80, 24);
@@ -258,7 +258,7 @@ fn e2e_docs_resize_reflow() {
 
     runner.step("Capture view at 80x24");
     let narrow_view = runner.view();
-    assert!(!narrow_view.is_empty());
+    assert_ne!(narrow_view, "");
 
     runner.step("Verify content differs (reflow occurred)");
     // The narrow view should have different content (more line wrapping)
@@ -276,7 +276,7 @@ fn e2e_docs_resize_reflow() {
 
     runner.step("Verify view is restored");
     let restored_view = runner.view();
-    assert!(!restored_view.is_empty());
+    assert_ne!(restored_view, "");
 
     runner.finish().expect("docs resize reflow should work");
 }
@@ -333,8 +333,8 @@ fn e2e_docs_resize_during_search() {
     let post_resize = runner.view();
 
     runner.step("Verify both views are valid");
-    assert!(!pre_resize.is_empty());
-    assert!(!post_resize.is_empty());
+    assert_ne!(pre_resize, "");
+    assert_ne!(post_resize, "");
 
     runner.step("Exit search and verify normal operation");
     runner.press_special(KeyType::Esc);
@@ -481,7 +481,7 @@ fn e2e_docs_toggle_syntax_highlighting() {
 
     runner.step("Capture view with syntax highlighting");
     let with_syntax = runner.view();
-    assert!(!with_syntax.is_empty());
+    assert_ne!(with_syntax, "");
 
     runner.step("Toggle syntax highlighting with 's'");
     runner.press_key('s');
@@ -489,7 +489,7 @@ fn e2e_docs_toggle_syntax_highlighting() {
 
     runner.step("Capture view without syntax highlighting");
     let without_syntax = runner.view();
-    assert!(!without_syntax.is_empty());
+    assert_ne!(without_syntax, "");
 
     // Views may differ due to different rendering
     // The main goal is no panic

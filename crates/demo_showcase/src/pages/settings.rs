@@ -1180,7 +1180,7 @@ mod tests {
         let theme = Theme::dark();
         let preview = SettingsPage::render_theme_preview(&theme, 50);
         // Preview should contain styled text (non-empty)
-        assert!(!preview.is_empty());
+        assert_ne!(preview, "");
     }
 
     #[test]

@@ -625,9 +625,9 @@ mod tests {
     #[test]
     fn tour_step_has_required_fields() {
         for step in TOUR_STEPS {
-            assert!(!step.title.is_empty());
-            assert!(!step.description.is_empty());
-            assert!(!step.feature.is_empty());
+            assert_ne!(step.title, "");
+            assert_ne!(step.description, "");
+            assert_ne!(step.feature, "");
         }
     }
 
@@ -729,7 +729,7 @@ mod tests {
         let tour = GuidedTour::new();
         let theme = Theme::dark();
         let view = tour.view(&theme, 80, 24);
-        assert!(view.is_empty());
+        assert_eq!(view, "");
     }
 
     #[test]
@@ -738,7 +738,7 @@ mod tests {
         tour.start();
         let theme = Theme::dark();
         let view = tour.view(&theme, 80, 24);
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     #[test]
@@ -797,7 +797,7 @@ mod tests {
     #[test]
     fn word_wrap_handles_empty() {
         let lines = word_wrap("", 20);
-        assert!(lines.is_empty());
+        assert_eq!(lines, Vec::<String>::new());
     }
 
     #[test]

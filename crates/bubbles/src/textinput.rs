@@ -996,10 +996,10 @@ mod tests {
     fn test_textinput_reset() {
         let mut input = TextInput::new();
         input.set_value("hello");
-        assert!(!input.value.is_empty());
+        assert_ne!(input.value, Vec::<char>::new());
 
         input.reset();
-        assert!(input.value.is_empty());
+        assert_eq!(input.value, Vec::<char>::new());
     }
 
     #[test]
@@ -1011,11 +1011,11 @@ mod tests {
 
         input.set_value("ap");
         assert!(input.err.is_some());
-        assert!(!input.matched_suggestions().is_empty());
+        assert_ne!(input.matched_suggestions(), Vec::<String>::new());
 
         input.reset();
         assert!(input.err.is_none());
-        assert!(input.matched_suggestions().is_empty());
+        assert_eq!(input.matched_suggestions(), Vec::<String>::new());
     }
 
     #[test]
@@ -1127,8 +1127,11 @@ mod tests {
     #[test]
     fn test_keymap_default() {
         let km = KeyMap::default();
-        assert!(!km.character_forward.get_keys().is_empty());
-        assert!(!km.delete_character_backward.get_keys().is_empty());
+        assert_ne!(km.character_forward.get_keys(), Vec::<String>::new());
+        assert_ne!(
+            km.delete_character_backward.get_keys(),
+            Vec::<String>::new()
+        );
     }
 
     // Model trait implementation tests

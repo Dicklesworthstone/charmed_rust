@@ -131,7 +131,7 @@ mod spinner_tests {
         let next_view = spinner.view();
         // The frame should have advanced (views may differ)
         // At minimum, update should succeed without panic
-        assert!(!next_view.is_empty());
+        assert_ne!(next_view, "");
         // Note: initial and next views might be the same if it cycled back
         let _ = initial_view;
     }
@@ -236,7 +236,7 @@ mod progress_tests {
         let mut progress = Progress::new();
         progress.set_percent(0.0);
         let view = progress.view();
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     #[test]
@@ -244,7 +244,7 @@ mod progress_tests {
         let mut progress = Progress::new();
         progress.set_percent(1.0);
         let view = progress.view();
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     #[test]
@@ -646,8 +646,8 @@ mod combination_tests {
         let vp_view = viewport.view();
         let pg_view = paginator.view();
 
-        assert!(!vp_view.is_empty());
-        assert!(!pg_view.is_empty());
+        assert_ne!(vp_view, "");
+        assert_ne!(pg_view, "");
     }
 
     /// Test timer and stopwatch can coexist.
@@ -660,8 +660,8 @@ mod combination_tests {
         let stopwatch_view = stopwatch.view();
 
         // Both should render time representations
-        assert!(!timer_view.is_empty());
-        assert!(!stopwatch_view.is_empty());
+        assert_ne!(timer_view, "");
+        assert_ne!(stopwatch_view, "");
     }
 
     /// Test table with progress bar (loading state simulation).
@@ -698,7 +698,7 @@ mod edge_case_tests {
     fn test_empty_textinput() {
         let input = TextInput::new();
         assert_eq!(input.value(), "");
-        assert!(!input.view().is_empty()); // Should still show prompt
+        assert_ne!(input.view(), ""); // Should still show prompt
     }
 
     #[test]
@@ -728,7 +728,7 @@ mod edge_case_tests {
         progress.set_percent(1.5); // Over 100%
         let view = progress.view();
         // Should handle gracefully
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     #[test]
@@ -737,7 +737,7 @@ mod edge_case_tests {
         progress.set_percent(-0.5);
         let view = progress.view();
         // Should handle gracefully
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     #[test]

@@ -932,22 +932,18 @@ mod async_pattern_e2e {
                         self.loading = true;
                         self.error = None;
                         // In real app: return async command to fetch data
-                        None
                     }
                     LoaderMsg::DataLoaded(data) => {
                         self.loading = false;
                         self.data = Some(data.clone());
-                        None
                     }
                     LoaderMsg::Error(err) => {
                         self.loading = false;
                         self.error = Some(err.clone());
-                        None
                     }
                 }
-            } else {
-                None
             }
+            None
         }
 
         fn view(&self) -> String {

@@ -382,7 +382,7 @@ mod tests {
         let page = ServicesPage::new();
         let theme = Theme::default();
         let view = page.view(120, 40, &theme);
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
         assert!(view.contains("Services"));
     }
 }

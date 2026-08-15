@@ -33,6 +33,7 @@ Repository: <https://github.com/Dicklesworthstone/charmed_rust>
 ### Dependencies
 
 - Upgraded dependencies, refreshed benchmarks and test snapshots ([`0e51a1c`](https://github.com/Dicklesworthstone/charmed_rust/commit/0e51a1c857d6ec8b81dd5b3ecea77281545bef30), [`c283ad0`](https://github.com/Dicklesworthstone/charmed_rust/commit/c283ad0d73904682daeb3da3954bedc4f1f3330d))
+- **Security:** bumped `lru` 0.12 → 0.18 in charmed-glamour and the workspace, resolving RUSTSEC-2026-0002 and RUSTSEC-2026-0253 (both fixed in `lru` >= 0.17) ([`9af126b`](https://github.com/Dicklesworthstone/charmed_rust/commit/9af126bbaae0b9ef41c9f48d6e29e690f0af1c5d)). The fix is unpublished: crates.io still serves charmed-glamour 0.2.0 with `lru` 0.12.5, so downstream consumers (e.g. pi_agent_rust) keep failing `cargo audit` until a new charmed-* release is published.
 
 ### Housekeeping
 

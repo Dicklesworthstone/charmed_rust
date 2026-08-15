@@ -433,7 +433,7 @@ mod tests {
         let result = reader.render_markdown("# Hello World");
         assert!(result.is_ok());
         let output = result.unwrap();
-        assert!(!output.is_empty());
+        assert_ne!(output, "");
     }
 
     #[test]
@@ -492,13 +492,13 @@ fn main() {}
     #[test]
     fn stash_new_is_empty() {
         let stash = Stash::new();
-        assert!(stash.documents().is_empty());
+        assert_eq!(stash.documents(), Vec::<String>::new());
     }
 
     #[test]
     fn stash_default_is_empty() {
         let stash = Stash::default();
-        assert!(stash.documents().is_empty());
+        assert_eq!(stash.documents(), Vec::<String>::new());
     }
 
     #[test]

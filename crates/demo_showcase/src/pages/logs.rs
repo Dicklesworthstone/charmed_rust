@@ -1040,7 +1040,7 @@ mod tests {
         page.apply_filters();
 
         // Should find some matches
-        assert!(!page.filtered_indices.is_empty());
+        assert_ne!(page.filtered_indices, Vec::<usize>::new());
     }
 
     #[test]

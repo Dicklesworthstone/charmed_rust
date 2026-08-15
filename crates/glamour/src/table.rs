@@ -2163,7 +2163,7 @@ Some text between tables.
         let cells: Vec<TableCell> = vec![];
         let widths: Vec<usize> = vec![];
         let aligned = align_row(&cells, &widths, 1);
-        assert!(aligned.is_empty());
+        assert_eq!(aligned, Vec::<String>::new());
     }
 
     #[test]
@@ -2323,14 +2323,14 @@ Some text between tables.
     fn test_no_border() {
         let widths = vec![5, 5];
         let result = render_horizontal_border(&widths, &NO_BORDER, BorderPosition::Top, 1);
-        assert!(result.is_empty());
+        assert_eq!(result, "");
     }
 
     #[test]
     fn test_empty_widths() {
         let widths: Vec<usize> = vec![];
         let result = render_horizontal_border(&widths, &ASCII_BORDER, BorderPosition::Top, 1);
-        assert!(result.is_empty());
+        assert_eq!(result, "");
     }
 
     #[test]
@@ -2460,7 +2460,7 @@ Some text between tables.
         let table = ParsedTable::default();
         let config = TableRenderConfig::default();
         let rendered = render_table(&table, &config);
-        assert!(rendered.is_empty());
+        assert_eq!(rendered, "");
     }
 
     #[test]
@@ -2636,7 +2636,7 @@ Some text between tables.
         let config = TableRenderConfig::default();
         let style = HeaderStyle::new().bold();
         let rendered = render_styled_table(&table, &config, Some(&style));
-        assert!(rendered.is_empty());
+        assert_eq!(rendered, "");
     }
 
     #[test]
@@ -2799,7 +2799,7 @@ Some text between tables.
         // Render the full table — should not panic
         let render_config = TableRenderConfig::default();
         let rendered = render_table(&table, &render_config);
-        assert!(!rendered.is_empty());
+        assert_ne!(rendered, "");
     }
 
     #[test]
@@ -2811,7 +2811,7 @@ Some text between tables.
         let widths = vec![0, 0];
         // Should not panic; cells will just show full content (pad_content returns as-is)
         let row = render_data_row(&cells, &widths, &ROUNDED_BORDER, 1);
-        assert!(!row.is_empty());
+        assert_ne!(row, "");
     }
 
     #[test]
@@ -2838,7 +2838,7 @@ Some text between tables.
         let widths = vec![0, 0, 0];
         let result = render_horizontal_border(&widths, &ROUNDED_BORDER, BorderPosition::Top, 1);
         // Should not panic; renders border structure with just padding
-        assert!(!result.is_empty());
+        assert_ne!(result, "");
     }
 
     #[test]
@@ -3017,7 +3017,7 @@ Some text between tables.
         // Full render should not panic
         let render_config = TableRenderConfig::default();
         let rendered = render_table(&table, &render_config);
-        assert!(!rendered.is_empty());
+        assert_ne!(rendered, "");
     }
 
     #[test]

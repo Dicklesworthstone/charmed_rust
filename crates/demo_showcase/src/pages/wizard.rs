@@ -1635,8 +1635,8 @@ mod tests {
         page.reset();
 
         assert_eq!(page.state.step, 0);
-        assert!(page.state.name.is_empty());
-        assert!(page.state.env_vars.is_empty());
+        assert_eq!(page.state.name, "");
+        assert_eq!(page.state.env_vars, Vec::<usize>::new());
     }
 
     #[test]

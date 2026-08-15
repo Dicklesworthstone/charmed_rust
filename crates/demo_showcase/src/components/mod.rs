@@ -393,7 +393,7 @@ mod tests {
     fn chip_without_label() {
         let theme = test_theme();
         let result = chip(&theme, StatusLevel::Error, "");
-        assert!(!result.is_empty());
+        assert_ne!(result, "");
     }
 
     #[test]
@@ -454,7 +454,7 @@ mod tests {
         let result = divider(&theme, 20);
         // The rendered string includes ANSI codes, so we can't directly check length
         // But we can verify it's not empty
-        assert!(!result.is_empty());
+        assert_ne!(result, "");
     }
 
     #[test]

@@ -6,7 +6,6 @@
 #![forbid(unsafe_code)]
 #![expect(
     clippy::items_after_statements,
-    clippy::float_cmp,
     clippy::uninlined_format_args,
     clippy::single_char_pattern
 )]

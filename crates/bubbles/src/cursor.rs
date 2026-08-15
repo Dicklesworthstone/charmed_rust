@@ -355,7 +355,7 @@ mod tests {
 
         // When blinking off (default), should render with text style
         let view = cursor.view();
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     fn strip_ansi(s: &str) -> String {

@@ -199,7 +199,7 @@ mod tests {
             let page = pages.get_mut(page_type);
             // Verify view() doesn't panic
             let view = page.view(80, 24, &theme);
-            assert!(!view.is_empty());
+            assert_ne!(view, "");
         }
     }
 

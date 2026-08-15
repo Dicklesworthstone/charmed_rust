@@ -230,7 +230,7 @@ mod tests {
     fn test_context_creation() {
         let ctx = TestContext::new();
         assert!(!ctx.has_failures);
-        assert!(ctx.test_name.is_empty());
+        assert_eq!(ctx.test_name, "");
     }
 
     #[test]

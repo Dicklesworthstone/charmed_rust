@@ -613,7 +613,7 @@ mod tests {
     fn test_table_new() {
         let table = Table::new();
         assert!(table.get_columns().is_empty());
-        assert!(table.get_rows().is_empty());
+        assert_eq!(table.get_rows(), Vec::<Row>::new());
         assert!(!table.is_focused());
     }
 
@@ -753,8 +753,8 @@ mod tests {
     #[test]
     fn test_keymap_default() {
         let km = KeyMap::default();
-        assert!(!km.line_up.get_keys().is_empty());
-        assert!(!km.goto_bottom.get_keys().is_empty());
+        assert_ne!(km.line_up.get_keys(), Vec::<String>::new());
+        assert_ne!(km.goto_bottom.get_keys(), Vec::<String>::new());
     }
 
     // Model trait implementation tests
@@ -997,7 +997,7 @@ mod tests {
 
         // View should still render correctly
         let view = table.view();
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
         assert!(
             view.contains("Solo") || view.contains("Row"),
             "Single column table should render"
@@ -1013,7 +1013,7 @@ mod tests {
         use bubbletea::{KeyMsg, KeyType, Message};
 
         let mut table = Table::new().focused(true);
-        assert!(table.rows.is_empty());
+        assert_eq!(table.rows, Vec::<Row>::new());
         assert_eq!(table.cursor(), 0);
 
         // Navigation on empty table should not panic
@@ -1055,7 +1055,7 @@ mod tests {
         let view = table.view();
 
         // View should be non-empty and contain column headers
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
         // The view includes headers that should be visible
         assert!(view.contains("Short") || view.contains("Longer"));
     }
@@ -1085,7 +1085,7 @@ mod tests {
         let view = table.view();
 
         // Content should be truncated in view (not crash)
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     #[test]

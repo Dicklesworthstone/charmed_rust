@@ -1359,7 +1359,7 @@ mod tests {
             assert!(alert.id > 0);
 
             // Dedupe key should not be empty
-            assert!(!alert.dedupe_key.is_empty());
+            assert_ne!(alert.dedupe_key, "");
 
             // Severity should be valid (this is enforced by enum)
             let _ = alert.severity.name(); // Should not panic
@@ -1376,8 +1376,8 @@ mod tests {
             assert!(log.id > 0);
 
             // Target and message should not be empty
-            assert!(!log.target.is_empty());
-            assert!(!log.message.is_empty());
+            assert_ne!(log.target, "");
+            assert_ne!(log.message, "");
         }
     }
 
@@ -1667,8 +1667,8 @@ mod tests {
         // The returned changes should be the ones that were pending
         // (we can't assert exact count since it depends on random simulation)
         for change in changes {
-            assert!(!change.metric_name.is_empty());
-            assert!(!change.reason.is_empty());
+            assert_ne!(change.metric_name, "");
+            assert_ne!(change.reason, "");
         }
     }
 

@@ -485,7 +485,7 @@ fn test_form_validation_flow() {
 
     form.update(Message::new(FormMsg::Submit));
     assert!(form.submitted);
-    assert!(form.errors.is_empty());
+    assert_eq!(form.errors, Vec::<String>::new());
 
     // View shows success
     let view = form.view();

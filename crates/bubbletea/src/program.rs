@@ -2229,7 +2229,7 @@ mod tests {
             assert_eq!(len, input.len());
             let key = msg.downcast_ref::<KeyMsg>().unwrap();
             assert!(key.paste);
-            assert!(key.runes.is_empty());
+            assert_eq!(key.runes, Vec::<char>::new());
         } else {
             panic!("Expected Parsed outcome");
         }

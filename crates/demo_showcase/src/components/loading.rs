@@ -532,7 +532,7 @@ mod tests {
         spinner.start(true);
         let theme = test_theme();
         let view = spinner.view(&theme, true);
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     #[test]
@@ -557,7 +557,7 @@ mod tests {
         ] {
             let spinner = LoadingSpinner::new().style(style);
             let view = spinner.view(&theme, false);
-            assert!(!view.is_empty());
+            assert_ne!(view, "");
         }
     }
 
@@ -572,7 +572,7 @@ mod tests {
         let line = SkeletonLine::new(10);
         let theme = test_theme();
         let view = line.view(&theme, false);
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     #[test]

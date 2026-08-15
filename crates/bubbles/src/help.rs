@@ -495,7 +495,7 @@ mod tests {
     fn test_help_model_view_empty_bindings() {
         let help = Help::new();
         let view = Model::view(&help);
-        assert!(view.is_empty());
+        assert_eq!(view, "");
     }
 
     #[test]
@@ -585,7 +585,7 @@ mod tests {
         let view = help.full_help_view(&groups);
         // With width=30, not all groups should fit
         // Exact behavior depends on column width calculation
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     #[test]

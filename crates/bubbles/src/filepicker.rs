@@ -759,7 +759,7 @@ mod tests {
     #[test]
     fn test_filepicker_new() {
         let fp = FilePicker::new();
-        assert!(fp.allowed_types.is_empty());
+        assert_eq!(fp.allowed_types, Vec::<String>::new());
         assert!(fp.show_permissions);
         assert!(fp.show_size);
         assert!(!fp.show_hidden);
@@ -844,9 +844,9 @@ mod tests {
     #[test]
     fn test_keymap_default() {
         let km = KeyMap::default();
-        assert!(!km.up.get_keys().is_empty());
-        assert!(!km.down.get_keys().is_empty());
-        assert!(!km.open.get_keys().is_empty());
+        assert_ne!(km.up.get_keys(), Vec::<String>::new());
+        assert_ne!(km.down.get_keys(), Vec::<String>::new());
+        assert_ne!(km.open.get_keys(), Vec::<String>::new());
     }
 
     #[test]

@@ -5626,7 +5626,7 @@ mod tests {
 
         let footer = group.footer();
         // No errors, so footer should be empty
-        assert!(footer.is_empty());
+        assert_eq!(footer, "");
     }
 
     #[test]
@@ -5635,7 +5635,7 @@ mod tests {
 
         // No errors initially
         let errors = form.all_errors();
-        assert!(errors.is_empty());
+        assert_eq!(errors, Vec::<String>::new());
     }
 
     // Word transformation tests matching Go bubbles/textarea behavior
@@ -6316,7 +6316,7 @@ mod tests {
         let picker = filepicker_with_entries(vec![]);
         // Should render without panic even with no files
         let view = picker.view();
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     #[test]
@@ -6469,7 +6469,7 @@ mod tests {
     fn select_filtered_indices_no_match() {
         let mut sel = make_filterable_select();
         sel.filter_value = "zzz".to_string();
-        assert!(sel.filtered_indices().is_empty());
+        assert_eq!(sel.filtered_indices(), Vec::<usize>::new());
     }
 
     #[test]

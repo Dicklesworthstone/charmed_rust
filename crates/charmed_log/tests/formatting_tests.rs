@@ -440,7 +440,7 @@ fn options_default_values() {
     assert!(!opts.report_timestamp);
     assert!(!opts.report_caller);
     assert_eq!(opts.caller_offset, 0);
-    assert!(opts.fields.is_empty());
+    assert_eq!(opts.fields, Vec::<(String, String)>::new());
     assert_eq!(opts.formatter, Formatter::Text);
     assert_eq!(opts.time_format, DEFAULT_TIME_FORMAT);
 }
@@ -532,11 +532,11 @@ fn keys_constants_defined() {
 
 #[test]
 fn keys_constants_non_empty() {
-    assert!(!keys::TIMESTAMP.is_empty());
-    assert!(!keys::MESSAGE.is_empty());
-    assert!(!keys::LEVEL.is_empty());
-    assert!(!keys::CALLER.is_empty());
-    assert!(!keys::PREFIX.is_empty());
+    assert_ne!(keys::TIMESTAMP, "");
+    assert_ne!(keys::MESSAGE, "");
+    assert_ne!(keys::LEVEL, "");
+    assert_ne!(keys::CALLER, "");
+    assert_ne!(keys::PREFIX, "");
 }
 
 #[test]
@@ -563,7 +563,7 @@ fn default_time_format_is_valid() {
     // Should be parseable by chrono
     let now = chrono::Utc::now();
     let formatted = now.format(DEFAULT_TIME_FORMAT).to_string();
-    assert!(!formatted.is_empty());
+    assert_ne!(formatted, "");
     // Should look like "2026/01/28 12:34:56"
     assert!(
         formatted.len() >= 19,

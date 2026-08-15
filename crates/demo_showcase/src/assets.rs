@@ -225,13 +225,13 @@ mod tests {
 
     #[test]
     fn docs_welcome_not_empty() {
-        assert!(!docs::WELCOME.is_empty());
+        assert_ne!(docs::WELCOME, "");
         assert!(docs::WELCOME.contains("Welcome"));
     }
 
     #[test]
     fn docs_architecture_not_empty() {
-        assert!(!docs::ARCHITECTURE.is_empty());
+        assert_ne!(docs::ARCHITECTURE, "");
         assert!(docs::ARCHITECTURE.contains("Architecture"));
     }
 
@@ -244,13 +244,13 @@ mod tests {
 
     #[test]
     fn fixtures_config_not_empty() {
-        assert!(!fixtures::config::APP_TOML.is_empty());
+        assert_ne!(fixtures::config::APP_TOML, "");
         assert!(fixtures::config::APP_TOML.contains("[server]"));
     }
 
     #[test]
     fn fixtures_log_not_empty() {
-        assert!(!fixtures::logs::APP_LOG.is_empty());
+        assert_ne!(fixtures::logs::APP_LOG, "");
         assert!(fixtures::logs::APP_LOG.contains("INFO"));
     }
 

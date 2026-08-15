@@ -1254,7 +1254,7 @@ mod tests {
     fn test_logger_new() {
         let logger = Logger::new();
         assert_eq!(logger.level(), Level::Info);
-        assert!(logger.prefix().is_empty());
+        assert_eq!(logger.prefix(), "");
     }
 
     #[test]
@@ -1276,7 +1276,7 @@ mod tests {
         let logger = Logger::new();
         let prefixed = logger.with_prefix("myapp");
         assert_eq!(prefixed.prefix(), "myapp");
-        assert!(logger.prefix().is_empty()); // Original unchanged
+        assert_eq!(logger.prefix(), ""); // Original unchanged
     }
 
     #[test]
@@ -1306,7 +1306,7 @@ mod tests {
         // verify it doesn't panic
         if let Some(caller) = info {
             // In debug builds, we should get meaningful info
-            assert!(!caller.function.is_empty());
+            assert_ne!(caller.function, "");
         }
     }
 

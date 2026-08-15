@@ -626,7 +626,7 @@ mod tests {
         let color = JsColor::from_ansi(196);
         // ANSI 196 is bright red, hex representation depends on mapping
         let hex = color.to_hex();
-        assert!(!hex.is_empty());
+        assert_ne!(hex, "");
     }
 
     #[test]

@@ -449,7 +449,7 @@ mod tests {
         let p = Progress::new().width(20).without_percentage();
         let view = p.view_as(0.5);
         // Should have some filled and empty chars
-        assert!(!view.is_empty());
+        assert_ne!(view, "");
     }
 
     #[test]

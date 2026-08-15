@@ -1314,8 +1314,8 @@ mod tests {
     #[test]
     fn test_keymap_default() {
         let km = KeyMap::default();
-        assert!(!km.cursor_up.get_keys().is_empty());
-        assert!(!km.filter.get_keys().is_empty());
+        assert_ne!(km.cursor_up.get_keys(), Vec::<String>::new());
+        assert_ne!(km.filter.get_keys(), Vec::<String>::new());
     }
 
     #[test]

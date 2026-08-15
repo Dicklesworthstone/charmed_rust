@@ -170,7 +170,7 @@ fn hex_color_bg_degrades_correctly_across_all_profiles() {
     assert!(is_valid_16, "Ansi 16 bg: {a16:?}");
 
     let ascii = color.to_ansi_bg(ColorProfile::Ascii, true);
-    assert!(ascii.is_empty());
+    assert_eq!(ascii, "");
 }
 
 #[test]
@@ -188,8 +188,8 @@ fn rgb_color_degrades_correctly() {
         || (90..=97).any(|n| a16 == format!("\x1b[{n}m"));
     assert!(is_16, "Ansi 16: {a16:?}");
 
-    assert!(color.to_ansi_fg(ColorProfile::Ascii, true).is_empty());
-    assert!(color.to_ansi_bg(ColorProfile::Ascii, true).is_empty());
+    assert_eq!(color.to_ansi_fg(ColorProfile::Ascii, true), "");
+    assert_eq!(color.to_ansi_bg(ColorProfile::Ascii, true), "");
 }
 
 #[test]
@@ -205,7 +205,7 @@ fn ansi_color_type_degrades_correctly() {
         || (90..=97).any(|n| a16 == format!("\x1b[{n}m"));
     assert!(is_16, "AnsiColor 196 degrades to 16: {a16:?}");
 
-    assert!(color.to_ansi_fg(ColorProfile::Ascii, true).is_empty());
+    assert_eq!(color.to_ansi_fg(ColorProfile::Ascii, true), "");
 }
 
 #[test]
@@ -369,8 +369,8 @@ fn adaptive_color_respects_color_profile() {
     };
 
     // Ascii → empty regardless of bg
-    assert!(ac.to_ansi_fg(ColorProfile::Ascii, true).is_empty());
-    assert!(ac.to_ansi_fg(ColorProfile::Ascii, false).is_empty());
+    assert_eq!(ac.to_ansi_fg(ColorProfile::Ascii, true), "");
+    assert_eq!(ac.to_ansi_fg(ColorProfile::Ascii, false), "");
 
     // Ansi → 16-color
     let dark_ansi = ac.to_ansi_fg(ColorProfile::Ansi, true);
@@ -414,7 +414,7 @@ fn complete_color_selects_correct_profile_field() {
     assert_eq!(a16, "\x1b[32m"); // color 2 = green = \x1b[32m
 
     let ascii = cc.to_ansi_fg(ColorProfile::Ascii, true);
-    assert!(ascii.is_empty());
+    assert_eq!(ascii, "");
 }
 
 #[test]
@@ -492,8 +492,8 @@ fn complete_adaptive_color_combines_profile_and_bg() {
     assert_eq!(light_16, "\x1b[30m"); // color 0 = black
 
     // Ascii → always empty
-    assert!(cac.to_ansi_fg(ColorProfile::Ascii, true).is_empty());
-    assert!(cac.to_ansi_fg(ColorProfile::Ascii, false).is_empty());
+    assert_eq!(cac.to_ansi_fg(ColorProfile::Ascii, true), "");
+    assert_eq!(cac.to_ansi_fg(ColorProfile::Ascii, false), "");
 }
 
 // ===========================================================================
@@ -1190,7 +1190,7 @@ fn color_invalid_string_produces_empty() {
 fn color_empty_string_produces_empty() {
     let c = Color::new("");
     let seq = c.to_ansi_fg(ColorProfile::TrueColor, true);
-    assert!(seq.is_empty());
+    assert_eq!(seq, "");
 }
 
 // ===========================================================================

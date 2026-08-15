@@ -597,8 +597,15 @@ mod harness_tests {
             regression_threshold: 0.10,
         });
 
+        // Do enough work per iteration to exceed the platform timer resolution
+        // (a no-op body can legitimately measure 0ns on Apple Silicon's ~41ns
+        // clock granularity, which would make `min > 0` fail spuriously).
         let result = ctx.bench("outlier_test", || {
-            let _ = black_box(42);
+            let mut acc = 0u64;
+            for i in 0..10_000u64 {
+                acc = acc.wrapping_add(black_box(i));
+            }
+            let _ = black_box(acc);
         });
 
         // Stats should still be valid
