@@ -79,7 +79,7 @@ pulldown-cmark = "0.13"
 # in trait impls natively. Mixing `#[async_trait]` on the impl side
 # while the trait uses native AFIT triggers E0195 lifetime mismatches
 # on every method. See charmed_rust#44.
-russh = "0.62"
+russh = "0.63"
 # `russh-keys` is intentionally absent. russh 0.60 re-exports its key
 # types via `russh::keys::*` from `internal-russh-forked-ssh-key`;
 # pulling in standalone `russh-keys` resolves to a different `ssh_key`
