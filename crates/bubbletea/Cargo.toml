@@ -41,7 +41,13 @@ thread-pool = ["dep:rayon"]
 [dev-dependencies]
 criterion.workspace = true
 lipgloss = { workspace = true }
-bubbles = { workspace = true }
+# Path-only on purpose: charmed-bubbles normal-depends on charmed-bubbletea, so the
+# two cannot both carry versioned references at publish time — cargo would need
+# charmed-bubbles ^0.2.3 to already exist on crates.io in order to package
+# charmed-bubbletea, which cannot happen because bubbles is published after it.
+# A dev-dependency with a path and no version is dropped from the published
+# manifest, which breaks the cycle without changing anything locally.
+bubbles = { package = "charmed-bubbles", path = "../bubbles" }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 proptest.workspace = true
