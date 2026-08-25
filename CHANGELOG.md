@@ -9,9 +9,56 @@ Repository: <https://github.com/Dicklesworthstone/charmed_rust>
 
 ---
 
-## [Unreleased] — after v0.2.0
+## [Unreleased] — after v0.2.3
 
-[Unreleased]: https://github.com/Dicklesworthstone/charmed_rust/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Dicklesworthstone/charmed_rust/compare/v0.2.3...HEAD
+
+## [v0.2.3] — 2026-08-25 (GitHub Release)
+
+[v0.2.3]: https://github.com/Dicklesworthstone/charmed_rust/compare/v0.2.0...v0.2.3
+
+**This is the first published release since v0.2.0.** Tags `v0.2.1` and `v0.2.2` exist but
+never had a GitHub Release or a crates.io publish behind them, so every consumer — and every
+self-updater, which compares against *published releases* — has been pinned to v0.2.0 while
+the repository moved 66 commits ahead. v0.2.3 supersedes both tags rather than backfilling
+them: neither is reliably buildable today (see *Toolchain* below). The tags are left in place
+and untouched.
+
+Everything in the former "Unreleased — after v0.2.0" section ships here, including both
+security fixes below.
+
+### Security
+
+- **`lru` 0.12 → 0.18** in charmed-glamour and the workspace, resolving **RUSTSEC-2026-0002**
+  and **RUSTSEC-2026-0253**. This fix has existed in the tree but was unreachable: crates.io
+  still served charmed-glamour 0.2.0 built against `lru` 0.12.5, so downstream consumers were
+  failing `cargo audit` with no published version to move to. Publishing 0.2.3 is what
+  actually delivers it.
+- **`russh` 0.60.3 → 0.62.6** across the v0.2.1/v0.2.2 range and into this release, covering
+  **CVE-2026-46673**.
+
+### Toolchain
+
+- **Pinned the nightly channel by date (`nightly-2026-08-20`).** `rust-toolchain.toml`
+  previously specified a floating `channel = "nightly"`. As of 2026-08-22 that resolves to
+  `rustc 1.100.0-nightly (c54751567)`, which ICEs building charmed-wish — 23 instances of
+  `internal compiler error: unexpected rigid alias in layout_of after normalization`, across
+  opaque types from charmed-wish, russh and tokio, ending in
+  `could not compile charmed-wish (lib)`. Nothing in this repository was wrong; the compiler
+  was. But a floating channel means an upstream regression lands here with no warning and no
+  reproducible green build. The dated pin clears it completely (0 ICEs), and matches what the
+  sibling repositories already do.
+- Because `rust-toolchain.toml` did not exist at all at `v0.2.0`/`v0.2.1`/`v0.2.2`, building
+  those tags today picks up whatever nightly the machine has — currently the ICEing one.
+  That is why this release supersedes rather than backfills.
+
+### Fixed
+
+- Internal workspace dependency declarations were pinned at `version = "0.2.0"` while the
+  workspace itself was at `0.2.2`. All twelve now track the released version, so a published
+  crate no longer declares `^0.2.0` on its siblings — which would have let a consumer resolve
+  back to the pre-security-fix 0.2.0.
+
 
 ### Rendering
 
