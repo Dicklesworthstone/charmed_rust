@@ -1,3 +1,20 @@
+# Pinned by DATE, deliberately — do not revert this to a bare `channel = "nightly"`.
+#
+# A floating nightly means an upstream rustc regression lands here with no warning
+# and no reproducible green build. That is not hypothetical for this repository:
+# rustc 1.100.0-nightly (c54751567, 2026-08-22) ICEs building charmed-wish with
+# 23 instances of
+#
+#   internal compiler error: unexpected rigid alias in layout_of after normalization
+#
+# across opaque types from charmed-wish, russh and tokio, ending in
+# `could not compile charmed-wish (lib)`. Nothing in this repository was wrong; the
+# compiler was. nightly-2026-08-20 builds it cleanly (0 ICEs, clippy -D warnings
+# exits 0, 2296 tests pass).
+#
+# Advancing the pin is a deliberate step: bump the date, run the full gate
+# (fmt + clippy -D warnings + test --workspace), and keep the new date only if green.
+# See the Toolchain section of CHANGELOG.md v0.2.3.
 [toolchain]
 channel = "nightly-2026-08-20"
 components = ["rustfmt", "clippy"]
