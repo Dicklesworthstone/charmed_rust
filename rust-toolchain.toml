@@ -9,12 +9,12 @@
 #
 # across opaque types from charmed-wish, russh and tokio, ending in
 # `could not compile charmed-wish (lib)`. Nothing in this repository was wrong; the
-# compiler was. nightly-2026-08-20 builds it cleanly (0 ICEs, clippy -D warnings
+# compiler was. nightly-2026-08-25 builds it cleanly (0 ICEs, clippy -D warnings
 # exits 0, 2296 tests pass).
 #
 # Advancing the pin is a deliberate step: bump the date, run the full gate
 # (fmt + clippy -D warnings + test --workspace), and keep the new date only if green.
 # See the Toolchain section of CHANGELOG.md v0.2.3.
 [toolchain]
-channel = "nightly-2026-08-20"
+channel = "nightly-2026-08-25"
 components = ["rustfmt", "clippy"]
