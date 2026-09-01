@@ -3018,7 +3018,7 @@ mod tests {
         assert_eq!(writer.flush_count(), 1);
         assert_eq!(writer.events.last(), Some(&WriterEvent::Flush));
         let frame = String::from_utf8(writer.bytes_before_first_flush()).unwrap();
-        assert_eq!(frame, format!("\x1b[2;1H{CLEAR_LINE}\x1b[3;1H{CLEAR_LINE}"),);
+        assert_eq!(frame, format!("\x1b[2;1H{CLEAR_LINE}\x1b[3;1H{CLEAR_LINE}"));
     }
 
     #[test]
@@ -3041,7 +3041,7 @@ mod tests {
         let frame = String::from_utf8(writer.bytes_before_first_flush()).unwrap();
         // Rewind 2 rows, column 0, clear to end of screen, then the content
         // with `\r\n` line joins -- all before the single flush.
-        assert_eq!(frame, format!("\x1b[2A\x1b[1G{CLEAR_DOWN}new0\r\nnew1"),);
+        assert_eq!(frame, format!("\x1b[2A\x1b[1G{CLEAR_DOWN}new0\r\nnew1"));
     }
 
     #[test]
