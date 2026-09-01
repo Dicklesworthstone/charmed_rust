@@ -28,7 +28,7 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "charmed-bubbles"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "charmed-bubbletea",
  "charmed-harmonica",
@@ -40,7 +40,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-bubbletea"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "charmed-bubbletea-macros",
  "crossterm",
@@ -51,7 +51,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-bubbletea-macros"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "darling",
  "proc-macro-error2",
@@ -62,7 +62,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-glamour"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "charmed-lipgloss",
  "lru",
@@ -73,11 +73,11 @@ dependencies = [
 
 [[package]]
 name = "charmed-harmonica"
-version = "0.2.2"
+version = "0.2.3"
 
 [[package]]
 name = "charmed-huh"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "charmed-bubbles",
  "charmed-bubbletea",
@@ -87,7 +87,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-lipgloss"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "bitflags",
  "colored",
@@ -459,9 +459,9 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "lru"
-version = "0.18.2"
+version = "0.18.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d2f2f9b4ba7e6b24d95e7e899329d35be83bcded72c8540cdd5368932d1d90a"
+checksum = "0d317b4b9eb398e6acce275758ec6125535505e7a146fb1a9b8bda2451b0ff4c"
 dependencies = [
  "hashbrown",
 ]
