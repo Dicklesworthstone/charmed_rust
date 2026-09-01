@@ -42,7 +42,7 @@ fn spawn_batch(f: impl FnOnce() + Send + 'static) {
 use crossterm::{
     cursor::{self, Hide, MoveTo, Show},
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind},
-    execute,
+    execute, queue,
     terminal::{
         self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
         enable_raw_mode,
@@ -1144,7 +1144,13 @@ impl<M: Model> Program<M> {
             }
 
             let clamped_row = row.min(u16::MAX as usize) as u16;
-            execute!(
+            // `queue!` (not `execute!`): the clear must stay in the same
+            // buffered write as the row's replacement content. Flushing the
+            // clear on its own lets the terminal paint the blanked row before
+            // the new text arrives, which reads as flicker at high frame
+            // rates (issue #87). The whole frame goes out in the single
+            // flush below.
+            queue!(
                 writer,
                 MoveTo(0, clamped_row),
                 Clear(ClearType::CurrentLine)
@@ -1184,13 +1190,16 @@ impl<M: Model> Program<M> {
         };
 
         // Rewind to the top-left of the previously rendered block.
+        // Everything below is queued, not executed: the rewind + clear and
+        // the new content must reach the terminal in one write so the old
+        // block is never visibly blank between them (issue #87).
         if prev_lines > 1 {
             let up = (prev_lines - 1).min(u16::MAX as usize) as u16;
-            execute!(writer, cursor::MoveUp(up))?;
+            queue!(writer, cursor::MoveUp(up))?;
         }
         // Always return to column 0 and clear the old block so shorter frames
         // don't leave stale trailing rows behind.
-        execute!(
+        queue!(
             writer,
             cursor::MoveToColumn(0),
             Clear(ClearType::FromCursorDown)
@@ -2907,5 +2916,143 @@ mod tests {
                 "Poll count should not decrease"
             );
         });
+    }
+
+    // === Renderer flush discipline (issue #87) ===
+
+    /// What the renderer handed to the writer, in order.
+    #[derive(Debug, PartialEq, Eq)]
+    enum WriterEvent {
+        Bytes(Vec<u8>),
+        Flush,
+    }
+
+    /// A writer that records every `write` and `flush` call so tests can
+    /// assert on the exact byte stream and on where flushes fall in it.
+    #[derive(Default)]
+    struct RecordingWriter {
+        events: Vec<WriterEvent>,
+    }
+
+    impl RecordingWriter {
+        fn flush_count(&self) -> usize {
+            self.events
+                .iter()
+                .filter(|e| matches!(e, WriterEvent::Flush))
+                .count()
+        }
+
+        /// Bytes written before the first flush (i.e. what the terminal
+        /// receives as one contiguous write).
+        fn bytes_before_first_flush(&self) -> Vec<u8> {
+            self.events
+                .iter()
+                .take_while(|e| !matches!(e, WriterEvent::Flush))
+                .flat_map(|e| match e {
+                    WriterEvent::Bytes(b) => b.clone(),
+                    WriterEvent::Flush => Vec::new(),
+                })
+                .collect()
+        }
+    }
+
+    impl Write for RecordingWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.events.push(WriterEvent::Bytes(buf.to_vec()));
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.events.push(WriterEvent::Flush);
+            Ok(())
+        }
+    }
+
+    const CLEAR_LINE: &str = "\x1b[2K";
+    const CLEAR_DOWN: &str = "\x1b[J";
+
+    #[test]
+    fn alt_screen_frame_is_one_write_with_single_trailing_flush() {
+        let program = Program::new(TestModel { count: 0 }).with_alt_screen();
+        let mut writer = RecordingWriter::default();
+
+        let last_view = "row0\nrow1\nrow2";
+        let view = "row0\nROW1\nROW2";
+        program
+            .render_alt_screen(&mut writer, last_view, view)
+            .unwrap();
+
+        assert_eq!(
+            writer.flush_count(),
+            1,
+            "one frame must produce exactly one flush, got {:?}",
+            writer.events
+        );
+        assert_eq!(
+            writer.events.last(),
+            Some(&WriterEvent::Flush),
+            "the only flush must come after all frame bytes"
+        );
+
+        let frame = String::from_utf8(writer.bytes_before_first_flush()).unwrap();
+        // Unchanged row 0 is not rewritten (diffing preserved).
+        assert!(!frame.contains("\x1b[1;1H"), "row 0 unchanged: {frame:?}");
+        // Each changed row: absolute move, clear, then content -- contiguous,
+        // with nothing flushed between the clear and the content.
+        assert_eq!(
+            frame,
+            format!("\x1b[2;1H{CLEAR_LINE}ROW1\x1b[3;1H{CLEAR_LINE}ROW2"),
+        );
+    }
+
+    #[test]
+    fn alt_screen_removed_row_is_cleared_in_same_write() {
+        let program = Program::new(TestModel { count: 0 }).with_alt_screen();
+        let mut writer = RecordingWriter::default();
+
+        // Frame shrinks from 3 rows to 1: rows 1 and 2 must be blanked.
+        program
+            .render_alt_screen(&mut writer, "a\nb\nc", "a")
+            .unwrap();
+
+        assert_eq!(writer.flush_count(), 1);
+        assert_eq!(writer.events.last(), Some(&WriterEvent::Flush));
+        let frame = String::from_utf8(writer.bytes_before_first_flush()).unwrap();
+        assert_eq!(frame, format!("\x1b[2;1H{CLEAR_LINE}\x1b[3;1H{CLEAR_LINE}"),);
+    }
+
+    #[test]
+    fn inline_frame_is_one_write_with_single_trailing_flush() {
+        let program = Program::new(TestModel { count: 0 });
+        let mut writer = RecordingWriter::default();
+
+        program
+            .render_inline(&mut writer, "old0\nold1\nold2", "new0\nnew1")
+            .unwrap();
+
+        assert_eq!(
+            writer.flush_count(),
+            1,
+            "one frame must produce exactly one flush, got {:?}",
+            writer.events
+        );
+        assert_eq!(writer.events.last(), Some(&WriterEvent::Flush));
+
+        let frame = String::from_utf8(writer.bytes_before_first_flush()).unwrap();
+        // Rewind 2 rows, column 0, clear to end of screen, then the content
+        // with `\r\n` line joins -- all before the single flush.
+        assert_eq!(frame, format!("\x1b[2A\x1b[1G{CLEAR_DOWN}new0\r\nnew1"),);
+    }
+
+    #[test]
+    fn inline_first_frame_has_no_rewind() {
+        let program = Program::new(TestModel { count: 0 });
+        let mut writer = RecordingWriter::default();
+
+        program.render_inline(&mut writer, "", "hello").unwrap();
+
+        assert_eq!(writer.flush_count(), 1);
+        let frame = String::from_utf8(writer.bytes_before_first_flush()).unwrap();
+        assert_eq!(frame, format!("\x1b[1G{CLEAR_DOWN}hello"));
     }
 }
