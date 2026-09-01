@@ -655,12 +655,20 @@ pub fn pad_content(content: &str, width: usize, alignment: Alignment) -> String 
 ///
 /// // Content too wide — truncated with ellipsis
 /// assert_eq!(fit_content("Hello, World!", 5, Alignment::Left), "Hell…");
+///
+/// // Truncation at a wide-char boundary stops one column short;
+/// // the cell is re-padded so it still occupies the full width.
+/// assert_eq!(fit_content("日本語", 4, Alignment::Left), "日… ");
 /// ```
 #[must_use]
 pub fn fit_content(content: &str, width: usize, alignment: Alignment) -> String {
     let content_width = measure_width(content);
     if content_width > width {
-        truncate_content(content, width)
+        // Truncation can stop short of the target width when the next
+        // character is a wide (2-column) one, e.g. CJK or wide emoji: the
+        // truncated string plus ellipsis then measures `width - 1`. Re-pad
+        // to the allotted width so column separators stay aligned.
+        pad_content(&truncate_content(content, width), width, alignment)
     } else {
         pad_content(content, width, alignment)
     }
@@ -2192,6 +2200,43 @@ Some text between tables.
     }
 
     #[test]
+    fn test_fit_content_repads_after_wide_char_boundary_truncation() {
+        // Regression: truncation that stops before a wide (2-column) char
+        // yields a string one column short (e.g. "日…" is 3 wide for a
+        // 4-wide slot). fit_content must re-pad to the allotted width or
+        // the row's column separators shift left by one.
+        let fitted = fit_content("日本語", 4, Alignment::Left);
+        assert_eq!(fitted, "日… ");
+        assert_eq!(measure_width(&fitted), 4);
+
+        // Alignment is respected when re-padding.
+        assert_eq!(fit_content("日本語", 4, Alignment::Right), " 日…");
+        let centered = fit_content("日本語日本語", 6, Alignment::Center);
+        assert_eq!(measure_width(&centered), 6);
+
+        // Truncation landing on a narrow-char boundary is exact already.
+        assert_eq!(fit_content("日本語", 5, Alignment::Left), "日本…");
+        assert_eq!(measure_width(&fit_content("Hi日本", 5, Alignment::Left)), 5);
+    }
+
+    #[test]
+    fn test_render_cell_cjk_boundary_keeps_column_width() {
+        // End-to-end: every rendered cell in a column must have identical
+        // display width even when a CJK cell truncates mid-wide-char.
+        let col_width = 6;
+        let cells = [
+            TableCell::new("Name", Alignment::Left),
+            TableCell::new("日本語テキスト", Alignment::Left),
+            TableCell::new("abcdefgh", Alignment::Left),
+        ];
+        let widths: Vec<usize> = cells
+            .iter()
+            .map(|c| measure_width(&render_cell(c, col_width, 1)))
+            .collect();
+        assert_eq!(widths, vec![col_width + 2; 3]);
+    }
+
+    #[test]
     fn test_unicode_edge_cases() {
         // Combining characters: e + combining acute accent
         let combining = "e\u{0301}"; // é as two code points
@@ -2974,10 +3019,11 @@ Some text between tables.
 
     #[test]
     fn fit_content_unicode_cjk() {
-        // CJK chars are 2 units wide; "日本語" = 6 units
+        // CJK chars are 2 units wide; "日本語" = 6 units. Truncation stops
+        // before the wide 本, so the cell is re-padded to the full 4 units.
         let result = fit_content("日本語", 4, Alignment::Left);
-        assert_eq!(result, "日…");
-        assert!(measure_width(&result) <= 4);
+        assert_eq!(result, "日… ");
+        assert_eq!(measure_width(&result), 4);
     }
 
     #[test]
