@@ -16,5 +16,5 @@
 # (fmt + clippy -D warnings + test --workspace), and keep the new date only if green.
 # See the Toolchain section of CHANGELOG.md v0.2.3.
 [toolchain]
-channel = "nightly-2026-08-25"
+channel = "nightly-2026-08-31"
 components = ["rustfmt", "clippy"]
