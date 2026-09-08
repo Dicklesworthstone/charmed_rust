@@ -48,3 +48,7 @@ sync_base.jsonl
 
 # bv (beads viewer) lock file
 .bv.lock
+
+# br concurrent-writer locks (`.write.lock`, `.br-db-write-*.lock`)
+*.lock
+.write.lock
