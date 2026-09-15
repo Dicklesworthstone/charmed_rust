@@ -63,3 +63,11 @@ crates/demo_showcase/demo_showcase_exports/
 
 # Reference/upstream read-only clones (local-only, not vendored into the repo)
 reference/
+
+# === agent ephemeral residue 2026-09-15 ===
+# Per-host gate/verify wrappers dropped at the repo root; never product source.
+/.gate_*.sh
+/.verify_*.sh
+# br live write locks (JSONL/DB) and salvage trees.
+.beads/*.lock
+.beads-recovery-*/
