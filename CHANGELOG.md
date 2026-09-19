@@ -9,9 +9,57 @@ Repository: <https://github.com/Dicklesworthstone/charmed_rust>
 
 ---
 
-## [Unreleased] — after v0.2.3
+## [Unreleased] — after v0.2.4
 
-[Unreleased]: https://github.com/Dicklesworthstone/charmed_rust/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/Dicklesworthstone/charmed_rust/compare/v0.2.4...HEAD
+
+## [v0.2.4] — 2026-09-19 (GitHub Release)
+
+[v0.2.4]: https://github.com/Dicklesworthstone/charmed_rust/compare/v0.2.3...v0.2.4
+
+A maintenance release: two rendering fixes and a dependency refresh across the
+workspace. No API changes, so upgrading from v0.2.3 requires no code edits.
+
+### Fixed
+
+- **bubbletea:** the renderer buffers its clear and rewind commands instead of
+  emitting them immediately, which removes the frame flicker visible when a
+  redraw crossed a terminal write boundary
+  ([`b5a98d1`](https://github.com/Dicklesworthstone/charmed_rust/commit/b5a98d1)).
+- **glamour:** table cells truncated at a wide-character boundary are re-padded,
+  so CJK and emoji content no longer shifts the right-hand table border by a
+  column ([`4150912`](https://github.com/Dicklesworthstone/charmed_rust/commit/4150912)).
+
+### Changed
+
+- The Rust toolchain is pinned to a dated nightly, `nightly-2026-08-31`
+  ([`7762b8a`](https://github.com/Dicklesworthstone/charmed_rust/commit/7762b8a)),
+  and the pin now carries a comment explaining why it is dated so that it does
+  not get reverted to a floating `nightly`
+  ([`189d473`](https://github.com/Dicklesworthstone/charmed_rust/commit/189d473)).
+  A floating nightly makes a `-D warnings` lint gate non-deterministic as std
+  deprecations roll out.
+- **Publish-cycle fix:** `charmed-bubbletea`'s dev-dependency on
+  `charmed-bubbles` is now path-only with no version
+  ([`f945427`](https://github.com/Dicklesworthstone/charmed_rust/commit/f945427)).
+  `charmed-bubbles` normal-depends on `charmed-bubbletea`, so the two could not
+  both carry versioned references at publish time. Cargo drops a path-only
+  dev-dependency from the published manifest, which breaks the cycle without
+  changing anything for local builds.
+- Dependencies refreshed across the workspace and the examples, including
+  `argon2` and `blake2` moving from release candidates to their stable releases,
+  and `aws-lc-rs`, `clap`, `crossbeam-*`, `js-sys` and `wasm-bindgen` advancing
+  to current patch versions.
+- Demo showcase snapshots and the benchmark workflow were updated to match
+  ([`2f0674a`](https://github.com/Dicklesworthstone/charmed_rust/commit/2f0674a)).
+
+### Verification
+
+The full workspace gate was green at
+[`28dafc2`](https://github.com/Dicklesworthstone/charmed_rust/commit/28dafc2):
+`cargo clippy --workspace --all-targets -- -D warnings` reported 0 errors, and
+`cargo test --workspace --no-fail-fast` passed **3,727 tests across 79 test
+binaries** with no failures.
 
 ## [v0.2.3] — 2026-08-25 (GitHub Release)
 
