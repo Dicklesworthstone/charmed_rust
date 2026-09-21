@@ -398,12 +398,7 @@
       "expected_output": {
         "fps": 100,
         "frame_count": 4,
-        "frames": [
-          "|",
-          "/",
-          "-",
-          "\\"
-        ]
+        "frames": ["|", "/", "-", "\\"]
       }
     },
     {
@@ -415,16 +410,7 @@
       "expected_output": {
         "fps": 100,
         "frame_count": 8,
-        "frames": [
-          "⣾ ",
-          "⣽ ",
-          "⣻ ",
-          "⢿ ",
-          "⡿ ",
-          "⣟ ",
-          "⣯ ",
-          "⣷ "
-        ]
+        "frames": ["⣾ ", "⣽ ", "⣻ ", "⢿ ", "⡿ ", "⣟ ", "⣯ ", "⣷ "]
       }
     },
     {
@@ -436,18 +422,7 @@
       "expected_output": {
         "fps": 83,
         "frame_count": 10,
-        "frames": [
-          "⠋",
-          "⠙",
-          "⠹",
-          "⠸",
-          "⠼",
-          "⠴",
-          "⠦",
-          "⠧",
-          "⠇",
-          "⠏"
-        ]
+        "frames": ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
       }
     },
     {
@@ -459,15 +434,7 @@
       "expected_output": {
         "fps": 100,
         "frame_count": 7,
-        "frames": [
-          "⢄",
-          "⢂",
-          "⢁",
-          "⡁",
-          "⡈",
-          "⡐",
-          "⡠"
-        ]
+        "frames": ["⢄", "⢂", "⢁", "⡁", "⡈", "⡐", "⡠"]
       }
     },
     {
@@ -479,12 +446,7 @@
       "expected_output": {
         "fps": 125,
         "frame_count": 4,
-        "frames": [
-          "█",
-          "▓",
-          "▒",
-          "░"
-        ]
+        "frames": ["█", "▓", "▒", "░"]
       }
     },
     {
@@ -496,12 +458,7 @@
       "expected_output": {
         "fps": 142,
         "frame_count": 4,
-        "frames": [
-          "∙∙∙",
-          "●∙∙",
-          "∙●∙",
-          "∙∙●"
-        ]
+        "frames": ["∙∙∙", "●∙∙", "∙●∙", "∙∙●"]
       }
     },
     {
@@ -513,11 +470,7 @@
       "expected_output": {
         "fps": 250,
         "frame_count": 3,
-        "frames": [
-          "🌍",
-          "🌎",
-          "🌏"
-        ]
+        "frames": ["🌍", "🌎", "🌏"]
       }
     },
     {
@@ -529,16 +482,7 @@
       "expected_output": {
         "fps": 125,
         "frame_count": 8,
-        "frames": [
-          "🌑",
-          "🌒",
-          "🌓",
-          "🌔",
-          "🌕",
-          "🌖",
-          "🌗",
-          "🌘"
-        ]
+        "frames": ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"]
       }
     },
     {
@@ -550,11 +494,7 @@
       "expected_output": {
         "fps": 333,
         "frame_count": 3,
-        "frames": [
-          "🙈",
-          "🙉",
-          "🙊"
-        ]
+        "frames": ["🙈", "🙉", "🙊"]
       }
     },
     {
@@ -566,15 +506,7 @@
       "expected_output": {
         "fps": 142,
         "frame_count": 7,
-        "frames": [
-          "▱▱▱",
-          "▰▱▱",
-          "▰▰▱",
-          "▰▰▰",
-          "▰▰▱",
-          "▰▱▱",
-          "▱▱▱"
-        ]
+        "frames": ["▱▱▱", "▰▱▱", "▰▰▱", "▰▰▰", "▰▰▱", "▰▱▱", "▱▱▱"]
       }
     },
     {
@@ -586,12 +518,7 @@
       "expected_output": {
         "fps": 333,
         "frame_count": 4,
-        "frames": [
-          "☱",
-          "☲",
-          "☴",
-          "☲"
-        ]
+        "frames": ["☱", "☲", "☴", "☲"]
       }
     },
     {
@@ -754,12 +681,7 @@
       "name": "help_basic",
       "category": "unit",
       "input": {
-        "keys": [
-          "up",
-          "down",
-          "enter",
-          "quit"
-        ]
+        "keys": ["up", "down", "enter", "quit"]
       },
       "expected_output": {
         "full_view": "up/k   up      enter select\ndown/j down    q     quit  ",
@@ -836,16 +758,12 @@
       "category": "unit",
       "input": {
         "help": "quit",
-        "keys": [
-          "q"
-        ]
+        "keys": ["q"]
       },
       "expected_output": {
         "enabled": true,
         "help": "q",
-        "keys": [
-          "q"
-        ]
+        "keys": ["q"]
       }
     },
     {
@@ -853,18 +771,12 @@
       "category": "unit",
       "input": {
         "help": "move up",
-        "keys": [
-          "up",
-          "k"
-        ]
+        "keys": ["up", "k"]
       },
       "expected_output": {
         "enabled": true,
         "help": "up/k",
-        "keys": [
-          "up",
-          "k"
-        ]
+        "keys": ["up", "k"]
       }
     },
     {
@@ -872,24 +784,18 @@
       "category": "unit",
       "input": {
         "disabled": true,
-        "keys": [
-          "x"
-        ]
+        "keys": ["x"]
       },
       "expected_output": {
         "enabled": false,
-        "keys": [
-          "x"
-        ]
+        "keys": ["x"]
       }
     },
     {
       "name": "keybinding_toggle",
       "category": "unit",
       "input": {
-        "keys": [
-          "y"
-        ]
+        "keys": ["y"]
       },
       "expected_output": {
         "after_disable": false,
@@ -916,22 +822,14 @@
       "category": "unit",
       "input": {
         "height": 24,
-        "items": [
-          "Apple",
-          "Banana",
-          "Cherry"
-        ],
+        "items": ["Apple", "Banana", "Cherry"],
         "width": 80
       },
       "expected_output": {
         "cursor": 0,
         "index": 0,
         "items_count": 3,
-        "visible_items": [
-          {},
-          {},
-          {}
-        ]
+        "visible_items": [{}, {}, {}]
       }
     },
     {
@@ -990,11 +888,7 @@
       "name": "list_selection",
       "category": "unit",
       "input": {
-        "items": [
-          "A",
-          "B",
-          "C"
-        ]
+        "items": ["A", "B", "C"]
       },
       "expected_output": {
         "selected_index": 1,
@@ -1030,33 +924,13 @@
             "width": 15
           }
         ],
-        "rows": [
-          [
-            "1",
-            "Alice",
-            "Active"
-          ],
-          [
-            "2",
-            "Bob",
-            "Inactive"
-          ],
-          [
-            "3",
-            "Charlie",
-            "Active"
-          ]
-        ]
+        "rows": [["1", "Alice", "Active"], ["2", "Bob", "Inactive"], ["3", "Charlie", "Active"]]
       },
       "expected_output": {
         "columns_count": 3,
         "cursor": 0,
         "rows_count": 3,
-        "selected_row": [
-          "1",
-          "Alice",
-          "Active"
-        ]
+        "selected_row": ["1", "Alice", "Active"]
       }
     },
     {
@@ -1103,9 +977,7 @@
       },
       "expected_output": {
         "cursor": 3,
-        "selected_row": [
-          "4"
-        ]
+        "selected_row": ["4"]
       }
     },
     {
@@ -1159,16 +1031,10 @@
       "name": "filepicker_allowed_types",
       "category": "unit",
       "input": {
-        "allowed_types": [
-          ".txt",
-          ".md"
-        ]
+        "allowed_types": [".txt", ".md"]
       },
       "expected_output": {
-        "allowed_types": [
-          ".txt",
-          ".md"
-        ]
+        "allowed_types": [".txt", ".md"]
       }
     },
     {
@@ -1210,54 +1076,21 @@
       "category": "unit",
       "input": {},
       "expected_output": {
-        "back_keys": [
-          "h",
-          "backspace",
-          "left",
-          "esc"
-        ],
-        "down_keys": [
-          "j",
-          "down",
-          "ctrl+n"
-        ],
-        "open_keys": [
-          "l",
-          "right",
-          "enter"
-        ],
-        "select_keys": [
-          "enter"
-        ],
-        "up_keys": [
-          "k",
-          "up",
-          "ctrl+p"
-        ]
+        "back_keys": ["h", "backspace", "left", "esc"],
+        "down_keys": ["j", "down", "ctrl+n"],
+        "open_keys": ["l", "right", "enter"],
+        "select_keys": ["enter"],
+        "up_keys": ["k", "up", "ctrl+p"]
       }
     },
     {
       "name": "filepicker_format_size",
       "category": "unit",
       "input": {
-        "sizes": [
-          0,
-          512,
-          1024,
-          1536,
-          1048576,
-          1073741824
-        ]
+        "sizes": [0, 512, 1024, 1536, 1048576, 1073741824]
       },
       "expected_output": {
-        "expected_formats": [
-          "0B",
-          "512B",
-          "1.0K",
-          "1.5K",
-          "1.0M",
-          "1.0G"
-        ]
+        "expected_formats": ["0B", "512B", "1.0K", "1.5K", "1.0M", "1.0G"]
       }
     },
     {
@@ -1276,12 +1109,7 @@
         "test_dir": "temp"
       },
       "expected_output": {
-        "sort_order": [
-          "dir_a",
-          "dir_b",
-          "file_a.txt",
-          "file_z.txt"
-        ]
+        "sort_order": ["dir_a", "dir_b", "file_a.txt", "file_z.txt"]
       }
     },
     {

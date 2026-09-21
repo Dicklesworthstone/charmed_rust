@@ -129,11 +129,7 @@
       "name": "select_basic",
       "category": "unit",
       "input": {
-        "options": [
-          "a",
-          "b",
-          "c"
-        ],
+        "options": ["a", "b", "c"],
         "title": "Choose an option"
       },
       "expected_output": {
@@ -146,11 +142,7 @@
       "category": "unit",
       "input": {
         "description": "Choose your favorite",
-        "options": [
-          "red",
-          "green",
-          "blue"
-        ],
+        "options": ["red", "green", "blue"],
         "title": "Select Color"
       },
       "expected_output": {
@@ -174,11 +166,7 @@
       "name": "select_int",
       "category": "unit",
       "input": {
-        "options": [
-          1,
-          2,
-          3
-        ],
+        "options": [1, 2, 3],
         "title": "Choose number"
       },
       "expected_output": {
@@ -190,11 +178,7 @@
       "name": "multiselect_basic",
       "category": "unit",
       "input": {
-        "options": [
-          "a",
-          "b",
-          "c"
-        ],
+        "options": ["a", "b", "c"],
         "title": "Select items"
       },
       "expected_output": {
@@ -207,11 +191,7 @@
       "category": "unit",
       "input": {
         "limit": 2,
-        "options": [
-          "x",
-          "y",
-          "z"
-        ],
+        "options": ["x", "y", "z"],
         "title": "Select up to 2"
       },
       "expected_output": {
@@ -224,11 +204,7 @@
       "category": "unit",
       "input": {
         "description": "Choose multiple",
-        "options": [
-          "f1",
-          "f2",
-          "f3"
-        ],
+        "options": ["f1", "f2", "f3"],
         "title": "Select features"
       },
       "expected_output": {
@@ -240,16 +216,12 @@
       "name": "multiselect_preselected",
       "category": "unit",
       "input": {
-        "preselected": [
-          "a"
-        ],
+        "preselected": ["a"],
         "title": "Modify selection"
       },
       "expected_output": {
         "field_type": "multiselect",
-        "initial_value": [
-          "a"
-        ]
+        "initial_value": ["a"]
       }
     },
     {

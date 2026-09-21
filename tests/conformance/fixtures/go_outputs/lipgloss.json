@@ -420,12 +420,7 @@
         "blink": false,
         "reverse": false,
         "text": "Pad",
-        "padding": [
-          1,
-          1,
-          1,
-          1
-        ]
+        "padding": [1, 1, 1, 1]
       },
       "expected_output": {
         "rendered": "     \n Pad \n     ",
@@ -445,12 +440,7 @@
         "blink": false,
         "reverse": false,
         "text": "Pad",
-        "padding": [
-          1,
-          2,
-          1,
-          2
-        ]
+        "padding": [1, 2, 1, 2]
       },
       "expected_output": {
         "rendered": "       \n  Pad  \n       ",
@@ -470,12 +460,7 @@
         "blink": false,
         "reverse": false,
         "text": "P",
-        "padding": [
-          1,
-          2,
-          3,
-          4
-        ]
+        "padding": [1, 2, 3, 4]
       },
       "expected_output": {
         "rendered": "       \n    P  \n       \n       \n       ",
@@ -495,12 +480,7 @@
         "blink": false,
         "reverse": false,
         "text": "Mar",
-        "margin": [
-          1,
-          1,
-          1,
-          1
-        ]
+        "margin": [1, 1, 1, 1]
       },
       "expected_output": {
         "rendered": "     \n Mar \n     ",
@@ -520,12 +500,7 @@
         "blink": false,
         "reverse": false,
         "text": "M",
-        "margin": [
-          1,
-          2,
-          3,
-          4
-        ]
+        "margin": [1, 2, 3, 4]
       },
       "expected_output": {
         "rendered": "       \n    M  \n       \n       \n       ",
@@ -545,18 +520,8 @@
         "blink": false,
         "reverse": false,
         "text": "PM",
-        "padding": [
-          1,
-          1,
-          1,
-          1
-        ],
-        "margin": [
-          1,
-          1,
-          1,
-          1
-        ]
+        "padding": [1, 1, 1, 1],
+        "margin": [1, 1, 1, 1]
       },
       "expected_output": {
         "rendered": "      \n      \n  PM  \n      \n      ",
@@ -872,10 +837,7 @@
       "name": "join_horizontal_top",
       "category": "unit",
       "input": {
-        "blocks": [
-          "A\nA",
-          "B\nB\nB"
-        ],
+        "blocks": ["A\nA", "B\nB\nB"],
         "position": "top"
       },
       "expected_output": {
@@ -886,10 +848,7 @@
       "name": "join_horizontal_center",
       "category": "unit",
       "input": {
-        "blocks": [
-          "A\nA",
-          "B\nB\nB"
-        ],
+        "blocks": ["A\nA", "B\nB\nB"],
         "position": "center"
       },
       "expected_output": {
@@ -900,10 +859,7 @@
       "name": "join_horizontal_bottom",
       "category": "unit",
       "input": {
-        "blocks": [
-          "A\nA",
-          "B\nB\nB"
-        ],
+        "blocks": ["A\nA", "B\nB\nB"],
         "position": "bottom"
       },
       "expected_output": {
@@ -914,10 +870,7 @@
       "name": "join_vertical_left",
       "category": "unit",
       "input": {
-        "blocks": [
-          "Short",
-          "LongerText"
-        ],
+        "blocks": ["Short", "LongerText"],
         "position": "left"
       },
       "expected_output": {
@@ -928,10 +881,7 @@
       "name": "join_vertical_center",
       "category": "unit",
       "input": {
-        "blocks": [
-          "Short",
-          "LongerText"
-        ],
+        "blocks": ["Short", "LongerText"],
         "position": "center"
       },
       "expected_output": {
@@ -942,10 +892,7 @@
       "name": "join_vertical_right",
       "category": "unit",
       "input": {
-        "blocks": [
-          "Short",
-          "LongerText"
-        ],
+        "blocks": ["Short", "LongerText"],
         "position": "right"
       },
       "expected_output": {
@@ -956,12 +903,7 @@
       "name": "join_horizontal_multiple",
       "category": "unit",
       "input": {
-        "blocks": [
-          "A",
-          "B",
-          "C",
-          "D"
-        ],
+        "blocks": ["A", "B", "C", "D"],
         "position": "top"
       },
       "expected_output": {
@@ -972,10 +914,7 @@
       "name": "join_horizontal_empty",
       "category": "unit",
       "input": {
-        "blocks": [
-          "",
-          "B"
-        ],
+        "blocks": ["", "B"],
         "position": "top"
       },
       "expected_output": {

@@ -383,11 +383,7 @@
       "input": {
         "description": "Middleware chaining behavior",
         "middleware_count": 3,
-        "middleware_names": [
-          "logging",
-          "auth",
-          "handler"
-        ]
+        "middleware_names": ["logging", "auth", "handler"]
       },
       "expected_output": {
         "execution_order": "outer_to_inner",

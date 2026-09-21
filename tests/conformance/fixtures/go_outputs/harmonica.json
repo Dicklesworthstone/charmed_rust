@@ -327,16 +327,8 @@
       "name": "projectile_trajectory_10_steps",
       "input": {
         "gravity": 9.81,
-        "start_pos": [
-          0,
-          0,
-          0
-        ],
-        "start_vel": [
-          10,
-          15,
-          0
-        ],
+        "start_pos": [0, 0, 0],
+        "start_vel": [10, 15, 0],
         "steps": 10
       },
       "expected_output": [
@@ -448,21 +440,9 @@
     {
       "name": "projectile_zero_gravity",
       "input": {
-        "acceleration": [
-          0,
-          0,
-          0
-        ],
-        "start_pos": [
-          0,
-          0,
-          0
-        ],
-        "start_vel": [
-          5,
-          5,
-          5
-        ]
+        "acceleration": [0, 0, 0],
+        "start_pos": [0, 0, 0],
+        "start_vel": [5, 5, 5]
       },
       "expected_output": {
         "x": 0.08333333,

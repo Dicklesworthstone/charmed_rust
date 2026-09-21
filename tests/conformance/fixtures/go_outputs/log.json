@@ -191,9 +191,7 @@
       "name": "format_printf",
       "category": "unit",
       "input": {
-        "args": [
-          42
-        ],
+        "args": [42],
         "format": "count is %d"
       },
       "expected_output": {
