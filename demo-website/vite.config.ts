@@ -1,18 +1,18 @@
-import { defineConfig } from 'vite';
-import { resolve } from 'path';
+import { resolve } from "path";
+import { defineConfig } from "vite";
 
 export default defineConfig({
-  root: '.',
-  publicDir: 'public',
+  root: ".",
+  publicDir: "public",
   build: {
-    outDir: 'dist',
-    target: 'esnext',
-    minify: 'terser',
+    outDir: "dist",
+    target: "esnext",
+    minify: "terser",
     sourcemap: true,
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
+      "@": resolve(__dirname, "src"),
     },
   },
   server: {
@@ -20,12 +20,12 @@ export default defineConfig({
     open: true,
     headers: {
       // Required for WASM
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
     },
   },
   // Handle WASM files
   optimizeDeps: {
-    exclude: ['charmed-wasm'],
+    exclude: ["charmed-wasm"],
   },
 });

@@ -1,4 +1,4 @@
-import { examples, Example } from './examples';
+import { type Example, examples } from "./examples";
 
 // WASM module types (will be provided by charmed-wasm)
 interface CharmedWasm {
@@ -52,13 +52,13 @@ let wasmModule: CharmedWasm | null = null;
 let isInitialized = false;
 
 // DOM elements
-const codeInput = document.getElementById('code-input') as HTMLTextAreaElement;
-const output = document.getElementById('output') as HTMLPreElement;
-const errorDisplay = document.getElementById('error-display') as HTMLDivElement;
-const exampleSelect = document.getElementById('example-select') as HTMLSelectElement;
-const copyButton = document.getElementById('copy-output') as HTMLButtonElement;
-const examplesGallery = document.getElementById('examples-gallery') as HTMLDivElement;
-const heroTerminal = document.getElementById('hero-terminal') as HTMLDivElement;
+const codeInput = document.getElementById("code-input") as HTMLTextAreaElement;
+const output = document.getElementById("output") as HTMLPreElement;
+const errorDisplay = document.getElementById("error-display") as HTMLDivElement;
+const exampleSelect = document.getElementById("example-select") as HTMLSelectElement;
+const copyButton = document.getElementById("copy-output") as HTMLButtonElement;
+const examplesGallery = document.getElementById("examples-gallery") as HTMLDivElement;
+const heroTerminal = document.getElementById("hero-terminal") as HTMLDivElement;
 
 // Show loading state
 function showLoading() {
@@ -68,12 +68,12 @@ function showLoading() {
 // Show error
 function showError(message: string) {
   errorDisplay.textContent = message;
-  errorDisplay.classList.remove('hidden');
+  errorDisplay.classList.remove("hidden");
 }
 
 // Hide error
 function hideError() {
-  errorDisplay.classList.add('hidden');
+  errorDisplay.classList.add("hidden");
 }
 
 // Initialize WASM module
@@ -86,14 +86,14 @@ async function initWasm(): Promise<boolean> {
     // Dynamic import of the WASM module
     // In development, this might be from node_modules or linked package
     // In production, it's from the built pkg
-    const wasm = await import('charmed-wasm');
+    const wasm = await import("charmed-wasm");
     await wasm.default();
     wasmModule = wasm as unknown as CharmedWasm;
     isInitialized = true;
-    console.log('[charmed] WASM module loaded, version:', wasm.version());
+    console.log("[charmed] WASM module loaded, version:", wasm.version());
     return true;
   } catch (e) {
-    console.error('[charmed] Failed to load WASM module:', e);
+    console.error("[charmed] Failed to load WASM module:", e);
 
     // Show helpful error message
     const errorMsg = e instanceof Error ? e.message : String(e);
@@ -110,7 +110,7 @@ Error: ${errorMsg}`;
 // Execute code and return result
 function executeCode(code: string): string {
   if (!wasmModule) {
-    throw new Error('WASM module not initialized');
+    throw new Error("WASM module not initialized");
   }
 
   // Create execution context with WASM functions
@@ -129,16 +129,16 @@ function executeCode(code: string): string {
   const result = fn(...Object.values(context));
 
   // Handle different return types
-  if (typeof result === 'string') {
+  if (typeof result === "string") {
     return result;
-  } else if (result && typeof result.render === 'function') {
+  } else if (result && typeof result.render === "function") {
     // If they returned a style without calling render
-    return result.render('');
+    return result.render("");
   } else if (result !== undefined) {
     return String(result);
   }
 
-  return '';
+  return "";
 }
 
 // Update output preview
@@ -146,7 +146,7 @@ function updatePreview() {
   const code = codeInput.value.trim();
 
   if (!code) {
-    output.textContent = '';
+    output.textContent = "";
     hideError();
     return;
   }
@@ -162,7 +162,7 @@ function updatePreview() {
   } catch (e) {
     const errorMsg = e instanceof Error ? e.message : String(e);
     showError(`Error: ${errorMsg}`);
-    output.textContent = '';
+    output.textContent = "";
   }
 }
 
@@ -172,7 +172,7 @@ function loadExample(example: Example) {
   updatePreview();
 
   // Scroll to editor
-  document.getElementById('live-editor')?.scrollIntoView({ behavior: 'smooth' });
+  document.getElementById("live-editor")?.scrollIntoView({ behavior: "smooth" });
 }
 
 // Render example preview
@@ -191,7 +191,7 @@ function renderExamplePreview(example: Example): string {
 // Populate example select dropdown
 function populateExampleSelect() {
   examples.forEach((example, index) => {
-    const option = document.createElement('option');
+    const option = document.createElement("option");
     option.value = String(index);
     option.textContent = example.name;
     exampleSelect.appendChild(option);
@@ -200,11 +200,11 @@ function populateExampleSelect() {
 
 // Populate examples gallery
 function populateExamplesGallery() {
-  examplesGallery.innerHTML = '';
+  examplesGallery.innerHTML = "";
 
   examples.forEach((example) => {
-    const card = document.createElement('div');
-    card.className = 'example-card';
+    const card = document.createElement("div");
+    card.className = "example-card";
     card.innerHTML = `
       <div class="terminal">
         <div class="terminal-header">
@@ -219,7 +219,7 @@ function populateExamplesGallery() {
         <div class="example-card-desc">${example.description}</div>
       </div>
     `;
-    card.addEventListener('click', () => loadExample(example));
+    card.addEventListener("click", () => loadExample(example));
     examplesGallery.appendChild(card);
   });
 }
@@ -245,22 +245,16 @@ function renderHeroDemo() {
     const newStyle = wasmModule.newStyle;
     const joinVertical = wasmModule.joinVertical;
 
-    const title = newStyle()
-      .foreground('#61dafb')
-      .bold()
-      .render('charmed_rust');
+    const title = newStyle().foreground("#61dafb").bold().render("charmed_rust");
 
-    const subtitle = newStyle()
-      .foreground('#888888')
-      .italic()
-      .render('Terminal UI for the web');
+    const subtitle = newStyle().foreground("#888888").italic().render("Terminal UI for the web");
 
     const box = newStyle()
-      .borderStyle('rounded')
+      .borderStyle("rounded")
       .borderAll()
-      .foreground('#58a6ff')
+      .foreground("#58a6ff")
       .padding(1, 2, 1, 2)
-      .render(joinVertical(0.5, [title, '', subtitle]));
+      .render(joinVertical(0.5, [title, "", subtitle]));
 
     heroTerminal.innerHTML = `
       <div class="terminal">
@@ -274,7 +268,7 @@ function renderHeroDemo() {
       </div>
     `;
   } catch (e) {
-    console.error('[charmed] Hero demo error:', e);
+    console.error("[charmed] Hero demo error:", e);
   }
 }
 
@@ -283,12 +277,12 @@ async function copyOutput() {
   const html = output.innerHTML;
   try {
     await navigator.clipboard.writeText(html);
-    copyButton.textContent = 'Copied!';
+    copyButton.textContent = "Copied!";
     setTimeout(() => {
-      copyButton.textContent = 'Copy HTML';
+      copyButton.textContent = "Copy HTML";
     }, 2000);
   } catch {
-    showError('Failed to copy to clipboard');
+    showError("Failed to copy to clipboard");
   }
 }
 
@@ -303,19 +297,19 @@ function debounce<T extends (...args: unknown[]) => unknown>(fn: T, delay: numbe
 
 // Initialize the application
 async function main() {
-  console.log('[charmed] Initializing demo website');
+  console.log("[charmed] Initializing demo website");
 
   // Set up event listeners
-  codeInput.addEventListener('input', debounce(updatePreview, 300));
+  codeInput.addEventListener("input", debounce(updatePreview, 300));
 
-  exampleSelect.addEventListener('change', () => {
+  exampleSelect.addEventListener("change", () => {
     const index = parseInt(exampleSelect.value, 10);
     if (!isNaN(index) && examples[index]) {
       loadExample(examples[index]);
     }
   });
 
-  copyButton.addEventListener('click', copyOutput);
+  copyButton.addEventListener("click", copyOutput);
 
   // Populate UI elements
   populateExampleSelect();
@@ -342,8 +336,8 @@ async function main() {
 }
 
 // Run on DOM ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', main);
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", main);
 } else {
   main();
 }

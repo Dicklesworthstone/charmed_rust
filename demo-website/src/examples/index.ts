@@ -7,8 +7,8 @@ export interface Example {
 
 export const examples: Example[] = [
   {
-    name: 'Basic Colors',
-    description: 'Apply foreground and background colors',
+    name: "Basic Colors",
+    description: "Apply foreground and background colors",
     code: `newStyle()
   .foreground("#ff6b6b")
   .background("#2d2d2d")
@@ -16,16 +16,16 @@ export const examples: Example[] = [
   .render("Hello, World!")`,
   },
   {
-    name: 'Text Formatting',
-    description: 'Bold, italic, and underline text',
+    name: "Text Formatting",
+    description: "Bold, italic, and underline text",
     code: `const bold = newStyle().bold().foreground("#61dafb").render("Bold ");
 const italic = newStyle().italic().foreground("#98c379").render("Italic ");
 const underline = newStyle().underline().foreground("#c678dd").render("Underline");
 bold + italic + underline`,
   },
   {
-    name: 'Rounded Border',
-    description: 'Add a rounded border around content',
+    name: "Rounded Border",
+    description: "Add a rounded border around content",
     code: `newStyle()
   .borderStyle("rounded")
   .borderAll()
@@ -34,8 +34,8 @@ bold + italic + underline`,
   .render("Rounded Box")`,
   },
   {
-    name: 'Double Border',
-    description: 'Use double-line border style',
+    name: "Double Border",
+    description: "Use double-line border style",
     code: `newStyle()
   .borderStyle("double")
   .borderAll()
@@ -45,8 +45,8 @@ bold + italic + underline`,
   .render("Double Border")`,
   },
   {
-    name: 'Vertical Layout',
-    description: 'Stack elements vertically',
+    name: "Vertical Layout",
+    description: "Stack elements vertically",
     code: `const header = newStyle()
   .background("#6c5ce7")
   .foreground("#ffffff")
@@ -68,8 +68,8 @@ const footer = newStyle()
 joinVertical(0, [header, content, footer])`,
   },
   {
-    name: 'Horizontal Layout',
-    description: 'Place elements side by side',
+    name: "Horizontal Layout",
+    description: "Place elements side by side",
     code: `const left = newStyle()
   .background("#e17055")
   .foreground("#ffffff")
@@ -91,8 +91,8 @@ const right = newStyle()
 joinHorizontal(0.5, [left, middle, right])`,
   },
   {
-    name: 'Centered Content',
-    description: 'Center text within a fixed width',
+    name: "Centered Content",
+    description: "Center text within a fixed width",
     code: `newStyle()
   .width(30)
   .alignCenter()
@@ -103,8 +103,8 @@ joinHorizontal(0.5, [left, middle, right])`,
   .render("Centered Text")`,
   },
   {
-    name: 'Status Badge',
-    description: 'Create a compact status indicator',
+    name: "Status Badge",
+    description: "Create a compact status indicator",
     code: `const success = newStyle()
   .background("#27ae60")
   .foreground("#ffffff")
@@ -129,8 +129,8 @@ const warn = newStyle()
 joinHorizontal(0, [success, " ", fail, " ", warn])`,
   },
   {
-    name: 'Menu Item',
-    description: 'Interactive-looking menu item',
+    name: "Menu Item",
+    description: "Interactive-looking menu item",
     code: `const selected = newStyle()
   .background("#3498db")
   .foreground("#ffffff")
@@ -155,8 +155,8 @@ const disabled = newStyle()
 joinVertical(0, [selected, normal, disabled])`,
   },
   {
-    name: 'Card Layout',
-    description: 'Create a styled card component',
+    name: "Card Layout",
+    description: "Create a styled card component",
     code: `const title = newStyle()
   .foreground("#ecf0f1")
   .bold()
