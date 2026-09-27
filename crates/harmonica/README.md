@@ -73,7 +73,8 @@ See:
 ## Feature Flags
 
 - `std` (default): use the standard library.
-- `no_std`: supported by disabling default features.
+- `no_std`: supported by disabling default features. Floating-point math
+  (`sqrt`, `exp`, `sin`, `cos`) then comes from the `libm` crate.
 
 ```toml
 harmonica = { package = "charmed-harmonica", version = "0.1.2", default-features = false }

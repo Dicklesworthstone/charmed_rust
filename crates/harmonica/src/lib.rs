@@ -78,6 +78,7 @@
 //! The spring algorithm is based on Ryan Juckett's damped harmonic motion:
 //! <https://www.ryanjuckett.com/damped-springs/>
 
+mod math;
 mod projectile;
 mod spring;
 

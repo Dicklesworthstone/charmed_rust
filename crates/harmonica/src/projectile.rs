@@ -22,6 +22,8 @@
 
 use core::ops::{Add, AddAssign, Mul, Sub};
 
+use crate::math::sqrt;
+
 /// A point in 3D space.
 ///
 /// # Example
@@ -171,18 +173,6 @@ impl Vector {
             z: self.z / mag,
         }
     }
-}
-
-#[cfg(feature = "std")]
-#[inline]
-fn sqrt(x: f64) -> f64 {
-    x.sqrt()
-}
-
-#[cfg(not(feature = "std"))]
-#[inline]
-fn sqrt(x: f64) -> f64 {
-    libm::sqrt(x)
 }
 
 impl Add for Vector {

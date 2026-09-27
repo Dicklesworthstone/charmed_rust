@@ -20,8 +20,12 @@ default = ["std"]
 std = []
 
 [dependencies]
-# For no_std math functions
-libm = { version = "0.2", optional = true }
+# Math functions for `default-features = false` (no_std) builds. `sqrt`, `exp`,
+# `sin` and `cos` are std-only inherent methods on f64, so without `std` the
+# crate calls libm instead. It is a plain dependency rather than an optional one
+# because Cargo cannot enable a dependency when a feature is *disabled*; as an
+# optional dependency nothing ever turned it on and no_std builds failed.
+libm = "0.2"
 
 [dev-dependencies]
 proptest.workspace = true

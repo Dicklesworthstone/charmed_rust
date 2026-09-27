@@ -35,6 +35,8 @@
 //! Ported to Rust by Charmed Rust in 2026.
 //! ```
 
+use crate::math::{cos, exp, sin, sqrt};
+
 /// Tolerance for damping-ratio boundary comparisons.
 ///
 /// Using `f64::EPSILON` (~2.2e-16) is too tight — floating-point arithmetic
@@ -178,7 +180,7 @@ impl Spring {
     /// Computes coefficients for over-damped spring (damping_ratio > 1).
     fn over_damped(delta_time: f64, angular_frequency: f64, damping_ratio: f64) -> Self {
         let za = -angular_frequency * damping_ratio;
-        let zb = angular_frequency * (damping_ratio * damping_ratio - 1.0).sqrt();
+        let zb = angular_frequency * sqrt(damping_ratio * damping_ratio - 1.0);
         let z1 = za - zb;
         let z2 = za + zb;
 
@@ -204,7 +206,7 @@ impl Spring {
     /// Computes coefficients for under-damped spring (damping_ratio < 1).
     fn under_damped(delta_time: f64, angular_frequency: f64, damping_ratio: f64) -> Self {
         let omega_zeta = angular_frequency * damping_ratio;
-        let alpha = angular_frequency * (1.0 - damping_ratio * damping_ratio).sqrt();
+        let alpha = angular_frequency * sqrt(1.0 - damping_ratio * damping_ratio);
 
         let exp_term = exp(-omega_zeta * delta_time);
         let cos_term = cos(alpha * delta_time);
@@ -280,45 +282,6 @@ impl Spring {
 
         (new_pos, new_vel)
     }
-}
-
-// Math helper functions that work in both std and no_std environments
-
-#[cfg(feature = "std")]
-#[inline]
-fn exp(x: f64) -> f64 {
-    x.exp()
-}
-
-#[cfg(not(feature = "std"))]
-#[inline]
-fn exp(x: f64) -> f64 {
-    // e^x using the constant E
-    libm::exp(x)
-}
-
-#[cfg(feature = "std")]
-#[inline]
-fn sin(x: f64) -> f64 {
-    x.sin()
-}
-
-#[cfg(not(feature = "std"))]
-#[inline]
-fn sin(x: f64) -> f64 {
-    libm::sin(x)
-}
-
-#[cfg(feature = "std")]
-#[inline]
-fn cos(x: f64) -> f64 {
-    x.cos()
-}
-
-#[cfg(not(feature = "std"))]
-#[inline]
-fn cos(x: f64) -> f64 {
-    libm::cos(x)
 }
 
 #[cfg(test)]

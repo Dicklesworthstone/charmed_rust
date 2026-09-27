@@ -40,6 +40,11 @@ jobs:
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
+      - name: Check charmed-harmonica builds without std
+        run: |
+          rustup target add thumbv7em-none-eabihf
+          cargo check -p charmed-harmonica --no-default-features --target thumbv7em-none-eabihf --locked
+
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
