@@ -11,7 +11,37 @@ Repository: <https://github.com/Dicklesworthstone/charmed_rust>
 
 ## [Unreleased] — after v0.2.4
 
-[Unreleased]: https://github.com/Dicklesworthstone/charmed_rust/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/Dicklesworthstone/charmed_rust/compare/charmed-harmonica-v0.2.5...HEAD
+
+## [charmed-harmonica v0.2.5] — 2026-09-28 (crates.io, single crate)
+
+[charmed-harmonica v0.2.5]: https://github.com/Dicklesworthstone/charmed_rust/compare/v0.2.4...charmed-harmonica-v0.2.5
+
+A patch release of **`charmed-harmonica` only**. No other crate changed since
+v0.2.4, so the rest of the workspace stays at 0.2.4 on crates.io; the version
+numbers rejoin at the next workspace-wide release.
+
+### Fixed
+
+- **harmonica:** the crate now builds with `default-features = false`
+  (`no_std`), as its documentation and `no-std` category already claimed.
+  `Spring` called the std-only `f64::sqrt`, and `libm` was an optional
+  dependency that no feature enabled, so every `no_std` build failed. The math
+  shims now live in one module that uses the std methods with the `std` feature
+  and `libm` without it, and `libm` is a plain dependency. Results with the
+  default `std` feature are unchanged
+  ([`25694ec`](https://github.com/Dicklesworthstone/charmed_rust/commit/25694ec),
+  [#93](https://github.com/Dicklesworthstone/charmed_rust/issues/93)).
+
+### Verification
+
+`cargo check -p charmed-harmonica --no-default-features --target
+thumbv7em-none-eabihf --locked` builds;
+`cargo clippy --workspace --all-targets --all-features --locked -- -D warnings`
+is clean; `cargo test -p charmed-harmonica --all-features` passes; and
+`cargo test --workspace --locked --no-fail-fast` passed every test binary except
+one `charmed-glow` test (`browser_with_invalid_directory`), which failed only
+because the build worker it ran on has a real `/nonexistent/path` directory.
 
 ## [v0.2.4] — 2026-09-19 (GitHub Release)
 

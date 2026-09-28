@@ -559,7 +559,7 @@ dependencies = [
 
 [[package]]
 name = "charmed-harmonica"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "libm",
  "proptest",
