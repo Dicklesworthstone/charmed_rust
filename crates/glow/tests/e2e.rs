@@ -184,10 +184,31 @@ mod error_handling {
     }
 
     #[test]
-    fn test_directory_instead_of_file() {
+    fn test_directory_lists_markdown_files() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("top.md"), "# top").unwrap();
+        std::fs::write(dir.path().join("notes.txt"), "plain").unwrap();
+        std::fs::create_dir(dir.path().join("sub")).unwrap();
+        std::fs::write(dir.path().join("sub").join("nested.markdown"), "# n").unwrap();
+        let mut cmd = glow_cmd();
+        cmd.arg(dir.path())
+            .arg("--no-pager")
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("top.md"))
+            .stdout(predicate::str::contains("nested.markdown"))
+            .stdout(predicate::str::contains("notes.txt").not());
+    }
+
+    #[test]
+    fn test_empty_directory_lists_nothing() {
         let dir = TempDir::new().unwrap();
         let mut cmd = glow_cmd();
-        cmd.arg(dir.path()).arg("--no-pager").assert().failure();
+        cmd.arg(dir.path())
+            .arg("--no-pager")
+            .assert()
+            .success()
+            .stdout(predicate::str::is_empty());
     }
 
     #[test]
@@ -319,11 +340,14 @@ mod no_arguments {
     use super::*;
 
     #[test]
-    fn test_no_args_shows_help() {
+    fn test_no_args_lists_markdown_in_current_dir_when_not_a_tty() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("readme.md"), "# hi").unwrap();
         let mut cmd = glow_cmd();
-        cmd.assert()
+        cmd.current_dir(dir.path())
+            .assert()
             .success()
-            .stdout(predicate::str::contains("Usage"));
+            .stdout(predicate::str::contains("readme.md"));
     }
 }
 
