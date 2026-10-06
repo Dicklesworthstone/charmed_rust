@@ -243,9 +243,10 @@ mod tests {
     #[test]
     fn model_runs_action_and_quits() {
         let slot = Arc::new(Mutex::new(None));
-        let mut ui = SpinnerUi::new(&Spinner::new().title("T"), Arc::clone(&slot), || 5);
-        assert!(ui.view().ends_with(" T"), "{}", ui.view());
-        assert!(!ui.view().ends_with("  T"), "{}", ui.view());
+        let config = Spinner::new().title("T").style(Style::new());
+        let mut ui = SpinnerUi::new(&config, Arc::clone(&slot), || 5);
+        // The frame's own trailing space separates it from the title.
+        assert_eq!(ui.view(), "⣾ T");
 
         // init batches the first tick and the action.
         let batch = ui.init().expect("init cmd").execute().expect("batch msg");
