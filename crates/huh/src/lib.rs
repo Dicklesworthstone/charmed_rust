@@ -79,6 +79,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use thiserror::Error;
 
+pub mod spinner;
+
 use bubbles::key::Binding;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model};
 use lipgloss::{Border, Style};
@@ -1212,6 +1214,16 @@ pub trait Field: Send + Sync {
     }
 }
 
+/// Runs `field` as a one-field form and returns its value as `T`.
+fn run_single_field<T: 'static>(field: Box<dyn Field>) -> Result<T> {
+    let key = field.get_key().to_string();
+    let form = Form::new(vec![Group::new(vec![field])]).run()?;
+    form.get_value(&key)
+        .and_then(|v| v.downcast::<T>().ok())
+        .map(|v| *v)
+        .ok_or_else(|| FormError::Io(format!("field {key:?} produced no value")))
+}
+
 // -----------------------------------------------------------------------------
 // Accessible-mode helpers
 // -----------------------------------------------------------------------------
@@ -1352,6 +1364,21 @@ impl Default for Input {
 }
 
 impl Input {
+    /// Runs this field on its own as a one-field form and returns its value
+    /// (Go: `field.Run()`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FormError::UserAborted`] if the user cancels, or
+    /// [`FormError::Io`] if the terminal fails.
+    pub fn run(self) -> Result<String> {
+        let field = if self.key.is_empty() {
+            self.key("value")
+        } else {
+            self
+        };
+        run_single_field(Box::new(field))
+    }
     /// Creates a new input field.
     pub fn new() -> Self {
         Self {
@@ -1784,6 +1811,21 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Default for Select<
 }
 
 impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Select<T> {
+    /// Runs this field on its own as a one-field form and returns its value
+    /// (Go: `field.Run()`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FormError::UserAborted`] if the user cancels, or
+    /// [`FormError::Io`] if the terminal fails.
+    pub fn run(self) -> Result<T> {
+        let field = if self.key.is_empty() {
+            self.key("value")
+        } else {
+            self
+        };
+        run_single_field(Box::new(field))
+    }
     /// Creates a new select field.
     pub fn new() -> Self {
         Self {
@@ -2272,6 +2314,21 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Default for MultiSe
 }
 
 impl<T: Clone + PartialEq + Send + Sync + Default + 'static> MultiSelect<T> {
+    /// Runs this field on its own as a one-field form and returns its value
+    /// (Go: `field.Run()`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FormError::UserAborted`] if the user cancels, or
+    /// [`FormError::Io`] if the terminal fails.
+    pub fn run(self) -> Result<Vec<T>> {
+        let field = if self.key.is_empty() {
+            self.key("value")
+        } else {
+            self
+        };
+        run_single_field(Box::new(field))
+    }
     /// Creates a new multi-select field.
     pub fn new() -> Self {
         Self {
@@ -2798,6 +2855,21 @@ impl Default for Confirm {
 }
 
 impl Confirm {
+    /// Runs this field on its own as a one-field form and returns its value
+    /// (Go: `field.Run()`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FormError::UserAborted`] if the user cancels, or
+    /// [`FormError::Io`] if the terminal fails.
+    pub fn run(self) -> Result<bool> {
+        let field = if self.key.is_empty() {
+            self.key("value")
+        } else {
+            self
+        };
+        run_single_field(Box::new(field))
+    }
     /// Creates a new confirm field.
     pub fn new() -> Self {
         Self {
@@ -3270,6 +3342,21 @@ impl Default for Text {
 }
 
 impl Text {
+    /// Runs this field on its own as a one-field form and returns its value
+    /// (Go: `field.Run()`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FormError::UserAborted`] if the user cancels, or
+    /// [`FormError::Io`] if the terminal fails.
+    pub fn run(self) -> Result<String> {
+        let field = if self.key.is_empty() {
+            self.key("value")
+        } else {
+            self
+        };
+        run_single_field(Box::new(field))
+    }
     /// Creates a new text area field.
     pub fn new() -> Self {
         Self {
@@ -3839,6 +3926,21 @@ impl Default for FilePicker {
 }
 
 impl FilePicker {
+    /// Runs this field on its own as a one-field form and returns its value
+    /// (Go: `field.Run()`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FormError::UserAborted`] if the user cancels, or
+    /// [`FormError::Io`] if the terminal fails.
+    pub fn run(self) -> Result<String> {
+        let field = if self.key.is_empty() {
+            self.key("value")
+        } else {
+            self
+        };
+        run_single_field(Box::new(field))
+    }
     /// Creates a new file picker field.
     pub fn new() -> Self {
         Self {
