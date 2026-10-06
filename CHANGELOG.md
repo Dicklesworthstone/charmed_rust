@@ -22,6 +22,8 @@ plus runtime fixes found by driving the apps in a real PTY.
   `lipgloss/list`, `lipgloss/table`): enumerators/indenters and per-item
   styles, nested lists, bordered tables with `StyleFunc`, `Data`/`Filter`,
   fixed width/height, offsets and wrap/truncate ([`07af323`](https://github.com/Dicklesworthstone/charmed_rust/commit/07af323)).
+- **lipgloss:** `place_with` + `Whitespace` (Go `WithWhitespaceChars` /
+  `WithWhitespaceForeground` / `WithWhitespaceBackground`).
 - **lipgloss:** `Style::inherit`, `place_horizontal`, `place_vertical`,
   `Style::get_frame_size` ([`f5e444d`](https://github.com/Dicklesworthstone/charmed_rust/commit/f5e444d)).
 - **bubbletea:** `exec` / `exec_process` (Go `tea.Exec`/`ExecProcess`) hand the

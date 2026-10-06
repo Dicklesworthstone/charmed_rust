@@ -57,8 +57,6 @@ Remaining known gaps:
 - **wish:** the `sftp` middleware only routes sessions to a user handler (no
   built-in SFTP server).
 - **glamour:** no emoji shortcode expansion (Go `WithEmoji`).
-- **lipgloss:** `place*` has no whitespace options (Go `WithWhitespaceChars`,
-  `WithWhitespaceForeground`).
 - **bubbletea:** Ctrl+C is delivered as `InterruptMsg` by the runtime rather than
   as a key the model can handle (use `Program::with_filter` to intercept it).
 

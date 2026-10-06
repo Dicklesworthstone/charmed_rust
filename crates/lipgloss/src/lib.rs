@@ -784,6 +784,102 @@ mod tests {
 ///
 /// Equivalent to `place_vertical(height, v_pos, &place_horizontal(width, h_pos, s))`.
 pub fn place(width: usize, height: usize, h_pos: Position, v_pos: Position, s: &str) -> String {
+    place_with(width, height, h_pos, v_pos, s, &Whitespace::default())
+}
+
+/// How [`place_with`] fills the space around placed content (Go's
+/// `WithWhitespaceChars`, `WithWhitespaceForeground`,
+/// `WithWhitespaceBackground`).
+///
+/// ```rust
+/// use lipgloss::{place_with, Position, Whitespace};
+///
+/// let ws = Whitespace::new().chars(".");
+/// assert_eq!(place_with(5, 1, Position::Center, Position::Top, "x", &ws), "..x..");
+/// ```
+#[derive(Debug, Clone, Default)]
+pub struct Whitespace {
+    chars: Option<Vec<char>>,
+    style: Option<Style>,
+}
+
+impl Whitespace {
+    /// Plain spaces (the default).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Fills with `chars`, repeated as needed.
+    #[must_use]
+    pub fn chars(mut self, chars: &str) -> Self {
+        let chars: Vec<char> = chars.chars().collect();
+        self.chars = (!chars.is_empty()).then_some(chars);
+        self
+    }
+
+    /// Styles the fill with this style (e.g. foreground/background colors).
+    #[must_use]
+    pub fn style(mut self, style: Style) -> Self {
+        self.style = Some(style);
+        self
+    }
+
+    /// Colors the fill characters.
+    #[must_use]
+    pub fn foreground(self, color: impl Into<String>) -> Self {
+        let style = self.style.clone().unwrap_or_default().foreground(color);
+        self.style(style)
+    }
+
+    /// Colors the fill background.
+    #[must_use]
+    pub fn background(self, color: impl Into<String>) -> Self {
+        let style = self.style.clone().unwrap_or_default().background(color);
+        self.style(style)
+    }
+
+    /// Returns `width` cells of fill.
+    fn fill(&self, width: usize) -> String {
+        if width == 0 {
+            return String::new();
+        }
+        let mut out = String::with_capacity(width);
+        match &self.chars {
+            None => out.extend(std::iter::repeat_n(' ', width)),
+            Some(chars) => {
+                let mut used = 0;
+                for &c in chars.iter().cycle() {
+                    let w = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+                    if w == 0 {
+                        // Zero-width chars would never make progress.
+                        continue;
+                    }
+                    if used + w > width {
+                        break;
+                    }
+                    out.push(c);
+                    used += w;
+                }
+                // A wide char may not fit in the last cell.
+                out.extend(std::iter::repeat_n(' ', width - used));
+            }
+        }
+        match &self.style {
+            Some(style) => style.render(&out),
+            None => out,
+        }
+    }
+}
+
+/// [`place`] with a custom whitespace fill.
+pub fn place_with(
+    width: usize,
+    height: usize,
+    h_pos: Position,
+    v_pos: Position,
+    s: &str,
+    ws: &Whitespace,
+) -> String {
     let content_width = self::width(s);
     let content_height = self::height(s);
 
@@ -797,17 +893,10 @@ pub fn place(width: usize, height: usize, h_pos: Position, v_pos: Position, s: &
     let top_pad = (v_extra as f64 * v_pos.factor()).floor() as usize;
     let bottom_pad = v_extra.saturating_sub(top_pad);
 
-    // Pre-compute alignment factor once for content lines
     let h_factor = h_pos.factor();
+    let blank_line = ws.fill(width);
+    let mut result = String::with_capacity(height * (width + 1));
 
-    // Pre-allocate blank line once for reuse (avoids allocation per blank line)
-    let blank_line = " ".repeat(width);
-
-    // Pre-allocate result with estimated capacity: height lines * (width + newline)
-    let estimated_capacity = height * (width + 1);
-    let mut result = String::with_capacity(estimated_capacity);
-
-    // Top padding - reuse blank_line
     for i in 0..top_pad {
         if i > 0 {
             result.push('\n');
@@ -815,25 +904,19 @@ pub fn place(width: usize, height: usize, h_pos: Position, v_pos: Position, s: &
         result.push_str(&blank_line);
     }
 
-    // Content with horizontal padding - single-pass, avoid format!
     for (i, line) in s.lines().enumerate() {
         if top_pad > 0 || i > 0 {
             result.push('\n');
         }
-
-        let line_width = visible_width(line);
-        let line_extra = width.saturating_sub(line_width);
+        let line_extra = width.saturating_sub(visible_width(line));
         // Use floor() to match Go lipgloss Place() behavior
         let line_left = (line_extra as f64 * h_factor).floor() as usize;
         let line_right = line_extra.saturating_sub(line_left);
-
-        // Use slices of blank_line for padding (no allocation)
-        result.push_str(&blank_line[..line_left]);
+        result.push_str(&ws.fill(line_left));
         result.push_str(line);
-        result.push_str(&blank_line[..line_right]);
+        result.push_str(&ws.fill(line_right));
     }
 
-    // Bottom padding - reuse blank_line
     for _ in 0..bottom_pad {
         result.push('\n');
         result.push_str(&blank_line);
@@ -1099,5 +1182,122 @@ mod escape_sequence_tests {
         );
 
         println!("All escape sequence width tests passed!");
+    }
+}
+
+#[cfg(test)]
+mod whitespace_tests {
+    use super::*;
+
+    fn orig_place(
+        width: usize,
+        height: usize,
+        h_pos: Position,
+        v_pos: Position,
+        s: &str,
+    ) -> String {
+        let content_width = self::width(s);
+        let content_height = self::height(s);
+
+        // Horizontal padding - use floor() to match Go lipgloss Place() behavior
+        let h_extra = width.saturating_sub(content_width);
+        let left_pad = (h_extra as f64 * h_pos.factor()).floor() as usize;
+        let _right_pad = h_extra.saturating_sub(left_pad);
+
+        // Vertical padding - use floor() to match Go lipgloss Place() behavior
+        let v_extra = height.saturating_sub(content_height);
+        let top_pad = (v_extra as f64 * v_pos.factor()).floor() as usize;
+        let bottom_pad = v_extra.saturating_sub(top_pad);
+
+        // Pre-compute alignment factor once for content lines
+        let h_factor = h_pos.factor();
+
+        // Pre-allocate blank line once for reuse (avoids allocation per blank line)
+        let blank_line = " ".repeat(width);
+
+        // Pre-allocate result with estimated capacity: height lines * (width + newline)
+        let estimated_capacity = height * (width + 1);
+        let mut result = String::with_capacity(estimated_capacity);
+
+        // Top padding - reuse blank_line
+        for i in 0..top_pad {
+            if i > 0 {
+                result.push('\n');
+            }
+            result.push_str(&blank_line);
+        }
+
+        // Content with horizontal padding - single-pass, avoid format!
+        for (i, line) in s.lines().enumerate() {
+            if top_pad > 0 || i > 0 {
+                result.push('\n');
+            }
+
+            let line_width = visible_width(line);
+            let line_extra = width.saturating_sub(line_width);
+            // Use floor() to match Go lipgloss Place() behavior
+            let line_left = (line_extra as f64 * h_factor).floor() as usize;
+            let line_right = line_extra.saturating_sub(line_left);
+
+            // Use slices of blank_line for padding (no allocation)
+            result.push_str(&blank_line[..line_left]);
+            result.push_str(line);
+            result.push_str(&blank_line[..line_right]);
+        }
+
+        // Bottom padding - reuse blank_line
+        for _ in 0..bottom_pad {
+            result.push('\n');
+            result.push_str(&blank_line);
+        }
+
+        result
+    }
+
+    #[test]
+    fn default_whitespace_matches_previous_place() {
+        let positions = [Position::Left, Position::Center, Position::Right];
+        let inputs = ["", "hi", "toolong", "a\nbcd", "\x1b[1mbold\x1b[0m", "猫x"];
+        for s in inputs {
+            for w in [0, 1, 3, 6, 9] {
+                for h in [0, 1, 2, 5] {
+                    for hp in positions {
+                        for vp in [Position::Top, Position::Center, Position::Bottom] {
+                            assert_eq!(
+                                place(w, h, hp, vp, s),
+                                orig_place(w, h, hp, vp, s),
+                                "w={w} h={h} s={s:?}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn custom_chars_fill_and_cycle() {
+        let ws = Whitespace::new().chars("ab");
+        assert_eq!(
+            place_with(6, 2, Position::Right, Position::Bottom, "x", &ws),
+            "ababab\nababax"
+        );
+    }
+
+    #[test]
+    fn wide_chars_pad_the_last_cell() {
+        let ws = Whitespace::new().chars("猫");
+        let out = place_with(5, 1, Position::Left, Position::Top, "x", &ws);
+        assert_eq!(out, "x猫猫");
+        let out = place_with(4, 1, Position::Left, Position::Top, "x", &ws);
+        assert_eq!(out, "x猫 ");
+    }
+
+    #[test]
+    fn styled_whitespace_is_rendered() {
+        let ws = Whitespace::new().foreground("#ff0000").chars("-");
+        let out = place_with(5, 1, Position::Center, Position::Top, "x", &ws);
+        assert!(out.contains('\x1b'), "{out:?}");
+        assert_eq!(visible_width(&out), 5);
     }
 }
