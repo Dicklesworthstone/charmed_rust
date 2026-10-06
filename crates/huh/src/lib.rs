@@ -5032,7 +5032,14 @@ pub struct Form {
     show_help: bool,
     show_errors: bool,
     accessible: bool,
+    /// Whether fields have been themed and the first field focused.
+    initialized: bool,
+    timeout: Option<std::time::Duration>,
+    timed_out: bool,
 }
+
+/// Fired when a form's [timeout](Form::timeout) elapses.
+struct FormTimeoutMsg;
 
 impl Default for Form {
     fn default() -> Self {
@@ -5054,7 +5061,23 @@ impl Form {
             show_help: true,
             show_errors: true,
             accessible: false,
+            initialized: false,
+            timeout: None,
+            timed_out: false,
         }
+    }
+
+    /// Gives up if the form is not completed within `timeout`
+    /// (Go: `WithTimeout`); [`Form::run`] then returns
+    /// [`FormError::Timeout`].
+    pub fn timeout(mut self, timeout: std::time::Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    /// Returns whether the form gave up because its timeout elapsed.
+    pub fn timed_out(&self) -> bool {
+        self.timed_out
     }
 
     /// Sets the form width.
@@ -5166,6 +5189,9 @@ impl Form {
         let form = bubbletea::Program::new(self)
             .run()
             .map_err(|e| FormError::Io(e.to_string()))?;
+        if form.timed_out {
+            return Err(FormError::Timeout);
+        }
         match form.state {
             FormState::Completed => Ok(form),
             // Ctrl+C is intercepted by the runtime before the form sees it,
@@ -5381,19 +5407,34 @@ impl Form {
 
 impl Model for Form {
     fn init(&self) -> Option<Cmd> {
-        None
+        self.timeout
+            .map(|d| bubbletea::tick(d, |_| Message::new(FormTimeoutMsg)))
     }
 
     fn update(&mut self, msg: Message) -> Option<Cmd> {
-        // Initialize fields on first update
-        if self.state == FormState::Normal && self.current_group == 0 {
+        // Theme the fields and focus the first visible field once.
+        if !self.initialized {
+            self.initialized = true;
             self.init_fields();
-            // Focus first field
-            if let Some(group) = self.groups.get_mut(0)
-                && let Some(field) = group.fields.get_mut(0)
+            while self.current_group + 1 < self.groups.len()
+                && self.groups[self.current_group].is_hidden()
+            {
+                self.current_group += 1;
+            }
+            if let Some(group) = self.groups.get_mut(self.current_group)
+                && let Some(field) = group.fields.get_mut(group.current)
             {
                 field.focus();
             }
+        }
+
+        if msg.is::<FormTimeoutMsg>() {
+            if self.state == FormState::Normal {
+                self.timed_out = true;
+                self.state = FormState::Aborted;
+                return Some(bubbletea::quit());
+            }
+            return None;
         }
 
         // Handle quit
@@ -7205,5 +7246,79 @@ mod accessible_tests {
     #[test]
     fn strip_removes_ansi() {
         assert_eq!(lipgloss_strip("\x1b[1mhi\x1b[0m"), "hi");
+    }
+}
+
+#[cfg(test)]
+mod form_runtime_tests {
+    use super::*;
+
+    fn blurred_input_view(key: &str, title: &str) -> String {
+        let mut input = Input::new().key(key).title(title);
+        input.with_theme(&theme_charm());
+        input.with_keymap(&KeyMap::default());
+        input.with_width(80);
+        input.view()
+    }
+
+    #[test]
+    fn first_field_is_not_refocused_after_moving_on() {
+        let mut form = Form::new(vec![Group::new(vec![
+            Box::new(Input::new().key("a").title("A")),
+            Box::new(Input::new().key("b").title("B")),
+        ])]);
+        form.update(Message::new(KeyMsg::from_char('x')));
+        form.update(Message::new(NextFieldMsg));
+        // Any further message used to re-focus field 0 while still in group 0.
+        form.update(Message::new(KeyMsg::from_char('y')));
+
+        assert_eq!(form.get_string("a").as_deref(), Some("x"));
+        assert_eq!(form.get_string("b").as_deref(), Some("y"));
+        let first = form.groups[0].fields[0].view();
+        let expected = {
+            let mut input = Input::new().key("a").title("A").value("x");
+            input.with_theme(&theme_charm());
+            input.with_keymap(&KeyMap::default());
+            input.with_width(80);
+            input.view()
+        };
+        assert_eq!(first, expected, "field 0 should be rendered blurred");
+        assert_ne!(
+            form.groups[0].fields[1].view(),
+            blurred_input_view("b", "B"),
+            "field 1 should be focused"
+        );
+    }
+
+    #[test]
+    fn hidden_first_group_is_skipped() {
+        let mut form = Form::new(vec![
+            Group::new(vec![Box::new(Input::new().key("hidden"))]).hide(true),
+            Group::new(vec![Box::new(Input::new().key("shown"))]),
+        ]);
+        form.update(Message::new(KeyMsg::from_char('z')));
+        assert_eq!(form.current_group(), 1);
+        assert_eq!(form.get_string("shown").as_deref(), Some("z"));
+    }
+
+    #[test]
+    fn timeout_aborts_the_form() {
+        let mut form = Form::new(vec![Group::new(vec![Box::new(Input::new().key("a"))])])
+            .timeout(std::time::Duration::from_millis(1));
+        let tick = form
+            .init()
+            .expect("timeout tick")
+            .execute()
+            .expect("timeout msg");
+        let quit = form.update(tick).expect("quit");
+        assert!(quit.execute().is_some_and(|m| m.is::<bubbletea::QuitMsg>()));
+        assert!(form.timed_out());
+        assert_eq!(form.state(), FormState::Aborted);
+    }
+
+    #[test]
+    fn no_timeout_means_no_init_command() {
+        let form = Form::new(vec![]);
+        assert!(form.init().is_none());
     }
 }
