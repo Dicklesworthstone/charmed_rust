@@ -69,8 +69,9 @@ impl ServerState {
 struct ChannelState {
     /// The wish Session for this channel.
     session: Session,
-    /// Input sender for data from client.
-    input_tx: mpsc::Sender<Vec<u8>>,
+    /// Input sender for data from client; `None` once the client sent EOF,
+    /// which makes [`Session::recv`] return `None` after buffered input.
+    input_tx: Option<mpsc::Sender<Vec<u8>>>,
     /// Whether shell/exec has started.
     started: bool,
     /// Buffer for incoming input data (to handle split UTF-8/sequences).
@@ -723,7 +724,7 @@ impl RusshHandler for WishHandler {
             channel_id,
             ChannelState {
                 session: wish_session,
-                input_tx,
+                input_tx: Some(input_tx),
                 started: false,
                 input_buffer: Vec::new(),
             },
@@ -1003,18 +1004,32 @@ impl RusshHandler for WishHandler {
             "Data received"
         );
 
-        if let Some(state) = self.channels.get_mut(&channel) {
-            // Forward raw data to input_tx (legacy/stream support)
-            // We use try_send to avoid blocking the handler if the app isn't reading input
-            if let Err(mpsc::error::TrySendError::Full(_)) = state.input_tx.try_send(data.to_vec())
-            {
-                warn!(
-                    connection_id = self.connection_id,
-                    channel = ?channel,
-                    "Input buffer full, dropping data (app not reading input?)"
-                );
+        // Forward the raw bytes to the session's input stream.
+        let raw = self
+            .channels
+            .get(&channel)
+            .and_then(|state| Some((state.input_tx.clone()?, state.session.pty().1)));
+        if let Some((tx, has_pty)) = raw {
+            if has_pty {
+                // Interactive (TUI) sessions consume keys via messages and may
+                // never read the raw stream, so don't block on it.
+                if let Err(mpsc::error::TrySendError::Full(_)) = tx.try_send(data.to_vec()) {
+                    warn!(
+                        connection_id = self.connection_id,
+                        channel = ?channel,
+                        "Input buffer full, dropping data (app not reading input?)"
+                    );
+                }
+            } else if tx.send(data.to_vec()).await.is_err() {
+                // Non-PTY sessions (exec, git, scp, ...) carry byte streams
+                // that must not be truncated: apply backpressure instead of
+                // dropping. A send error only means the handler stopped
+                // reading, which is fine.
+                trace!(connection_id = self.connection_id, channel = ?channel, "input receiver dropped");
             }
+        }
 
+        if let Some(state) = self.channels.get_mut(&channel) {
             // Append data to buffer, capping at 64KB to prevent
             // memory exhaustion from malicious or misbehaving clients
             const MAX_INPUT_BUFFER: usize = 64 * 1024;
@@ -1119,6 +1134,11 @@ impl RusshHandler for WishHandler {
             channel = ?channel,
             "Channel EOF"
         );
+        // Dropping the sender ends the session's input stream once buffered
+        // data has been read, so handlers see EOF like a closed stdin.
+        if let Some(state) = self.channels.get_mut(&channel) {
+            state.input_tx = None;
+        }
         Ok(())
     }
 

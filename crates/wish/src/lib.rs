@@ -1626,26 +1626,331 @@ pub mod middleware {
         }
     }
 
-    /// Middleware for Git operations.
-    ///
-    /// This middleware is intentionally conservative: it only intercepts sessions
-    /// that appear to be executing Git commands. For non-Git sessions it is a no-op.
     pub mod git {
-        use super::*;
+        //! Git over SSH (Go: `wish/git`).
+        //!
+        //! [`middleware`] serves bare repositories from a directory:
+        //! `git clone ssh://host/repo` runs `git-upload-pack`, `git push`
+        //! runs `git-receive-pack` (creating the bare repository on first
+        //! push), and `git archive --remote` runs `git-upload-archive`.
+        //! Access is decided per repository by a [`Hooks`] implementation.
+        //! Sessions that are not git commands fall through to the next
+        //! handler. Requires the `git` executable on the server.
 
-        fn looks_like_git_command(cmd: &[String]) -> bool {
-            cmd.first()
-                .is_some_and(|c| c == "git" || c.starts_with("git-"))
+        use super::*;
+        use std::path::{Path, PathBuf};
+        use std::process::Stdio;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        /// Message sent when access is denied.
+        pub const ERR_NOT_AUTHED: &str = "you are not authorized to do this";
+        /// Message sent when the repository name is invalid or missing.
+        pub const ERR_INVALID_REPO: &str = "invalid repo";
+        /// Message sent when git fails on the server.
+        pub const ERR_SYSTEM_MALFUNCTION: &str = "something went wrong";
+
+        /// Access a user has to a repository.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum AccessLevel {
+            /// No access.
+            NoAccess,
+            /// Fetch/clone only.
+            ReadOnly,
+            /// Fetch and push.
+            ReadWrite,
+            /// Full access.
+            Admin,
         }
 
-        /// Creates Git middleware.
+        impl AccessLevel {
+            const fn can_read(self) -> bool {
+                !matches!(self, Self::NoAccess)
+            }
+
+            const fn can_write(self) -> bool {
+                matches!(self, Self::ReadWrite | Self::Admin)
+            }
+        }
+
+        /// Authorization and notification hooks (Go: `git.Hooks`).
+        pub trait Hooks: Send + Sync {
+            /// Returns the access `key` has to `repo` (e.g. `"project.git"`).
+            fn auth_repo(&self, repo: &str, key: Option<&PublicKey>) -> AccessLevel;
+
+            /// Called after a successful push.
+            fn push(&self, _repo: &str, _key: Option<&PublicKey>) {}
+
+            /// Called after a successful fetch/clone or archive.
+            fn fetch(&self, _repo: &str, _key: Option<&PublicKey>) {}
+        }
+
+        /// Hooks granting everyone the same access level.
+        #[derive(Debug, Clone, Copy)]
+        pub struct StaticAccess(pub AccessLevel);
+
+        impl Hooks for StaticAccess {
+            fn auth_repo(&self, _repo: &str, _key: Option<&PublicKey>) -> AccessLevel {
+                self.0
+            }
+        }
+
+        /// A git service requested over SSH.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        enum Service {
+            UploadPack,
+            UploadArchive,
+            ReceivePack,
+        }
+
+        impl Service {
+            fn parse(cmd: &str) -> Option<Self> {
+                match cmd {
+                    "git-upload-pack" => Some(Self::UploadPack),
+                    "git-upload-archive" => Some(Self::UploadArchive),
+                    "git-receive-pack" => Some(Self::ReceivePack),
+                    _ => None,
+                }
+            }
+
+            /// The `git` subcommand implementing the service.
+            const fn subcommand(self) -> &'static str {
+                match self {
+                    Self::UploadPack => "upload-pack",
+                    Self::UploadArchive => "upload-archive",
+                    Self::ReceivePack => "receive-pack",
+                }
+            }
+        }
+
+        /// Normalizes a requested repository name to `name.git`.
         ///
-        /// By default, this denies Git commands unless the user provides a handler
-        /// via `middleware_with_handler`.
-        pub fn middleware() -> Middleware {
-            middleware_with_handler(|session| async move {
-                fatalln(&session, "git handler not configured");
+        /// Like Go wish, only top-level repositories are served: the name
+        /// may not contain path separators or parent references.
+        fn repo_name(raw: &str) -> Option<String> {
+            let name = raw
+                .trim_matches(|c| c == '\'' || c == '"')
+                .trim_start_matches('/');
+            let name = name.trim_end_matches('/');
+            if name.is_empty()
+                || name.contains('/')
+                || name.contains('\\')
+                || name == "."
+                || name == ".."
+                || name.starts_with('-')
+            {
+                return None;
+            }
+            // Case-sensitive like Go wish's strings.HasSuffix.
+            #[allow(clippy::case_sensitive_file_extension_comparisons)]
+            Some(if name.ends_with(".git") {
+                name.to_string()
+            } else {
+                format!("{name}.git")
             })
+        }
+
+        /// Creates the git middleware serving repositories under `repo_dir`.
+        ///
+        /// # Example
+        ///
+        /// ```rust,no_run
+        /// use wish::middleware::git::{self, AccessLevel, StaticAccess};
+        /// use wish::ServerBuilder;
+        ///
+        /// let server = ServerBuilder::new()
+        ///     .address("0.0.0.0:23231")
+        ///     .with_middleware(git::middleware("/srv/git", StaticAccess(AccessLevel::ReadWrite)))
+        ///     .build();
+        /// ```
+        pub fn middleware(repo_dir: impl Into<PathBuf>, hooks: impl Hooks + 'static) -> Middleware {
+            let repo_dir: Arc<PathBuf> = Arc::new(repo_dir.into());
+            let hooks: Arc<dyn Hooks> = Arc::new(hooks);
+            Arc::new(move |next| {
+                let repo_dir = repo_dir.clone();
+                let hooks = hooks.clone();
+                Arc::new(move |session| {
+                    let next = next.clone();
+                    let repo_dir = repo_dir.clone();
+                    let hooks = hooks.clone();
+                    Box::pin(async move {
+                        let cmd = session.command();
+                        let service = match cmd {
+                            [c, _] => Service::parse(c),
+                            _ => None,
+                        };
+                        let Some(service) = service else {
+                            next(session).await;
+                            return;
+                        };
+                        let Some(repo) = repo_name(&cmd[1]) else {
+                            fatalln(&session, ERR_INVALID_REPO);
+                            return;
+                        };
+                        handle(&session, &repo_dir, hooks.as_ref(), service, &repo).await;
+                    })
+                })
+            })
+        }
+
+        async fn handle(
+            session: &Session,
+            repo_dir: &Path,
+            hooks: &dyn Hooks,
+            service: Service,
+            repo: &str,
+        ) {
+            let key = session.public_key();
+            let access = hooks.auth_repo(repo, key);
+            let allowed = match service {
+                Service::ReceivePack => access.can_write(),
+                Service::UploadPack | Service::UploadArchive => access.can_read(),
+            };
+            if !allowed {
+                fatalln(session, ERR_NOT_AUTHED);
+                return;
+            }
+
+            let path = repo_dir.join(repo);
+            let result = match service {
+                Service::ReceivePack => receive_pack(session, &path).await,
+                Service::UploadPack | Service::UploadArchive => {
+                    // Serve `name.git`, falling back to a plain `name` dir.
+                    let path = if path.is_dir() {
+                        path
+                    } else {
+                        repo_dir.join(repo.trim_end_matches(".git"))
+                    };
+                    if !path.is_dir() {
+                        fatalln(session, ERR_INVALID_REPO);
+                        return;
+                    }
+                    run_git(session, &[service.subcommand()], &path).await
+                }
+            };
+
+            match result {
+                Ok(0) => {
+                    match service {
+                        Service::ReceivePack => hooks.push(repo, key),
+                        Service::UploadPack | Service::UploadArchive => hooks.fetch(repo, key),
+                    }
+                    let _ = session.exit(0);
+                    let _ = session.close();
+                }
+                Ok(code) => {
+                    let _ = session.exit(code);
+                    let _ = session.close();
+                }
+                Err(e) => {
+                    warn!(error = %e, repo, "git service failed");
+                    fatalln(session, ERR_SYSTEM_MALFUNCTION);
+                }
+            }
+        }
+
+        async fn receive_pack(session: &Session, path: &Path) -> io::Result<i32> {
+            if !path.exists() {
+                let status = tokio::process::Command::new("git")
+                    .arg("init")
+                    .arg("--bare")
+                    .arg("--quiet")
+                    .arg(path)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status()
+                    .await?;
+                if !status.success() {
+                    return Err(io::Error::other("git init --bare failed"));
+                }
+            }
+            let code = run_git(session, &["receive-pack"], path).await?;
+            if code == 0 {
+                // Needed for the dumb HTTP protocol, as in Go wish.
+                let _ = tokio::process::Command::new("git")
+                    .arg("-C")
+                    .arg(path)
+                    .arg("update-server-info")
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status()
+                    .await;
+            }
+            Ok(code)
+        }
+
+        /// Runs `git <args> <path>`, wiring the session to the child's
+        /// stdin/stdout/stderr, and returns its exit code.
+        async fn run_git(session: &Session, args: &[&str], path: &Path) -> io::Result<i32> {
+            let mut child = tokio::process::Command::new("git")
+                .args(args)
+                .arg(path)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .kill_on_drop(true)
+                .spawn()?;
+            let mut stdin = child
+                .stdin
+                .take()
+                .ok_or_else(|| io::Error::other("no stdin"))?;
+            let mut stdout = child
+                .stdout
+                .take()
+                .ok_or_else(|| io::Error::other("no stdout"))?;
+            let mut stderr = child
+                .stderr
+                .take()
+                .ok_or_else(|| io::Error::other("no stderr"))?;
+
+            let input = async {
+                while let Some(data) = session.recv().await {
+                    if stdin.write_all(&data).await.is_err() {
+                        break;
+                    }
+                }
+                drop(stdin);
+            };
+            let output = async {
+                let mut buf = vec![0u8; 32 * 1024];
+                loop {
+                    match stdout.read(&mut buf).await {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => {
+                            let _ = session.write(&buf[..n]);
+                        }
+                    }
+                }
+            };
+            let errors = async {
+                let mut buf = vec![0u8; 8 * 1024];
+                loop {
+                    match stderr.read(&mut buf).await {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => {
+                            let _ = session.write_stderr(&buf[..n]);
+                        }
+                    }
+                }
+            };
+            // Finish when git closes its output. The input pump may still be
+            // waiting for client data at that point, so it is dropped (which
+            // also closes git's stdin) rather than awaited.
+            let streams = async {
+                tokio::join!(output, errors);
+            };
+            tokio::pin!(streams);
+            tokio::pin!(input);
+            let mut input_done = false;
+            loop {
+                tokio::select! {
+                    () = &mut streams => break,
+                    () = &mut input, if !input_done => input_done = true,
+                }
+            }
+            let status = child.wait().await?;
+            Ok(status.code().unwrap_or(1))
         }
 
         /// Creates Git middleware that delegates Git sessions to a custom handler.
@@ -1661,7 +1966,11 @@ pub mod middleware {
                     let next = next.clone();
                     let handler = handler.clone();
                     Box::pin(async move {
-                        if looks_like_git_command(session.command()) {
+                        let is_git = session
+                            .command()
+                            .first()
+                            .is_some_and(|c| c == "git" || c.starts_with("git-"));
+                        if is_git {
                             handler(session).await;
                         } else {
                             next(session).await;

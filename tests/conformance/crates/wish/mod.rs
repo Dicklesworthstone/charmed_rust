@@ -572,7 +572,10 @@ fn run_middleware_fixture(fixture: &TestFixture) -> Result<(), String> {
             Ok(())
         }
         "git" => {
-            let _mw = middleware::git::middleware();
+            let _mw = middleware::git::middleware(
+                std::env::temp_dir(),
+                middleware::git::StaticAccess(middleware::git::AccessLevel::NoAccess),
+            );
             Ok(())
         }
         "scp" => {
