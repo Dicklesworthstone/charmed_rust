@@ -532,6 +532,7 @@ dependencies = [
  "proptest",
  "pulldown-cmark",
  "serde",
+ "serde_json",
  "stats_alloc",
  "syntect",
  "tracing",

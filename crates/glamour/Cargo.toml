@@ -19,6 +19,9 @@ name = "glamour"
 lipgloss = { workspace = true }
 lru = "0.18"  # O(1) LRU cache for StyleCache (bd-cnqe, bd-2oct)
 pulldown-cmark = "0.13"
+# Custom JSON styles (Go glamour's WithStylePath / WithStylesFromJSONBytes).
+# Already in the tree via lipgloss.
+serde_json = { workspace = true }
 tracing.workspace = true
 unicode-width.workspace = true
 

@@ -163,10 +163,17 @@ impl Config {
     }
 
     fn renderer(&self) -> io::Result<TermRenderer> {
-        let style = self.glamour_style()?;
-        let mut renderer = TermRenderer::new()
-            .with_style(style)
-            .with_preserved_newlines(self.preserve_newlines);
+        // Like Go glow, `--style` takes a built-in name or a JSON style file.
+        let base = match self.glamour_style() {
+            Ok(style) => TermRenderer::new().with_style(style),
+            Err(_) if std::path::Path::new(&self.style).is_file() => TermRenderer::new()
+                .with_style_path(&self.style)
+                .map_err(|e| {
+                    io::Error::new(io::ErrorKind::InvalidInput, format!("{}: {e}", self.style))
+                })?,
+            Err(unknown) => return Err(unknown),
+        };
+        let mut renderer = base.with_preserved_newlines(self.preserve_newlines);
         if let Some(width) = self.width {
             renderer = renderer.with_word_wrap(width);
         }
@@ -287,6 +294,7 @@ fn parse_style(style: &str) -> Option<GlamourStyle> {
         "light" => Some(GlamourStyle::Light),
         "ascii" => Some(GlamourStyle::Ascii),
         "pink" => Some(GlamourStyle::Pink),
+        "dracula" => Some(GlamourStyle::Dracula),
         "auto" => Some(GlamourStyle::Auto),
         "no-tty" | "notty" | "no_tty" => Some(GlamourStyle::NoTty),
         _ => None,
@@ -327,7 +335,6 @@ mod tests {
     fn parse_style_returns_none_for_unknown() {
         assert!(parse_style("unknown").is_none());
         assert!(parse_style("").is_none());
-        assert!(parse_style("dracula").is_none());
     }
 
     // =========================================================================
@@ -535,5 +542,35 @@ fn main() {}
         stash.add("borrowed.md");
 
         assert_eq!(stash.documents()[0], "borrowed.md");
+    }
+}
+
+#[cfg(test)]
+mod custom_style_tests {
+    use super::*;
+
+    #[test]
+    fn style_accepts_json_file() {
+        let path = std::env::temp_dir().join(format!("glow-style-{}.json", std::process::id()));
+        std::fs::write(&path, r#"{ "h1": { "prefix": "TITLE " } }"#).unwrap();
+        let reader = Reader::new(Config::new().style(path.to_string_lossy()));
+        let out = reader
+            .render_markdown("# Hello")
+            .expect("custom style renders");
+        assert!(out.contains("TITLE Hello"), "{out}");
+    }
+
+    #[test]
+    fn invalid_json_style_file_is_an_error() {
+        let path = std::env::temp_dir().join(format!("glow-bad-style-{}.json", std::process::id()));
+        std::fs::write(&path, "{ not json").unwrap();
+        let reader = Reader::new(Config::new().style(path.to_string_lossy()));
+        let err = reader.render_markdown("# Hello").unwrap_err();
+        assert!(err.to_string().contains("parsing style JSON"), "{err}");
+    }
+
+    #[test]
+    fn dracula_is_a_known_style() {
+        assert!(parse_style("dracula").is_some());
     }
 }

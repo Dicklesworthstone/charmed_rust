@@ -715,10 +715,241 @@ pub struct StyleConfig {
     pub syntax_config: SyntaxThemeConfig,
 }
 
+/// Errors from loading a custom style.
+#[derive(Debug)]
+pub enum StyleError {
+    /// The style file could not be read.
+    Io(std::io::Error),
+    /// The style is not valid JSON.
+    Json(serde_json::Error),
+    /// The JSON is well-formed but not a valid style.
+    Invalid(String),
+}
+
+impl std::fmt::Display for StyleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Io(e) => write!(f, "reading style: {e}"),
+            Self::Json(e) => write!(f, "parsing style JSON: {e}"),
+            Self::Invalid(msg) => write!(f, "invalid style: {msg}"),
+        }
+    }
+}
+
+impl std::error::Error for StyleError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Io(e) => Some(e),
+            Self::Json(e) => Some(e),
+            Self::Invalid(_) => None,
+        }
+    }
+}
+
+/// Typed accessors for Go glamour's JSON style format.
+mod json_style {
+    use super::{StyleBlock, StyleError, StylePrimitive};
+    use serde_json::Value;
+
+    fn invalid(element: &str, key: &str, expected: &str) -> StyleError {
+        StyleError::Invalid(format!("{element}.{key} must be {expected}"))
+    }
+
+    pub fn string(
+        v: &Value,
+        key: &str,
+        element: &str,
+    ) -> Result<Option<String>, StyleError> {
+        match v.get(key) {
+            None | Some(Value::Null) => Ok(None),
+            Some(Value::String(s)) => Ok(Some(s.clone())),
+            Some(_) => Err(invalid(element, key, "a string")),
+        }
+    }
+
+    fn boolean(v: &Value, key: &str, element: &str) -> Result<Option<bool>, StyleError> {
+        match v.get(key) {
+            None | Some(Value::Null) => Ok(None),
+            Some(Value::Bool(b)) => Ok(Some(*b)),
+            Some(_) => Err(invalid(element, key, "a boolean")),
+        }
+    }
+
+    pub fn uint(v: &Value, key: &str, element: &str) -> Result<Option<usize>, StyleError> {
+        match v.get(key) {
+            None | Some(Value::Null) => Ok(None),
+            Some(n) => n
+                .as_u64()
+                .and_then(|n| usize::try_from(n).ok())
+                .map(Some)
+                .ok_or_else(|| invalid(element, key, "a non-negative integer")),
+        }
+    }
+
+    pub fn primitive(v: &Value, element: &str) -> Result<StylePrimitive, StyleError> {
+        if !v.is_object() {
+            return Err(StyleError::Invalid(format!("{element} must be an object")));
+        }
+        Ok(StylePrimitive {
+            block_prefix: string(v, "block_prefix", element)?.unwrap_or_default(),
+            block_suffix: string(v, "block_suffix", element)?.unwrap_or_default(),
+            prefix: string(v, "prefix", element)?.unwrap_or_default(),
+            suffix: string(v, "suffix", element)?.unwrap_or_default(),
+            color: string(v, "color", element)?,
+            background_color: string(v, "background_color", element)?,
+            underline: boolean(v, "underline", element)?,
+            bold: boolean(v, "bold", element)?,
+            italic: boolean(v, "italic", element)?,
+            crossed_out: boolean(v, "crossed_out", element)?,
+            faint: boolean(v, "faint", element)?,
+            format: string(v, "format", element)?.unwrap_or_default(),
+        })
+    }
+
+    pub fn block(v: &Value, element: &str) -> Result<StyleBlock, StyleError> {
+        Ok(StyleBlock {
+            style: primitive(v, element)?,
+            indent: uint(v, "indent", element)?,
+            indent_prefix: string(v, "indent_token", element)?,
+            margin: uint(v, "margin", element)?,
+        })
+    }
+}
+
 impl StyleConfig {
     /// Creates a new empty style config.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Parses a style from Go glamour's JSON style format.
+    ///
+    /// The format is the one used by glamour's bundled `dark.json`,
+    /// `light.json`, etc.: a top-level object keyed by element (`document`,
+    /// `heading`, `h1`..`h6`, `paragraph`, `block_quote`, `list`, `item`,
+    /// `enumeration`, `task`, `text`, `emph`, `strong`, `strikethrough`,
+    /// `hr`, `link`, `link_text`, `image`, `image_text`, `code`,
+    /// `code_block`, `table`, `definition_list`, `definition_term`,
+    /// `definition_description`), each holding primitive properties
+    /// (`color`, `background_color`, `bold`, `italic`, `underline`,
+    /// `crossed_out`, `faint`, `prefix`, `suffix`, `block_prefix`,
+    /// `block_suffix`, `format`) and, for blocks, `indent`, `indent_token`
+    /// and `margin`. Unknown keys (e.g. `chroma`, `upper`) are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StyleError::Json`] for malformed JSON and
+    /// [`StyleError::Invalid`] when a value has the wrong type.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use glamour::StyleConfig;
+    ///
+    /// let style = StyleConfig::from_json(r##"{
+    ///     "document": { "margin": 1 },
+    ///     "h1": { "prefix": "# ", "color": "#ff00ff", "bold": true }
+    /// }"##).unwrap();
+    /// assert_eq!(style.h1.style.prefix, "# ");
+    /// assert_eq!(style.document.margin, Some(1));
+    /// ```
+    pub fn from_json(json: &str) -> Result<Self, StyleError> {
+        let value: serde_json::Value = serde_json::from_str(json).map_err(StyleError::Json)?;
+        let root = value
+            .as_object()
+            .ok_or_else(|| StyleError::Invalid("style must be a JSON object".into()))?;
+        let mut cfg = Self {
+            list: StyleList::new(),
+            task: StyleTask::new(),
+            ..Self::default()
+        };
+        let get = |key: &str| root.get(key);
+        macro_rules! block {
+            ($($key:literal => $field:ident),* $(,)?) => {$(
+                if let Some(v) = get($key) {
+                    cfg.$field = json_style::block(v, $key)?;
+                }
+            )*};
+        }
+        macro_rules! primitive {
+            ($($key:literal => $field:ident),* $(,)?) => {$(
+                if let Some(v) = get($key) {
+                    cfg.$field = json_style::primitive(v, $key)?;
+                }
+            )*};
+        }
+        block!(
+            "document" => document,
+            "block_quote" => block_quote,
+            "paragraph" => paragraph,
+            "heading" => heading,
+            "h1" => h1,
+            "h2" => h2,
+            "h3" => h3,
+            "h4" => h4,
+            "h5" => h5,
+            "h6" => h6,
+            "code" => code,
+            "definition_list" => definition_list,
+        );
+        primitive!(
+            "text" => text,
+            "strikethrough" => strikethrough,
+            "emph" => emph,
+            "strong" => strong,
+            "hr" => horizontal_rule,
+            "item" => item,
+            "enumeration" => enumeration,
+            "link" => link,
+            "link_text" => link_text,
+            "image" => image,
+            "image_text" => image_text,
+            "definition_term" => definition_term,
+            "definition_description" => definition_description,
+        );
+        if let Some(v) = get("list") {
+            let mut list = StyleList::new().block(json_style::block(v, "list")?);
+            if let Some(n) = json_style::uint(v, "level_indent", "list")? {
+                list.level_indent = n;
+            }
+            cfg.list = list;
+        }
+        if let Some(v) = get("task") {
+            let mut task = StyleTask::new();
+            task.style = json_style::primitive(v, "task")?;
+            if let Some(t) = json_style::string(v, "ticked", "task")? {
+                task.ticked = t;
+            }
+            if let Some(t) = json_style::string(v, "unticked", "task")? {
+                task.unticked = t;
+            }
+            cfg.task = task;
+        }
+        if let Some(v) = get("code_block") {
+            cfg.code_block = StyleCodeBlock::new().block(json_style::block(v, "code_block")?);
+            cfg.code_block.theme = json_style::string(v, "theme", "code_block")?;
+        }
+        if let Some(v) = get("table") {
+            let mut table = StyleTable::new();
+            table.block = json_style::block(v, "table")?;
+            table.center_separator = json_style::string(v, "center_separator", "table")?;
+            table.column_separator = json_style::string(v, "column_separator", "table")?;
+            table.row_separator = json_style::string(v, "row_separator", "table")?;
+            cfg.table = table;
+        }
+        Ok(cfg)
+    }
+
+    /// Parses a style from JSON bytes (see [`StyleConfig::from_json`]).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StyleError::Invalid`] for non-UTF-8 input, otherwise the
+    /// errors of [`StyleConfig::from_json`].
+    pub fn from_json_bytes(json: &[u8]) -> Result<Self, StyleError> {
+        let text = std::str::from_utf8(json)
+            .map_err(|e| StyleError::Invalid(format!("style is not UTF-8: {e}")))?;
+        Self::from_json(text)
     }
 
     /// Gets the style for a heading level.
@@ -1262,6 +1493,37 @@ impl TermRenderer {
     pub fn with_style_config(mut self, config: StyleConfig) -> Self {
         self.options.styles = config;
         self
+    }
+
+    /// Uses a custom style from Go glamour's JSON style format
+    /// (Go API: `WithStylesFromJSONBytes`).
+    ///
+    /// # Errors
+    ///
+    /// See [`StyleConfig::from_json_bytes`].
+    pub fn with_styles_from_json_bytes(mut self, json: &[u8]) -> Result<Self, StyleError> {
+        self.options.styles = StyleConfig::from_json_bytes(json)?;
+        Ok(self)
+    }
+
+    /// Uses a built-in style by name (`dark`, `light`, `ascii`, `pink`,
+    /// `dracula`, `notty`, `auto`) or, failing that, loads a JSON style file
+    /// from `path` (Go API: `WithStylePath`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StyleError::Io`] if the file cannot be read, or a parse
+    /// error from [`StyleConfig::from_json`].
+    pub fn with_style_path(self, path: impl AsRef<std::path::Path>) -> Result<Self, StyleError> {
+        let path = path.as_ref();
+        if let Some(style) = path
+            .to_str()
+            .and_then(|name| available_styles().get(name).copied())
+        {
+            return Ok(self.with_style(style));
+        }
+        let bytes = std::fs::read(path).map_err(StyleError::Io)?;
+        self.with_styles_from_json_bytes(&bytes)
     }
 
     /// Sets the word wrap width.
@@ -1937,7 +2199,8 @@ impl<'a> RenderContext<'a> {
             &self.options.styles.task.ticked,
             &self.options.styles.task.unticked,
         ] {
-            if text.starts_with(marker) {
+            // An empty marker would match every item and erase its bullet.
+            if !marker.is_empty() && text.starts_with(marker) {
                 task_marker = Some(marker.clone());
                 text = text[marker.len()..].to_string();
                 break;
@@ -3616,5 +3879,116 @@ mod table_spacing_tests {
                 style
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod json_style_tests {
+    use super::*;
+
+    const GO_STYLE: &str = r###"{
+        "document": { "block_prefix": "\n", "block_suffix": "\n", "color": "252", "margin": 2 },
+        "block_quote": { "indent": 1, "indent_token": "│ " },
+        "paragraph": {},
+        "list": { "level_indent": 4 },
+        "heading": { "block_suffix": "\n", "color": "39", "bold": true },
+        "h1": { "prefix": " ", "suffix": " ", "color": "228", "background_color": "63", "bold": true },
+        "h2": { "prefix": "## " },
+        "text": {},
+        "strikethrough": { "crossed_out": true },
+        "emph": { "italic": true },
+        "strong": { "bold": true },
+        "hr": { "color": "240", "format": "\n--------\n" },
+        "item": { "block_prefix": "• " },
+        "enumeration": { "block_prefix": ". " },
+        "task": { "ticked": "[✓] ", "unticked": "[ ] " },
+        "link": { "color": "30", "underline": true },
+        "link_text": { "color": "35", "bold": true },
+        "image": { "color": "212", "underline": true },
+        "image_text": { "color": "243", "format": "Image: {{.text}} →" },
+        "code": { "prefix": " ", "suffix": " ", "color": "203", "background_color": "236" },
+        "code_block": { "color": "244", "margin": 2, "chroma": { "text": { "color": "#C4C4C4" } } },
+        "table": { "center_separator": "┼", "column_separator": "│", "row_separator": "─" },
+        "definition_description": { "block_prefix": "\n🠶 " },
+        "html_block": {},
+        "html_span": {}
+    }"###;
+
+    #[test]
+    fn parses_go_style_json() {
+        let cfg = StyleConfig::from_json(GO_STYLE).expect("valid style");
+        assert_eq!(cfg.document.margin, Some(2));
+        assert_eq!(cfg.document.style.color.as_deref(), Some("252"));
+        assert_eq!(cfg.block_quote.indent_prefix.as_deref(), Some("│ "));
+        assert_eq!(cfg.list.level_indent, 4);
+        assert_eq!(cfg.h1.style.background_color.as_deref(), Some("63"));
+        assert_eq!(cfg.h2.style.prefix, "## ");
+        assert_eq!(cfg.strikethrough.crossed_out, Some(true));
+        assert_eq!(cfg.horizontal_rule.format, "\n--------\n");
+        assert_eq!(cfg.task.ticked, "[✓] ");
+        assert_eq!(cfg.link.underline, Some(true));
+        assert_eq!(cfg.code_block.block.margin, Some(2));
+        assert_eq!(cfg.table.column_separator.as_deref(), Some("│"));
+    }
+
+    #[test]
+    fn missing_elements_keep_defaults() {
+        let cfg = StyleConfig::from_json("{}").expect("empty style");
+        assert_eq!(cfg.list.level_indent, StyleList::new().level_indent);
+        assert_eq!(cfg.task.ticked, "[x] ");
+        assert_eq!(cfg.h1.style.prefix, "");
+    }
+
+    #[test]
+    fn renders_with_json_style() {
+        let renderer = TermRenderer::new()
+            .with_styles_from_json_bytes(
+                br#"{ "h2": { "prefix": ">> " }, "item": { "block_prefix": "* " } }"#,
+            )
+            .expect("valid style");
+        let out = renderer.render("## Title\n\n- one\n- two\n");
+        assert!(out.contains(">> Title"), "{out}");
+        assert!(out.contains("* one"), "{out}");
+    }
+
+    #[test]
+    fn rejects_bad_json_and_types() {
+        assert!(matches!(
+            StyleConfig::from_json("{ nope"),
+            Err(StyleError::Json(_))
+        ));
+        assert!(matches!(
+            StyleConfig::from_json("[]"),
+            Err(StyleError::Invalid(_))
+        ));
+        let err = StyleConfig::from_json(r#"{ "h1": { "bold": "yes" } }"#).unwrap_err();
+        assert_eq!(err.to_string(), "invalid style: h1.bold must be a boolean");
+        let err = StyleConfig::from_json(r#"{ "document": { "margin": -1 } }"#).unwrap_err();
+        assert!(err.to_string().contains("document.margin"), "{err}");
+        assert!(matches!(
+            StyleConfig::from_json_bytes(&[0xff, 0xfe]),
+            Err(StyleError::Invalid(_))
+        ));
+    }
+
+    #[test]
+    fn style_path_accepts_builtin_names_and_files() {
+        let builtin = TermRenderer::new()
+            .with_style_path("ascii")
+            .expect("builtin");
+        let ascii = TermRenderer::new().with_style(Style::Ascii);
+        assert_eq!(builtin.render("# Hi"), ascii.render("# Hi"));
+
+        let path = std::env::temp_dir().join(format!("glamour-style-{}.json", std::process::id()));
+        std::fs::write(&path, r#"{ "h1": { "prefix": "TITLE: " } }"#).expect("write style");
+        let custom = TermRenderer::new()
+            .with_style_path(&path)
+            .expect("file style");
+        assert!(custom.render("# Hi").contains("TITLE: Hi"));
+
+        assert!(matches!(
+            TermRenderer::new().with_style_path("/no/such/style.json"),
+            Err(StyleError::Io(_))
+        ));
     }
 }
