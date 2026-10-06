@@ -207,6 +207,12 @@ impl FileBrowser {
         self
     }
 
+    /// Sets the viewport height in place, keeping the selection visible.
+    pub fn set_height(&mut self, height: usize) {
+        self.height = height.max(1);
+        self.update_scroll();
+    }
+
     /// Sets focused state.
     pub fn focused(mut self, focused: bool) -> Self {
         self.focused = focused;

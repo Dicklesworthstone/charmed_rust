@@ -18,7 +18,8 @@ use std::process::Command as ProcessCommand;
 
 use bubbles::viewport::Viewport;
 use bubbletea::{Cmd, KeyMsg, KeyType, Message, Model, Program, WindowSizeMsg, quit};
-use clap::{ArgAction, CommandFactory, Parser};
+use clap::{ArgAction, Parser};
+use glow::browser::{BrowserConfig, FileBrowser, FileSelectedMsg};
 #[cfg(feature = "github")]
 use glow::github::{FetcherConfig, GitHubFetcher, RepoRef};
 use glow::{Config, Reader};
@@ -45,7 +46,6 @@ struct Cli {
 
     /// Show all files including hidden (for file browser mode)
     #[arg(short = 'a', long)]
-    #[allow(dead_code)] // Used when file browser is shown
     all: bool,
 
     /// Show line numbers in code blocks
@@ -105,7 +105,13 @@ struct Pager {
     mouse_enabled: bool,
     /// Render configuration, used to re-render after the source is edited.
     config: Config,
+    /// When opened from the file browser, `q`/`esc` return to it instead of
+    /// quitting.
+    return_to_browser: bool,
 }
+
+/// Sent by a pager opened from the file browser to go back to the list.
+struct BackToBrowserMsg;
 
 /// Sent when the external editor launched with `e` exits.
 struct EditorClosedMsg;
@@ -134,6 +140,16 @@ impl Pager {
             match_style: Style::new().foreground("#00FF00"),
             mouse_enabled: false,
             config: Config::new(),
+            return_to_browser: false,
+        }
+    }
+
+    /// Quits, or returns to the file browser when opened from it.
+    fn leave(&self) -> Cmd {
+        if self.return_to_browser {
+            Cmd::new(|| Message::new(BackToBrowserMsg))
+        } else {
+            quit()
         }
     }
 
@@ -520,10 +536,10 @@ impl Model for Pager {
                                 self.search.matches.clear();
                                 return None;
                             }
-                            return Some(quit());
+                            return Some(self.leave());
                         }
                         KeyType::Runes => match key.runes.as_slice() {
-                            ['q'] => return Some(quit()),
+                            ['q'] => return Some(self.leave()),
                             ['g'] => {
                                 self.viewport.goto_top();
                                 return None;
@@ -602,6 +618,174 @@ impl Model for Pager {
     }
 }
 
+/// Top-level TUI when glow is started on a directory: a markdown file
+/// browser that opens documents in the pager.
+struct App {
+    browser: FileBrowser,
+    pager: Option<Pager>,
+    config: Config,
+    mouse: bool,
+    size: Option<WindowSizeMsg>,
+    error: Option<String>,
+}
+
+impl App {
+    /// Lines used by the browser's header, filter bar, and footer.
+    const BROWSER_CHROME: usize = 6;
+
+    const fn new(browser: FileBrowser, config: Config, mouse: bool) -> Self {
+        Self {
+            browser,
+            pager: None,
+            config,
+            mouse,
+            size: None,
+            error: None,
+        }
+    }
+
+    fn open(&mut self, path: &std::path::Path) {
+        let markdown = match std::fs::read_to_string(path) {
+            Ok(m) => m,
+            Err(err) => {
+                self.error = Some(format!("Error reading {}: {err}", path.display()));
+                return;
+            }
+        };
+        let rendered = match Reader::new(self.config.clone()).render_markdown(&markdown) {
+            Ok(r) => r,
+            Err(err) => {
+                self.error = Some(format!("Error rendering {}: {err}", path.display()));
+                return;
+            }
+        };
+        let title = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("markdown")
+            .to_string();
+        let mut pager = Pager::new(
+            rendered,
+            markdown,
+            title,
+            Some(path.to_string_lossy().into_owned()),
+        )
+        .with_mouse(self.mouse)
+        .with_config(self.config.clone());
+        pager.return_to_browser = true;
+        if let Some(size) = self.size {
+            pager.update(Message::new(size));
+        }
+        self.error = None;
+        self.pager = Some(pager);
+    }
+}
+
+impl Model for App {
+    fn init(&self) -> Option<Cmd> {
+        bubbletea::batch(vec![self.browser.init(), Some(bubbletea::window_size())])
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        if let Some(size) = msg.downcast_ref::<WindowSizeMsg>() {
+            self.size = Some(*size);
+            self.browser
+                .set_height((size.height as usize).saturating_sub(Self::BROWSER_CHROME));
+        }
+
+        if let Some(pager) = &mut self.pager {
+            if msg.is::<BackToBrowserMsg>() {
+                self.pager = None;
+                return None;
+            }
+            return pager.update(msg);
+        }
+
+        if let Some(selected) = msg.downcast_ref::<FileSelectedMsg>() {
+            let path = selected.path.clone();
+            self.open(&path);
+            return None;
+        }
+
+        if let Some(key) = msg.downcast_ref::<KeyMsg>()
+            && !self.browser.is_filter_mode()
+        {
+            match key.key_type {
+                KeyType::CtrlC => return Some(quit()),
+                KeyType::Esc if self.browser.filter().is_empty() => return Some(quit()),
+                KeyType::Runes if key.runes.as_slice() == ['q'] => return Some(quit()),
+                _ => {}
+            }
+        }
+
+        self.browser.update(msg)
+    }
+
+    fn view(&self) -> String {
+        if let Some(pager) = &self.pager {
+            return pager.view();
+        }
+        let view = self.browser.view();
+        match &self.error {
+            Some(err) => format!("{view}\n{}", Style::new().foreground("#FF5F87").render(err)),
+            None => view,
+        }
+    }
+}
+
+/// Runs the file browser TUI rooted at `dir`.
+fn run_browser(dir: &std::path::Path, config: Config, cli: &Cli) {
+    let browser_config = BrowserConfig {
+        show_hidden: cli.all,
+        ..BrowserConfig::default()
+    };
+    let browser = match FileBrowser::with_directory(dir, browser_config) {
+        Ok(b) => b,
+        Err(err) => {
+            eprintln!("Error opening directory: {err}");
+            std::process::exit(1);
+        }
+    };
+    let mut program = Program::new(App::new(browser, config, cli.mouse)).with_alt_screen();
+    if cli.mouse {
+        program = program.with_mouse_cell_motion();
+    }
+    if let Err(err) = program.run() {
+        eprintln!("Error running browser: {err}");
+        std::process::exit(1);
+    }
+}
+
+/// Returns the directory to browse: the current one when no path is given,
+/// or the path itself when it is a directory.
+fn browse_target(path: Option<&str>) -> Option<PathBuf> {
+    match path {
+        None => Some(PathBuf::from(".")),
+        Some(p) if PathBuf::from(p).is_dir() => Some(PathBuf::from(p)),
+        Some(_) => None,
+    }
+}
+
+/// Prints every markdown file under `dir` (recursively), one per line.
+fn list_markdown_files(dir: &std::path::Path, show_hidden: bool) {
+    let config = BrowserConfig {
+        show_hidden,
+        recursive: true,
+        ..BrowserConfig::default()
+    };
+    let mut browser = FileBrowser::with_directory(dir, config).unwrap_or_else(|err| {
+        eprintln!("Error opening directory: {err}");
+        std::process::exit(1);
+    });
+    if let Err(err) = browser.scan() {
+        eprintln!("Error scanning directory: {err}");
+        std::process::exit(1);
+    }
+    for entry in browser.entries() {
+        println!("{}", entry.path.display());
+    }
+}
+
 /// Determines the source type from a path string.
 enum Source {
     Stdin,
@@ -651,7 +835,18 @@ fn main() {
         config = config.width(width);
     }
 
-    let reader = Reader::new(config);
+    let reader = Reader::new(config.clone());
+
+    // A directory (or no argument at all) opens the markdown file browser.
+    if let Some(dir) = browse_target(cli.path.as_deref()) {
+        if cli.no_pager || !std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+            // Non-interactive: list markdown files instead of starting a TUI.
+            list_markdown_files(&dir, cli.all);
+        } else {
+            run_browser(&dir, config, &cli);
+        }
+        return;
+    }
 
     if let Some(path) = cli.path {
         let source = Source::parse(&path);
@@ -744,10 +939,112 @@ fn main() {
             eprintln!("Error running pager: {err}");
             std::process::exit(1);
         }
-    } else {
-        // No path provided - show file browser
-        let mut cmd = Cli::command();
-        let _ = cmd.print_help();
-        println!();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir_with_doc() -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "glow-app-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos())
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        std::fs::write(dir.join("doc.md"), "# Hello\n\nWorld\n").expect("write doc");
+        dir
+    }
+
+    fn app_for(dir: &std::path::Path) -> App {
+        let browser =
+            FileBrowser::with_directory(dir, BrowserConfig::default()).expect("browser opens");
+        let mut app = App::new(browser, Config::new().style("ascii"), false);
+        app.update(Message::new(WindowSizeMsg {
+            width: 80,
+            height: 24,
+        }));
+        app
+    }
+
+    fn key(c: char) -> Message {
+        Message::new(KeyMsg::from_char(c))
+    }
+
+    fn run(cmd: Option<Cmd>) -> Option<Message> {
+        cmd.and_then(Cmd::execute)
+    }
+
+    #[test]
+    fn browse_target_defaults_to_current_dir() {
+        assert_eq!(browse_target(None), Some(PathBuf::from(".")));
+        assert_eq!(browse_target(Some("does-not-exist.md")), None);
+        let dir = temp_dir_with_doc();
+        assert_eq!(
+            browse_target(Some(dir.to_str().unwrap())),
+            Some(dir.clone())
+        );
+        assert_eq!(
+            browse_target(Some(dir.join("doc.md").to_str().unwrap())),
+            None
+        );
+    }
+
+    #[test]
+    fn selecting_a_file_opens_pager_and_q_returns_to_browser() {
+        let dir = temp_dir_with_doc();
+        let mut app = app_for(&dir);
+        app.browser.scan().expect("scan");
+        assert!(app.view().contains("doc.md"));
+
+        app.update(Message::new(FileSelectedMsg {
+            path: dir.join("doc.md"),
+        }));
+        assert!(app.pager.is_some(), "pager should open");
+        assert!(app.view().contains("Hello"), "rendered doc: {}", app.view());
+
+        // `q` in the pager asks to go back rather than quitting.
+        let msg = run(app.update(key('q'))).expect("back message");
+        assert!(msg.is::<BackToBrowserMsg>());
+        assert!(run(app.update(msg)).is_none());
+        assert!(app.pager.is_none(), "should be back in the browser");
+    }
+
+    #[test]
+    fn q_in_browser_quits() {
+        let dir = temp_dir_with_doc();
+        let mut app = app_for(&dir);
+        let msg = run(app.update(key('q'))).expect("quit message");
+        assert!(msg.is::<bubbletea::QuitMsg>());
+    }
+
+    #[test]
+    fn q_in_filter_mode_is_typed_not_quit() {
+        let dir = temp_dir_with_doc();
+        let mut app = app_for(&dir);
+        app.update(key('/'));
+        assert!(run(app.update(key('q'))).is_none());
+        assert_eq!(app.browser.filter(), "q");
+    }
+
+    #[test]
+    fn missing_file_reports_error_and_stays_in_browser() {
+        let dir = temp_dir_with_doc();
+        let mut app = app_for(&dir);
+        app.update(Message::new(FileSelectedMsg {
+            path: dir.join("missing.md"),
+        }));
+        assert!(app.pager.is_none());
+        assert!(app.view().contains("Error reading"));
+    }
+
+    #[test]
+    fn standalone_pager_q_quits() {
+        let pager = Pager::new("x".into(), "x".into(), "t".into(), None);
+        let msg = run(Some(pager.leave())).expect("quit");
+        assert!(msg.is::<bubbletea::QuitMsg>());
     }
 }
