@@ -1199,6 +1199,11 @@ pub trait Field: Send + Sync {
     /// Sets the field position.
     fn with_position(&mut self, position: FieldPosition);
 
+    /// Recomputes dynamic properties (title, description, options) from the
+    /// form's current values. Called by the form after every update; the
+    /// default does nothing.
+    fn refresh(&mut self, _values: &FieldValues) {}
+
     /// Runs the field in accessible mode: plain, line-based prompts written
     /// to `w` and answered from `r`, with no cursor movement or styling.
     ///
@@ -1211,6 +1216,52 @@ pub trait Field: Send + Sync {
     /// is answered, or [`FormError::Io`] on I/O failure.
     fn run_accessible(&mut self, w: &mut dyn Write, _r: &mut dyn BufRead) -> Result<()> {
         writeln!(w, "{}", lipgloss_strip(&self.view())).map_err(io_err)
+    }
+}
+
+/// A function computing a field's title or description from form values.
+pub type DynText = std::sync::Arc<dyn Fn(&FieldValues) -> String + Send + Sync>;
+
+/// A function computing a select field's options from form values.
+pub type OptionsFn<T> = std::sync::Arc<dyn Fn(&FieldValues) -> Vec<SelectOption<T>> + Send + Sync>;
+
+/// Snapshot of every keyed field's value, passed to dynamic
+/// `title_func` / `description_func` / `options_func` callbacks.
+#[derive(Default)]
+pub struct FieldValues {
+    values: std::collections::HashMap<String, Box<dyn Any>>,
+}
+
+impl FieldValues {
+    fn collect(groups: &[Group]) -> Self {
+        let values = groups
+            .iter()
+            .flat_map(|g| g.fields.iter())
+            .filter(|f| !f.get_key().is_empty())
+            .map(|f| (f.get_key().to_string(), f.get_value()))
+            .collect();
+        Self { values }
+    }
+
+    /// Returns the value of the field with `key` if it has type `T`.
+    pub fn get<T: 'static>(&self, key: &str) -> Option<&T> {
+        self.values.get(key)?.downcast_ref::<T>()
+    }
+
+    /// Returns a string field's value (Input, Text, Select<String>, ...).
+    pub fn get_string(&self, key: &str) -> Option<&str> {
+        self.get::<String>(key).map(String::as_str)
+    }
+
+    /// Returns a boolean field's value (Confirm).
+    pub fn get_bool(&self, key: &str) -> Option<bool> {
+        self.get::<bool>(key).copied()
+    }
+}
+
+fn refresh_text(target: &mut String, f: Option<&DynText>, values: &FieldValues) {
+    if let Some(f) = f {
+        *target = f(values);
     }
 }
 
@@ -1327,6 +1378,8 @@ pub struct Input {
     value: String,
     title: String,
     description: String,
+    title_func: Option<DynText>,
+    description_func: Option<DynText>,
     placeholder: String,
     prompt: String,
     char_limit: usize,
@@ -1364,6 +1417,25 @@ impl Default for Input {
 }
 
 impl Input {
+    /// Recomputes the title from the form's current values on every update
+    /// (Go: `TitleFunc`).
+    pub fn title_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> String + Send + Sync + 'static,
+    {
+        self.title_func = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Recomputes the description from the form's current values on every
+    /// update (Go: `DescriptionFunc`).
+    pub fn description_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> String + Send + Sync + 'static,
+    {
+        self.description_func = Some(std::sync::Arc::new(f));
+        self
+    }
     /// Runs this field on its own as a one-field form and returns its value
     /// (Go: `field.Run()`).
     ///
@@ -1379,6 +1451,7 @@ impl Input {
         };
         run_single_field(Box::new(field))
     }
+
     /// Creates a new input field.
     pub fn new() -> Self {
         Self {
@@ -1387,6 +1460,8 @@ impl Input {
             value: String::new(),
             title: String::new(),
             description: String::new(),
+            title_func: None,
+            description_func: None,
             placeholder: String::new(),
             prompt: "> ".to_string(),
             char_limit: 0,
@@ -1524,6 +1599,15 @@ impl Input {
 impl Field for Input {
     fn get_key(&self) -> &str {
         &self.key
+    }
+
+    fn refresh(&mut self, values: &FieldValues) {
+        refresh_text(&mut self.title, self.title_func.as_ref(), values);
+        refresh_text(
+            &mut self.description,
+            self.description_func.as_ref(),
+            values,
+        );
     }
 
     fn get_value(&self) -> Box<dyn Any> {
@@ -1790,6 +1874,9 @@ pub struct Select<T: Clone + PartialEq + Send + Sync + 'static> {
     selected: usize,
     title: String,
     description: String,
+    title_func: Option<DynText>,
+    description_func: Option<DynText>,
+    options_func: Option<OptionsFn<T>>,
     inline: bool,
     focused: bool,
     error: Option<String>,
@@ -1811,6 +1898,36 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Default for Select<
 }
 
 impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Select<T> {
+    /// Recomputes the title from the form's current values on every update
+    /// (Go: `TitleFunc`).
+    pub fn title_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> String + Send + Sync + 'static,
+    {
+        self.title_func = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Recomputes the description from the form's current values on every
+    /// update (Go: `DescriptionFunc`).
+    pub fn description_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> String + Send + Sync + 'static,
+    {
+        self.description_func = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Recomputes the options from the form's current values on every update
+    /// (Go: `OptionsFunc`), e.g. cities for the selected country. The current
+    /// choice is kept when it is still offered.
+    pub fn options_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> Vec<SelectOption<T>> + Send + Sync + 'static,
+    {
+        self.options_func = Some(std::sync::Arc::new(f));
+        self
+    }
     /// Runs this field on its own as a one-field form and returns its value
     /// (Go: `field.Run()`).
     ///
@@ -1826,6 +1943,7 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Select<T> {
         };
         run_single_field(Box::new(field))
     }
+
     /// Creates a new select field.
     pub fn new() -> Self {
         Self {
@@ -1835,6 +1953,9 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Select<T> {
             selected: 0,
             title: String::new(),
             description: String::new(),
+            title_func: None,
+            description_func: None,
+            options_func: None,
             inline: false,
             focused: false,
             error: None,
@@ -2014,6 +2135,28 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Select<T> {
 impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for Select<T> {
     fn get_key(&self) -> &str {
         &self.key
+    }
+
+    fn refresh(&mut self, values: &FieldValues) {
+        refresh_text(&mut self.title, self.title_func.as_ref(), values);
+        refresh_text(
+            &mut self.description,
+            self.description_func.as_ref(),
+            values,
+        );
+        if let Some(options_func) = &self.options_func {
+            let options = options_func(values);
+            if options != self.options {
+                let current = self.options.get(self.selected).map(|o| o.value.clone());
+                self.options = options;
+                self.selected = current
+                    .and_then(|v| self.options.iter().position(|o| o.value == v))
+                    .or_else(|| self.options.iter().position(|o| o.selected))
+                    .unwrap_or(0);
+                self.filter_value.clear();
+                self.offset = 0;
+            }
+        }
     }
 
     fn get_value(&self) -> Box<dyn Any> {
@@ -2292,6 +2435,9 @@ pub struct MultiSelect<T: Clone + PartialEq + Send + Sync + 'static> {
     cursor: usize,
     title: String,
     description: String,
+    title_func: Option<DynText>,
+    description_func: Option<DynText>,
+    options_func: Option<OptionsFn<T>>,
     focused: bool,
     error: Option<String>,
     #[allow(clippy::type_complexity)]
@@ -2314,6 +2460,36 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Default for MultiSe
 }
 
 impl<T: Clone + PartialEq + Send + Sync + Default + 'static> MultiSelect<T> {
+    /// Recomputes the title from the form's current values on every update
+    /// (Go: `TitleFunc`).
+    pub fn title_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> String + Send + Sync + 'static,
+    {
+        self.title_func = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Recomputes the description from the form's current values on every
+    /// update (Go: `DescriptionFunc`).
+    pub fn description_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> String + Send + Sync + 'static,
+    {
+        self.description_func = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Recomputes the options from the form's current values on every update
+    /// (Go: `OptionsFunc`), e.g. cities for the selected country. The current
+    /// choice is kept when it is still offered.
+    pub fn options_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> Vec<SelectOption<T>> + Send + Sync + 'static,
+    {
+        self.options_func = Some(std::sync::Arc::new(f));
+        self
+    }
     /// Runs this field on its own as a one-field form and returns its value
     /// (Go: `field.Run()`).
     ///
@@ -2329,6 +2505,7 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> MultiSelect<T> {
         };
         run_single_field(Box::new(field))
     }
+
     /// Creates a new multi-select field.
     pub fn new() -> Self {
         Self {
@@ -2339,6 +2516,9 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> MultiSelect<T> {
             cursor: 0,
             title: String::new(),
             description: String::new(),
+            title_func: None,
+            description_func: None,
+            options_func: None,
             focused: false,
             error: None,
             validate: None,
@@ -2537,6 +2717,36 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> MultiSelect<T> {
 impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for MultiSelect<T> {
     fn get_key(&self) -> &str {
         &self.key
+    }
+
+    fn refresh(&mut self, values: &FieldValues) {
+        refresh_text(&mut self.title, self.title_func.as_ref(), values);
+        refresh_text(
+            &mut self.description,
+            self.description_func.as_ref(),
+            values,
+        );
+        if let Some(options_func) = &self.options_func {
+            let options = options_func(values);
+            if options != self.options {
+                let chosen: Vec<T> = self
+                    .selected
+                    .iter()
+                    .filter_map(|&i| self.options.get(i).map(|o| o.value.clone()))
+                    .collect();
+                self.options = options;
+                self.selected = self
+                    .options
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, o)| chosen.contains(&o.value) || o.selected)
+                    .map(|(i, _)| i)
+                    .collect();
+                self.cursor = self.cursor.min(self.options.len().saturating_sub(1));
+                self.filter_value.clear();
+                self.offset = 0;
+            }
+        }
     }
 
     fn get_value(&self) -> Box<dyn Any> {
@@ -2839,6 +3049,8 @@ pub struct Confirm {
     value: bool,
     title: String,
     description: String,
+    title_func: Option<DynText>,
+    description_func: Option<DynText>,
     affirmative: String,
     negative: String,
     focused: bool,
@@ -2855,6 +3067,25 @@ impl Default for Confirm {
 }
 
 impl Confirm {
+    /// Recomputes the title from the form's current values on every update
+    /// (Go: `TitleFunc`).
+    pub fn title_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> String + Send + Sync + 'static,
+    {
+        self.title_func = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Recomputes the description from the form's current values on every
+    /// update (Go: `DescriptionFunc`).
+    pub fn description_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> String + Send + Sync + 'static,
+    {
+        self.description_func = Some(std::sync::Arc::new(f));
+        self
+    }
     /// Runs this field on its own as a one-field form and returns its value
     /// (Go: `field.Run()`).
     ///
@@ -2870,6 +3101,7 @@ impl Confirm {
         };
         run_single_field(Box::new(field))
     }
+
     /// Creates a new confirm field.
     pub fn new() -> Self {
         Self {
@@ -2878,6 +3110,8 @@ impl Confirm {
             value: false,
             title: String::new(),
             description: String::new(),
+            title_func: None,
+            description_func: None,
             affirmative: "Yes".to_string(),
             negative: "No".to_string(),
             focused: false,
@@ -2951,6 +3185,15 @@ impl Confirm {
 impl Field for Confirm {
     fn get_key(&self) -> &str {
         &self.key
+    }
+
+    fn refresh(&mut self, values: &FieldValues) {
+        refresh_text(&mut self.title, self.title_func.as_ref(), values);
+        refresh_text(
+            &mut self.description,
+            self.description_func.as_ref(),
+            values,
+        );
     }
 
     fn get_value(&self) -> Box<dyn Any> {
@@ -3106,6 +3349,8 @@ pub struct Note {
     key: String,
     title: String,
     description: String,
+    title_func: Option<DynText>,
+    description_func: Option<DynText>,
     focused: bool,
     width: usize,
     theme: Option<Theme>,
@@ -3121,6 +3366,25 @@ impl Default for Note {
 }
 
 impl Note {
+    /// Recomputes the title from the form's current values on every update
+    /// (Go: `TitleFunc`).
+    pub fn title_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> String + Send + Sync + 'static,
+    {
+        self.title_func = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Recomputes the description from the form's current values on every
+    /// update (Go: `DescriptionFunc`).
+    pub fn description_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> String + Send + Sync + 'static,
+    {
+        self.description_func = Some(std::sync::Arc::new(f));
+        self
+    }
     /// Creates a new note field.
     pub fn new() -> Self {
         Self {
@@ -3128,6 +3392,8 @@ impl Note {
             key: String::new(),
             title: String::new(),
             description: String::new(),
+            title_func: None,
+            description_func: None,
             focused: false,
             width: 80,
             theme: None,
@@ -3190,6 +3456,15 @@ impl Note {
 impl Field for Note {
     fn get_key(&self) -> &str {
         &self.key
+    }
+
+    fn refresh(&mut self, values: &FieldValues) {
+        refresh_text(&mut self.title, self.title_func.as_ref(), values);
+        refresh_text(
+            &mut self.description,
+            self.description_func.as_ref(),
+            values,
+        );
     }
 
     fn get_value(&self) -> Box<dyn Any> {
@@ -3319,6 +3594,8 @@ pub struct Text {
     value: String,
     title: String,
     description: String,
+    title_func: Option<DynText>,
+    description_func: Option<DynText>,
     placeholder: String,
     lines: usize,
     char_limit: usize,
@@ -3342,6 +3619,25 @@ impl Default for Text {
 }
 
 impl Text {
+    /// Recomputes the title from the form's current values on every update
+    /// (Go: `TitleFunc`).
+    pub fn title_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> String + Send + Sync + 'static,
+    {
+        self.title_func = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Recomputes the description from the form's current values on every
+    /// update (Go: `DescriptionFunc`).
+    pub fn description_func<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&FieldValues) -> String + Send + Sync + 'static,
+    {
+        self.description_func = Some(std::sync::Arc::new(f));
+        self
+    }
     /// Runs this field on its own as a one-field form and returns its value
     /// (Go: `field.Run()`).
     ///
@@ -3357,6 +3653,7 @@ impl Text {
         };
         run_single_field(Box::new(field))
     }
+
     /// Creates a new text area field.
     pub fn new() -> Self {
         Self {
@@ -3365,6 +3662,8 @@ impl Text {
             value: String::new(),
             title: String::new(),
             description: String::new(),
+            title_func: None,
+            description_func: None,
             placeholder: String::new(),
             lines: 5,
             char_limit: 0,
@@ -3577,6 +3876,15 @@ impl Text {
 impl Field for Text {
     fn get_key(&self) -> &str {
         &self.key
+    }
+
+    fn refresh(&mut self, values: &FieldValues) {
+        refresh_text(&mut self.title, self.title_func.as_ref(), values);
+        refresh_text(
+            &mut self.description,
+            self.description_func.as_ref(),
+            values,
+        );
     }
 
     fn get_value(&self) -> Box<dyn Any> {
@@ -3941,6 +4249,7 @@ impl FilePicker {
         };
         run_single_field(Box::new(field))
     }
+
     /// Creates a new file picker field.
     pub fn new() -> Self {
         Self {
@@ -5215,12 +5524,17 @@ impl Form {
         output: &mut dyn Write,
         input: &mut dyn BufRead,
     ) -> Result<()> {
-        for group in &mut self.groups {
-            if group.is_hidden() {
+        for gi in 0..self.groups.len() {
+            if self.groups[gi].is_hidden() {
                 continue;
             }
+            let group = &self.groups[gi];
             write_heading(output, &group.title, &group.description)?;
-            for field in &mut group.fields {
+            for fi in 0..self.groups[gi].fields.len() {
+                // Dynamic fields see the answers given so far.
+                let values = FieldValues::collect(&self.groups);
+                let field = &mut self.groups[gi].fields[fi];
+                field.refresh(&values);
                 if field.skip() {
                     continue;
                 }
@@ -5405,13 +5719,8 @@ impl Form {
     }
 }
 
-impl Model for Form {
-    fn init(&self) -> Option<Cmd> {
-        self.timeout
-            .map(|d| bubbletea::tick(d, |_| Message::new(FormTimeoutMsg)))
-    }
-
-    fn update(&mut self, msg: Message) -> Option<Cmd> {
+impl Form {
+    fn handle_update(&mut self, msg: Message) -> Option<Cmd> {
         // Theme the fields and focus the first visible field once.
         if !self.initialized {
             self.initialized = true;
@@ -5458,6 +5767,28 @@ impl Model for Form {
         }
 
         None
+    }
+
+    /// Lets dynamic fields recompute titles, descriptions and options from
+    /// the current values.
+    fn refresh_fields(&mut self) {
+        let values = FieldValues::collect(&self.groups);
+        for field in self.groups.iter_mut().flat_map(|g| g.fields.iter_mut()) {
+            field.refresh(&values);
+        }
+    }
+}
+
+impl Model for Form {
+    fn init(&self) -> Option<Cmd> {
+        self.timeout
+            .map(|d| bubbletea::tick(d, |_| Message::new(FormTimeoutMsg)))
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        let cmd = self.handle_update(msg);
+        self.refresh_fields();
+        cmd
     }
 
     fn view(&self) -> String {
@@ -7326,5 +7657,130 @@ mod form_runtime_tests {
     fn no_timeout_means_no_init_command() {
         let form = Form::new(vec![]);
         assert!(form.init().is_none());
+    }
+}
+
+#[cfg(test)]
+mod dynamic_tests {
+    use super::*;
+    use bubbletea::KeyType;
+
+    fn cities(country: Option<&str>) -> Vec<SelectOption<String>> {
+        let names: &[&str] = match country {
+            Some("fr") => &["Paris", "Lyon"],
+            Some("jp") => &["Tokyo", "Osaka", "Kyoto"],
+            _ => &[],
+        };
+        names
+            .iter()
+            .map(|n| SelectOption::new(*n, (*n).to_string()))
+            .collect()
+    }
+
+    fn country_city_form() -> Form {
+        Form::new(vec![Group::new(vec![
+            Box::new(Select::new().key("country").title("Country").options(vec![
+                SelectOption::new("France", "fr".to_string()),
+                SelectOption::new("Japan", "jp".to_string()),
+            ])),
+            Box::new(
+                Select::new()
+                    .key("city")
+                    .title_func(|v: &FieldValues| {
+                        format!("City in {}", v.get_string("country").unwrap_or("?"))
+                    })
+                    .options_func(|v: &FieldValues| cities(v.get_string("country"))),
+            ),
+        ])])
+    }
+
+    fn key(t: KeyType) -> Message {
+        Message::new(KeyMsg::from_type(t))
+    }
+
+    #[test]
+    fn options_follow_other_fields() {
+        let mut form = country_city_form();
+        form.update(Message::new(bubbletea::WindowSizeMsg {
+            width: 80,
+            height: 24,
+        }));
+        assert_eq!(form.get_string("city").as_deref(), Some("Paris"));
+        assert!(form.view().contains("City in fr"), "{}", form.view());
+
+        // Pick Japan; the city list and title follow.
+        form.update(key(KeyType::Down));
+        assert_eq!(form.get_string("country").as_deref(), Some("jp"));
+        assert_eq!(form.get_string("city").as_deref(), Some("Tokyo"));
+        assert!(form.view().contains("City in jp"), "{}", form.view());
+        assert!(form.view().contains("Kyoto"), "{}", form.view());
+    }
+
+    #[test]
+    fn current_choice_survives_when_still_offered() {
+        let mut select = Select::new().key("x").options_func(|v: &FieldValues| {
+            let mut opts = vec![
+                SelectOption::new("a", "a".to_string()),
+                SelectOption::new("b", "b".to_string()),
+            ];
+            if v.get_bool("more") == Some(true) {
+                opts.insert(0, SelectOption::new("z", "z".to_string()));
+            }
+            opts
+        });
+        let mut values = FieldValues::default();
+        select.refresh(&values);
+        select.selected = 1; // "b"
+        values.values.insert("more".to_string(), Box::new(true));
+        select.refresh(&values);
+        assert_eq!(select.options.len(), 3);
+        assert_eq!(select.options[select.selected].value, "b");
+    }
+
+    #[test]
+    fn multiselect_keeps_chosen_values() {
+        let mut multi: MultiSelect<String> =
+            MultiSelect::new().key("m").options_func(|v: &FieldValues| {
+                let n = v.get::<usize>("n").copied().unwrap_or(2);
+                (0..n)
+                    .map(|i| SelectOption::new(i.to_string(), i.to_string()))
+                    .collect()
+            });
+        let mut values = FieldValues::default();
+        multi.refresh(&values);
+        multi.selected = vec![1];
+        values.values.insert("n".to_string(), Box::new(4usize));
+        multi.refresh(&values);
+        assert_eq!(multi.options.len(), 4);
+        assert_eq!(multi.selected, vec![1]);
+    }
+
+    #[test]
+    fn accessible_mode_uses_previous_answers() {
+        let mut form = country_city_form();
+        let mut out = Vec::new();
+        let mut input = io::Cursor::new(b"2\n3\n".to_vec());
+        form.run_accessible(&mut out, &mut input)
+            .expect("completes");
+        let out = String::from_utf8(out).unwrap();
+        assert!(out.contains("City in jp"), "{out}");
+        assert!(out.contains("3. Kyoto"), "{out}");
+        assert_eq!(form.get_string("city").as_deref(), Some("Kyoto"));
+    }
+
+    #[test]
+    fn description_func_on_note() {
+        let mut form = Form::new(vec![Group::new(vec![
+            Box::new(Input::new().key("name")),
+            Box::new(
+                Note::new()
+                    .title("Summary")
+                    .description_func(|v: &FieldValues| {
+                        format!("Hello, {}!", v.get_string("name").unwrap_or_default())
+                    }),
+            ),
+        ])]);
+        form.update(Message::new(KeyMsg::from_char('F')));
+        assert!(form.view().contains("Hello, F!"), "{}", form.view());
     }
 }
