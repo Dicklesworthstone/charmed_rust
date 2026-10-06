@@ -3537,7 +3537,10 @@ mod inherit_tests {
             .foreground("#ff0000")
             .width(10)
             .align(Position::Center);
-        let child = Style::new().foreground("#00ff00").unset_italic().inherit(&parent);
+        let child = Style::new()
+            .foreground("#00ff00")
+            .unset_italic()
+            .inherit(&parent);
         assert!(child.props.contains(Props::BOLD));
         assert!(child.attrs.contains(Attrs::BOLD));
         // unset_italic marks nothing as set, so italic is inherited.

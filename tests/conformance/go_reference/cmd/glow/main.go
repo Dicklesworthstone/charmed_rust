@@ -141,8 +141,9 @@ func captureReaderTests(fs *capture.FixtureSet) {
 
 func captureStyleTests(fs *capture.FixtureSet) {
 	// Test style parsing and validation
-	validStyles := []string{"dark", "light", "ascii", "pink", "auto", "no-tty", "notty", "no_tty"}
-	invalidStyles := []string{"unknown", "", "dracula", "solarized"}
+	// "dracula" is in glamour's styles.DefaultStyles, which glow accepts.
+	validStyles := []string{"dark", "light", "ascii", "pink", "auto", "no-tty", "notty", "no_tty", "dracula"}
+	invalidStyles := []string{"unknown", "", "solarized"}
 
 	for _, style := range validStyles {
 		fs.AddTestWithCategory(fmt.Sprintf("style_valid_%s", style), "unit",

@@ -315,6 +315,16 @@
       }
     },
     {
+      "name": "style_valid_dracula",
+      "category": "unit",
+      "input": {
+        "style": "dracula"
+      },
+      "expected_output": {
+        "valid": true
+      }
+    },
+    {
       "name": "style_invalid_unknown",
       "category": "unit",
       "input": {
@@ -329,16 +339,6 @@
       "category": "unit",
       "input": {
         "style": ""
-      },
-      "expected_output": {
-        "valid": false
-      }
-    },
-    {
-      "name": "style_invalid_dracula",
-      "category": "unit",
-      "input": {
-        "style": "dracula"
       },
       "expected_output": {
         "valid": false

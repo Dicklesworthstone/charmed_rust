@@ -755,11 +755,7 @@ mod json_style {
         StyleError::Invalid(format!("{element}.{key} must be {expected}"))
     }
 
-    pub fn string(
-        v: &Value,
-        key: &str,
-        element: &str,
-    ) -> Result<Option<String>, StyleError> {
+    pub fn string(v: &Value, key: &str, element: &str) -> Result<Option<String>, StyleError> {
         match v.get(key) {
             None | Some(Value::Null) => Ok(None),
             Some(Value::String(s)) => Ok(Some(s.clone())),

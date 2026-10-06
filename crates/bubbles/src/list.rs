@@ -43,6 +43,7 @@ use crate::spinner::{SpinnerModel, TickMsg};
 use crate::textinput::TextInput;
 use bubbletea::{Cmd, KeyMsg, Message, Model, MouseAction, MouseButton, MouseMsg};
 use lipgloss::{Color, Style, height as lipgloss_height};
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Trait for items that can be displayed in a list.
@@ -76,6 +77,21 @@ pub trait ItemDelegate<I: Item>: Clone + Send + 'static {
 
     /// Renders an item.
     fn render(&self, item: &I, index: usize, selected: bool, width: usize) -> String;
+
+    /// Renders an item while a filter is active. `matches` holds the
+    /// character indices of the item's filter value that matched the filter
+    /// term, so delegates can highlight them. Defaults to [`Self::render`].
+    fn render_filtered(
+        &self,
+        item: &I,
+        index: usize,
+        selected: bool,
+        width: usize,
+        matches: &[usize],
+    ) -> String {
+        let _ = matches;
+        self.render(item, index, selected, width)
+    }
 
     /// Updates the delegate (optional).
     fn update(&mut self, _msg: &Message, _item: &mut I) -> Option<Cmd> {
@@ -140,7 +156,63 @@ impl DefaultDelegate {
     }
 }
 
+/// Truncates `value` to `width` display cells, ending with `…` when cut.
+fn truncate_to_width(value: &str, width: usize) -> String {
+    use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+    if UnicodeWidthStr::width(value) <= width {
+        return value.to_string();
+    }
+    if width == 0 {
+        return String::new();
+    }
+    let target_width = width - 1;
+    let mut current_width = 0;
+    let mut result = String::new();
+    for c in value.chars() {
+        let w = UnicodeWidthChar::width(c).unwrap_or(0);
+        if current_width + w > target_width {
+            break;
+        }
+        result.push(c);
+        current_width += w;
+    }
+    result.push('…');
+    result
+}
+
 impl<I: Item> ItemDelegate<I> for DefaultDelegate {
+    fn render_filtered(
+        &self,
+        item: &I,
+        index: usize,
+        selected: bool,
+        width: usize,
+        matches: &[usize],
+    ) -> String {
+        // Matches index the filter value; highlight them in the title when
+        // the title is that value (the common case, as in Go).
+        if item.filter_value() != item.title() {
+            return <Self as ItemDelegate<I>>::render(self, item, index, selected, width);
+        }
+        let style = if selected {
+            &self.selected_style
+        } else {
+            &self.normal_style
+        };
+        let title = lipgloss::style_runes(
+            &truncate_to_width(item.title(), width),
+            matches,
+            style.clone().underline(),
+            style.clone(),
+        );
+        if self.show_description {
+            let desc = style.render(&truncate_to_width(item.description(), width));
+            format!("{title}\n{desc}")
+        } else {
+            title
+        }
+    }
+
     fn height(&self) -> usize {
         if !self.show_description {
             return 1;
@@ -156,32 +228,8 @@ impl<I: Item> ItemDelegate<I> for DefaultDelegate {
         let title = item.title();
         let desc = item.description();
 
-        // Truncate based on display width
-        let truncate = |value: &str| {
-            use unicode_width::UnicodeWidthStr;
-            if UnicodeWidthStr::width(value) <= width {
-                value.to_string()
-            } else if width == 0 {
-                String::new()
-            } else {
-                let target_width = width.saturating_sub(1);
-                let mut current_width = 0;
-                let mut result = String::new();
-
-                for c in value.chars() {
-                    let w = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
-                    if current_width + w > target_width {
-                        break;
-                    }
-                    result.push(c);
-                    current_width += w;
-                }
-                format!("{}…", result)
-            }
-        };
-
-        let title_trunc = truncate(title);
-        let desc_trunc = truncate(desc);
+        let title_trunc = truncate_to_width(title, width);
+        let desc_trunc = truncate_to_width(desc, width);
 
         if selected {
             if self.show_description {
@@ -237,27 +285,90 @@ impl std::fmt::Display for FilterState {
     }
 }
 
-/// Type alias for filter functions.
-pub type FilterFn = Box<dyn Fn(&str, &[String]) -> Vec<Rank> + Send + Sync>;
+/// A filter function: given the filter term and every item's filter value,
+/// returns the matching items as [`Rank`]s in display order (Go's
+/// `FilterFunc`).
+pub type FilterFn = Arc<dyn Fn(&str, &[String]) -> Vec<Rank> + Send + Sync>;
 
-/// Default filter using simple substring matching.
+/// Default filter: case-insensitive fuzzy (subsequence) matching, ranked by
+/// match quality like Go bubbles' `DefaultFilter` (sahilm/fuzzy).
+///
+/// Matches that start at the beginning of the target, follow a separator
+/// or a lower-to-upper camel-case boundary, or are adjacent to the previous
+/// match score higher; unmatched characters (especially leading ones) cost
+/// points. Ties keep the original item order. `matched_indices` are
+/// character (not byte) indices into the target.
 pub fn default_filter(term: &str, targets: &[String]) -> Vec<Rank> {
-    let term_lower = term.to_lowercase();
-    targets
+    let mut scored: Vec<(i64, Rank)> = targets
         .iter()
         .enumerate()
-        .filter(|(_, target)| target.to_lowercase().contains(&term_lower))
-        .map(|(index, target)| {
-            // Find match indices
-            let target_lower = target.to_lowercase();
-            let start = target_lower.find(&term_lower).unwrap_or(0);
-            let matched_indices: Vec<usize> = (start..start + term.len()).collect();
-            Rank {
-                index,
-                matched_indices,
-            }
+        .filter_map(|(index, target)| {
+            fuzzy_match(term, target).map(|(score, matched_indices)| {
+                (
+                    score,
+                    Rank {
+                        index,
+                        matched_indices,
+                    },
+                )
+            })
         })
-        .collect()
+        .collect();
+    // Stable sort keeps the original order among equal scores.
+    scored.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
+    scored.into_iter().map(|(_, rank)| rank).collect()
+}
+
+/// Scores `target` against `pattern`; `None` if `pattern` is not a
+/// case-insensitive subsequence of `target`.
+fn fuzzy_match(pattern: &str, target: &str) -> Option<(i64, Vec<usize>)> {
+    const FIRST_CHAR_BONUS: i64 = 10;
+    const SEPARATOR_BONUS: i64 = 20;
+    const CAMEL_CASE_BONUS: i64 = 20;
+    const ADJACENT_BONUS: i64 = 5;
+    const LEADING_PENALTY: i64 = -5;
+    const MAX_LEADING_PENALTY: i64 = -15;
+
+    let pattern: Vec<char> = pattern.chars().flat_map(char::to_lowercase).collect();
+    if pattern.is_empty() {
+        return Some((0, Vec::new()));
+    }
+    let chars: Vec<char> = target.chars().collect();
+    let mut matched = Vec::with_capacity(pattern.len());
+    let mut score: i64 = 0;
+    let mut p = 0;
+    for (i, &c) in chars.iter().enumerate() {
+        if p == pattern.len() {
+            break;
+        }
+        if !c.to_lowercase().eq(std::iter::once(pattern[p])) {
+            continue;
+        }
+        if i == 0 {
+            score += FIRST_CHAR_BONUS;
+        } else {
+            let prev = chars[i - 1];
+            if matches!(prev, ' ' | '_' | '-' | '.' | '/' | '\\') {
+                score += SEPARATOR_BONUS;
+            } else if prev.is_lowercase() && c.is_uppercase() {
+                score += CAMEL_CASE_BONUS;
+            }
+            if matched.last() == Some(&(i - 1)) {
+                score += ADJACENT_BONUS;
+            }
+        }
+        if matched.is_empty() {
+            score +=
+                (LEADING_PENALTY * i64::try_from(i).unwrap_or(i64::MAX)).max(MAX_LEADING_PENALTY);
+        }
+        matched.push(i);
+        p += 1;
+    }
+    if p < pattern.len() {
+        return None;
+    }
+    let unmatched = i64::try_from(chars.len() - matched.len()).unwrap_or(i64::MAX);
+    Some((score - unmatched, matched))
 }
 
 /// Key bindings for list navigation.
@@ -439,6 +550,12 @@ pub struct List<I: Item, D: ItemDelegate<I>> {
     help: Help,
     /// Filter input.
     filter_input: TextInput,
+    /// Filter function used to match items (Go's `Filter`). Defaults to
+    /// [`default_filter`].
+    pub filter: FilterFn,
+    /// Matched character indices for each entry of `filtered_indices`
+    /// (empty when unfiltered).
+    filter_matches: Vec<Vec<usize>>,
 
     // State
     items: Vec<I>,
@@ -486,6 +603,8 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
             paginator: Paginator::new().display_type(PaginatorType::Dots),
             help: Help::new(),
             filter_input,
+            filter: Arc::new(default_filter),
+            filter_matches: Vec::new(),
             items,
             filtered_indices,
             delegate,
@@ -530,11 +649,16 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         self
     }
 
-    /// Sets the items.
+    /// Sets the items. An active filter is re-applied to the new items.
     pub fn set_items(&mut self, items: Vec<I>) {
         let len = items.len();
         self.items = items;
+        if self.filter_state != FilterState::Unfiltered {
+            self.filter_items();
+            return;
+        }
         self.filtered_indices = (0..len).collect();
+        self.filter_matches.clear();
         self.paginator.set_total_pages_from_items(len);
         self.paginator.set_page(0);
         self.cursor = 0;
@@ -625,33 +749,49 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
         self.filter_input.reset();
         self.filter_state = FilterState::Unfiltered;
         self.filtered_indices = (0..self.items.len()).collect();
+        self.filter_matches.clear();
         self.paginator.set_total_pages_from_items(self.items.len());
         self.paginator.set_page(0);
         self.cursor = 0;
         self.update_pagination();
     }
 
-    /// Applies the current filter.
+    /// Applies the current filter and marks it as applied.
     fn apply_filter(&mut self) {
-        let term = self.filter_input.value();
-        if term.is_empty() {
+        if self.filter_input.value().is_empty() {
             self.reset_filter();
             return;
         }
+        self.filter_items();
+        self.filter_state = FilterState::FilterApplied;
+    }
 
-        let targets: Vec<String> = self
-            .items
-            .iter()
-            .map(|i| i.filter_value().to_string())
-            .collect();
-        let ranks = default_filter(&term, &targets);
-
-        self.filtered_indices = ranks.iter().map(|r| r.index).collect();
+    /// Recomputes the visible items from the filter term without changing
+    /// the filter state. An empty term shows every item.
+    fn filter_items(&mut self) {
+        let term = self.filter_input.value();
+        if term.is_empty() {
+            self.filtered_indices = (0..self.items.len()).collect();
+            self.filter_matches.clear();
+        } else {
+            let targets: Vec<String> = self
+                .items
+                .iter()
+                .map(|i| i.filter_value().to_string())
+                .collect();
+            let ranks = (self.filter)(&term, &targets);
+            let (indices, matches): (Vec<usize>, Vec<Vec<usize>>) = ranks
+                .into_iter()
+                .filter(|r| r.index < self.items.len())
+                .map(|r| (r.index, r.matched_indices))
+                .unzip();
+            self.filtered_indices = indices;
+            self.filter_matches = matches;
+        }
         self.paginator
             .set_total_pages_from_items(self.filtered_indices.len());
         self.paginator.set_page(0);
         self.cursor = 0;
-        self.filter_state = FilterState::FilterApplied;
         self.update_pagination();
     }
 
@@ -778,14 +918,24 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
                     return None;
                 }
                 if matches(&key_str, &[&self.key_map.accept_while_filtering]) {
-                    self.apply_filter();
+                    // Like Go: accepting an empty or match-less filter
+                    // clears it instead of applying it.
+                    if self.filter_input.value().is_empty() || self.filtered_indices.is_empty() {
+                        self.reset_filter();
+                        return None;
+                    }
                     self.filter_state = FilterState::FilterApplied;
                     self.filter_input.blur();
                     return None;
                 }
 
-                // Pass to filter input
-                return self.filter_input.update(msg);
+                // Pass to the filter input and re-filter as the user types.
+                let before = self.filter_input.value();
+                let cmd = self.filter_input.update(msg);
+                if self.filter_input.value() != before {
+                    self.filter_items();
+                }
+                return cmd;
             }
 
             // Normal navigation
@@ -1012,7 +1162,13 @@ impl<I: Item, D: ItemDelegate<I>> List<I, D> {
             let global_idx = start + i;
             let selected = global_idx == self.cursor;
             if let Some(item) = self.items.get(item_idx) {
-                out.push_str(&self.delegate.render(item, global_idx, selected, self.width));
+                let rendered = match self.filter_matches.get(global_idx) {
+                    Some(m) if !m.is_empty() => self
+                        .delegate
+                        .render_filtered(item, global_idx, selected, self.width, m),
+                    _ => self.delegate.render(item, global_idx, selected, self.width),
+                };
+                out.push_str(&rendered);
                 if i != (end - start).saturating_sub(1) {
                     out.push_str(&"\n".repeat(self.delegate.spacing() + 1));
                 }
@@ -1424,5 +1580,170 @@ mod tests {
         let per_page = list.paginator().get_per_page();
         let expected_pages = list.items.len().div_ceil(per_page);
         assert_eq!(list.paginator().get_total_pages(), expected_pages);
+    }
+}
+
+#[cfg(test)]
+mod filter_tests {
+    use super::*;
+    use bubbletea::KeyType;
+
+    #[derive(Debug, Clone)]
+    struct Fruit(String);
+
+    impl Item for Fruit {
+        fn filter_value(&self) -> &str {
+            &self.0
+        }
+    }
+
+    fn fruits(names: &[&str]) -> Vec<Fruit> {
+        names.iter().map(|n| Fruit((*n).to_string())).collect()
+    }
+
+    fn visible(list: &List<Fruit, DefaultDelegate>) -> Vec<String> {
+        list.filtered_indices
+            .iter()
+            .map(|&i| list.items()[i].0.clone())
+            .collect()
+    }
+
+    fn type_keys(list: &mut List<Fruit, DefaultDelegate>, keys: &str) {
+        for c in keys.chars() {
+            list.update(Message::new(KeyMsg::from_char(c)));
+        }
+    }
+
+    #[test]
+    fn fuzzy_matches_subsequences() {
+        let targets: Vec<String> = ["Strawberry", "Banana", "Raspberry", "Blueberry"]
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        let ranks = default_filter("bry", &targets);
+        let names: Vec<&str> = ranks.iter().map(|r| targets[r.index].as_str()).collect();
+        assert_eq!(names.len(), 3, "{names:?}");
+        assert!(!names.contains(&"Banana"));
+    }
+
+    #[test]
+    fn fuzzy_prefers_prefix_and_adjacent_matches() {
+        let targets: Vec<String> = ["xxapple", "apple", "axpxp"]
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        let ranks = default_filter("app", &targets);
+        assert_eq!(ranks[0].index, 1, "exact prefix should rank first");
+        assert_eq!(ranks[0].matched_indices, vec![0, 1, 2]);
+        assert_eq!(ranks.len(), 3);
+    }
+
+    #[test]
+    fn fuzzy_is_case_insensitive_and_uses_char_indices() {
+        let targets = vec!["Ünïcode Name".to_string()];
+        let ranks = default_filter("ün", &targets);
+        assert_eq!(ranks.len(), 1);
+        assert_eq!(ranks[0].matched_indices, vec![0, 1]);
+        assert!(default_filter("zz", &targets).is_empty());
+    }
+
+    #[test]
+    fn camel_case_and_separator_bonuses() {
+        assert!(fuzzy_match("fb", "FooBar").unwrap().0 > fuzzy_match("fb", "Foobar").unwrap().0);
+        assert!(fuzzy_match("fb", "foo-bar").unwrap().0 > fuzzy_match("fb", "foobar").unwrap().0);
+    }
+
+    #[test]
+    fn filters_live_while_typing() {
+        let mut list = List::new(
+            fruits(&["Apple", "Banana", "Cherry", "Grape"]),
+            DefaultDelegate::new(),
+            80,
+            24,
+        );
+        type_keys(&mut list, "/");
+        assert_eq!(list.filter_state(), FilterState::Filtering);
+        type_keys(&mut list, "ap");
+        assert_eq!(list.filter_state(), FilterState::Filtering);
+        assert_eq!(visible(&list), vec!["Apple", "Grape"]);
+
+        // Backspacing to empty shows everything again.
+        list.update(Message::new(KeyMsg::from_type(KeyType::Backspace)));
+        list.update(Message::new(KeyMsg::from_type(KeyType::Backspace)));
+        assert_eq!(visible(&list).len(), 4);
+    }
+
+    #[test]
+    fn enter_applies_and_empty_result_resets() {
+        let mut list = List::new(fruits(&["Apple", "Banana"]), DefaultDelegate::new(), 80, 24);
+        type_keys(&mut list, "/ban");
+        list.update(Message::new(KeyMsg::from_type(KeyType::Enter)));
+        assert_eq!(list.filter_state(), FilterState::FilterApplied);
+        assert_eq!(visible(&list), vec!["Banana"]);
+
+        list.reset_filter();
+        type_keys(&mut list, "/zzz");
+        assert_eq!(visible(&list), Vec::<String>::new());
+        list.update(Message::new(KeyMsg::from_type(KeyType::Enter)));
+        assert_eq!(list.filter_state(), FilterState::Unfiltered);
+        assert_eq!(visible(&list).len(), 2);
+    }
+
+    #[test]
+    fn custom_filter_function_is_used() {
+        let mut list = List::new(
+            fruits(&["Apple", "Banana", "Cherry"]),
+            DefaultDelegate::new(),
+            80,
+            24,
+        );
+        // Exact-length filter: keep items whose name length equals the term length.
+        list.filter = Arc::new(|term: &str, targets: &[String]| {
+            targets
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| t.len() == term.len())
+                .map(|(index, _)| Rank {
+                    index,
+                    matched_indices: Vec::new(),
+                })
+                .collect()
+        });
+        list.set_filter_value("xxxxx");
+        assert_eq!(visible(&list), vec!["Apple"]);
+    }
+
+    #[test]
+    fn set_items_reapplies_active_filter() {
+        let mut list = List::new(fruits(&["Apple"]), DefaultDelegate::new(), 80, 24);
+        list.set_filter_value("an");
+        list.set_items(fruits(&["Banana", "Cherry", "Mango"]));
+        assert_eq!(list.filter_state(), FilterState::FilterApplied);
+        let mut names = visible(&list);
+        names.sort();
+        assert_eq!(names, vec!["Banana", "Mango"]);
+    }
+
+    #[test]
+    fn matches_are_highlighted() {
+        let mut list = List::new(
+            fruits(&["Apple", "Banana"]),
+            DefaultDelegate::new().with_show_description(false),
+            80,
+            24,
+        );
+        list.set_filter_value("ban");
+        let rendered = list.view();
+        assert!(
+            rendered.contains("\x1b[4m"),
+            "expected underline: {rendered:?}"
+        );
+    }
+
+    #[test]
+    fn truncate_helper() {
+        assert_eq!(truncate_to_width("hello", 10), "hello");
+        assert_eq!(truncate_to_width("hello", 3), "he…");
+        assert_eq!(truncate_to_width("hello", 0), "");
     }
 }

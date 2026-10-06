@@ -492,7 +492,9 @@ mod tests {
     /// Test all valid styles
     #[test]
     fn test_valid_styles() {
-        let valid_styles = ["dark", "light", "ascii", "pink", "auto", "no-tty", "notty"];
+        let valid_styles = [
+            "dark", "light", "ascii", "pink", "auto", "no-tty", "notty", "dracula",
+        ];
 
         for style in valid_styles {
             let config = Config::new().style(style);
@@ -505,7 +507,7 @@ mod tests {
     /// Test invalid style rejection
     #[test]
     fn test_invalid_styles() {
-        let invalid_styles = ["unknown", "dracula", "solarized"];
+        let invalid_styles = ["unknown", "solarized"];
 
         for style in invalid_styles {
             let config = Config::new().style(style);
