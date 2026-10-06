@@ -13,6 +13,52 @@ Repository: <https://github.com/Dicklesworthstone/charmed_rust>
 
 [Unreleased]: https://github.com/Dicklesworthstone/charmed_rust/compare/charmed-harmonica-v0.2.5...HEAD
 
+Go-parity features that were missing despite the earlier "full parity" claim,
+plus runtime fixes found by driving the apps in a real PTY.
+
+### Added
+
+- **lipgloss:** `tree`, `list` and `table` modules (Go's `lipgloss/tree`,
+  `lipgloss/list`, `lipgloss/table`): enumerators/indenters and per-item
+  styles, nested lists, bordered tables with `StyleFunc`, `Data`/`Filter`,
+  fixed width/height, offsets and wrap/truncate ([`07af323`](https://github.com/Dicklesworthstone/charmed_rust/commit/07af323)).
+- **lipgloss:** `Style::inherit`, `place_horizontal`, `place_vertical`,
+  `Style::get_frame_size` ([`f5e444d`](https://github.com/Dicklesworthstone/charmed_rust/commit/f5e444d)).
+- **bubbletea:** `exec` / `exec_process` (Go `tea.Exec`/`ExecProcess`) hand the
+  terminal to a child process with input polling paused ([`651640c`](https://github.com/Dicklesworthstone/charmed_rust/commit/651640c));
+  `suspend()` for Ctrl+Z job control with `ResumeMsg` ([`7d1c4d5`](https://github.com/Dicklesworthstone/charmed_rust/commit/7d1c4d5));
+  `Program::with_filter` (Go `WithFilter`) ([`9808948`](https://github.com/Dicklesworthstone/charmed_rust/commit/9808948)).
+- **glamour:** load Go glamour JSON styles — `StyleConfig::from_json`,
+  `TermRenderer::with_styles_from_json_bytes` / `with_style_path`
+  ([`7316352`](https://github.com/Dicklesworthstone/charmed_rust/commit/7316352)).
+- **glow:** running with no argument or a directory opens the markdown file
+  browser (lists files when stdout is not a TTY) ([`3963e19`](https://github.com/Dicklesworthstone/charmed_rust/commit/3963e19)); `e` opens
+  `$EDITOR` and reloads the document ([`651640c`](https://github.com/Dicklesworthstone/charmed_rust/commit/651640c)); `--style` accepts a JSON
+  style file and `dracula` ([`7316352`](https://github.com/Dicklesworthstone/charmed_rust/commit/7316352)).
+- **bubbles:** list filtering is fuzzy and ranked, live while typing, pluggable
+  via `List::filter`, and highlights matches ([`d17e75b`](https://github.com/Dicklesworthstone/charmed_rust/commit/d17e75b)).
+- **huh:** `Form::run` and a working line-based accessible mode
+  ([`d22c585`](https://github.com/Dicklesworthstone/charmed_rust/commit/d22c585)); `huh::spinner` and per-field `run()` ([`963dc2a`](https://github.com/Dicklesworthstone/charmed_rust/commit/963dc2a));
+  `Form::timeout` ([`de72af1`](https://github.com/Dicklesworthstone/charmed_rust/commit/de72af1)); dynamic `title_func` /
+  `description_func` / `options_func` ([`a3c80fd`](https://github.com/Dicklesworthstone/charmed_rust/commit/a3c80fd)).
+- **wish:** real git-over-SSH middleware (`git::middleware(repo_dir, hooks)`,
+  Go `wish/git`) ([`1930148`](https://github.com/Dicklesworthstone/charmed_rust/commit/1930148)).
+
+### Fixed
+
+- **bubbletea:** SIGINT/SIGTERM now exit through cleanup instead of leaving the
+  terminal in raw mode; the caller's panic hook is restored after a run
+  ([`28c8308`](https://github.com/Dicklesworthstone/charmed_rust/commit/28c8308)).
+- **wish:** non-PTY sessions no longer drop client data when the input buffer
+  fills, and client EOF now ends `Session::recv()` ([`1930148`](https://github.com/Dicklesworthstone/charmed_rust/commit/1930148)).
+- **huh:** the first field was re-focused on every update while the first group
+  was active; finished forms now clear their view ([`de72af1`](https://github.com/Dicklesworthstone/charmed_rust/commit/de72af1),
+  [`68712f5`](https://github.com/Dicklesworthstone/charmed_rust/commit/68712f5)).
+- **lipgloss:** `get_horizontal/vertical_frame_size` include margins, as in Go
+  ([`f5e444d`](https://github.com/Dicklesworthstone/charmed_rust/commit/f5e444d)).
+- **glamour:** an empty task-list marker no longer erases every list bullet
+  ([`7316352`](https://github.com/Dicklesworthstone/charmed_rust/commit/7316352)).
+
 ## [charmed-harmonica v0.2.5] — 2026-09-28 (crates.io, single crate)
 
 [charmed-harmonica v0.2.5]: https://github.com/Dicklesworthstone/charmed_rust/compare/v0.2.4...charmed-harmonica-v0.2.5

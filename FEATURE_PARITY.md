@@ -1,6 +1,6 @@
 # FEATURE_PARITY.md — Charmed Rust
 
-Last updated: 2026-01-27
+Last updated: 2026-10-06
 
 This document tracks conformance and parity status between the Rust ports and
 the original Charm Go libraries. It is intended to be a single source of truth
@@ -42,7 +42,25 @@ Result summary:
 
 ## Known Parity Gaps (Behavioral Discrepancies)
 
-**No remaining gaps.** All crates now have full Go API parity.
+The fixture suites above pass, but fixtures only cover what was captured. An
+API audit against the Go libraries (2026-10-06) found and closed these gaps:
+lipgloss `tree`/`list`/`table`, `Style.Inherit`, `PlaceHorizontal/Vertical`;
+bubbletea `Exec`/`ExecProcess`, `Suspend`, `WithFilter`, signal handling;
+glamour JSON styles (`WithStylePath`, `WithStylesFromJSONBytes`); glow's file
+browser, editor reload and JSON `--style`; bubbles fuzzy/live list filtering;
+huh `Form.Run`, accessible mode, `spinner`, field `Run`, `WithTimeout` and
+dynamic `TitleFunc`/`DescriptionFunc`/`OptionsFunc`; wish `git` middleware.
+See CHANGELOG `[Unreleased]`.
+
+Remaining known gaps:
+
+- **wish:** `scp` and `sftp` middlewares only route sessions to a user handler;
+  there is no built-in filesystem implementation (Go `scp.NewFileSystemHandler`).
+- **glamour:** no emoji shortcode expansion (Go `WithEmoji`).
+- **lipgloss:** `place*` has no whitespace options (Go `WithWhitespaceChars`,
+  `WithWhitespaceForeground`).
+- **bubbletea:** Ctrl+C is delivered as `InterruptMsg` by the runtime rather than
+  as a key the model can handle (use `Program::with_filter` to intercept it).
 
 ### Glamour (Markdown Rendering)
 **Full parity achieved (2026-01-27).** All 84 conformance tests pass including:
