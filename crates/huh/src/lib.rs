@@ -74,6 +74,7 @@
 //! ```
 
 use std::any::Any;
+use std::io::{self, BufRead, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use thiserror::Error;
@@ -132,7 +133,7 @@ fn next_id() -> usize {
 ///
 /// ```rust,ignore
 /// match form.run() {
-///     Ok(()) => println!("Form completed!"),
+///     Ok(_form) => println!("Form completed!"),
 ///     Err(FormError::UserAborted) => {
 ///         println!("Cancelled by user");
 ///         return Ok(()); // Not an error condition
@@ -1195,6 +1196,88 @@ pub trait Field: Send + Sync {
 
     /// Sets the field position.
     fn with_position(&mut self, position: FieldPosition);
+
+    /// Runs the field in accessible mode: plain, line-based prompts written
+    /// to `w` and answered from `r`, with no cursor movement or styling.
+    ///
+    /// The default implementation prints the field's view and asks for
+    /// nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FormError::UserAborted`] when input ends before the field
+    /// is answered, or [`FormError::Io`] on I/O failure.
+    fn run_accessible(&mut self, w: &mut dyn Write, _r: &mut dyn BufRead) -> Result<()> {
+        writeln!(w, "{}", lipgloss_strip(&self.view())).map_err(io_err)
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Accessible-mode helpers
+// -----------------------------------------------------------------------------
+
+#[allow(clippy::needless_pass_by_value)] // used as `map_err(io_err)`
+fn io_err(e: io::Error) -> FormError {
+    FormError::Io(e.to_string())
+}
+
+/// Removes ANSI escape sequences.
+fn lipgloss_strip(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                for c in chars.by_ref() {
+                    if ('@'..='~').contains(&c) {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// Writes a field's title and description.
+fn write_heading(w: &mut dyn Write, title: &str, description: &str) -> Result<()> {
+    if !title.is_empty() {
+        writeln!(w, "{title}").map_err(io_err)?;
+    }
+    if !description.is_empty() {
+        writeln!(w, "{description}").map_err(io_err)?;
+    }
+    Ok(())
+}
+
+/// Prints `prompt` and reads one line (without the trailing newline).
+/// End of input aborts the form.
+fn read_answer(w: &mut dyn Write, r: &mut dyn BufRead, prompt: &str) -> Result<String> {
+    write!(w, "{prompt}").map_err(io_err)?;
+    w.flush().map_err(io_err)?;
+    let mut line = String::new();
+    if r.read_line(&mut line).map_err(io_err)? == 0 {
+        writeln!(w).map_err(io_err)?;
+        return Err(FormError::UserAborted);
+    }
+    Ok(line.trim_end_matches(['\n', '\r']).to_string())
+}
+
+fn write_error(w: &mut dyn Write, error: &str) -> Result<()> {
+    writeln!(w, "Error: {error}").map_err(io_err)
+}
+
+/// Parses a 1-based option number.
+fn parse_choice(answer: &str, count: usize) -> Option<usize> {
+    answer
+        .trim()
+        .parse::<usize>()
+        .ok()
+        .filter(|n| (1..=count).contains(n))
+        .map(|n| n - 1)
 }
 
 // -----------------------------------------------------------------------------
@@ -1639,6 +1722,32 @@ impl Field for Input {
 
     fn with_position(&mut self, position: FieldPosition) {
         self._position = position;
+    }
+
+    fn run_accessible(&mut self, w: &mut dyn Write, r: &mut dyn BufRead) -> Result<()> {
+        write_heading(w, &self.title, &self.description)?;
+        loop {
+            let prompt = if self.value.is_empty() {
+                self.prompt.clone()
+            } else if self.echo_mode == EchoMode::Normal {
+                format!("[{}] {}", self.value, self.prompt)
+            } else {
+                self.prompt.clone()
+            };
+            let answer = read_answer(w, r, &prompt)?;
+            if !answer.is_empty() || self.value.is_empty() {
+                self.value = if self.char_limit > 0 {
+                    answer.chars().take(self.char_limit).collect()
+                } else {
+                    answer
+                };
+            }
+            self.run_validation();
+            match self.error.clone() {
+                Some(err) => write_error(w, &err)?,
+                None => return Ok(()),
+            }
+        }
     }
 }
 
@@ -2097,6 +2206,34 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for Select<T>
 
     fn with_position(&mut self, position: FieldPosition) {
         self._position = position;
+    }
+
+    fn run_accessible(&mut self, w: &mut dyn Write, r: &mut dyn BufRead) -> Result<()> {
+        write_heading(w, &self.title, &self.description)?;
+        if self.options.is_empty() {
+            return Ok(());
+        }
+        for (i, opt) in self.options.iter().enumerate() {
+            let marker = if i == self.selected { '*' } else { ' ' };
+            writeln!(w, "{marker} {}. {}", i + 1, opt.key).map_err(io_err)?;
+        }
+        let count = self.options.len();
+        loop {
+            let prompt = format!("Choose 1-{count} [{}]: ", self.selected + 1);
+            let answer = read_answer(w, r, &prompt)?;
+            if !answer.trim().is_empty() {
+                let Some(i) = parse_choice(&answer, count) else {
+                    write_error(w, &format!("enter a number between 1 and {count}"))?;
+                    continue;
+                };
+                self.selected = i;
+            }
+            self.run_validation();
+            match self.error.clone() {
+                Some(err) => write_error(w, &err)?,
+                None => return Ok(()),
+            }
+        }
     }
 }
 
@@ -2584,6 +2721,54 @@ impl<T: Clone + PartialEq + Send + Sync + Default + 'static> Field for MultiSele
     fn with_position(&mut self, position: FieldPosition) {
         self._position = position;
     }
+
+    fn run_accessible(&mut self, w: &mut dyn Write, r: &mut dyn BufRead) -> Result<()> {
+        write_heading(w, &self.title, &self.description)?;
+        if self.options.is_empty() {
+            return Ok(());
+        }
+        for (i, opt) in self.options.iter().enumerate() {
+            let marker = if self.selected.contains(&i) {
+                "[x]"
+            } else {
+                "[ ]"
+            };
+            writeln!(w, "{marker} {}. {}", i + 1, opt.key).map_err(io_err)?;
+        }
+        let count = self.options.len();
+        loop {
+            let answer = read_answer(
+                w,
+                r,
+                "Enter numbers separated by spaces or commas (blank keeps current): ",
+            )?;
+            if !answer.trim().is_empty() {
+                let picks: Option<Vec<usize>> = answer
+                    .split(|c: char| c == ',' || c.is_whitespace())
+                    .filter(|t| !t.is_empty())
+                    .map(|t| parse_choice(t, count))
+                    .collect();
+                let Some(mut picks) = picks else {
+                    write_error(w, &format!("enter numbers between 1 and {count}"))?;
+                    continue;
+                };
+                picks.sort_unstable();
+                picks.dedup();
+                if let Some(limit) = self.limit
+                    && picks.len() > limit
+                {
+                    write_error(w, &format!("select at most {limit}"))?;
+                    continue;
+                }
+                self.selected = picks;
+            }
+            self.run_validation();
+            match self.error.clone() {
+                Some(err) => write_error(w, &err)?,
+                None => return Ok(()),
+            }
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -2816,6 +3001,27 @@ impl Field for Confirm {
     fn with_position(&mut self, position: FieldPosition) {
         self._position = position;
     }
+
+    fn run_accessible(&mut self, w: &mut dyn Write, r: &mut dyn BufRead) -> Result<()> {
+        write_heading(w, &self.title, &self.description)?;
+        let default = if self.value { "Y/n" } else { "y/N" };
+        loop {
+            let answer = read_answer(w, r, &format!("{default}: "))?;
+            let answer = answer.trim().to_lowercase();
+            if answer.is_empty() {
+                return Ok(());
+            }
+            if answer == "y" || answer == "yes" || answer == self.affirmative.to_lowercase() {
+                self.value = true;
+                return Ok(());
+            }
+            if answer == "n" || answer == "no" || answer == self.negative.to_lowercase() {
+                self.value = false;
+                return Ok(());
+            }
+            write_error(w, "please answer yes or no")?;
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -3007,6 +3213,10 @@ impl Field for Note {
 
     fn with_position(&mut self, position: FieldPosition) {
         self._position = position;
+    }
+
+    fn run_accessible(&mut self, w: &mut dyn Write, _r: &mut dyn BufRead) -> Result<()> {
+        write_heading(w, &self.title, &self.description)
     }
 }
 
@@ -3539,6 +3749,25 @@ impl Field for Text {
 
     fn with_position(&mut self, position: FieldPosition) {
         self._position = position;
+    }
+
+    fn run_accessible(&mut self, w: &mut dyn Write, r: &mut dyn BufRead) -> Result<()> {
+        write_heading(w, &self.title, &self.description)?;
+        loop {
+            let answer = read_answer(w, r, "> ")?;
+            if !answer.is_empty() || self.value.is_empty() {
+                self.value = if self.char_limit > 0 {
+                    answer.chars().take(self.char_limit).collect()
+                } else {
+                    answer
+                };
+            }
+            self.run_validation();
+            match self.error.clone() {
+                Some(err) => write_error(w, &err)?,
+                None => return Ok(()),
+            }
+        }
     }
 }
 
@@ -4129,6 +4358,59 @@ impl Field for FilePicker {
 
     fn with_position(&mut self, position: FieldPosition) {
         self._position = position;
+    }
+
+    fn run_accessible(&mut self, w: &mut dyn Write, r: &mut dyn BufRead) -> Result<()> {
+        write_heading(w, &self.title, &self.description)?;
+        loop {
+            let answer = read_answer(w, r, "Path: ")?;
+            let answer = answer.trim();
+            if answer.is_empty() {
+                if self.selected_path.is_some() {
+                    return Ok(());
+                }
+                write_error(w, "a path is required")?;
+                continue;
+            }
+            let path = std::path::Path::new(answer);
+            let path = if path.is_relative() {
+                std::path::Path::new(&self.current_directory).join(path)
+            } else {
+                path.to_path_buf()
+            };
+            let Ok(metadata) = std::fs::metadata(&path) else {
+                write_error(w, &format!("no such file or directory: {}", path.display()))?;
+                continue;
+            };
+            if metadata.is_dir() && !self.dir_allowed {
+                write_error(w, "directories are not allowed")?;
+                continue;
+            }
+            if !metadata.is_dir() && !self.file_allowed {
+                write_error(w, "files are not allowed")?;
+                continue;
+            }
+            let name = path.to_string_lossy().to_string();
+            if !metadata.is_dir()
+                && !self.allowed_types.is_empty()
+                && !self
+                    .allowed_types
+                    .iter()
+                    .any(|ext| name.ends_with(ext.trim_start_matches('.')))
+            {
+                write_error(
+                    w,
+                    &format!("allowed types: {}", self.allowed_types.join(", ")),
+                )?;
+                continue;
+            }
+            self.selected_path = Some(name);
+            self.run_validation();
+            match self.error.clone() {
+                Some(err) => write_error(w, &err)?,
+                None => return Ok(()),
+            }
+        }
     }
 }
 
@@ -4741,6 +5023,91 @@ impl Form {
     /// Returns whether accessible mode is enabled.
     pub fn is_accessible(&self) -> bool {
         self.accessible
+    }
+
+    /// Runs the form to completion and returns it so values can be read.
+    ///
+    /// This is the counterpart of Go's `form.Run()`. In normal mode the form
+    /// runs as an inline bubbletea program; in [accessible
+    /// mode](Self::with_accessible) every field is asked as a plain
+    /// line-based prompt on stdin/stdout, which works with screen readers
+    /// and in non-interactive pipelines.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FormError::UserAborted`] if the user quits (Ctrl+C / Esc)
+    /// or input ends early, and [`FormError::Io`] if the terminal fails.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use huh::{Form, FormError, Group, Input};
+    ///
+    /// let form = Form::new(vec![Group::new(vec![Box::new(
+    ///     Input::new().key("name").title("What's your name?"),
+    /// )])]);
+    ///
+    /// match form.run() {
+    ///     Ok(form) => println!("Hello, {}!", form.get_string("name").unwrap_or_default()),
+    ///     Err(FormError::UserAborted) => println!("Cancelled"),
+    ///     Err(e) => eprintln!("{e}"),
+    /// }
+    /// ```
+    pub fn run(mut self) -> Result<Self> {
+        if self.accessible {
+            let stdin = io::stdin();
+            let mut input = stdin.lock();
+            let mut output = io::stdout();
+            self.run_accessible(&mut output, &mut input)?;
+            return Ok(self);
+        }
+        let form = bubbletea::Program::new(self)
+            .run()
+            .map_err(|e| FormError::Io(e.to_string()))?;
+        match form.state {
+            FormState::Completed => Ok(form),
+            // Ctrl+C is intercepted by the runtime before the form sees it,
+            // so any non-completed exit is a user abort.
+            FormState::Normal | FormState::Aborted => Err(FormError::UserAborted),
+        }
+    }
+
+    /// Runs the form in accessible mode against arbitrary I/O.
+    ///
+    /// Prompts for every field of every visible group in order, writing to
+    /// `output` and reading answers from `input`. On success the form is
+    /// marked [`FormState::Completed`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FormError::UserAborted`] if `input` ends before all fields
+    /// are answered, or [`FormError::Io`] on I/O failure.
+    pub fn run_accessible(
+        &mut self,
+        output: &mut dyn Write,
+        input: &mut dyn BufRead,
+    ) -> Result<()> {
+        for group in &mut self.groups {
+            if group.is_hidden() {
+                continue;
+            }
+            write_heading(output, &group.title, &group.description)?;
+            for field in &mut group.fields {
+                if field.skip() {
+                    continue;
+                }
+                let result = field.run_accessible(output, input);
+                if let Err(err) = result {
+                    if err == FormError::UserAborted {
+                        self.state = FormState::Aborted;
+                    }
+                    return Err(err);
+                }
+                writeln!(output).map_err(io_err)?;
+            }
+        }
+        self.state = FormState::Completed;
+        Ok(())
     }
 
     /// Returns the form state.
@@ -6568,5 +6935,173 @@ mod tests {
         // Only Cherry matches, selected should be 3
         assert_eq!(sel.selected, 3);
         assert_eq!(sel.get_selected_value(), Some(&"cherry".to_string()));
+    }
+}
+
+#[cfg(test)]
+mod accessible_tests {
+    use super::*;
+
+    fn run(form: &mut Form, input: &str) -> (Result<()>, String) {
+        let mut out = Vec::new();
+        let mut reader = io::Cursor::new(input.as_bytes().to_vec());
+        let result = form.run_accessible(&mut out, &mut reader);
+        (result, String::from_utf8(out).expect("utf8 output"))
+    }
+
+    fn colors() -> Vec<SelectOption<String>> {
+        vec![
+            SelectOption::new("Red", "red".to_string()),
+            SelectOption::new("Green", "green".to_string()),
+            SelectOption::new("Blue", "blue".to_string()),
+        ]
+    }
+
+    #[test]
+    fn answers_every_field_type() {
+        let mut form = Form::new(vec![
+            Group::new(vec![
+                Box::new(Input::new().key("name").title("Name?")),
+                Box::new(Select::new().key("color").title("Color?").options(colors())),
+            ])
+            .title("About you"),
+            Group::new(vec![
+                Box::new(
+                    MultiSelect::new()
+                        .key("toppings")
+                        .title("Toppings?")
+                        .options(colors()),
+                ),
+                Box::new(Note::new().title("Almost done")),
+                Box::new(Confirm::new().key("ok").title("Sure?")),
+                Box::new(Text::new().key("bio").title("Bio?")),
+            ]),
+        ]);
+        let (result, out) = run(&mut form, "Ferris\n2\n1, 3\ny\nI like crabs\n");
+        result.expect("form completes");
+        assert_eq!(form.state(), FormState::Completed);
+        assert_eq!(form.get_string("name").as_deref(), Some("Ferris"));
+        assert_eq!(form.get_string("color").as_deref(), Some("green"));
+        assert_eq!(form.get_bool("ok"), Some(true));
+        assert_eq!(form.get_string("bio").as_deref(), Some("I like crabs"));
+        let toppings = form
+            .get_value("toppings")
+            .and_then(|v| v.downcast::<Vec<String>>().ok())
+            .expect("multiselect value");
+        assert_eq!(*toppings, vec!["red".to_string(), "blue".to_string()]);
+        for expected in [
+            "About you",
+            "Name?",
+            "2. Green",
+            "Toppings?",
+            "Almost done",
+            "y/N",
+        ] {
+            assert!(out.contains(expected), "missing {expected:?} in:\n{out}");
+        }
+        assert!(!out.contains('\x1b'), "accessible output must be unstyled");
+    }
+
+    #[test]
+    fn invalid_answers_are_retried() {
+        let mut form = Form::new(vec![Group::new(vec![
+            Box::new(Select::new().key("color").title("Color?").options(colors())),
+            Box::new(Confirm::new().key("ok").title("Sure?")),
+        ])]);
+        let (result, out) = run(&mut form, "9\nabc\n3\nmaybe\nno\n");
+        result.expect("form completes");
+        assert_eq!(form.get_string("color").as_deref(), Some("blue"));
+        assert_eq!(form.get_bool("ok"), Some(false));
+        assert_eq!(out.matches("Error:").count(), 3, "{out}");
+    }
+
+    #[test]
+    fn validation_errors_are_retried() {
+        fn not_empty(s: &str) -> Option<String> {
+            s.is_empty().then(|| "required".to_string())
+        }
+        let mut form = Form::new(vec![Group::new(vec![Box::new(
+            Input::new().key("name").validate(not_empty),
+        )])]);
+        let (result, out) = run(&mut form, "\nFerris\n");
+        result.expect("form completes");
+        assert!(out.contains("Error: required"), "{out}");
+        assert_eq!(form.get_string("name").as_deref(), Some("Ferris"));
+    }
+
+    #[test]
+    fn blank_answers_keep_defaults() {
+        let mut form = Form::new(vec![Group::new(vec![
+            Box::new(Input::new().key("name").value("Ferris")),
+            Box::new(Confirm::new().key("ok").value(true)),
+        ])]);
+        let (result, out) = run(&mut form, "\n\n");
+        result.expect("form completes");
+        assert_eq!(form.get_string("name").as_deref(), Some("Ferris"));
+        assert_eq!(form.get_bool("ok"), Some(true));
+        assert!(out.contains("[Ferris]"), "{out}");
+        assert!(out.contains("Y/n"), "{out}");
+    }
+
+    #[test]
+    fn end_of_input_aborts() {
+        let mut form = Form::new(vec![Group::new(vec![
+            Box::new(Input::new().key("a")),
+            Box::new(Input::new().key("b")),
+        ])]);
+        let (result, _) = run(&mut form, "only one\n");
+        assert_eq!(result, Err(FormError::UserAborted));
+        assert_eq!(form.state(), FormState::Aborted);
+    }
+
+    #[test]
+    fn hidden_groups_are_skipped() {
+        let mut form = Form::new(vec![
+            Group::new(vec![Box::new(Input::new().key("hidden"))]).hide(true),
+            Group::new(vec![Box::new(Input::new().key("shown"))]),
+        ]);
+        let (result, _) = run(&mut form, "x\n");
+        result.expect("form completes");
+        assert_eq!(form.get_string("shown").as_deref(), Some("x"));
+        assert_eq!(form.get_string("hidden").as_deref(), Some(""));
+    }
+
+    #[test]
+    fn multiselect_respects_limit() {
+        let mut form = Form::new(vec![Group::new(vec![Box::new(
+            MultiSelect::new().key("m").options(colors()).limit(1),
+        )])]);
+        let (result, out) = run(&mut form, "1 2\n2\n");
+        result.expect("form completes");
+        assert!(out.contains("at most 1"), "{out}");
+        let v = form
+            .get_value("m")
+            .and_then(|v| v.downcast::<Vec<String>>().ok())
+            .expect("value");
+        assert_eq!(*v, vec!["green".to_string()]);
+    }
+
+    #[test]
+    fn file_picker_validates_paths() {
+        let dir = std::env::temp_dir();
+        let mut form = Form::new(vec![Group::new(vec![Box::new(
+            FilePicker::new()
+                .key("f")
+                .current_directory(dir.to_string_lossy().to_string()),
+        )])]);
+        let existing = dir.to_string_lossy().to_string();
+        let (result, out) = run(
+            &mut form,
+            &format!("/definitely/missing/file\n{existing}\n"),
+        );
+        // Directories are rejected by default, then input runs out.
+        assert_eq!(result, Err(FormError::UserAborted));
+        assert!(out.contains("no such file"), "{out}");
+        assert!(out.contains("directories are not allowed"), "{out}");
+    }
+
+    #[test]
+    fn strip_removes_ansi() {
+        assert_eq!(lipgloss_strip("\x1b[1mhi\x1b[0m"), "hi");
     }
 }
