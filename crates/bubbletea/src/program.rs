@@ -407,7 +407,12 @@ pub struct Program<M: Model> {
     external_rx: Option<Receiver<Message>>,
     input: Option<Box<dyn Read + Send>>,
     output: Option<Box<dyn Write + Send>>,
+    filter: Option<MessageFilter<M>>,
 }
+
+/// A function that sees every message before the runtime or the model does.
+/// See [`Program::with_filter`].
+pub type MessageFilter<M> = Box<dyn FnMut(&M, Message) -> Option<Message> + Send>;
 
 impl<M: Model> Program<M> {
     /// Create a new program with the given model.
@@ -418,6 +423,50 @@ impl<M: Model> Program<M> {
             external_rx: None,
             input: None,
             output: None,
+            filter: None,
+        }
+    }
+
+    /// Installs a message filter (Go's `tea.WithFilter`).
+    ///
+    /// The filter receives the current model and every message before the
+    /// runtime handles it — including [`QuitMsg`] and [`InterruptMsg`] — and
+    /// returns the message to process, a different message, or `None` to
+    /// drop it. A typical use is refusing to quit while there are unsaved
+    /// changes.
+    ///
+    /// ```rust
+    /// use bubbletea::{Cmd, Message, Model, Program, QuitMsg};
+    ///
+    /// struct Editor { dirty: bool }
+    /// impl Model for Editor {
+    ///     fn init(&self) -> Option<Cmd> { None }
+    ///     fn update(&mut self, _msg: Message) -> Option<Cmd> { None }
+    ///     fn view(&self) -> String { String::new() }
+    /// }
+    ///
+    /// let program = Program::new(Editor { dirty: true }).with_filter(|model, msg| {
+    ///     if msg.is::<QuitMsg>() && model.dirty {
+    ///         return None; // keep running
+    ///     }
+    ///     Some(msg)
+    /// });
+    /// # drop(program);
+    /// ```
+    #[must_use]
+    pub fn with_filter<F>(mut self, filter: F) -> Self
+    where
+        F: FnMut(&M, Message) -> Option<Message> + Send + 'static,
+    {
+        self.filter = Some(Box::new(filter));
+        self
+    }
+
+    /// Applies the message filter, if any.
+    fn filter_message(&mut self, msg: Message) -> Option<Message> {
+        match self.filter.as_mut() {
+            Some(filter) => filter(&self.model, msg),
+            None => Some(msg),
         }
     }
 
@@ -838,6 +887,9 @@ impl<M: Model> Program<M> {
             let mut needs_render = false;
             let mut should_quit = false;
             while let Ok(msg) = rx.try_recv() {
+                let Some(msg) = self.filter_message(msg) else {
+                    continue;
+                };
                 // Check for quit message
                 if msg.is::<QuitMsg>() {
                     should_quit = true;
@@ -1633,6 +1685,9 @@ impl<M: Model> Program<M> {
 
                 // Process incoming messages
                 Some(msg) = rx.recv() => {
+                    let Some(msg) = self.filter_message(msg) else {
+                        continue;
+                    };
                     // Check for quit message - initiate graceful shutdown
                     if msg.is::<QuitMsg>() {
                         Self::graceful_shutdown(&cancel_token, &task_tracker).await;

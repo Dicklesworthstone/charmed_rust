@@ -187,3 +187,53 @@ fn suspend_is_a_noop_with_custom_io() {
         .expect("program should run to completion");
     assert!(!final_model.resumed, "custom I/O programs must not suspend");
 }
+
+#[test]
+fn filter_can_veto_quit() {
+    let (tx, rx) = std::sync::mpsc::channel();
+    // Messages are processed in order, so the filter sees the model state
+    // after each preceding message.
+    tx.send(Message::new(KeyMsg::from_char('a'))).unwrap();
+    tx.send(Message::new(bubbletea::QuitMsg)).unwrap(); // vetoed: seen == "a"
+    tx.send(Message::new(KeyMsg::from_char('b'))).unwrap();
+    tx.send(Message::new(bubbletea::QuitMsg)).unwrap(); // allowed: seen == "ab"
+    tx.send(Message::new(KeyMsg::from_char('z'))).unwrap(); // never processed
+    let final_model = Program::new(InputModel::default())
+        .with_custom_io()
+        .with_input_receiver(rx)
+        .with_output(Vec::new())
+        .with_filter(|model: &InputModel, msg| {
+            if msg.is::<bubbletea::QuitMsg>() && model.seen.len() < 2 {
+                return None;
+            }
+            Some(msg)
+        })
+        .run()
+        .expect("program should run to completion");
+    assert_eq!(final_model.seen, "ab");
+    drop(tx);
+}
+
+#[test]
+fn filter_can_rewrite_messages() {
+    let input = std::io::Cursor::new(b"cq".to_vec());
+    let final_model = Program::new(InputModel::default())
+        .with_input(input)
+        .with_output(Vec::new())
+        .with_filter(|_: &InputModel, msg| {
+            if let Some(key) = msg.downcast_ref::<KeyMsg>() {
+                let runes = key.runes.iter().map(char::to_ascii_uppercase).collect();
+                let mut upper = KeyMsg::from_runes(runes);
+                if upper.runes.last() == Some(&'Q') {
+                    // Keep the quit key working.
+                    upper.runes.pop();
+                    upper.runes.push('q');
+                }
+                return Some(Message::new(upper));
+            }
+            Some(msg)
+        })
+        .run()
+        .expect("program should run to completion");
+    assert_eq!(final_model.seen, "C");
+}
