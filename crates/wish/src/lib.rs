@@ -1981,21 +1981,423 @@ pub mod middleware {
         }
     }
 
-    /// Middleware for SCP file transfers.
     pub mod scp {
-        use super::*;
+        //! SCP file transfers (Go: `wish/scp`).
+        //!
+        //! [`middleware`] speaks the classic SCP protocol (`scp -t` for
+        //! uploads, `scp -f` for downloads, with `-r` recursion and `-p`
+        //! times/modes). Recent OpenSSH clients default to SFTP and need
+        //! `scp -O` to use it. Paths are resolved by a [`Handler`];
+        //! [`FileSystemHandler`] serves a directory and refuses to leave it.
+        //! Sessions that are not SCP commands fall through to the next
+        //! handler.
 
-        fn looks_like_scp_command(cmd: &[String]) -> bool {
-            cmd.first().is_some_and(|c| c == "scp")
+        use super::*;
+        use std::path::{Component, Path, PathBuf};
+        use std::time::{SystemTime, UNIX_EPOCH};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        /// Maps client paths to local paths.
+        pub trait Handler: Send + Sync {
+            /// Resolves `path` as given by the client, or `None` to deny it.
+            fn resolve(&self, session: &Session, path: &str) -> Option<PathBuf>;
         }
 
-        /// Creates SCP middleware.
+        /// Serves files under a root directory (Go: `scp.NewFileSystemHandler`).
         ///
-        /// By default, this denies SCP commands unless a handler is configured via
-        /// `middleware_with_handler`.
-        pub fn middleware() -> Middleware {
-            middleware_with_handler(|session| async move {
-                fatalln(&session, "scp handler not configured");
+        /// Client paths are relative to the root (a leading `/` is ignored);
+        /// `..` components are rejected.
+        #[derive(Debug, Clone)]
+        pub struct FileSystemHandler {
+            root: PathBuf,
+        }
+
+        impl FileSystemHandler {
+            /// Serves `root`.
+            pub fn new(root: impl Into<PathBuf>) -> Self {
+                Self { root: root.into() }
+            }
+        }
+
+        impl Handler for FileSystemHandler {
+            fn resolve(&self, _session: &Session, path: &str) -> Option<PathBuf> {
+                let mut resolved = self.root.clone();
+                for component in Path::new(path).components() {
+                    match component {
+                        Component::Normal(part) => resolved.push(part),
+                        Component::RootDir | Component::CurDir => {}
+                        Component::ParentDir | Component::Prefix(_) => return None,
+                    }
+                }
+                Some(resolved)
+            }
+        }
+
+        /// Parsed `scp` command line (one bool per scp flag).
+        #[derive(Debug, Default, PartialEq, Eq)]
+        #[allow(clippy::struct_excessive_bools)]
+        struct Request {
+            sink: bool,
+            source: bool,
+            recursive: bool,
+            preserve: bool,
+            target_is_dir: bool,
+            path: String,
+        }
+
+        fn parse_command(cmd: &[String]) -> Option<Request> {
+            let (first, rest) = cmd.split_first()?;
+            if first != "scp" {
+                return None;
+            }
+            let mut req = Request::default();
+            let mut paths = Vec::new();
+            let mut options_done = false;
+            for arg in rest {
+                if !options_done && arg == "--" {
+                    options_done = true;
+                } else if !options_done && arg.starts_with('-') && arg.len() > 1 {
+                    for flag in arg.chars().skip(1) {
+                        match flag {
+                            't' => req.sink = true,
+                            'f' => req.source = true,
+                            'r' => req.recursive = true,
+                            'p' => req.preserve = true,
+                            'd' => req.target_is_dir = true,
+                            _ => {} // -v, -q, ... are irrelevant server-side
+                        }
+                    }
+                } else {
+                    paths.push(arg.clone());
+                }
+            }
+            if req.sink == req.source {
+                return None;
+            }
+            req.path = paths.join(" ");
+            if req.path.is_empty() {
+                req.path = ".".to_string();
+            }
+            Some(req)
+        }
+
+        /// Creates the SCP middleware.
+        ///
+        /// # Example
+        ///
+        /// ```rust,no_run
+        /// use wish::middleware::scp::{self, FileSystemHandler};
+        /// use wish::ServerBuilder;
+        ///
+        /// let server = ServerBuilder::new()
+        ///     .with_middleware(scp::middleware(FileSystemHandler::new("/srv/files")))
+        ///     .build();
+        /// ```
+        pub fn middleware(handler: impl Handler + 'static) -> Middleware {
+            let handler: Arc<dyn Handler> = Arc::new(handler);
+            Arc::new(move |next| {
+                let handler = handler.clone();
+                Arc::new(move |session| {
+                    let next = next.clone();
+                    let handler = handler.clone();
+                    Box::pin(async move {
+                        let Some(req) = parse_command(session.command()) else {
+                            next(session).await;
+                            return;
+                        };
+                        let mut io = Io::new(&session);
+                        let result = match handler.resolve(&session, &req.path) {
+                            None => Err(io::Error::new(
+                                io::ErrorKind::PermissionDenied,
+                                format!("{}: permission denied", req.path),
+                            )),
+                            Some(path) if req.sink => receive(&mut io, &req, &path).await,
+                            Some(path) => send(&mut io, &req, &path).await,
+                        };
+                        let code = match result {
+                            Ok(()) => 0,
+                            Err(e) => {
+                                // Fatal error record, as scp itself sends.
+                                let _ = session.write(format!("\x02scp: {e}\n").as_bytes());
+                                1
+                            }
+                        };
+                        let _ = session.exit(code);
+                        let _ = session.close();
+                    })
+                })
+            })
+        }
+
+        /// Buffered reader/writer over the session's byte streams.
+        struct Io<'a> {
+            session: &'a Session,
+            buf: Vec<u8>,
+            pos: usize,
+        }
+
+        impl<'a> Io<'a> {
+            const fn new(session: &'a Session) -> Self {
+                Self {
+                    session,
+                    buf: Vec::new(),
+                    pos: 0,
+                }
+            }
+
+            async fn fill(&mut self) -> io::Result<()> {
+                if self.pos < self.buf.len() {
+                    return Ok(());
+                }
+                match self.session.recv().await {
+                    Some(data) => {
+                        self.buf = data;
+                        self.pos = 0;
+                        Ok(())
+                    }
+                    None => Err(io::ErrorKind::UnexpectedEof.into()),
+                }
+            }
+
+            /// Reads one byte; `None` at end of input.
+            async fn byte(&mut self) -> io::Result<Option<u8>> {
+                match self.fill().await {
+                    Ok(()) => {
+                        let b = self.buf[self.pos];
+                        self.pos += 1;
+                        Ok(Some(b))
+                    }
+                    Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(None),
+                    Err(e) => Err(e),
+                }
+            }
+
+            async fn line(&mut self) -> io::Result<String> {
+                let mut line = Vec::new();
+                loop {
+                    match self.byte().await? {
+                        Some(b'\n') => break,
+                        Some(b) => line.push(b),
+                        None => return Err(io::ErrorKind::UnexpectedEof.into()),
+                    }
+                    if line.len() > 64 * 1024 {
+                        return Err(io::Error::new(io::ErrorKind::InvalidData, "line too long"));
+                    }
+                }
+                Ok(String::from_utf8_lossy(&line).into_owned())
+            }
+
+            /// Copies exactly `n` bytes of input into `out`.
+            async fn copy_to(&mut self, mut n: u64, out: &mut tokio::fs::File) -> io::Result<()> {
+                while n > 0 {
+                    self.fill().await?;
+                    let available = (self.buf.len() - self.pos) as u64;
+                    let take = usize::try_from(available.min(n)).unwrap_or(usize::MAX);
+                    out.write_all(&self.buf[self.pos..self.pos + take]).await?;
+                    self.pos += take;
+                    n -= take as u64;
+                }
+                Ok(())
+            }
+
+            fn write(&self, data: &[u8]) -> io::Result<()> {
+                self.session.write(data).map(|_| ())
+            }
+
+            fn ok(&self) -> io::Result<()> {
+                self.write(&[0])
+            }
+
+            /// Waits for the client's acknowledgement.
+            async fn ack(&mut self) -> io::Result<()> {
+                match self.byte().await? {
+                    Some(0) => Ok(()),
+                    Some(code @ (1 | 2)) => {
+                        let msg = self.line().await.unwrap_or_default();
+                        let kind = if code == 1 { "warning" } else { "error" };
+                        Err(io::Error::other(format!("client {kind}: {msg}")))
+                    }
+                    Some(other) => Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("unexpected acknowledgement byte {other}"),
+                    )),
+                    None => Err(io::ErrorKind::UnexpectedEof.into()),
+                }
+            }
+        }
+
+        fn invalid(msg: impl Into<String>) -> io::Error {
+            io::Error::new(io::ErrorKind::InvalidData, msg.into())
+        }
+
+        /// Parses `<mode> <size> <name>` from a `C`/`D` record.
+        fn parse_entry(record: &str) -> io::Result<(u32, u64, String)> {
+            let mut parts = record.splitn(3, ' ');
+            let mode = parts
+                .next()
+                .and_then(|m| u32::from_str_radix(m, 8).ok())
+                .ok_or_else(|| invalid(format!("bad mode in {record:?}")))?;
+            let size = parts
+                .next()
+                .and_then(|n| n.parse::<u64>().ok())
+                .ok_or_else(|| invalid(format!("bad size in {record:?}")))?;
+            let name = parts.next().unwrap_or_default().to_string();
+            if name.is_empty() || name == "." || name == ".." || name.contains('/') {
+                return Err(invalid(format!("bad file name {name:?}")));
+            }
+            Ok((mode, size, name))
+        }
+
+        #[cfg(unix)]
+        async fn set_mode(path: &Path, mode: u32) {
+            use std::os::unix::fs::PermissionsExt;
+            let _ =
+                tokio::fs::set_permissions(path, std::fs::Permissions::from_mode(mode & 0o7777))
+                    .await;
+        }
+
+        #[cfg(not(unix))]
+        async fn set_mode(_path: &Path, _mode: u32) {}
+
+        /// Sink mode (`scp -t`): the client uploads into `target`.
+        async fn receive(io: &mut Io<'_>, req: &Request, target: &Path) -> io::Result<()> {
+            let target_exists_as_dir = tokio::fs::metadata(target).await.is_ok_and(|m| m.is_dir());
+            if req.target_is_dir && !target_exists_as_dir {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("{}: not a directory", req.path),
+                ));
+            }
+            // Directory stack; empty means "at the target itself".
+            let mut dirs: Vec<PathBuf> = Vec::new();
+            io.ok()?;
+            loop {
+                let Some(kind) = io.byte().await? else {
+                    return Ok(());
+                };
+                match kind {
+                    b'C' | b'D' => {
+                        let record = io.line().await?;
+                        let (mode, size, name) = parse_entry(&record)?;
+                        let dest = match dirs.last() {
+                            Some(dir) => dir.join(&name),
+                            None if target_exists_as_dir => target.join(&name),
+                            // `scp file host:new_name` / `scp -r dir host:new_dir`
+                            None => target.to_path_buf(),
+                        };
+                        if kind == b'D' {
+                            if !req.recursive {
+                                return Err(invalid("received a directory without -r"));
+                            }
+                            tokio::fs::create_dir_all(&dest).await?;
+                            set_mode(&dest, mode).await;
+                            dirs.push(dest);
+                        } else {
+                            io.ok()?;
+                            let mut file = tokio::fs::File::create(&dest).await?;
+                            io.copy_to(size, &mut file).await?;
+                            file.flush().await?;
+                            drop(file);
+                            set_mode(&dest, mode).await;
+                            // Each file's data is followed by a status byte.
+                            io.ack().await?;
+                        }
+                        io.ok()?;
+                    }
+                    b'E' => {
+                        let _ = io.line().await?;
+                        dirs.pop();
+                        io.ok()?;
+                    }
+                    b'T' => {
+                        // Times are accepted but not applied.
+                        let _ = io.line().await?;
+                        io.ok()?;
+                    }
+                    1 | 2 => {
+                        let msg = io.line().await.unwrap_or_default();
+                        return Err(io::Error::other(format!("client error: {msg}")));
+                    }
+                    other => return Err(invalid(format!("unexpected record type {other}"))),
+                }
+            }
+        }
+
+        fn unix_secs(time: io::Result<SystemTime>) -> u64 {
+            time.ok()
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map_or(0, |d| d.as_secs())
+        }
+
+        #[cfg(unix)]
+        fn mode_of(meta: &std::fs::Metadata) -> u32 {
+            use std::os::unix::fs::PermissionsExt;
+            meta.permissions().mode() & 0o7777
+        }
+
+        #[cfg(not(unix))]
+        fn mode_of(meta: &std::fs::Metadata) -> u32 {
+            if meta.is_dir() { 0o755 } else { 0o644 }
+        }
+
+        /// Source mode (`scp -f`): the client downloads `path`.
+        async fn send(io: &mut Io<'_>, req: &Request, path: &Path) -> io::Result<()> {
+            // The client signals readiness first.
+            io.ack().await?;
+            send_entry(io, req, path).await
+        }
+
+        fn send_entry<'a>(
+            io: &'a mut Io<'_>,
+            req: &'a Request,
+            path: &'a Path,
+        ) -> Pin<Box<dyn Future<Output = io::Result<()>> + Send + 'a>> {
+            Box::pin(async move {
+                let meta = tokio::fs::metadata(path)
+                    .await
+                    .map_err(|e| io::Error::new(e.kind(), format!("{}: {e}", path.display())))?;
+                let name = path
+                    .file_name()
+                    .map_or_else(|| ".".to_string(), |n| n.to_string_lossy().into_owned());
+                if req.preserve {
+                    let mtime = unix_secs(meta.modified());
+                    let atime = unix_secs(meta.accessed());
+                    io.write(format!("T{mtime} 0 {atime} 0\n").as_bytes())?;
+                    io.ack().await?;
+                }
+                if meta.is_dir() {
+                    if !req.recursive {
+                        return Err(invalid(format!("{}: not a regular file", path.display())));
+                    }
+                    io.write(format!("D{:04o} 0 {name}\n", mode_of(&meta)).as_bytes())?;
+                    io.ack().await?;
+                    let mut entries = Vec::new();
+                    let mut dir = tokio::fs::read_dir(path).await?;
+                    while let Some(entry) = dir.next_entry().await? {
+                        entries.push(entry.path());
+                    }
+                    entries.sort();
+                    for entry in entries {
+                        send_entry(io, req, &entry).await?;
+                    }
+                    io.write(b"E\n")?;
+                } else {
+                    io.write(
+                        format!("C{:04o} {} {name}\n", mode_of(&meta), meta.len()).as_bytes(),
+                    )?;
+                    io.ack().await?;
+                    let mut file = tokio::fs::File::open(path).await?;
+                    let mut buf = vec![0u8; 32 * 1024];
+                    loop {
+                        let n = file.read(&mut buf).await?;
+                        if n == 0 {
+                            break;
+                        }
+                        io.write(&buf[..n])?;
+                    }
+                    io.ok()?;
+                }
+                io.ack().await
             })
         }
 
@@ -2012,7 +2414,7 @@ pub mod middleware {
                     let next = next.clone();
                     let handler = handler.clone();
                     Box::pin(async move {
-                        if looks_like_scp_command(session.command()) {
+                        if session.command().first().is_some_and(|c| c == "scp") {
                             handler(session).await;
                         } else {
                             next(session).await;
@@ -2020,6 +2422,59 @@ pub mod middleware {
                     })
                 })
             })
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+
+            fn cmd(args: &[&str]) -> Vec<String> {
+                args.iter().map(ToString::to_string).collect()
+            }
+
+            #[test]
+            fn parses_scp_command_lines() {
+                let req = parse_command(&cmd(&["scp", "-r", "-t", "--", "dir"])).unwrap();
+                assert!(req.sink && req.recursive && !req.source);
+                assert_eq!(req.path, "dir");
+                let req = parse_command(&cmd(&["scp", "-pf", "a file.txt"])).unwrap();
+                assert!(req.source && req.preserve);
+                assert_eq!(req.path, "a file.txt");
+                assert_eq!(parse_command(&cmd(&["scp", "-t"])).unwrap().path, ".");
+                assert!(parse_command(&cmd(&["scp", "-t", "-f", "x"])).is_none());
+                assert!(parse_command(&cmd(&["scp", "x"])).is_none());
+                assert!(parse_command(&cmd(&["ls", "-t"])).is_none());
+            }
+
+            #[test]
+            fn filesystem_handler_stays_in_root() {
+                let handler = FileSystemHandler::new("/srv");
+                let session = Session::new(Context::new(
+                    "u",
+                    "127.0.0.1:1".parse().unwrap(),
+                    "127.0.0.1:2".parse().unwrap(),
+                ));
+                assert_eq!(
+                    handler.resolve(&session, "/a/b.txt"),
+                    Some(PathBuf::from("/srv/a/b.txt"))
+                );
+                assert_eq!(handler.resolve(&session, "."), Some(PathBuf::from("/srv")));
+                assert_eq!(handler.resolve(&session, "../etc/passwd"), None);
+                assert_eq!(handler.resolve(&session, "a/../../x"), None);
+            }
+
+            #[test]
+            fn parses_entries() {
+                assert_eq!(
+                    parse_entry("0644 12 notes.txt").unwrap(),
+                    (0o644, 12, "notes.txt".to_string())
+                );
+                assert_eq!(parse_entry("0755 0 my dir").unwrap().2, "my dir");
+                assert!(parse_entry("0644 1 ../evil").is_err());
+                assert!(parse_entry("0644 1 a/b").is_err());
+                assert!(parse_entry("zz 1 a").is_err());
+                assert!(parse_entry("0644 x a").is_err());
+            }
         }
     }
 

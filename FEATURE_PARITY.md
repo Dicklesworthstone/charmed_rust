@@ -49,13 +49,13 @@ bubbletea `Exec`/`ExecProcess`, `Suspend`, `WithFilter`, signal handling;
 glamour JSON styles (`WithStylePath`, `WithStylesFromJSONBytes`); glow's file
 browser, editor reload and JSON `--style`; bubbles fuzzy/live list filtering;
 huh `Form.Run`, accessible mode, `spinner`, field `Run`, `WithTimeout` and
-dynamic `TitleFunc`/`DescriptionFunc`/`OptionsFunc`; wish `git` middleware.
+dynamic `TitleFunc`/`DescriptionFunc`/`OptionsFunc`; wish `git` and `scp` middlewares.
 See CHANGELOG `[Unreleased]`.
 
 Remaining known gaps:
 
-- **wish:** `scp` and `sftp` middlewares only route sessions to a user handler;
-  there is no built-in filesystem implementation (Go `scp.NewFileSystemHandler`).
+- **wish:** the `sftp` middleware only routes sessions to a user handler (no
+  built-in SFTP server).
 - **glamour:** no emoji shortcode expansion (Go `WithEmoji`).
 - **lipgloss:** `place*` has no whitespace options (Go `WithWhitespaceChars`,
   `WithWhitespaceForeground`).

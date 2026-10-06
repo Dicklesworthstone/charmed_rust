@@ -579,7 +579,9 @@ fn run_middleware_fixture(fixture: &TestFixture) -> Result<(), String> {
             Ok(())
         }
         "scp" => {
-            let _mw = middleware::scp::middleware();
+            let _mw = middleware::scp::middleware(middleware::scp::FileSystemHandler::new(
+                std::env::temp_dir(),
+            ));
             Ok(())
         }
         "sftp" => {

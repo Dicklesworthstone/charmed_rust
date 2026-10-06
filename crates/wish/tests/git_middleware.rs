@@ -11,81 +11,10 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
 
-use common::TestServer;
-use russh::client;
-use russh::keys::PublicKeyOrCertificate;
-use russh::{ChannelMsg, Disconnect};
+use common::{TestServer, exec};
 use wish::middleware::git::{self, AccessLevel, Hooks, StaticAccess};
 use wish::{PublicKey, ServerBuilder};
-
-struct Client;
-
-impl client::Handler for Client {
-    type Error = russh::Error;
-
-    fn check_server_key(
-        &mut self,
-        _key: &PublicKeyOrCertificate,
-    ) -> impl Future<Output = Result<bool, Self::Error>> + Send {
-        std::future::ready(Ok(true))
-    }
-}
-
-/// Output of one exec channel.
-#[derive(Debug, Default)]
-struct ExecResult {
-    stdout: Vec<u8>,
-    stderr: Vec<u8>,
-    exit: Option<u32>,
-}
-
-impl ExecResult {
-    fn stdout(&self) -> String {
-        String::from_utf8_lossy(&self.stdout).into_owned()
-    }
-
-    fn stderr(&self) -> String {
-        String::from_utf8_lossy(&self.stderr).into_owned()
-    }
-}
-
-/// Runs `command`, sends `input` followed by EOF, and collects the output.
-async fn exec(port: u16, command: &str, input: &[u8]) -> ExecResult {
-    let config = Arc::new(client::Config::default());
-    let mut session = client::connect(config, ("127.0.0.1", port), Client)
-        .await
-        .expect("connect");
-    let auth = session.authenticate_none("tester").await.expect("auth");
-    assert!(auth.success(), "none auth should be accepted");
-    let mut channel = session.channel_open_session().await.expect("open session");
-    channel.exec(true, command).await.expect("exec");
-    if !input.is_empty() {
-        channel.data(input).await.expect("send input");
-    }
-    channel.eof().await.expect("eof");
-
-    let mut result = ExecResult::default();
-    let collect = async {
-        while let Some(msg) = channel.wait().await {
-            match msg {
-                ChannelMsg::Data { data } => result.stdout.extend_from_slice(&data),
-                ChannelMsg::ExtendedData { data, .. } => result.stderr.extend_from_slice(&data),
-                ChannelMsg::ExitStatus { exit_status } => result.exit = Some(exit_status),
-                ChannelMsg::Close => break,
-                _ => {}
-            }
-        }
-    };
-    tokio::time::timeout(Duration::from_secs(20), collect)
-        .await
-        .expect("exec timed out");
-    let _ = session
-        .disconnect(Disconnect::ByApplication, "", "en")
-        .await;
-    result
-}
 
 fn git_available() -> bool {
     Command::new("git").arg("--version").output().is_ok()

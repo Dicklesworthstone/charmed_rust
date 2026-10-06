@@ -43,6 +43,9 @@ plus runtime fixes found by driving the apps in a real PTY.
   `description_func` / `options_func` ([`a3c80fd`](https://github.com/Dicklesworthstone/charmed_rust/commit/a3c80fd)).
 - **wish:** real git-over-SSH middleware (`git::middleware(repo_dir, hooks)`,
   Go `wish/git`) ([`1930148`](https://github.com/Dicklesworthstone/charmed_rust/commit/1930148)).
+- **wish:** real SCP middleware (`scp::middleware(FileSystemHandler::new(root))`,
+  Go `wish/scp`): uploads (`-t`) and downloads (`-f`) with `-r`/`-p`, sandboxed
+  to the root; reachable from OpenSSH with `scp -O`.
 
 ### Fixed
 
