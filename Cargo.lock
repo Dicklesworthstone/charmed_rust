@@ -468,6 +468,7 @@ dependencies = [
  "parking_lot",
  "proptest",
  "rayon",
+ "signal-hook",
  "thiserror 2.0.21",
  "tokio",
  "tokio-util",

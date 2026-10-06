@@ -32,6 +32,10 @@ rayon = { workspace = true, optional = true }
 # Optional: derive macros for Model trait
 bubbletea-macros = { workspace = true, optional = true }
 
+[target.'cfg(unix)'.dependencies]
+# Already in the tree via crossterm; used to raise SIGTSTP for `suspend()`.
+signal-hook = "0.3"
+
 [features]
 default = ["macros"]
 macros = ["dep:bubbletea-macros"]

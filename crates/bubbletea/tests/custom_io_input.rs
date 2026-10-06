@@ -154,3 +154,36 @@ async fn exec_runs_in_async_event_loop() {
         .expect("program should run to completion");
     assert_eq!(final_model.results, vec![1]);
 }
+
+#[test]
+fn suspend_is_a_noop_with_custom_io() {
+    struct SuspendModel {
+        resumed: bool,
+    }
+    impl Model for SuspendModel {
+        fn init(&self) -> Option<Cmd> {
+            bubbletea::sequence(vec![
+                Some(bubbletea::suspend()),
+                Some(Cmd::new(|| Message::new(KeyMsg::from_char('x')))),
+            ])
+        }
+        fn update(&mut self, msg: Message) -> Option<Cmd> {
+            if msg.is::<bubbletea::ResumeMsg>() {
+                self.resumed = true;
+            }
+            if msg.is::<KeyMsg>() {
+                return Some(quit());
+            }
+            None
+        }
+        fn view(&self) -> String {
+            String::new()
+        }
+    }
+    let final_model = Program::new(SuspendModel { resumed: false })
+        .with_input(std::io::Cursor::new(Vec::new()))
+        .with_output(Vec::new())
+        .run()
+        .expect("program should run to completion");
+    assert!(!final_model.resumed, "custom I/O programs must not suspend");
+}

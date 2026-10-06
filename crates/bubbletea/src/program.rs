@@ -53,11 +53,23 @@ use crate::command::Cmd;
 use crate::key::{from_crossterm_key, is_sequence_prefix};
 use crate::message::{
     BatchMsg, BlurMsg, ExecMsg, FocusMsg, InterruptMsg, Message, PrintLineMsg, QuitMsg,
-    RequestWindowSizeMsg, SequenceMsg, SetWindowTitleMsg, WindowSizeMsg,
+    RequestWindowSizeMsg, ResumeMsg, SequenceMsg, SetWindowTitleMsg, SuspendMsg, WindowSizeMsg,
 };
 use crate::mouse::from_crossterm_mouse;
 use crate::screen::{ReleaseTerminalMsg, RestoreTerminalMsg};
 use crate::{KeyMsg, KeyType};
+
+/// Stops the current process with `SIGTSTP`; returns once it is continued.
+#[cfg(unix)]
+fn suspend_process() {
+    if let Err(e) = signal_hook::low_level::raise(signal_hook::consts::SIGTSTP) {
+        debug!(target: "bubbletea::event", "failed to raise SIGTSTP: {e}");
+    }
+}
+
+/// Job control is not available outside Unix.
+#[cfg(not(unix))]
+fn suspend_process() {}
 
 /// Errors that can occur when running a bubbletea program.
 ///
@@ -893,6 +905,28 @@ impl<M: Model> Program<M> {
                     continue;
                 }
 
+                // Suspend (Ctrl+Z job control): stop until the shell resumes us.
+                if msg.is::<SuspendMsg>() {
+                    if !self.options.custom_io {
+                        self.release_terminal_state(writer);
+                        suspend_process();
+                        self.restore_terminal_state(writer);
+                        last_view.clear();
+                        if let Ok((width, height)) = terminal::size()
+                            && tx
+                                .send(Message::new(WindowSizeMsg { width, height }))
+                                .is_err()
+                        {
+                            debug!(target: "bubbletea::event", "post-resume window size dropped — receiver disconnected");
+                        }
+                        if tx.send(Message::new(ResumeMsg)).is_err() {
+                            debug!(target: "bubbletea::event", "resume message dropped — receiver disconnected");
+                        }
+                        needs_render = true;
+                    }
+                    continue;
+                }
+
                 // Run a blocking function with the terminal handed over to it.
                 // Input polling happens on this thread, so nothing competes
                 // with the child for stdin while it runs.
@@ -1661,6 +1695,29 @@ impl<M: Model> Program<M> {
                             last_view.clear();
                         }
                         self.render(stdout, &mut last_view)?;
+                        continue;
+                    }
+
+                    // Suspend (Ctrl+Z job control): stop until the shell resumes us.
+                    if msg.is::<SuspendMsg>() {
+                        if !self.options.custom_io {
+                            input_paused.store(true, Ordering::SeqCst);
+                            tokio::time::sleep(Duration::from_millis(120)).await;
+                            self.release_terminal_state(stdout);
+                            suspend_process();
+                            self.restore_terminal_state(stdout);
+                            input_paused.store(false, Ordering::SeqCst);
+                            last_view.clear();
+                            if let Ok((width, height)) = terminal::size()
+                                && tx.send(Message::new(WindowSizeMsg { width, height })).await.is_err()
+                            {
+                                debug!(target: "bubbletea::event", "async post-resume window size dropped — receiver disconnected");
+                            }
+                            if tx.send(Message::new(ResumeMsg)).await.is_err() {
+                                debug!(target: "bubbletea::event", "async resume message dropped — receiver disconnected");
+                            }
+                            self.render(stdout, &mut last_view)?;
+                        }
                         continue;
                     }
 

@@ -16,7 +16,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use crate::message::{
     BatchMsg, ExecMsg, Message, PrintLineMsg, QuitMsg, RequestWindowSizeMsg, SequenceMsg,
-    SetWindowTitleMsg,
+    SetWindowTitleMsg, SuspendMsg,
 };
 
 #[cfg(feature = "async")]
@@ -521,6 +521,29 @@ pub fn println(msg: impl Into<String>) -> Cmd {
 /// ```
 pub fn printf(msg: impl Into<String>) -> Cmd {
     println(msg)
+}
+
+/// Suspend the program, like pressing Ctrl+Z in a shell (Go's `tea.Suspend`).
+///
+/// The runtime restores the terminal and stops the process with `SIGTSTP`.
+/// When the shell resumes it (`fg`), the TUI is restored and the model
+/// receives a [`ResumeMsg`](crate::ResumeMsg). Bubbletea does not suspend on
+/// Ctrl+Z by itself; return this command from `update` when you want to.
+///
+/// On non-Unix platforms, and when the program uses custom I/O (e.g. over
+/// SSH), this is a no-op.
+///
+/// ```rust
+/// use bubbletea::{Cmd, KeyMsg, KeyType, Message, suspend};
+///
+/// fn on_key(msg: &Message) -> Option<Cmd> {
+///     let key = msg.downcast_ref::<KeyMsg>()?;
+///     (key.key_type == KeyType::CtrlZ).then(suspend)
+/// }
+/// # let _ = on_key(&Message::new(KeyMsg::from_type(KeyType::CtrlZ)));
+/// ```
+pub fn suspend() -> Cmd {
+    Cmd::new(|| Message::new(SuspendMsg))
 }
 
 /// Run a blocking function with the terminal handed over to it.

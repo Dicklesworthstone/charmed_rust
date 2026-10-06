@@ -255,8 +255,8 @@ pub mod simulator;
 
 // Re-exports
 pub use command::{
-    Cmd, batch, every, exec, exec_process, printf, println, quit, sequence, set_window_title, tick,
-    window_size,
+    Cmd, batch, every, exec, exec_process, printf, println, quit, sequence, set_window_title,
+    suspend, tick, window_size,
 };
 
 #[cfg(feature = "async")]
