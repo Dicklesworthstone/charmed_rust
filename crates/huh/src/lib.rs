@@ -5461,6 +5461,11 @@ impl Model for Form {
     }
 
     fn view(&self) -> String {
+        // Like Go huh, a finished (completed, aborted or timed out) form
+        // clears itself from the terminal.
+        if self.state != FormState::Normal {
+            return String::new();
+        }
         let mut output = self.layout.view(self);
 
         // Add help footer if enabled
@@ -7314,6 +7319,7 @@ mod form_runtime_tests {
         assert!(quit.execute().is_some_and(|m| m.is::<bubbletea::QuitMsg>()));
         assert!(form.timed_out());
         assert_eq!(form.state(), FormState::Aborted);
+        assert_eq!(form.view(), "", "finished forms clear their view");
     }
 
     #[test]
