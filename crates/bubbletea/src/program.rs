@@ -59,6 +59,74 @@ use crate::mouse::from_crossterm_mouse;
 use crate::screen::{ReleaseTerminalMsg, RestoreTerminalMsg};
 use crate::{KeyMsg, KeyType};
 
+/// A panic hook shared between the terminal-restoring wrapper and the
+/// code that reinstalls it after the program ends.
+type PanicHook = Arc<dyn Fn(&std::panic::PanicHookInfo<'_>) + Send + Sync + 'static>;
+
+/// Reinstalls the panic hook that was active before the program started.
+fn restore_panic_hook(prev: PanicHook) {
+    let _ = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| prev(info)));
+}
+
+/// Forwards SIGINT (as [`InterruptMsg`]) and SIGTERM (as [`QuitMsg`]) into
+/// the event loop, like Go bubbletea, so the program exits through its normal
+/// cleanup path and restores the terminal. Unregisters on drop.
+#[cfg(unix)]
+struct SignalForwarder {
+    handle: signal_hook::iterator::Handle,
+    thread: Option<thread::JoinHandle<()>>,
+}
+
+#[cfg(unix)]
+impl SignalForwarder {
+    fn spawn(send: impl Fn(Message) -> bool + Send + 'static) -> Option<Self> {
+        use signal_hook::consts::{SIGINT, SIGTERM};
+        let mut signals = signal_hook::iterator::Signals::new([SIGINT, SIGTERM])
+            .map_err(|e| debug!(target: "bubbletea::event", "signal handling unavailable: {e}"))
+            .ok()?;
+        let handle = signals.handle();
+        let thread = thread::spawn(move || {
+            for signal in signals.forever() {
+                let msg = if signal == SIGINT {
+                    Message::new(InterruptMsg)
+                } else {
+                    Message::new(QuitMsg)
+                };
+                if !send(msg) {
+                    break;
+                }
+            }
+        });
+        Some(Self {
+            handle,
+            thread: Some(thread),
+        })
+    }
+}
+
+#[cfg(unix)]
+impl Drop for SignalForwarder {
+    fn drop(&mut self) {
+        self.handle.close();
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+/// Signal forwarding is Unix-only; Windows delivers Ctrl+C as a key event.
+#[cfg(not(unix))]
+struct SignalForwarder;
+
+#[cfg(not(unix))]
+impl SignalForwarder {
+    #[allow(clippy::unnecessary_wraps)]
+    fn spawn(_send: impl Fn(Message) -> bool + Send + 'static) -> Option<Self> {
+        None
+    }
+}
+
 /// Stops the current process with `SIGTSTP`; returns once it is continued.
 #[cfg(unix)]
 fn suspend_process() {
@@ -598,7 +666,8 @@ impl<M: Model> Program<M> {
         // terminal in raw mode with hidden cursor and alternate screen active.
         let prev_hook = if !options.without_catch_panics {
             let cleanup_opts = options.clone();
-            let prev = std::panic::take_hook();
+            let prev: PanicHook = Arc::from(std::panic::take_hook());
+            let chained = Arc::clone(&prev);
             std::panic::set_hook(Box::new(move |info| {
                 // Best-effort terminal restoration — ignore errors since we're
                 // already in a panic context.
@@ -620,11 +689,11 @@ impl<M: Model> Program<M> {
                     let _ = disable_raw_mode();
                 }
                 // Call the previous hook so the user still sees the panic message
-                prev(info);
+                chained(info);
             }));
-            true
+            Some(prev)
         } else {
-            false
+            None
         };
 
         // Run the event loop
@@ -632,10 +701,8 @@ impl<M: Model> Program<M> {
 
         // Restore the previous panic hook before cleanup so a late panic in the
         // cleanup code itself doesn't recurse.
-        if prev_hook {
-            let _ = std::panic::take_hook();
-            // Note: we can't easily restore the *original* hook since set_hook
-            // moved it into the closure. The default hook is fine for post-run.
+        if let Some(prev) = prev_hook {
+            restore_panic_hook(prev);
         }
 
         // Cleanup terminal
@@ -761,6 +828,14 @@ impl<M: Model> Program<M> {
                 }
             }));
         }
+
+        // Turn SIGINT/SIGTERM into messages so cleanup always runs.
+        let _signals = if self.options.without_signals || self.options.custom_io {
+            None
+        } else {
+            let tx = tx.clone();
+            SignalForwarder::spawn(move |msg| tx.send(msg).is_ok())
+        };
 
         // Read custom input stream and inject messages.
         if let Some(mut input) = self.input.take() {
@@ -1419,7 +1494,8 @@ impl<M: Model> Program<M> {
         // Install panic hook to restore terminal on panic (mirrors sync path)
         let prev_hook = if !options.without_catch_panics {
             let cleanup_opts = options.clone();
-            let prev = std::panic::take_hook();
+            let prev: PanicHook = Arc::from(std::panic::take_hook());
+            let chained = Arc::clone(&prev);
             std::panic::set_hook(Box::new(move |info| {
                 let mut stderr = io::stderr();
                 if cleanup_opts.bracketed_paste {
@@ -1438,19 +1514,19 @@ impl<M: Model> Program<M> {
                 if !cleanup_opts.custom_io {
                     let _ = disable_raw_mode();
                 }
-                prev(info);
+                chained(info);
             }));
-            true
+            Some(prev)
         } else {
-            false
+            None
         };
 
         // Run the async event loop
         let result = self.event_loop_async(&mut writer).await;
 
         // Restore panic hook
-        if prev_hook {
-            let _ = std::panic::take_hook();
+        if let Some(prev) = prev_hook {
+            restore_panic_hook(prev);
         }
 
         // Cleanup terminal
@@ -1482,6 +1558,14 @@ impl<M: Model> Program<M> {
     async fn event_loop_async<W: Write>(mut self, stdout: &mut W) -> Result<M> {
         // Create async message channel
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Message>(256);
+
+        // Turn SIGINT/SIGTERM into messages so cleanup always runs.
+        let _signals = if self.options.without_signals || self.options.custom_io {
+            None
+        } else {
+            let tx = tx.clone();
+            SignalForwarder::spawn(move |msg| tx.blocking_send(msg).is_ok())
+        };
 
         // Create cancellation token and task tracker for graceful shutdown
         let cancel_token = CancellationToken::new();
