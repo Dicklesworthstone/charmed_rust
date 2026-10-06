@@ -148,10 +148,13 @@
 pub mod backend;
 pub mod border;
 pub mod color;
+pub mod list;
 pub mod position;
 pub mod renderer;
 pub mod style;
+pub mod table;
 pub mod theme;
+pub mod tree;
 
 #[cfg(feature = "wasm")]
 pub mod wasm;
