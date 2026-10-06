@@ -781,6 +781,8 @@ mod tests {
 /// let text = "Hello";
 /// let placed = place(20, 5, Position::Center, Position::Center, text);
 /// ```
+///
+/// Equivalent to `place_vertical(height, v_pos, &place_horizontal(width, h_pos, s))`.
 pub fn place(width: usize, height: usize, h_pos: Position, v_pos: Position, s: &str) -> String {
     let content_width = self::width(s);
     let content_height = self::height(s);
@@ -838,6 +840,35 @@ pub fn place(width: usize, height: usize, h_pos: Position, v_pos: Position, s: &
     }
 
     result
+}
+
+/// Place a string horizontally within `width` columns.
+///
+/// Lines are padded with spaces according to `pos`; strings already at
+/// least `width` wide are returned unchanged.
+///
+/// ```rust
+/// use lipgloss::{place_horizontal, Position};
+///
+/// assert_eq!(place_horizontal(7, Position::Center, "abc"), "  abc  ");
+/// assert_eq!(place_horizontal(5, Position::Right, "a\nbc"), "    a\n   bc");
+/// ```
+pub fn place_horizontal(width: usize, pos: Position, s: &str) -> String {
+    place(width, self::height(s), pos, Position::Top, s)
+}
+
+/// Place a string vertically within `height` rows.
+///
+/// Blank lines (as wide as the content) are added according to `pos`;
+/// strings already at least `height` tall are returned unchanged.
+///
+/// ```rust
+/// use lipgloss::{place_vertical, Position};
+///
+/// assert_eq!(place_vertical(3, Position::Bottom, "ab"), "  \n  \nab");
+/// ```
+pub fn place_vertical(height: usize, pos: Position, s: &str) -> String {
+    place(self::width(s), height, Position::Left, pos, s)
 }
 
 // =============================================================================

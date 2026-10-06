@@ -825,6 +825,99 @@ impl Style {
         self
     }
 
+    /// Inherits the properties set on `other` that are not set on `self`.
+    ///
+    /// Margins and padding are never inherited. When `other` sets a
+    /// background and neither style sets a margin background, the margin
+    /// background is inherited from that background too (as in Go lipgloss).
+    ///
+    /// ```rust
+    /// use lipgloss::Style;
+    ///
+    /// let base = Style::new().bold().foreground("#ff0000").padding(2);
+    /// let child = Style::new().foreground("#00ff00").inherit(&base);
+    /// // `child` is bold, keeps its own green foreground, and has no padding.
+    /// assert_eq!(child.get_horizontal_padding(), 0);
+    /// ```
+    pub fn inherit(mut self, other: &Style) -> Self {
+        const ATTRS: [(Props, Attrs); 11] = [
+            (Props::BOLD, Attrs::BOLD),
+            (Props::ITALIC, Attrs::ITALIC),
+            (Props::UNDERLINE, Attrs::UNDERLINE),
+            (Props::STRIKETHROUGH, Attrs::STRIKETHROUGH),
+            (Props::REVERSE, Attrs::REVERSE),
+            (Props::BLINK, Attrs::BLINK),
+            (Props::FAINT, Attrs::FAINT),
+            (Props::UNDERLINE_SPACES, Attrs::UNDERLINE_SPACES),
+            (Props::STRIKETHROUGH_SPACES, Attrs::STRIKETHROUGH_SPACES),
+            (Props::COLOR_WHITESPACE, Attrs::COLOR_WHITESPACE),
+            (Props::INLINE, Attrs::INLINE),
+        ];
+        for (prop, attr) in ATTRS {
+            if other.props.contains(prop) && !self.props.contains(prop) {
+                self.props |= prop;
+                self.attrs.set(attr, other.attrs.contains(attr));
+            }
+        }
+
+        if other.props.contains(Props::BACKGROUND)
+            && !self.props.contains(Props::MARGIN_BACKGROUND)
+            && !other.props.contains(Props::MARGIN_BACKGROUND)
+        {
+            self.props |= Props::MARGIN_BACKGROUND;
+            self.margin_bg_color.clone_from(&other.bg_color);
+        }
+
+        macro_rules! inherit_field {
+            ($($prop:ident => $field:ident $(. $sub:ident)?),* $(,)?) => {$(
+                if other.props.contains(Props::$prop) && !self.props.contains(Props::$prop) {
+                    self.props |= Props::$prop;
+                    self.$field$(.$sub)?.clone_from(&other.$field$(.$sub)?);
+                }
+            )*};
+        }
+        inherit_field!(
+            FOREGROUND => fg_color,
+            BACKGROUND => bg_color,
+            WIDTH => width,
+            HEIGHT => height,
+            MAX_WIDTH => max_width,
+            MAX_HEIGHT => max_height,
+            ALIGN_HORIZONTAL => align_horizontal,
+            ALIGN_VERTICAL => align_vertical,
+            MARGIN_BACKGROUND => margin_bg_color,
+            BORDER_STYLE => border_style,
+            BORDER_TOP => border_edges.top,
+            BORDER_RIGHT => border_edges.right,
+            BORDER_BOTTOM => border_edges.bottom,
+            BORDER_LEFT => border_edges.left,
+            TAB_WIDTH => tab_width,
+            TRANSFORM => transform,
+        );
+
+        const BORDER_COLORS: [(Props, Props); 4] = [
+            (Props::BORDER_TOP_FG, Props::BORDER_TOP_BG),
+            (Props::BORDER_RIGHT_FG, Props::BORDER_RIGHT_BG),
+            (Props::BORDER_BOTTOM_FG, Props::BORDER_BOTTOM_BG),
+            (Props::BORDER_LEFT_FG, Props::BORDER_LEFT_BG),
+        ];
+        for (i, (fg, bg)) in BORDER_COLORS.into_iter().enumerate() {
+            if other.props.contains(fg) && !self.props.contains(fg) {
+                self.props |= fg;
+                self.border_fg[i].clone_from(&other.border_fg[i]);
+            }
+            if other.props.contains(bg) && !self.props.contains(bg) {
+                self.props |= bg;
+                self.border_bg[i].clone_from(&other.border_bg[i]);
+            }
+        }
+
+        if self.renderer.is_none() {
+            self.renderer.clone_from(&other.renderer);
+        }
+        self
+    }
+
     /// Set the renderer to use.
     pub fn renderer(mut self, r: Arc<Renderer>) -> Self {
         self.renderer = Some(r);
@@ -856,24 +949,24 @@ impl Style {
         }
     }
 
-    /// Get the horizontal frame size (left/right padding + border).
+    /// Get the horizontal frame size: left/right margins, padding and border.
     ///
     /// This is useful for calculating content width when applying styles.
     pub fn get_horizontal_frame_size(&self) -> usize {
         let edges = self.effective_border_edges();
         let border_width = edges.horizontal_size(&self.border_style);
         let padding_width = self.padding.left as usize + self.padding.right as usize;
-        border_width + padding_width
+        border_width + padding_width + self.get_horizontal_margin()
     }
 
-    /// Get the vertical frame size (top/bottom padding + border).
+    /// Get the vertical frame size: top/bottom margins, padding and border.
     ///
     /// This is useful for calculating content height when applying styles.
     pub fn get_vertical_frame_size(&self) -> usize {
         let edges = self.effective_border_edges();
         let border_height = edges.vertical_size(&self.border_style);
         let padding_height = self.padding.top as usize + self.padding.bottom as usize;
-        border_height + padding_height
+        border_height + padding_height + self.get_vertical_margin()
     }
 
     /// Get the horizontal border size (left + right borders if enabled).
@@ -901,6 +994,15 @@ impl Style {
     /// Get the horizontal margin (left + right).
     pub fn get_horizontal_margin(&self) -> usize {
         self.margin.left as usize + self.margin.right as usize
+    }
+
+    /// Get the total frame size `(horizontal, vertical)`: margins, padding
+    /// and borders combined.
+    pub fn get_frame_size(&self) -> (usize, usize) {
+        (
+            self.get_horizontal_frame_size(),
+            self.get_vertical_frame_size(),
+        )
     }
 
     /// Get the vertical margin (top + bottom).
@@ -3420,5 +3522,82 @@ mod tests {
         let style = Style::new().bold();
         let debug = format!("{:?}", style);
         assert!(debug.contains("Style"));
+    }
+}
+
+#[cfg(test)]
+mod inherit_tests {
+    use super::*;
+
+    #[test]
+    fn inherit_fills_only_unset_props() {
+        let parent = Style::new()
+            .bold()
+            .italic()
+            .foreground("#ff0000")
+            .width(10)
+            .align(Position::Center);
+        let child = Style::new().foreground("#00ff00").unset_italic().inherit(&parent);
+        assert!(child.props.contains(Props::BOLD));
+        assert!(child.attrs.contains(Attrs::BOLD));
+        // unset_italic marks nothing as set, so italic is inherited.
+        assert!(child.attrs.contains(Attrs::ITALIC));
+        assert_eq!(child.get_width(), Some(10));
+        assert_eq!(child.align_horizontal, Position::Center);
+        // Own foreground wins over the parent's.
+        let rendered = child.render("x");
+        let parent_fg = Style::new().foreground("#ff0000").render("x");
+        assert_ne!(rendered, parent_fg);
+    }
+
+    #[test]
+    fn inherit_explicit_false_is_kept() {
+        let parent = Style::new().bold();
+        let mut child = Style::new();
+        child.props |= Props::BOLD; // explicitly set to false
+        let child = child.inherit(&parent);
+        assert!(!child.attrs.contains(Attrs::BOLD));
+    }
+
+    #[test]
+    fn inherit_skips_margins_and_padding() {
+        let parent = Style::new().padding(2).margin(3);
+        let child = Style::new().inherit(&parent);
+        assert_eq!(child.get_horizontal_padding(), 0);
+        assert_eq!(child.get_horizontal_margin(), 0);
+        assert_eq!(child.get_vertical_margin(), 0);
+    }
+
+    #[test]
+    fn inherit_background_sets_margin_background() {
+        let parent = Style::new().background("#123456");
+        let child = Style::new().inherit(&parent);
+        assert!(child.props.contains(Props::BACKGROUND));
+        assert!(child.props.contains(Props::MARGIN_BACKGROUND));
+
+        let own_margin = Style::new().margin_background("#000000").inherit(&parent);
+        assert!(own_margin.props.contains(Props::MARGIN_BACKGROUND));
+    }
+
+    #[test]
+    fn inherit_borders() {
+        let parent = Style::new()
+            .border(Border::rounded())
+            .border_top(false)
+            .border_foreground("#ff00ff");
+        let child = Style::new().inherit(&parent);
+        assert_eq!(child.border_style, Border::rounded());
+        assert!(!child.border_edges.top);
+        assert!(child.props.contains(Props::BORDER_LEFT_FG));
+        assert_eq!(child.render("x"), parent.render("x"));
+    }
+
+    #[test]
+    fn frame_size_includes_margins_padding_and_border() {
+        let s = Style::new()
+            .margin((1, 2))
+            .padding((3, 4))
+            .border(Border::normal());
+        assert_eq!(s.get_frame_size(), (2 * 2 + 4 * 2 + 2, 2 + 3 * 2 + 2));
     }
 }
