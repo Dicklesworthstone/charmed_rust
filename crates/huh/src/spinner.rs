@@ -209,8 +209,9 @@ impl Model for SpinnerUi {
         if self.done {
             return String::new();
         }
+        // Spinner frames carry their own trailing space (as in Go).
         format!(
-            "{} {}",
+            "{}{}",
             self.spinner.view(),
             self.title_style.render(&self.title)
         )
@@ -244,6 +245,7 @@ mod tests {
         let slot = Arc::new(Mutex::new(None));
         let mut ui = SpinnerUi::new(&Spinner::new().title("T"), Arc::clone(&slot), || 5);
         assert!(ui.view().ends_with(" T"), "{}", ui.view());
+        assert!(!ui.view().ends_with("  T"), "{}", ui.view());
 
         // init batches the first tick and the action.
         let batch = ui.init().expect("init cmd").execute().expect("batch msg");
