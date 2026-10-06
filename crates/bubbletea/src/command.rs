@@ -15,7 +15,8 @@
 use std::time::{Duration, Instant, SystemTime};
 
 use crate::message::{
-    BatchMsg, Message, PrintLineMsg, QuitMsg, RequestWindowSizeMsg, SequenceMsg, SetWindowTitleMsg,
+    BatchMsg, ExecMsg, Message, PrintLineMsg, QuitMsg, RequestWindowSizeMsg, SequenceMsg,
+    SetWindowTitleMsg,
 };
 
 #[cfg(feature = "async")]
@@ -520,6 +521,69 @@ pub fn println(msg: impl Into<String>) -> Cmd {
 /// ```
 pub fn printf(msg: impl Into<String>) -> Cmd {
     println(msg)
+}
+
+/// Run a blocking function with the terminal handed over to it.
+///
+/// This is the Rust counterpart of Go's `tea.Exec`. The runtime stops reading
+/// terminal input, restores the terminal to its normal (cooked, main-screen)
+/// state, runs `f` on the event-loop thread, then re-enters the TUI state,
+/// forces a full repaint, and delivers the message returned by `f` (if any).
+///
+/// Use this for anything that needs exclusive access to the terminal, such as
+/// an interactive child process. For spawning a [`std::process::Command`],
+/// prefer [`exec_process`].
+///
+/// # Example
+///
+/// ```rust
+/// use bubbletea::{Message, exec};
+///
+/// struct PromptDone(String);
+///
+/// let cmd = exec(|| {
+///     // The terminal is in normal mode here; read a line directly.
+///     let mut line = String::new();
+///     let _ = std::io::stdin().read_line(&mut line);
+///     Some(Message::new(PromptDone(line)))
+/// });
+/// # drop(cmd);
+/// ```
+pub fn exec<F>(f: F) -> Cmd
+where
+    F: FnOnce() -> Option<Message> + Send + 'static,
+{
+    Cmd::new(move || Message::new(ExecMsg(Box::new(f))))
+}
+
+/// Run an external process with the terminal handed over to it.
+///
+/// This is the Rust counterpart of Go's `tea.ExecProcess`: the TUI is
+/// suspended while `command` runs in the foreground (inheriting stdin, stdout
+/// and stderr), then restored. `callback` receives the process's exit status
+/// (or the spawn error) and may return a message for the model.
+///
+/// # Example
+///
+/// ```rust
+/// use bubbletea::{Message, exec_process};
+/// use std::process::Command;
+///
+/// struct EditorClosed { ok: bool }
+///
+/// let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".into());
+/// let mut command = Command::new(editor);
+/// command.arg("notes.md");
+/// let cmd = exec_process(command, |result| {
+///     Some(Message::new(EditorClosed { ok: result.is_ok_and(|s| s.success()) }))
+/// });
+/// # drop(cmd);
+/// ```
+pub fn exec_process<F>(mut command: std::process::Command, callback: F) -> Cmd
+where
+    F: FnOnce(std::io::Result<std::process::ExitStatus>) -> Option<Message> + Send + 'static,
+{
+    exec(move || callback(command.status()))
 }
 
 #[cfg(test)]

@@ -103,7 +103,12 @@ struct Pager {
     match_style: Style,
     /// Whether mouse support is enabled.
     mouse_enabled: bool,
+    /// Render configuration, used to re-render after the source is edited.
+    config: Config,
 }
+
+/// Sent when the external editor launched with `e` exits.
+struct EditorClosedMsg;
 
 impl Pager {
     fn new(
@@ -128,7 +133,13 @@ impl Pager {
             search_style: Style::new().foreground("#FFCC00").bold(),
             match_style: Style::new().foreground("#00FF00"),
             mouse_enabled: false,
+            config: Config::new(),
         }
+    }
+
+    fn with_config(mut self, config: Config) -> Self {
+        self.config = config;
+        self
     }
 
     const fn with_mouse(mut self, enabled: bool) -> Self {
@@ -176,22 +187,53 @@ impl Pager {
         false
     }
 
-    /// Opens source in editor.
-    fn open_in_editor(&self) -> bool {
-        let Some(path) = &self.source_path else {
-            return false;
-        };
-
-        // Only open local files in editor
+    /// Returns the local file backing this pager, if it can be edited.
+    fn editable_path(&self) -> Option<&str> {
+        let path = self.source_path.as_deref()?;
+        // Only local files can be opened in an editor.
         if path.starts_with("http") || path.contains("github.com") {
-            return false;
+            return None;
         }
+        Some(path)
+    }
 
+    /// Opens the source in `$EDITOR` (falling back to `$VISUAL`, then `vi`).
+    ///
+    /// The TUI hands the terminal to the editor and reloads the document
+    /// when the editor exits.
+    fn open_in_editor(&self) -> Option<Cmd> {
+        let path = self.editable_path()?;
         let editor = std::env::var("EDITOR")
             .or_else(|_| std::env::var("VISUAL"))
             .unwrap_or_else(|_| "vi".to_string());
+        // `$EDITOR` may carry arguments, e.g. "code --wait".
+        let mut parts = editor.split_whitespace();
+        let program = parts.next()?;
+        let mut command = ProcessCommand::new(program);
+        command.args(parts).arg(path);
+        Some(bubbletea::exec_process(command, |_| {
+            Some(Message::new(EditorClosedMsg))
+        }))
+    }
 
-        ProcessCommand::new(&editor).arg(path).status().is_ok()
+    /// Re-reads and re-renders the source file after it was edited.
+    fn reload(&mut self) {
+        let Some(path) = self.editable_path() else {
+            return;
+        };
+        let Ok(markdown) = std::fs::read_to_string(path) else {
+            return;
+        };
+        let Ok(rendered) = Reader::new(self.config.clone()).render_markdown(&markdown) else {
+            return;
+        };
+        self.source_markdown = markdown;
+        self.lines = rendered.lines().map(String::from).collect();
+        self.content = rendered;
+        let offset = self.viewport.y_offset();
+        self.viewport.set_content(&self.content);
+        self.viewport.set_y_offset(offset);
+        self.perform_search();
     }
 
     fn status_bar(&self) -> String {
@@ -416,6 +458,11 @@ impl Model for Pager {
             return None;
         }
 
+        if msg.is::<EditorClosedMsg>() {
+            self.reload();
+            return None;
+        }
+
         // Handle key input based on mode
         if let Some(key) = msg.downcast_ref::<KeyMsg>() {
             match &self.mode {
@@ -515,9 +562,8 @@ impl Model for Pager {
                                 return None;
                             }
                             ['e'] => {
-                                // Open in editor (suspends TUI)
-                                self.open_in_editor();
-                                return None;
+                                // Open in editor (suspends TUI, reloads on exit)
+                                return self.open_in_editor();
                             }
                             _ => {}
                         },
@@ -685,7 +731,9 @@ fn main() {
         }
 
         // Run TUI pager
-        let pager = Pager::new(rendered, content, title, source_path).with_mouse(cli.mouse);
+        let pager = Pager::new(rendered, content, title, source_path)
+            .with_mouse(cli.mouse)
+            .with_config(reader.config().clone());
         let mut program = Program::new(pager).with_alt_screen();
 
         if cli.mouse {

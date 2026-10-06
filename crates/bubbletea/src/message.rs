@@ -113,6 +113,10 @@ pub(crate) struct SetWindowTitleMsg(pub String);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RequestWindowSizeMsg;
 
+/// Internal message asking the runtime to run a blocking function with the
+/// terminal released (see [`exec`](crate::exec)).
+pub(crate) struct ExecMsg(pub Box<dyn FnOnce() -> Option<Message> + Send + 'static>);
+
 /// Message for batch command execution.
 ///
 /// This is produced by [`batch`](crate::batch) and handled by the program runtime.

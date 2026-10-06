@@ -45,3 +45,112 @@ fn custom_input_reader_parses_keys() {
 
     assert_eq!(final_model.seen, "ab^");
 }
+
+struct ExecDone(i32);
+
+#[derive(Default)]
+struct ExecModel {
+    results: Vec<i32>,
+    exec_first: bool,
+}
+
+impl Model for ExecModel {
+    fn init(&self) -> Option<Cmd> {
+        let mut command = std::process::Command::new(if cfg!(windows) { "cmd" } else { "true" });
+        if cfg!(windows) {
+            command.args(["/C", "exit 0"]);
+        }
+        let first = bubbletea::exec(|| Some(Message::new(ExecDone(1))));
+        let second = bubbletea::exec_process(command, |status| {
+            Some(Message::new(ExecDone(
+                i32::from(status.is_ok_and(|s| s.success())) * 10,
+            )))
+        });
+        if self.exec_first {
+            Some(first)
+        } else {
+            Some(second)
+        }
+    }
+
+    fn update(&mut self, msg: Message) -> Option<Cmd> {
+        if let Some(ExecDone(n)) = msg.downcast::<ExecDone>() {
+            self.results.push(n);
+            return Some(quit());
+        }
+        None
+    }
+
+    fn view(&self) -> String {
+        format!("{:?}", self.results)
+    }
+}
+
+#[test]
+fn exec_runs_function_and_delivers_result() {
+    let model = ExecModel {
+        exec_first: true,
+        ..ExecModel::default()
+    };
+    let final_model = Program::new(model)
+        .with_input(std::io::Cursor::new(Vec::new()))
+        .with_output(Vec::new())
+        .run()
+        .expect("program should run to completion");
+    assert_eq!(final_model.results, vec![1]);
+}
+
+#[test]
+fn exec_process_reports_exit_status() {
+    let final_model = Program::new(ExecModel::default())
+        .with_input(std::io::Cursor::new(Vec::new()))
+        .with_output(Vec::new())
+        .run()
+        .expect("program should run to completion");
+    assert_eq!(final_model.results, vec![10]);
+}
+
+#[test]
+fn exec_returning_none_delivers_nothing() {
+    struct NoneModel(bool);
+    impl Model for NoneModel {
+        fn init(&self) -> Option<Cmd> {
+            bubbletea::sequence(vec![
+                Some(bubbletea::exec(|| None)),
+                Some(Cmd::new(|| Message::new(KeyMsg::from_char('x')))),
+            ])
+        }
+        fn update(&mut self, msg: Message) -> Option<Cmd> {
+            if msg.is::<KeyMsg>() {
+                self.0 = true;
+                return Some(quit());
+            }
+            None
+        }
+        fn view(&self) -> String {
+            String::new()
+        }
+    }
+    let final_model = Program::new(NoneModel(false))
+        .with_input(std::io::Cursor::new(Vec::new()))
+        .with_output(Vec::new())
+        .run()
+        .expect("program should run to completion");
+    assert!(final_model.0);
+}
+
+#[cfg(feature = "async")]
+#[tokio::test(flavor = "multi_thread")]
+async fn exec_runs_in_async_event_loop() {
+    let model = ExecModel {
+        exec_first: true,
+        ..ExecModel::default()
+    };
+    let final_model = Program::new(model)
+        .with_input(std::io::Cursor::new(Vec::new()))
+        .with_output(Vec::new())
+        .run_async()
+        .await
+        .expect("program should run to completion");
+    assert_eq!(final_model.results, vec![1]);
+}

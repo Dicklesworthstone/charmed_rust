@@ -17,17 +17,18 @@
 //!
 //! # Design
 //!
-//! The implementation uses `bubbletea::sequence` to chain commands:
-//! 1. `screen::release_terminal()` - restore cooked mode, show cursor, leave alt-screen
-//! 2. Run external command (pager or fallback prompt)
-//! 3. `screen::restore_terminal()` - re-enable raw mode, hide cursor, enter alt-screen
+//! The implementation uses [`bubbletea::exec`]: the runtime stops reading
+//! terminal input, restores cooked mode / the main screen, runs the external
+//! command (pager or fallback prompt) on the event loop, then re-enters the
+//! TUI and repaints. Because input polling is paused for the duration, the
+//! pager receives every keystroke.
 //!
 //! # Headless Safety
 //!
 //! When running in headless/self-check mode, these functions return `None`
 //! (no-op) to prevent hanging on user input.
 
-use bubbletea::{Cmd, Message, screen, sequence};
+use bubbletea::{Cmd, Message};
 use std::env;
 use std::io::{self, BufRead, Write};
 use std::path::Path;
@@ -37,8 +38,8 @@ use crate::messages::ShellOutMsg;
 
 /// Open content in the system pager.
 ///
-/// This is the primary API for shell-out actions. It uses `bubbletea::sequence`
-/// to properly release and restore the terminal around the pager command.
+/// This is the primary API for shell-out actions. It uses [`bubbletea::exec`]
+/// to release and restore the terminal around the pager command.
 ///
 /// # Arguments
 ///
@@ -47,7 +48,7 @@ use crate::messages::ShellOutMsg;
 ///
 /// # Returns
 ///
-/// `Some(Cmd)` with the sequenced commands, or `None` if headless.
+/// `Some(Cmd)` requesting the exec, or `None` if headless.
 ///
 /// # Pager Selection
 ///
@@ -63,7 +64,7 @@ pub fn open_in_pager(content: String, is_headless: bool) -> Option<Cmd> {
         return None;
     }
 
-    Some(build_pager_sequence(content))
+    Some(bubbletea::exec(move || Some(run_pager(&content))))
 }
 
 /// Open diagnostics information in the pager.
@@ -77,25 +78,6 @@ pub fn open_in_pager(content: String, is_headless: bool) -> Option<Cmd> {
 #[must_use]
 pub fn open_diagnostics_in_pager(diagnostics: String, is_headless: bool) -> Option<Cmd> {
     open_in_pager(diagnostics, is_headless)
-}
-
-/// Build the command sequence for pager display.
-///
-/// Uses `bubbletea::sequence` to chain:
-/// 1. Release terminal
-/// 2. Run pager (blocking)
-/// 3. Restore terminal
-fn build_pager_sequence(content: String) -> Cmd {
-    // The sequence function chains these commands in order
-    sequence(vec![
-        // Step 1: Release terminal for external use
-        Some(screen::release_terminal()),
-        // Step 2: Run the pager command (this blocks until pager exits)
-        Some(Cmd::blocking(move || run_pager(&content))),
-        // Step 3: Restore terminal for TUI
-        Some(screen::restore_terminal()),
-    ])
-    .expect("sequence should not be empty")
 }
 
 /// Run the pager with the given content.
@@ -570,144 +552,19 @@ mod tests {
     }
 
     #[test]
-    fn non_headless_cmd_is_sequence_with_three_steps() {
-        // The Cmd returned by open_in_pager wraps a sequence of:
-        //   1. release_terminal  (terminal control message)
-        //   2. blocking(run_pager) -> ShellOutMsg::PagerCompleted
-        //   3. restore_terminal  (terminal control message)
-        //
-        // Executing the outer Cmd produces a SequenceMsg containing 3 sub-commands.
+    fn non_headless_cmd_requests_exec_without_running_pager() {
+        // Executing the Cmd only hands an exec request to the runtime; the
+        // pager itself runs later, on the event loop, with the terminal
+        // released. So executing it here must be instant and must not yield
+        // the pager's completion message.
         let cmd = open_in_pager("test".to_string(), false).unwrap();
-        let msg = cmd.execute();
-        assert!(msg.is_some(), "sequence cmd should produce a message");
-
-        let msg = msg.unwrap();
-        let seq = msg
-            .downcast::<bubbletea::message::SequenceMsg>()
-            .expect("message should be SequenceMsg");
-
-        assert_eq!(
-            seq.0.len(),
-            3,
-            "sequence must have exactly 3 commands (release, pager, restore)"
-        );
-    }
-
-    #[test]
-    fn sequence_first_step_is_terminal_control() {
-        let cmd = open_in_pager("test".to_string(), false).unwrap();
-        let seq = cmd
-            .execute()
-            .unwrap()
-            .downcast::<bubbletea::message::SequenceMsg>()
-            .unwrap();
-
-        // Step 1: release_terminal produces a terminal control message (not ShellOutMsg).
-        let release_cmd = seq.0.into_iter().next().unwrap();
-        let release_msg = release_cmd.execute();
-        assert!(
-            release_msg.is_some(),
-            "release cmd should produce a message"
-        );
-        assert!(
-            !release_msg.unwrap().is::<ShellOutMsg>(),
-            "first step must be a terminal control message, not ShellOutMsg"
-        );
-    }
-
-    #[test]
-    fn sequence_last_step_is_terminal_control() {
-        let cmd = open_in_pager("test".to_string(), false).unwrap();
-        let seq = cmd
-            .execute()
-            .unwrap()
-            .downcast::<bubbletea::message::SequenceMsg>()
-            .unwrap();
-
-        // Step 3 (last): restore_terminal produces a terminal control message.
-        let restore_cmd = seq.0.into_iter().last().unwrap();
-        let restore_msg = restore_cmd.execute();
-        assert!(
-            restore_msg.is_some(),
-            "restore cmd should produce a message"
-        );
-        assert!(
-            !restore_msg.unwrap().is::<ShellOutMsg>(),
-            "last step must be a terminal control message, not ShellOutMsg"
-        );
-    }
-
-    #[test]
-    fn sequence_ordering_release_pager_restore() {
-        // Verify the full ordering: release → pager → restore.
-        // Steps 1 and 3 are terminal control (non-blocking, instant).
-        // Step 2 is the pager (blocking, spawns a process — don't execute in CI).
-        let cmd = open_in_pager("test".to_string(), false).unwrap();
-        let seq = cmd
-            .execute()
-            .unwrap()
-            .downcast::<bubbletea::message::SequenceMsg>()
-            .unwrap();
-
-        let mut cmds = seq.0.into_iter();
-
-        // Step 1: release — executes instantly, produces a non-ShellOutMsg message
-        let step1_msg = cmds.next().unwrap().execute().unwrap();
-        assert!(
-            !step1_msg.is::<ShellOutMsg>(),
-            "step 1 must be terminal release"
-        );
-
-        // Step 2: pager command — skip execution (would block)
-        let _step2_cmd = cmds.next().unwrap();
-
-        // Step 3: restore — executes instantly, produces a non-ShellOutMsg message
-        let step3_msg = cmds.next().unwrap().execute().unwrap();
-        assert!(
-            !step3_msg.is::<ShellOutMsg>(),
-            "step 3 must be terminal restore"
-        );
-
-        assert!(cmds.next().is_none(), "no extra commands after restore");
-    }
-
-    #[test]
-    fn sequence_terminal_control_steps_are_instant() {
-        // Steps 1 and 3 (release/restore) should execute in microseconds.
-        let cmd = open_in_pager("test".to_string(), false).unwrap();
-        let seq = cmd
-            .execute()
-            .unwrap()
-            .downcast::<bubbletea::message::SequenceMsg>()
-            .unwrap();
-
-        let mut cmds = seq.0.into_iter();
-        let release_cmd = cmds.next().unwrap();
-        let _pager_cmd = cmds.next().unwrap();
-        let restore_cmd = cmds.next().unwrap();
-
         let start = std::time::Instant::now();
-        let _ = release_cmd.execute();
-        let _ = restore_cmd.execute();
-        let elapsed = start.elapsed();
-
+        let msg = cmd.execute().expect("exec cmd should produce a message");
         assert!(
-            elapsed.as_millis() < 10,
-            "terminal control commands took {}ms — should be instant",
-            elapsed.as_millis()
+            start.elapsed().as_millis() < 10,
+            "building the exec request must not run the pager"
         );
-    }
-
-    #[test]
-    fn build_pager_sequence_produces_valid_cmd() {
-        // build_pager_sequence is the internal helper; verify it produces a Cmd.
-        let cmd = build_pager_sequence("hello world".to_string());
-        let msg = cmd.execute();
-        assert!(msg.is_some(), "build_pager_sequence must produce a message");
-        assert!(
-            msg.unwrap().is::<bubbletea::message::SequenceMsg>(),
-            "must produce SequenceMsg"
-        );
+        assert!(!msg.is::<ShellOutMsg>(), "the pager must not have run yet");
     }
 
     // --- ShellOutMsg structure tests ---

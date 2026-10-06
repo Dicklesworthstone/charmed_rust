@@ -52,7 +52,7 @@ use crossterm::{
 use crate::command::Cmd;
 use crate::key::{from_crossterm_key, is_sequence_prefix};
 use crate::message::{
-    BatchMsg, BlurMsg, FocusMsg, InterruptMsg, Message, PrintLineMsg, QuitMsg,
+    BatchMsg, BlurMsg, ExecMsg, FocusMsg, InterruptMsg, Message, PrintLineMsg, QuitMsg,
     RequestWindowSizeMsg, SequenceMsg, SetWindowTitleMsg, WindowSizeMsg,
 };
 use crate::mouse::from_crossterm_mouse;
@@ -879,48 +879,43 @@ impl<M: Model> Program<M> {
 
                 // Handle release terminal
                 if msg.is::<ReleaseTerminalMsg>() {
-                    if !self.options.custom_io {
-                        // Disable features in reverse order
-                        if self.options.bracketed_paste {
-                            let _ = execute!(writer, event::DisableBracketedPaste);
-                        }
-                        if self.options.report_focus {
-                            let _ = execute!(writer, event::DisableFocusChange);
-                        }
-                        if self.options.mouse_all_motion || self.options.mouse_cell_motion {
-                            let _ = execute!(writer, DisableMouseCapture);
-                        }
-                        let _ = execute!(writer, Show);
-                        if self.options.alt_screen {
-                            let _ = execute!(writer, LeaveAlternateScreen);
-                        }
-                        let _ = disable_raw_mode();
-                    }
+                    self.release_terminal_state(writer);
                     continue;
                 }
 
                 // Handle restore terminal
                 if msg.is::<RestoreTerminalMsg>() {
-                    if !self.options.custom_io {
-                        // Re-enable features in original order
-                        let _ = enable_raw_mode();
-                        if self.options.alt_screen {
-                            let _ = execute!(writer, EnterAlternateScreen);
-                        }
-                        let _ = execute!(writer, Hide);
-                        if self.options.mouse_all_motion {
-                            let _ = execute!(writer, EnableMouseCapture);
-                        } else if self.options.mouse_cell_motion {
-                            let _ = execute!(writer, EnableMouseCapture);
-                        }
-                        if self.options.report_focus {
-                            let _ = execute!(writer, event::EnableFocusChange);
-                        }
-                        if self.options.bracketed_paste {
-                            let _ = execute!(writer, event::EnableBracketedPaste);
-                        }
+                    if self.restore_terminal_state(writer) {
                         // Force a full re-render
                         last_view.clear();
+                    }
+                    needs_render = true;
+                    continue;
+                }
+
+                // Run a blocking function with the terminal handed over to it.
+                // Input polling happens on this thread, so nothing competes
+                // with the child for stdin while it runs.
+                if msg.is::<ExecMsg>() {
+                    if let Some(ExecMsg(f)) = msg.downcast::<ExecMsg>() {
+                        self.release_terminal_state(writer);
+                        let result = f();
+                        if self.restore_terminal_state(writer) {
+                            last_view.clear();
+                            // The terminal may have been resized meanwhile.
+                            if let Ok((width, height)) = terminal::size()
+                                && tx
+                                    .send(Message::new(WindowSizeMsg { width, height }))
+                                    .is_err()
+                            {
+                                debug!(target: "bubbletea::event", "post-exec window size dropped — receiver disconnected");
+                            }
+                        }
+                        if let Some(result) = result
+                            && tx.send(result).is_err()
+                        {
+                            debug!(target: "bubbletea::command", "exec result dropped — receiver disconnected");
+                        }
                     }
                     needs_render = true;
                     continue;
@@ -1041,6 +1036,53 @@ impl<M: Model> Program<M> {
         }
 
         Ok(self.model)
+    }
+
+    /// Hands the terminal back to normal mode (cooked input, main screen,
+    /// visible cursor, no mouse/paste/focus reporting). No-op with custom I/O.
+    fn release_terminal_state<W: Write>(&self, writer: &mut W) {
+        if self.options.custom_io {
+            return;
+        }
+        // Disable features in reverse order
+        if self.options.bracketed_paste {
+            let _ = execute!(writer, event::DisableBracketedPaste);
+        }
+        if self.options.report_focus {
+            let _ = execute!(writer, event::DisableFocusChange);
+        }
+        if self.options.mouse_all_motion || self.options.mouse_cell_motion {
+            let _ = execute!(writer, DisableMouseCapture);
+        }
+        let _ = execute!(writer, Show);
+        if self.options.alt_screen {
+            let _ = execute!(writer, LeaveAlternateScreen);
+        }
+        let _ = disable_raw_mode();
+    }
+
+    /// Re-enters the TUI terminal state after [`Self::release_terminal_state`].
+    /// Returns `true` if the terminal was touched (callers should repaint).
+    fn restore_terminal_state<W: Write>(&self, writer: &mut W) -> bool {
+        if self.options.custom_io {
+            return false;
+        }
+        // Re-enable features in original order
+        let _ = enable_raw_mode();
+        if self.options.alt_screen {
+            let _ = execute!(writer, EnterAlternateScreen);
+        }
+        let _ = execute!(writer, Hide);
+        if self.options.mouse_all_motion || self.options.mouse_cell_motion {
+            let _ = execute!(writer, EnableMouseCapture);
+        }
+        if self.options.report_focus {
+            let _ = execute!(writer, event::EnableFocusChange);
+        }
+        if self.options.bracketed_paste {
+            let _ = execute!(writer, event::EnableBracketedPaste);
+        }
+        true
     }
 
     fn handle_command(
@@ -1430,6 +1472,10 @@ impl<M: Model> Program<M> {
         // Spawn event listener thread (bd-2353: use task_tracker for graceful shutdown)
         let (event_tx, mut event_rx) = tokio::sync::mpsc::channel::<Event>(100);
         let event_cancel = cancel_token.clone();
+        // Set while an `exec` child owns the terminal so the event thread
+        // stops consuming its input.
+        let input_paused = Arc::new(AtomicBool::new(false));
+        let event_paused = Arc::clone(&input_paused);
 
         if !self.options.custom_io {
             task_tracker.spawn_blocking(move || {
@@ -1437,9 +1483,16 @@ impl<M: Model> Program<M> {
                     if event_cancel.is_cancelled() {
                         break;
                     }
+                    if event_paused.load(Ordering::SeqCst) {
+                        std::thread::sleep(Duration::from_millis(20));
+                        continue;
+                    }
                     // Poll with timeout to check cancellation
                     match event::poll(Duration::from_millis(100)) {
                         Ok(true) => {
+                            if event_paused.load(Ordering::SeqCst) {
+                                continue;
+                            }
                             if let Ok(evt) = event::read()
                                 && event_tx.blocking_send(evt).is_err()
                             {
@@ -1597,48 +1650,47 @@ impl<M: Model> Program<M> {
 
                     // Handle release terminal
                     if msg.is::<ReleaseTerminalMsg>() {
-                        if !self.options.custom_io {
-                            // Disable features in reverse order
-                            if self.options.bracketed_paste {
-                                let _ = execute!(stdout, event::DisableBracketedPaste);
-                            }
-                            if self.options.report_focus {
-                                let _ = execute!(stdout, event::DisableFocusChange);
-                            }
-                            if self.options.mouse_all_motion || self.options.mouse_cell_motion {
-                                let _ = execute!(stdout, DisableMouseCapture);
-                            }
-                            let _ = execute!(stdout, Show);
-                            if self.options.alt_screen {
-                                let _ = execute!(stdout, LeaveAlternateScreen);
-                            }
-                            let _ = disable_raw_mode();
-                        }
+                        self.release_terminal_state(stdout);
                         continue;
                     }
 
                     // Handle restore terminal
                     if msg.is::<RestoreTerminalMsg>() {
-                        if !self.options.custom_io {
-                            // Re-enable features in original order
-                            let _ = enable_raw_mode();
-                            if self.options.alt_screen {
-                                let _ = execute!(stdout, EnterAlternateScreen);
-                            }
-                            let _ = execute!(stdout, Hide);
-                            if self.options.mouse_all_motion {
-                                let _ = execute!(stdout, EnableMouseCapture);
-                            } else if self.options.mouse_cell_motion {
-                                let _ = execute!(stdout, EnableMouseCapture);
-                            }
-                            if self.options.report_focus {
-                                let _ = execute!(stdout, event::EnableFocusChange);
-                            }
-                            if self.options.bracketed_paste {
-                                let _ = execute!(stdout, event::EnableBracketedPaste);
-                            }
+                        if self.restore_terminal_state(stdout) {
                             // Force a full re-render
                             last_view.clear();
+                        }
+                        self.render(stdout, &mut last_view)?;
+                        continue;
+                    }
+
+                    // Run a blocking function with the terminal handed over to it.
+                    if msg.is::<ExecMsg>() {
+                        if let Some(ExecMsg(f)) = msg.downcast::<ExecMsg>() {
+                            // Stop the event thread from consuming the child's input.
+                            input_paused.store(true, Ordering::SeqCst);
+                            // crossterm's poll buffers stdin internally, so wait out any in-flight
+                            // poll (100ms timeout) before the child starts reading.
+                            tokio::time::sleep(Duration::from_millis(120)).await;
+                            self.release_terminal_state(stdout);
+                            let result = tokio::task::spawn_blocking(f).await.unwrap_or_else(|e| {
+                                tracing::warn!(target: "bubbletea::command", "exec function panicked: {:?}", e);
+                                None
+                            });
+                            if self.restore_terminal_state(stdout) {
+                                last_view.clear();
+                                if let Ok((width, height)) = terminal::size()
+                                    && tx.send(Message::new(WindowSizeMsg { width, height })).await.is_err()
+                                {
+                                    debug!(target: "bubbletea::event", "async post-exec window size dropped — receiver disconnected");
+                                }
+                            }
+                            input_paused.store(false, Ordering::SeqCst);
+                            if let Some(result) = result
+                                && tx.send(result).await.is_err()
+                            {
+                                debug!(target: "bubbletea::command", "async exec result dropped — receiver disconnected");
+                            }
                         }
                         self.render(stdout, &mut last_view)?;
                         continue;
