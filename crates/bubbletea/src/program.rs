@@ -160,13 +160,17 @@ impl DefaultRestore {
     }
 
     fn forwarder_started() {
-        let mut state = Self::state().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut state = Self::state()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         state.live += 1;
         state.armed.store(false, Ordering::SeqCst);
     }
 
     fn forwarder_stopped() {
-        let mut state = Self::state().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut state = Self::state()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         state.live = state.live.saturating_sub(1);
         if state.live == 0 {
             state.armed.store(true, Ordering::SeqCst);
@@ -3419,7 +3423,11 @@ mod signal_restore_tests {
         match case.as_str() {
             "term-after-program" | "int-after-program" => {
                 drop(forwarder(&tx));
-                let signal = if case == "term-after-program" { SIGTERM } else { SIGINT };
+                let signal = if case == "term-after-program" {
+                    SIGTERM
+                } else {
+                    SIGINT
+                };
                 signal_hook::low_level::raise(signal).expect("raise");
                 // The default action ends the process before this point.
                 thread::sleep(Duration::from_secs(5));
