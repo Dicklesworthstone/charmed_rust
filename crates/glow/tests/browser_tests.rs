@@ -131,7 +131,8 @@ fn entry_size_display_bytes() {
 
 #[test]
 fn entry_nonexistent_path() {
-    let result = Entry::from_path(Path::new("/nonexistent/path/file.md"));
+    let dir = make_dir();
+    let result = Entry::from_path(&dir.path().join("missing").join("file.md"));
     assert!(result.is_err());
 }
 
@@ -141,7 +142,12 @@ fn entry_nonexistent_path() {
 
 #[test]
 fn browser_with_invalid_directory() {
-    let result = FileBrowser::with_directory("/nonexistent/path", BrowserConfig::default());
+    // Not a fixed path such as /nonexistent/path: shared test hosts can have
+    // that directory for real (other suites running as root create it), and
+    // then the browser rightly opens it (#99).
+    let dir = make_dir();
+    let missing = dir.path().join("does-not-exist");
+    let result = FileBrowser::with_directory(&missing, BrowserConfig::default());
     assert!(result.is_err());
 }
 
