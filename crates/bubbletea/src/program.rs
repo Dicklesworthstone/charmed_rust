@@ -72,6 +72,11 @@ fn restore_panic_hook(prev: PanicHook) {
 /// Forwards SIGINT (as [`InterruptMsg`]) and SIGTERM (as [`QuitMsg`]) into
 /// the event loop, like Go bubbletea, so the program exits through its normal
 /// cleanup path and restores the terminal. Unregisters on drop.
+///
+/// Unregistering a signal-hook action does not reinstall the default handler,
+/// so on its own the process would ignore SIGINT/SIGTERM for good once a
+/// program ended (#99). [`DefaultRestore`] puts the default behaviour back
+/// whenever no forwarder is live.
 #[cfg(unix)]
 struct SignalForwarder {
     handle: signal_hook::iterator::Handle,
@@ -82,9 +87,12 @@ struct SignalForwarder {
 impl SignalForwarder {
     fn spawn(send: impl Fn(Message) -> bool + Send + 'static) -> Option<Self> {
         use signal_hook::consts::{SIGINT, SIGTERM};
-        let mut signals = signal_hook::iterator::Signals::new([SIGINT, SIGTERM])
-            .map_err(|e| debug!(target: "bubbletea::event", "signal handling unavailable: {e}"))
-            .ok()?;
+        DefaultRestore::forwarder_started();
+        let Ok(mut signals) = signal_hook::iterator::Signals::new([SIGINT, SIGTERM]) else {
+            debug!(target: "bubbletea::event", "signal handling unavailable");
+            DefaultRestore::forwarder_stopped();
+            return None;
+        };
         let handle = signals.handle();
         let thread = thread::spawn(move || {
             for signal in signals.forever() {
@@ -111,6 +119,57 @@ impl Drop for SignalForwarder {
         self.handle.close();
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
+        }
+        DefaultRestore::forwarder_stopped();
+    }
+}
+
+/// Process-wide restoration of the default SIGINT/SIGTERM behaviour.
+///
+/// The first forwarder registers one `register_conditional_default` action per
+/// signal, sharing one flag that is armed only while no forwarder is live: a
+/// running program receives the signals as messages, and between programs they
+/// terminate the process exactly as the default handler would (Go bubbletea
+/// behaves the same way). Applications that install their own SIGINT/SIGTERM
+/// handling should run their programs with [`Program::without_signal_handler`] so
+/// bubbletea never touches these signals.
+#[cfg(unix)]
+struct DefaultRestore {
+    live: usize,
+    armed: Arc<AtomicBool>,
+}
+
+#[cfg(unix)]
+impl DefaultRestore {
+    fn state() -> &'static Mutex<Self> {
+        static STATE: std::sync::OnceLock<Mutex<DefaultRestore>> = std::sync::OnceLock::new();
+        STATE.get_or_init(|| {
+            use signal_hook::consts::{SIGINT, SIGTERM};
+            let flag = Arc::new(AtomicBool::new(false));
+            let registered = [SIGINT, SIGTERM].into_iter().all(|signal| {
+                signal_hook::flag::register_conditional_default(signal, Arc::clone(&flag)).is_ok()
+            });
+            if !registered {
+                debug!(target: "bubbletea::event", "default signal restoration unavailable");
+            }
+            Mutex::new(Self {
+                live: 0,
+                armed: flag,
+            })
+        })
+    }
+
+    fn forwarder_started() {
+        let mut state = Self::state().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        state.live += 1;
+        state.armed.store(false, Ordering::SeqCst);
+    }
+
+    fn forwarder_stopped() {
+        let mut state = Self::state().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        state.live = state.live.saturating_sub(1);
+        if state.live == 0 {
+            state.armed.store(true, Ordering::SeqCst);
         }
     }
 }
@@ -3302,5 +3361,99 @@ mod tests {
         assert_eq!(writer.flush_count(), 1);
         let frame = String::from_utf8(writer.bytes_before_first_flush()).unwrap();
         assert_eq!(frame, format!("\x1b[1G{CLEAR_DOWN}hello"));
+    }
+}
+
+/// #99: once a program's signal forwarder is gone, SIGINT and SIGTERM must
+/// behave like the default handler again, while a later program still gets
+/// them as messages. Signal dispositions are process-global, so every case
+/// runs in a child copy of this test binary.
+#[cfg(all(test, unix))]
+mod signal_restore_tests {
+    use super::*;
+    use signal_hook::consts::{SIGINT, SIGTERM};
+    use std::os::unix::process::ExitStatusExt;
+    use std::process::{Command, ExitStatus, Stdio};
+    use std::time::Instant;
+
+    const CHILD_CASE: &str = "BUBBLETEA_SIGNAL_RESTORE_CASE";
+
+    fn run_child(case: &str) -> ExitStatus {
+        let mut child = Command::new(std::env::current_exe().expect("test binary path"))
+            .args([
+                "--exact",
+                "program::signal_restore_tests::child_entry",
+                "--test-threads=1",
+            ])
+            .env(CHILD_CASE, case)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn child test process");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            if let Some(status) = child.try_wait().expect("wait for child") {
+                return status;
+            }
+            if Instant::now() > deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("child case {case} never exited");
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    fn forwarder(tx: &mpsc::Sender<Message>) -> SignalForwarder {
+        let tx = tx.clone();
+        SignalForwarder::spawn(move |msg| tx.send(msg).is_ok()).expect("signal forwarder")
+    }
+
+    /// Does nothing in a normal test run; acts as the child for the cases below.
+    #[test]
+    fn child_entry() {
+        let Ok(case) = std::env::var(CHILD_CASE) else {
+            return;
+        };
+        let (tx, rx) = mpsc::channel::<Message>();
+        match case.as_str() {
+            "term-after-program" | "int-after-program" => {
+                drop(forwarder(&tx));
+                let signal = if case == "term-after-program" { SIGTERM } else { SIGINT };
+                signal_hook::low_level::raise(signal).expect("raise");
+                // The default action ends the process before this point.
+                thread::sleep(Duration::from_secs(5));
+                std::process::exit(3);
+            }
+            "second-program-still-forwards" => {
+                drop(forwarder(&tx));
+                let live = forwarder(&tx);
+                signal_hook::low_level::raise(SIGTERM).expect("raise");
+                let msg = rx
+                    .recv_timeout(Duration::from_secs(5))
+                    .expect("SIGTERM forwarded to the live program");
+                drop(live);
+                std::process::exit(if msg.is::<QuitMsg>() { 0 } else { 4 });
+            }
+            other => panic!("unknown child case {other}"),
+        }
+    }
+
+    #[test]
+    fn sigterm_after_a_program_ends_terminates_the_process() {
+        let status = run_child("term-after-program");
+        assert_eq!(status.signal(), Some(SIGTERM), "{status:?}");
+    }
+
+    #[test]
+    fn sigint_after_a_program_ends_terminates_the_process() {
+        let status = run_child("int-after-program");
+        assert_eq!(status.signal(), Some(SIGINT), "{status:?}");
+    }
+
+    #[test]
+    fn a_later_program_still_receives_sigterm() {
+        let status = run_child("second-program-still-forwards");
+        assert!(status.success(), "{status:?}");
     }
 }
