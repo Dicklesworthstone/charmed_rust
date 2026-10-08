@@ -2242,7 +2242,18 @@ pub mod middleware {
                 .and_then(|n| n.parse::<u64>().ok())
                 .ok_or_else(|| invalid(format!("bad size in {record:?}")))?;
             let name = parts.next().unwrap_or_default().to_string();
-            if name.is_empty() || name == "." || name == ".." || name.contains('/') {
+            // Exactly one plain path component, judged the same on every platform:
+            // Windows reads `\` and drive prefixes as path syntax, so `..\..\x` or
+            // `C:\x` would climb out of (or replace) the target through `join`.
+            let single_normal = matches!(
+                Path::new(&name).components().collect::<Vec<_>>().as_slice(),
+                [std::path::Component::Normal(_)]
+            );
+            if !single_normal
+                || name
+                    .chars()
+                    .any(|c| std::path::is_separator(c) || c == '\\' || c == ':')
+            {
                 return Err(invalid(format!("bad file name {name:?}")));
             }
             Ok((mode, size, name))
@@ -2472,8 +2483,38 @@ pub mod middleware {
                 assert_eq!(parse_entry("0755 0 my dir").unwrap().2, "my dir");
                 assert!(parse_entry("0644 1 ../evil").is_err());
                 assert!(parse_entry("0644 1 a/b").is_err());
+                assert!(parse_entry("0644 1 ").is_err());
+                assert!(parse_entry("0644 1 .").is_err());
+                assert!(parse_entry("0755 0 ..").is_err());
                 assert!(parse_entry("zz 1 a").is_err());
                 assert!(parse_entry("0644 x a").is_err());
+            }
+
+            /// Record names are joined onto the upload directory, so anything that a
+            /// Windows server reads as more than one plain component must be refused
+            /// on every platform (#99): parent hops via `\`, drive prefixes, and
+            /// drive-relative names.
+            #[test]
+            fn rejects_windows_path_syntax_in_record_names() {
+                for name in [
+                    r"..\..\x",
+                    r"..\x",
+                    r"C:\Users\Public\x",
+                    r"C:x",
+                    r"\\server\share\x",
+                    r"dir\file",
+                ] {
+                    assert!(
+                        parse_entry(&format!("0644 1 {name}")).is_err(),
+                        "accepted {name:?}"
+                    );
+                    assert!(
+                        parse_entry(&format!("0755 0 {name}")).is_err(),
+                        "accepted directory {name:?}"
+                    );
+                }
+                assert_eq!(parse_entry("0644 3 a b.txt").unwrap().2, "a b.txt");
+                assert_eq!(parse_entry("0644 3 .hidden").unwrap().2, ".hidden");
             }
         }
     }
