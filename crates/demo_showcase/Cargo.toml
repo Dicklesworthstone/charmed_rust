@@ -58,7 +58,7 @@ crossterm.workspace = true
 
 # Utilities
 unicode-width.workspace = true
-parking_lot = "0.12"
+parking_lot = "0.13"
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.10"
 rand_pcg = "0.10"
@@ -69,7 +69,7 @@ assert_cmd.workspace = true
 predicates.workspace = true
 insta.workspace = true
 portable-pty = "0.9"
-vt100 = "0.16"
+vt100 = "0.18"
 regex = "1"
 
 [[bin]]

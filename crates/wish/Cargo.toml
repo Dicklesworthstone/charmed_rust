@@ -24,7 +24,7 @@ tokio = { version = "1.50", features = ["full", "sync", "time", "net", "io-util"
 thiserror = "2"
 tracing = "0.1"
 futures = "0.3"
-parking_lot = "0.12"
+parking_lot = "0.13"
 bytes = "1.5"
 lru = { workspace = true }
 russh = { workspace = true }

@@ -22,7 +22,7 @@ lipgloss = { workspace = true }
 harmonica = { workspace = true }
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
-parking_lot = "0.12"
+parking_lot = "0.13"
 
 [dev-dependencies]
 criterion.workspace = true
