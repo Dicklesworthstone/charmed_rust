@@ -16,6 +16,12 @@ use vt100::Parser;
 const TERM_COLS: u16 = 120;
 const TERM_ROWS: u16 = 40;
 
+/// A `vt100` parser of the given size, without scrollback.
+fn vt_parser(rows: u16, cols: u16) -> Parser {
+    let size = |n| std::num::NonZeroU16::new(n).expect("vt100 screen size must be nonzero");
+    Parser::new(size(rows), size(cols), 0)
+}
+
 /// PTY harness for testing the `demo_showcase` TUI.
 struct PtyHarness {
     /// Receiver for output from the reader thread.
@@ -82,7 +88,7 @@ impl PtyHarness {
         });
 
         // Create VT100 parser
-        let parser = Parser::new(TERM_ROWS, TERM_COLS, 0);
+        let parser = vt_parser(TERM_ROWS, TERM_COLS);
 
         Ok(Self {
             output_rx,
@@ -176,8 +182,9 @@ impl PtyHarness {
     fn screen_text(&self) -> String {
         let screen = self.parser.screen();
         let mut output = String::new();
-        for row in 0..screen.size().0 {
-            let line = screen.contents_between(row, 0, row, screen.size().1);
+        let (rows, cols) = screen.size();
+        for row in 0..rows.get() {
+            let line = screen.contents_between(row, 0, row, cols.get());
             output.push_str(&line);
             output.push('\n');
         }
@@ -222,7 +229,7 @@ impl PtyHarness {
 #[test]
 fn test_vt100_with_real_output() {
     // This is a simplified version of what demo_showcase outputs
-    let mut parser = Parser::new(TERM_ROWS, TERM_COLS, 0);
+    let mut parser = vt_parser(TERM_ROWS, TERM_COLS);
 
     // Simulate the exact sequence from the app:
     // 1. Hide cursor, enable modes
@@ -290,7 +297,7 @@ fn test_vt100_with_real_output() {
 
     // Now test what happens when we split escape sequences across chunks
     println!("\n=== Testing chunk boundary issues ===");
-    let mut parser = Parser::new(5, 60, 0);
+    let mut parser = vt_parser(5, 60);
 
     // What if an escape sequence is split across process() calls?
     // E.g., "\x1b[1" then ";1H" then "Hello"
@@ -303,7 +310,7 @@ fn test_vt100_with_real_output() {
     println!("Split CSI result: row0 = '{row0}'");
 
     // Test 2: Split in the middle of OSC sequence
-    let mut parser = Parser::new(5, 60, 0);
+    let mut parser = vt_parser(5, 60);
     parser.process(b"\x1b[1;1H\x1b[2JContent\x1b]0;"); // Start OSC
     parser.process(b"Title"); // OSC text
     parser.process(b"\x1b[1;1H\x1b[2JNew Content"); // Next sequence
@@ -317,7 +324,7 @@ fn test_vt100_with_real_output() {
     );
 
     // Test 3: Split RGB color sequence
-    let mut parser = Parser::new(5, 60, 0);
+    let mut parser = vt_parser(5, 60);
     parser.process(b"\x1b[1;1H\x1b[2J\x1b[38;2;"); // Start RGB
     parser.process(b"0;255;0"); // RGB values
     parser.process(b"mGreenText\x1b[0m"); // End + text
@@ -378,14 +385,14 @@ fn test_vt100_all_at_once_vs_chunked() {
     println!("Captured {captured_bytes} bytes");
 
     // Now feed to a fresh parser ALL AT ONCE
-    let mut parser_once = Parser::new(TERM_ROWS, TERM_COLS, 0);
+    let mut parser_once = vt_parser(TERM_ROWS, TERM_COLS);
     parser_once.process(&all_data);
     let screen_once = parser_once.screen();
     let row0_once = screen_once.contents_between(0, 0, 0, 60);
     println!("Parser (all at once) row 0: '{row0_once}'");
 
     // Compare with feeding in 1000-byte chunks
-    let mut parser_chunked = Parser::new(TERM_ROWS, TERM_COLS, 0);
+    let mut parser_chunked = vt_parser(TERM_ROWS, TERM_COLS);
     for chunk in all_data.chunks(1000) {
         parser_chunked.process(chunk);
     }
@@ -394,7 +401,7 @@ fn test_vt100_all_at_once_vs_chunked() {
     println!("Parser (1000-byte chunks) row 0: '{row0_chunked}'");
 
     // Compare with feeding in smaller chunks (like the PTY reader might)
-    let mut parser_small = Parser::new(TERM_ROWS, TERM_COLS, 0);
+    let mut parser_small = vt_parser(TERM_ROWS, TERM_COLS);
     for chunk in all_data.chunks(100) {
         parser_small.process(chunk);
     }
@@ -440,7 +447,7 @@ fn test_vt100_all_at_once_vs_chunked() {
         println!("Parser screen size: {:?}", screen_once.size());
 
         // Try processing first part only (before second clear)
-        let mut test_parser = Parser::new(TERM_ROWS, TERM_COLS, 0);
+        let mut test_parser = vt_parser(TERM_ROWS, TERM_COLS);
         test_parser.process(&all_data[..120]); // Just through second clear
         let test_screen = test_parser.screen();
         println!("\nAfter first 120 bytes (through 2nd clear):");
@@ -455,7 +462,7 @@ fn test_vt100_all_at_once_vs_chunked() {
         println!("  Cursor: {:?}", test_screen.cursor_position());
 
         // Continue processing in 500-byte chunks and watch what happens
-        let mut chunk_parser = Parser::new(TERM_ROWS, TERM_COLS, 0);
+        let mut chunk_parser = vt_parser(TERM_ROWS, TERM_COLS);
         let chunk_size = 500;
         let mut processed = 0;
         while processed < all_data.len() {
@@ -488,7 +495,7 @@ fn test_vt100_all_at_once_vs_chunked() {
 
         // Track when row 0 becomes empty
         println!("\n=== TRACKING ROW 0 DISAPPEARANCE ===");
-        let mut row0_tracker = Parser::new(TERM_ROWS, TERM_COLS, 0);
+        let mut row0_tracker = vt_parser(TERM_ROWS, TERM_COLS);
         let mut last_row0 = String::new();
         let chunk_size = 200;
         let mut processed = 0;
@@ -679,7 +686,7 @@ fn test_vt100_all_at_once_vs_chunked() {
 fn test_vt100_parser_escape_sequences() {
     // Test 1: Simple text after clear
     println!("=== Test 1: Simple clear + text ===");
-    let mut parser = Parser::new(5, 40, 0);
+    let mut parser = vt_parser(5, 40);
     parser.process(b"\x1b[1;1H\x1b[2JHello World");
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 40);
@@ -691,7 +698,7 @@ fn test_vt100_parser_escape_sequences() {
 
     // Test 2: RGB colors (true color)
     println!("\n=== Test 2: RGB Colors ===");
-    let mut parser = Parser::new(5, 40, 0);
+    let mut parser = vt_parser(5, 40);
     parser.process(b"\x1b[1;1H\x1b[2J\x1b[38;2;0;255;0mGreen\x1b[0m Text");
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 40);
@@ -703,7 +710,7 @@ fn test_vt100_parser_escape_sequences() {
 
     // Test 3: OSC (window title) with proper BEL terminator
     println!("\n=== Test 3: OSC with BEL ===");
-    let mut parser = Parser::new(5, 40, 0);
+    let mut parser = vt_parser(5, 40);
     parser.process(b"\x1b[1;1H\x1b[2JBefore\x1b]0;Title\x07After");
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 40);
@@ -715,7 +722,7 @@ fn test_vt100_parser_escape_sequences() {
 
     // Test 4: OSC without BEL (just ESC to start next sequence)
     println!("\n=== Test 4: OSC without BEL ===");
-    let mut parser = Parser::new(5, 40, 0);
+    let mut parser = vt_parser(5, 40);
     // This tests what happens when OSC doesn't have \x07 but goes directly to next ESC
     parser.process(b"\x1b[1;1H\x1b[2JBefore\x1b]0;Title\x1b[0mAfter");
     let screen = parser.screen();
@@ -726,7 +733,7 @@ fn test_vt100_parser_escape_sequences() {
 
     // Test 5: Double clear with content between
     println!("\n=== Test 5: Double clear ===");
-    let mut parser = Parser::new(5, 120, 0);
+    let mut parser = vt_parser(5, 120);
     parser.process(b"\x1b[1;1H\x1b[2JLoading...\x1b[1;1H\x1b[2JFinal Content");
     let screen = parser.screen();
     let row0 = screen.contents_between(0, 0, 0, 120);
@@ -739,7 +746,7 @@ fn test_vt100_parser_escape_sequences() {
 
     // Test 6: Complex sequence like demo_showcase outputs
     println!("\n=== Test 6: Complex sequence ===");
-    let mut parser = Parser::new(5, 120, 0);
+    let mut parser = vt_parser(5, 120);
     // Simulate: hide cursor, enable modes, clear, loading, title, clear, styled content
     let seq = b"\x1b[?25l\x1b[1;1H\x1b[2JLoading...\x1b]0;Test Title\x07\x1b[1;1H\x1b[2J\x1b[48;2;26;26;26m\x1b[0m\x1b[38;2;0;255;0mConnected\x1b[0m Rest of content";
     parser.process(seq);
