@@ -14,6 +14,7 @@ use bubbletea::{
 use parking_lot::RwLock;
 use russh::server::{
     Auth, ChannelOpenHandle, Handler as RusshHandler, Msg, Session as RusshSession,
+    VerifiedPublicKey,
 };
 use russh::{Channel, ChannelId};
 use russh::{MethodKind, MethodSet};
@@ -353,8 +354,9 @@ impl RusshHandler for WishHandler {
     async fn auth_publickey(
         &mut self,
         user: &str,
-        public_key: &russh::keys::PublicKey,
+        key: VerifiedPublicKey<'_>,
     ) -> std::result::Result<Auth, Self::Error> {
+        let public_key = key.public_key;
         debug!(
             connection_id = self.connection_id,
             user = user,
