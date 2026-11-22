@@ -59,14 +59,117 @@ use crate::mouse::from_crossterm_mouse;
 use crate::screen::{ReleaseTerminalMsg, RestoreTerminalMsg};
 use crate::{KeyMsg, KeyType};
 
-/// A panic hook shared between the terminal-restoring wrapper and the
-/// code that reinstalls it after the program ends.
-type PanicHook = Arc<dyn Fn(&std::panic::PanicHookInfo<'_>) + Send + Sync + 'static>;
+/// A boxed panic hook stored once and restored verbatim when the last active
+/// program finishes, avoiding unbounded closure nesting across repeated runs (#99).
+type BoxedPanicHook = Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + Send + Sync + 'static>;
 
-/// Reinstalls the panic hook that was active before the program started.
-fn restore_panic_hook(prev: PanicHook) {
-    let _ = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| prev(info)));
+/// Flips `installed` back to `false` whenever our installed panic hook closure
+/// is replaced (either by our own restore path or by user code calling
+/// `std::panic::set_hook`), so we never wrap our own hook twice.
+struct InstalledHookSentinel(Arc<AtomicBool>);
+
+impl Drop for InstalledHookSentinel {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+struct PanicHookRegistry {
+    next_id: u64,
+    active: Vec<(u64, ProgramOptions)>,
+    original: Option<BoxedPanicHook>,
+    installed: Arc<AtomicBool>,
+}
+
+impl PanicHookRegistry {
+    fn state() -> &'static Mutex<Self> {
+        static STATE: std::sync::OnceLock<Mutex<PanicHookRegistry>> = std::sync::OnceLock::new();
+        STATE.get_or_init(|| {
+            Mutex::new(Self {
+                next_id: 1,
+                active: Vec::new(),
+                original: None,
+                installed: Arc::new(AtomicBool::new(false)),
+            })
+        })
+    }
+
+    fn register(options: ProgramOptions) -> PanicHookGuard {
+        let mut state = Self::state()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let id = state.next_id;
+        state.next_id = state.next_id.wrapping_add(1);
+        state.active.push((id, options));
+        if !state.installed.load(Ordering::SeqCst) {
+            state.original = Some(std::panic::take_hook());
+            let installed = Arc::clone(&state.installed);
+            installed.store(true, Ordering::SeqCst);
+            let sentinel = InstalledHookSentinel(installed);
+            drop(state);
+            std::panic::set_hook(Box::new(move |info| {
+                let _keep_sentinel_alive = &sentinel;
+                let state = Self::state()
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                // Best-effort terminal restoration — ignore errors since we're
+                // already in a panic context.
+                let mut stderr = io::stderr();
+                for (_, cleanup_opts) in &state.active {
+                    if cleanup_opts.bracketed_paste {
+                        let _ = execute!(stderr, event::DisableBracketedPaste);
+                    }
+                    if cleanup_opts.report_focus {
+                        let _ = execute!(stderr, event::DisableFocusChange);
+                    }
+                    if cleanup_opts.mouse_all_motion || cleanup_opts.mouse_cell_motion {
+                        let _ = execute!(stderr, DisableMouseCapture);
+                    }
+                    let _ = execute!(stderr, Show);
+                    if cleanup_opts.alt_screen {
+                        let _ = execute!(stderr, LeaveAlternateScreen);
+                    }
+                    if !cleanup_opts.custom_io {
+                        let _ = disable_raw_mode();
+                    }
+                }
+                if let Some(ref original) = state.original {
+                    original(info);
+                }
+            }));
+        }
+        PanicHookGuard { id }
+    }
+}
+
+/// RAII guard that removes this program from [`PanicHookRegistry`] and
+/// restores the original panic hook verbatim when the last program ends.
+struct PanicHookGuard {
+    id: u64,
+}
+
+impl Drop for PanicHookGuard {
+    fn drop(&mut self) {
+        // `std::panic::set_hook`/`take_hook` panics if called while unwinding;
+        // when unwinding, leave our hook installed as an empty pass-through to
+        // `state.original` so the next normal completion restores it cleanly.
+        let can_restore = !thread::panicking();
+        let original = {
+            let mut state = PanicHookRegistry::state()
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            state.active.retain(|(id, _)| *id != self.id);
+            if can_restore && state.active.is_empty() && state.installed.load(Ordering::SeqCst) {
+                state.original.take()
+            } else {
+                None
+            }
+        };
+        if let Some(orig) = original {
+            let _ = std::panic::take_hook();
+            std::panic::set_hook(orig);
+        }
+    }
 }
 
 /// Forwards SIGINT (as [`InterruptMsg`]) and SIGTERM (as [`QuitMsg`]) into
@@ -81,12 +184,15 @@ fn restore_panic_hook(prev: PanicHook) {
 struct SignalForwarder {
     handle: signal_hook::iterator::Handle,
     thread: Option<thread::JoinHandle<()>>,
+    ignore_interrupt: Arc<AtomicBool>,
 }
 
 #[cfg(unix)]
 impl SignalForwarder {
     fn spawn(send: impl Fn(Message) -> bool + Send + 'static) -> Option<Self> {
         use signal_hook::consts::{SIGINT, SIGTERM};
+        let ignore_interrupt = Arc::new(AtomicBool::new(false));
+        let thread_ignore = Arc::clone(&ignore_interrupt);
         DefaultRestore::forwarder_started();
         let Ok(mut signals) = signal_hook::iterator::Signals::new([SIGINT, SIGTERM]) else {
             debug!(target: "bubbletea::event", "signal handling unavailable");
@@ -96,6 +202,9 @@ impl SignalForwarder {
         let handle = signals.handle();
         let thread = thread::spawn(move || {
             for signal in signals.forever() {
+                if signal == SIGINT && thread_ignore.load(Ordering::SeqCst) {
+                    continue;
+                }
                 let msg = if signal == SIGINT {
                     Message::new(InterruptMsg)
                 } else {
@@ -109,7 +218,12 @@ impl SignalForwarder {
         Some(Self {
             handle,
             thread: Some(thread),
+            ignore_interrupt,
         })
+    }
+
+    fn set_ignore_interrupt(&self, ignore: bool) {
+        self.ignore_interrupt.store(ignore, Ordering::SeqCst);
     }
 }
 
@@ -188,6 +302,8 @@ impl SignalForwarder {
     fn spawn(_send: impl Fn(Message) -> bool + Send + 'static) -> Option<Self> {
         None
     }
+
+    const fn set_ignore_interrupt(&self, _ignore: bool) {}
 }
 
 /// Stops the current process with `SIGTSTP`; returns once it is continued.
@@ -727,34 +843,8 @@ impl<M: Model> Program<M> {
         // Install a panic hook that restores the terminal before printing the
         // panic message. Without this, a panic in update()/view() leaves the
         // terminal in raw mode with hidden cursor and alternate screen active.
-        let prev_hook = if !options.without_catch_panics {
-            let cleanup_opts = options.clone();
-            let prev: PanicHook = Arc::from(std::panic::take_hook());
-            let chained = Arc::clone(&prev);
-            std::panic::set_hook(Box::new(move |info| {
-                // Best-effort terminal restoration — ignore errors since we're
-                // already in a panic context.
-                let mut stderr = io::stderr();
-                if cleanup_opts.bracketed_paste {
-                    let _ = execute!(stderr, event::DisableBracketedPaste);
-                }
-                if cleanup_opts.report_focus {
-                    let _ = execute!(stderr, event::DisableFocusChange);
-                }
-                if cleanup_opts.mouse_all_motion || cleanup_opts.mouse_cell_motion {
-                    let _ = execute!(stderr, DisableMouseCapture);
-                }
-                let _ = execute!(stderr, Show);
-                if cleanup_opts.alt_screen {
-                    let _ = execute!(stderr, LeaveAlternateScreen);
-                }
-                if !cleanup_opts.custom_io {
-                    let _ = disable_raw_mode();
-                }
-                // Call the previous hook so the user still sees the panic message
-                chained(info);
-            }));
-            Some(prev)
+        let panic_guard = if !options.without_catch_panics {
+            Some(PanicHookRegistry::register(options.clone()))
         } else {
             None
         };
@@ -764,9 +854,7 @@ impl<M: Model> Program<M> {
 
         // Restore the previous panic hook before cleanup so a late panic in the
         // cleanup code itself doesn't recurse.
-        if let Some(prev) = prev_hook {
-            restore_panic_hook(prev);
-        }
+        drop(panic_guard);
 
         // Cleanup terminal
         if options.bracketed_paste {
@@ -893,7 +981,7 @@ impl<M: Model> Program<M> {
         }
 
         // Turn SIGINT/SIGTERM into messages so cleanup always runs.
-        let _signals = if self.options.without_signals || self.options.custom_io {
+        let signals = if self.options.without_signals || self.options.custom_io {
             None
         } else {
             let tx = tx.clone();
@@ -1122,8 +1210,21 @@ impl<M: Model> Program<M> {
                 // with the child for stdin while it runs.
                 if msg.is::<ExecMsg>() {
                     if let Some(ExecMsg(f)) = msg.downcast::<ExecMsg>() {
+                        if let Some(ref sigs) = signals {
+                            sigs.set_ignore_interrupt(true);
+                        }
                         self.release_terminal_state(writer);
-                        let result = f();
+                        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+                        if let Some(ref sigs) = signals {
+                            // Give the signal thread a moment to drain any SIGINT
+                            // delivered while the child owned the terminal (#99).
+                            thread::sleep(Duration::from_millis(20));
+                            sigs.set_ignore_interrupt(false);
+                        }
+                        let result = match result {
+                            Ok(res) => res,
+                            Err(payload) => std::panic::resume_unwind(payload),
+                        };
                         if self.restore_terminal_state(writer) {
                             last_view.clear();
                             // The terminal may have been resized meanwhile.
@@ -1555,31 +1656,8 @@ impl<M: Model> Program<M> {
         }
 
         // Install panic hook to restore terminal on panic (mirrors sync path)
-        let prev_hook = if !options.without_catch_panics {
-            let cleanup_opts = options.clone();
-            let prev: PanicHook = Arc::from(std::panic::take_hook());
-            let chained = Arc::clone(&prev);
-            std::panic::set_hook(Box::new(move |info| {
-                let mut stderr = io::stderr();
-                if cleanup_opts.bracketed_paste {
-                    let _ = execute!(stderr, event::DisableBracketedPaste);
-                }
-                if cleanup_opts.report_focus {
-                    let _ = execute!(stderr, event::DisableFocusChange);
-                }
-                if cleanup_opts.mouse_all_motion || cleanup_opts.mouse_cell_motion {
-                    let _ = execute!(stderr, DisableMouseCapture);
-                }
-                let _ = execute!(stderr, Show);
-                if cleanup_opts.alt_screen {
-                    let _ = execute!(stderr, LeaveAlternateScreen);
-                }
-                if !cleanup_opts.custom_io {
-                    let _ = disable_raw_mode();
-                }
-                chained(info);
-            }));
-            Some(prev)
+        let panic_guard = if !options.without_catch_panics {
+            Some(PanicHookRegistry::register(options.clone()))
         } else {
             None
         };
@@ -1588,9 +1666,7 @@ impl<M: Model> Program<M> {
         let result = self.event_loop_async(&mut writer).await;
 
         // Restore panic hook
-        if let Some(prev) = prev_hook {
-            restore_panic_hook(prev);
-        }
+        drop(panic_guard);
 
         // Cleanup terminal
         if options.bracketed_paste {
@@ -1623,7 +1699,7 @@ impl<M: Model> Program<M> {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Message>(256);
 
         // Turn SIGINT/SIGTERM into messages so cleanup always runs.
-        let _signals = if self.options.without_signals || self.options.custom_io {
+        let signals = if self.options.without_signals || self.options.custom_io {
             None
         } else {
             let tx = tx.clone();
@@ -1931,11 +2007,20 @@ impl<M: Model> Program<M> {
                             // crossterm's poll buffers stdin internally, so wait out any in-flight
                             // poll (100ms timeout) before the child starts reading.
                             tokio::time::sleep(Duration::from_millis(120)).await;
+                            if let Some(ref sigs) = signals {
+                                sigs.set_ignore_interrupt(true);
+                            }
                             self.release_terminal_state(stdout);
                             let result = tokio::task::spawn_blocking(f).await.unwrap_or_else(|e| {
                                 tracing::warn!(target: "bubbletea::command", "exec function panicked: {:?}", e);
                                 None
                             });
+                            if let Some(ref sigs) = signals {
+                                // Give the signal thread a moment to drain any SIGINT
+                                // delivered while the child owned the terminal (#99).
+                                tokio::time::sleep(Duration::from_millis(20)).await;
+                                sigs.set_ignore_interrupt(false);
+                            }
                             if self.restore_terminal_state(stdout) {
                                 last_view.clear();
                                 if let Ok((width, height)) = terminal::size()
@@ -3443,6 +3528,31 @@ mod signal_restore_tests {
                 drop(live);
                 std::process::exit(if msg.is::<QuitMsg>() { 0 } else { 4 });
             }
+            "ignore-int-during-exec" => {
+                let live = forwarder(&tx);
+                live.set_ignore_interrupt(true);
+                signal_hook::low_level::raise(SIGINT).expect("raise SIGINT while ignored");
+                thread::sleep(Duration::from_millis(50));
+                if rx.try_recv().is_ok() {
+                    std::process::exit(5);
+                }
+                // SIGTERM must still be forwarded even while SIGINT is ignored.
+                signal_hook::low_level::raise(SIGTERM).expect("raise SIGTERM while SIGINT ignored");
+                let term = rx
+                    .recv_timeout(Duration::from_secs(5))
+                    .expect("SIGTERM forwarded while SIGINT ignored");
+                if !term.is::<QuitMsg>() {
+                    std::process::exit(6);
+                }
+                // Once re-enabled, SIGINT is forwarded again.
+                live.set_ignore_interrupt(false);
+                signal_hook::low_level::raise(SIGINT).expect("raise SIGINT after resume");
+                let int = rx
+                    .recv_timeout(Duration::from_secs(5))
+                    .expect("SIGINT forwarded after resume");
+                drop(live);
+                std::process::exit(if int.is::<InterruptMsg>() { 0 } else { 7 });
+            }
             other => panic!("unknown child case {other}"),
         }
     }
@@ -3462,6 +3572,12 @@ mod signal_restore_tests {
     #[test]
     fn a_later_program_still_receives_sigterm() {
         let status = run_child("second-program-still-forwards");
+        assert!(status.success(), "{status:?}");
+    }
+
+    #[test]
+    fn sigint_ignored_while_exec_owns_terminal_then_resumes() {
+        let status = run_child("ignore-int-during-exec");
         assert!(status.success(), "{status:?}");
     }
 }
