@@ -9,12 +9,32 @@ Repository: <https://github.com/Dicklesworthstone/charmed_rust>
 
 ---
 
-## [Unreleased] — after v0.2.4
+## [v0.3.0] — 2026-11-22 (GitHub Release)
 
-[Unreleased]: https://github.com/Dicklesworthstone/charmed_rust/compare/charmed-harmonica-v0.2.5...HEAD
+[v0.3.0]: https://github.com/Dicklesworthstone/charmed_rust/compare/v0.2.4...v0.3.0
 
-Go-parity features that were missing despite the earlier "full parity" claim,
-plus runtime fixes found by driving the apps in a real PTY.
+Workspace-wide minor release bringing all 12 publishable crates (including
+`charmed-harmonica`, previously patched at `0.2.5`) back into version lockstep
+at `0.3.0`. Ships major Go-parity features across `lipgloss`, `bubbletea`,
+`bubbles`, `glamour`, `glow`, `huh`, and `wish`, resolves all `#99` release
+blockers and hardening items, upgrades `[profile.release]` to `opt-level = 3`,
+and refreshes dependencies to clear all `cargo audit` advisories.
+
+### Changed (Breaking)
+
+- **wish:** `middleware::git::middleware()` now takes `(repo_dir, hooks)` to
+  serve real Git repositories over SSH (use `git::middleware_with_handler` for
+  custom routing) ([`1930148`](https://github.com/Dicklesworthstone/charmed_rust/commit/1930148),
+  [#99](https://github.com/Dicklesworthstone/charmed_rust/issues/99)).
+- **wish:** `middleware::scp::middleware()` now takes `(handler)` (for example
+  `FileSystemHandler::new(root)`) to serve sandboxed SCP transfers (use
+  `scp::middleware_with_handler` for custom routing)
+  ([`fe1de8c`](https://github.com/Dicklesworthstone/charmed_rust/commit/fe1de8c),
+  [#99](https://github.com/Dicklesworthstone/charmed_rust/issues/99)).
+- **bubbles:** `list::FilterFn` changed from `Box<dyn Fn(...)>` to
+  `Arc<dyn Fn(...)>` so lists with custom filters remain cloneable
+  ([`d17e75b`](https://github.com/Dicklesworthstone/charmed_rust/commit/d17e75b),
+  [#99](https://github.com/Dicklesworthstone/charmed_rust/issues/99)).
 
 ### Added
 
@@ -23,7 +43,8 @@ plus runtime fixes found by driving the apps in a real PTY.
   styles, nested lists, bordered tables with `StyleFunc`, `Data`/`Filter`,
   fixed width/height, offsets and wrap/truncate ([`07af323`](https://github.com/Dicklesworthstone/charmed_rust/commit/07af323)).
 - **lipgloss:** `place_with` + `Whitespace` (Go `WithWhitespaceChars` /
-  `WithWhitespaceForeground` / `WithWhitespaceBackground`).
+  `WithWhitespaceForeground` / `WithWhitespaceBackground`)
+  ([`ad625c5`](https://github.com/Dicklesworthstone/charmed_rust/commit/ad625c5)).
 - **lipgloss:** `Style::inherit`, `place_horizontal`, `place_vertical`,
   `Style::get_frame_size` ([`f5e444d`](https://github.com/Dicklesworthstone/charmed_rust/commit/f5e444d)).
 - **bubbletea:** `exec` / `exec_process` (Go `tea.Exec`/`ExecProcess`) hand the
@@ -47,15 +68,45 @@ plus runtime fixes found by driving the apps in a real PTY.
   Go `wish/git`) ([`1930148`](https://github.com/Dicklesworthstone/charmed_rust/commit/1930148)).
 - **wish:** real SCP middleware (`scp::middleware(FileSystemHandler::new(root))`,
   Go `wish/scp`): uploads (`-t`) and downloads (`-f`) with `-r`/`-p`, sandboxed
-  to the root; reachable from OpenSSH with `scp -O`.
+  to the root; reachable from OpenSSH with `scp -O`
+  ([`fe1de8c`](https://github.com/Dicklesworthstone/charmed_rust/commit/fe1de8c)).
+- **wish:** `Session::write_async` and `Session::write_stderr_async` with
+  byte-budgeted backpressure for streaming transfers
+  ([`5cc853d`](https://github.com/Dicklesworthstone/charmed_rust/commit/5cc853d),
+  [#99](https://github.com/Dicklesworthstone/charmed_rust/issues/99)).
 
 ### Fixed
 
+- **wish:** non-PTY sessions no longer freeze the SSH connection when a handler
+  exits or ignores stdin under heavy client input — handler completion,
+  `Session::exit()`, and `Session::close()` immediately close the input stream,
+  and `Handler::data()` applies bounded backpressure with one-shot overflow
+  closing while preserving lossless delivery for active readers such as `git`
+  and `scp` ([`1930148`](https://github.com/Dicklesworthstone/charmed_rust/commit/1930148),
+  [`5cc853d`](https://github.com/Dicklesworthstone/charmed_rust/commit/5cc853d),
+  [#99](https://github.com/Dicklesworthstone/charmed_rust/issues/99)).
+- **wish:** SCP record names containing Windows path separators or drive
+  prefixes (`..\..\x`, `C:\x`) are rejected on all platforms, and uploaded
+  modes mask out setuid/setgid/sticky bits (`0o0777`) matching Go's
+  `os.ModePerm` ([`af65078`](https://github.com/Dicklesworthstone/charmed_rust/commit/af65078),
+  [`5cc853d`](https://github.com/Dicklesworthstone/charmed_rust/commit/5cc853d),
+  [#99](https://github.com/Dicklesworthstone/charmed_rust/issues/99)).
+- **wish:** SCP downloads and Git upload-pack/receive-pack now apply outbound
+  2 MiB byte-budget backpressure instead of buffering entire files or packfiles
+  in an unbounded queue; Git fallback lookup strips a single trailing `.git`
+  suffix ([`5cc853d`](https://github.com/Dicklesworthstone/charmed_rust/commit/5cc853d),
+  [#99](https://github.com/Dicklesworthstone/charmed_rust/issues/99)).
+- **wish:** adapted `auth_publickey` to `russh 0.65`'s `VerifiedPublicKey`
+  signature ([`c4accfe`](https://github.com/Dicklesworthstone/charmed_rust/commit/c4accfe)).
 - **bubbletea:** SIGINT/SIGTERM now exit through cleanup instead of leaving the
-  terminal in raw mode; the caller's panic hook is restored after a run
-  ([`28c8308`](https://github.com/Dicklesworthstone/charmed_rust/commit/28c8308)).
-- **wish:** non-PTY sessions no longer drop client data when the input buffer
-  fills, and client EOF now ends `Session::recv()` ([`1930148`](https://github.com/Dicklesworthstone/charmed_rust/commit/1930148)).
+  terminal in raw mode, restore default signal disposition once all programs
+  exit, ignore SIGINT while an `exec`/`exec_process` child owns the terminal,
+  and restore the original panic hook verbatim via a refcounted unwind-safe
+  registry without growing closure nesting across repeated runs
+  ([`28c8308`](https://github.com/Dicklesworthstone/charmed_rust/commit/28c8308),
+  [`76bf64b`](https://github.com/Dicklesworthstone/charmed_rust/commit/76bf64b),
+  [`34a491a`](https://github.com/Dicklesworthstone/charmed_rust/commit/34a491a),
+  [#99](https://github.com/Dicklesworthstone/charmed_rust/issues/99)).
 - **huh:** the first field was re-focused on every update while the first group
   was active; finished forms now clear their view ([`de72af1`](https://github.com/Dicklesworthstone/charmed_rust/commit/de72af1),
   [`68712f5`](https://github.com/Dicklesworthstone/charmed_rust/commit/68712f5)).
@@ -63,6 +114,19 @@ plus runtime fixes found by driving the apps in a real PTY.
   ([`f5e444d`](https://github.com/Dicklesworthstone/charmed_rust/commit/f5e444d)).
 - **glamour:** an empty task-list marker no longer erases every list bullet
   ([`7316352`](https://github.com/Dicklesworthstone/charmed_rust/commit/7316352)).
+
+### Changed
+
+- **Performance:** switched `[profile.release]` from `opt-level = "z"` to
+  `opt-level = 3` (retaining `lto = true`, `codegen-units = 1`, `panic = "abort"`,
+  `strip = true`) ([`6a8f540`](https://github.com/Dicklesworthstone/charmed_rust/commit/6a8f540)).
+- **Dependencies:** upgraded `russh` (`0.65.4`), `signal-hook` (`0.4.6`),
+  `tokio` (`1.54.1`), `rsa` (`0.10.0`), `crypto-bigint` (`0.7.11`), `ctutils`
+  (`0.4.8`), `rustls` (`0.23.46`), `rustls-webpki` (`0.103.17`),
+  `webpki-root-certs` (`1.0.12`), `rustix` (`1.1.6`), `aws-lc-rs` (`1.19.0`),
+  `toml` (`1.2.2`), `clap` (`4.6.9`), `wasm-bindgen` (`0.2.130`), and examples
+  dependencies — resolving all `cargo audit` vulnerabilities and yanked crates
+  ([`8feefed`](https://github.com/Dicklesworthstone/charmed_rust/commit/8feefed)).
 
 ## [charmed-harmonica v0.2.5] — 2026-09-28 (crates.io, single crate)
 

@@ -1,8 +1,6 @@
 [package]
 name = "charmed-harmonica"
-# Patch release ahead of the rest of the workspace (GH #93 no_std fix); rejoin
-# `version.workspace = true` at the next workspace-wide release.
-version = "0.2.5"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
