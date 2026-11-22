@@ -165,3 +165,34 @@ async fn non_scp_sessions_fall_through() {
     assert!(out.stdout().contains("fallthrough"), "{}", out.stdout());
     server.stop().await;
 }
+
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_strips_setuid_setgid_and_sticky_bits() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = tempfile::tempdir().unwrap();
+    let server = start(root.path()).await;
+
+    // Upload a file claiming setuid + setgid + sticky bits (0o7755); the server
+    // must keep only standard rwx permission bits (0o0755) (#99).
+    let out = exec(
+        server.port(),
+        "scp -t /priv.sh",
+        b"C7755 5 priv.sh\nhello\0",
+    )
+    .await;
+    assert_eq!(out.exit, Some(0), "stderr: {}", out.stderr());
+    let mode = std::fs::metadata(root.path().join("priv.sh"))
+        .unwrap()
+        .permissions()
+        .mode();
+    assert_eq!(
+        mode & 0o7000,
+        0,
+        "setuid/setgid/sticky bits must be cleared, got mode {:o}",
+        mode & 0o7777
+    );
+    assert_eq!(mode & 0o0777, 0o0755);
+    server.stop().await;
+}

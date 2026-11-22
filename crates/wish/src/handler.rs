@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use bubbletea::{
     KeyMsg, Message, WindowSizeMsg,
@@ -18,13 +19,28 @@ use russh::server::{
 };
 use russh::{Channel, ChannelId};
 use russh::{MethodKind, MethodSet};
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{Semaphore, broadcast, mpsc};
 use tracing::{debug, info, trace, warn};
 
 use crate::{
-    AuthContext, AuthMethod, AuthResult, Context, Error, Handler, Pty, PublicKey, ServerOptions,
-    Session, SessionOutput, Window, compose_middleware, noop_handler,
+    AuthContext, AuthMethod, AuthResult, Context, Error, Handler, ManagedOutputItem,
+    OUTPUT_BUFFER_LIMIT, Pty, PublicKey, ServerOptions, Session, SessionOutput, Window,
+    compose_middleware, noop_handler,
 };
+
+/// Bounded slot count for per-channel client input queues (256 * 32 KiB = 8 MiB
+/// ceiling while easily absorbing full 2 MiB SSH channel windows).
+const INPUT_CHANNEL_CAPACITY: usize = 256;
+
+/// Ensures `Session::close_input` runs even if a spawned handler panics, so
+/// `Handler::data` never blocks on a dead receiver (#99).
+struct SessionInputGuard(Session);
+
+impl Drop for SessionInputGuard {
+    fn drop(&mut self) {
+        self.0.close_input();
+    }
+}
 
 // Re-export russh server types for use by Server
 pub use russh::server::{Config as RusshConfig, run_stream};
@@ -327,6 +343,119 @@ impl WishHandler {
 // the macro with the native trait triggers E0195 lifetime mismatches on
 // every method (the macro rewrites to `Pin<Box<dyn Future + 'async_trait>>`
 // which doesn't unify with `impl Future + Send`). See charmed_rust#44.
+impl WishHandler {
+    /// Forward raw inbound bytes to the session's `recv()` stream without
+    /// ever blocking russh's per-connection loop indefinitely (#99).
+    async fn forward_raw_input(&mut self, channel: ChannelId, data: &[u8]) {
+        let raw = self.channels.get(&channel).and_then(|state| {
+            if state.session.is_input_closed() {
+                return None;
+            }
+            Some((
+                state.input_tx.clone()?,
+                state.session.pty().1,
+                state.started,
+                state.session.input_closed_notify(),
+                state.session.clone(),
+            ))
+        });
+        let Some((tx, has_pty, started, closed_notify, wish_session)) = raw else {
+            return;
+        };
+
+        if has_pty {
+            // Interactive (TUI) sessions consume keys via messages and may
+            // never read the raw stream, so don't block on it.
+            if let Err(mpsc::error::TrySendError::Full(_)) = tx.try_send(data.to_vec()) {
+                warn!(
+                    connection_id = self.connection_id,
+                    channel = ?channel,
+                    "Input buffer full, dropping data (app not reading input?)"
+                );
+            }
+            return;
+        }
+
+        // Non-PTY sessions (exec, git, scp, ...) carry byte streams that must
+        // not be silently corrupted mid-transfer, yet `data()` runs inside
+        // russh's per-connection loop so waiting indefinitely when a handler is
+        // not reading stdin freezes the whole SSH connection (#99).
+        match tx.try_send(data.to_vec()) {
+            Ok(()) => {}
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                if let Some(state) = self.channels.get_mut(&channel) {
+                    state.input_tx = None;
+                }
+            }
+            Err(mpsc::error::TrySendError::Full(bytes)) => {
+                if !started || wish_session.is_input_closed() {
+                    warn!(
+                        connection_id = self.connection_id,
+                        channel = ?channel,
+                        "Non-PTY input buffer full with no active handler; closing input stream"
+                    );
+                    if let Some(state) = self.channels.get_mut(&channel) {
+                        state.input_tx = None;
+                    }
+                    return;
+                }
+
+                let stall_timeout = if wish_session.has_input_reader() {
+                    Duration::from_secs(5)
+                } else {
+                    Duration::from_millis(200)
+                };
+                let notified = closed_notify.notified();
+                tokio::pin!(notified);
+                notified.as_mut().enable();
+                if wish_session.is_input_closed() {
+                    if let Some(state) = self.channels.get_mut(&channel) {
+                        state.input_tx = None;
+                    }
+                    return;
+                }
+
+                tokio::select! {
+                    biased;
+                    () = &mut notified => {
+                        trace!(
+                            connection_id = self.connection_id,
+                            channel = ?channel,
+                            "Non-PTY input closed while backpressured"
+                        );
+                        if let Some(state) = self.channels.get_mut(&channel) {
+                            state.input_tx = None;
+                        }
+                    }
+                    res = tx.send(bytes) => {
+                        if res.is_err()
+                            && let Some(state) = self.channels.get_mut(&channel)
+                        {
+                            trace!(
+                                connection_id = self.connection_id,
+                                channel = ?channel,
+                                "input receiver dropped"
+                            );
+                            state.input_tx = None;
+                        }
+                    }
+                    () = tokio::time::sleep(stall_timeout) => {
+                        warn!(
+                            connection_id = self.connection_id,
+                            channel = ?channel,
+                            timeout_ms = stall_timeout.as_millis(),
+                            "Non-PTY input stalled (handler not reading stdin?); closing input stream"
+                        );
+                        if let Some(state) = self.channels.get_mut(&channel) {
+                            state.input_tx = None;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 impl RusshHandler for WishHandler {
     type Error = Error;
 
@@ -635,15 +764,20 @@ impl RusshHandler for WishHandler {
         );
 
         // Create channel state
-        let (input_tx, input_rx) = mpsc::channel(1024);
-        let (output_tx, mut output_rx) = mpsc::unbounded_channel::<SessionOutput>();
+        let (input_tx, input_rx) = mpsc::channel(INPUT_CHANNEL_CAPACITY);
+        let (output_tx, mut output_rx) = mpsc::unbounded_channel::<ManagedOutputItem>();
+        let output_budget = Arc::new(Semaphore::new(OUTPUT_BUFFER_LIMIT));
 
         let user = self.user.clone().unwrap_or_default();
         let mut ctx = self.make_context(&user);
         let client_version = String::from_utf8_lossy(session.remote_sshid()).to_string();
         ctx.set_client_version(client_version);
         let mut wish_session = Session::new(ctx);
-        wish_session.set_output_sender(output_tx);
+        wish_session.set_managed_output_sender(
+            output_tx,
+            Arc::clone(&output_budget),
+            OUTPUT_BUFFER_LIMIT,
+        );
         wish_session.set_input_receiver(input_rx).await;
 
         // Get session handle for sending exit status from spawned task
@@ -686,13 +820,17 @@ impl RusshHandler for WishHandler {
         // Spawn output pump.
         tokio::spawn(async move {
             debug!(connection_id, channel = ?channel_id, "Starting output pump");
-            while let Some(msg) = output_rx.recv().await {
+            while let Some((msg, _permit)) = output_rx.recv().await {
                 match msg {
                     SessionOutput::Stdout(data) => {
-                        let _ = write_half.data(&data[..]).await;
+                        if write_half.data(&data[..]).await.is_err() {
+                            break;
+                        }
                     }
                     SessionOutput::Stderr(data) => {
-                        let _ = write_half.extended_data(1, &data[..]).await;
+                        if write_half.extended_data(1, &data[..]).await.is_err() {
+                            break;
+                        }
                     }
                     SessionOutput::Exit(code) => {
                         let _ = handle.exit_status_request(channel_id, code).await;
@@ -704,10 +842,12 @@ impl RusshHandler for WishHandler {
                         break;
                     }
                 }
+                // `_permit` drops here, after the SSH write completes, releasing
+                // backpressure capacity for the next chunk (#99).
             }
-            // The pump is done (handler closed the channel or the output
-            // sender was dropped). Stop the drain task so it can't outlive the
-            // session if the peer never sends an explicit close.
+            // Wake any writer waiting on outbound backpressure and stop the
+            // read-half drain task so neither can outlive the session.
+            output_budget.close();
             drain_task.abort();
             debug!(connection_id, channel = ?channel_id, "Output pump finished");
         });
@@ -812,8 +952,10 @@ impl RusshHandler for WishHandler {
 
             // Spawn the handler task
             tokio::spawn(async move {
+                let _input_guard = SessionInputGuard(wish_session.clone());
                 debug!(connection_id, "Starting handler");
-                handler(wish_session).await;
+                handler(wish_session.clone()).await;
+                wish_session.close_input_async().await;
                 debug!(connection_id, "Handler completed");
             });
 
@@ -864,8 +1006,10 @@ impl RusshHandler for WishHandler {
             let connection_id = self.connection_id;
 
             tokio::spawn(async move {
+                let _input_guard = SessionInputGuard(wish_session.clone());
                 debug!(connection_id, "Starting exec handler");
-                handler(wish_session).await;
+                handler(wish_session.clone()).await;
+                wish_session.close_input_async().await;
                 debug!(connection_id, "Exec handler completed");
             });
 
@@ -936,12 +1080,14 @@ impl RusshHandler for WishHandler {
             let subsystem_name = name.to_string();
 
             tokio::spawn(async move {
+                let _input_guard = SessionInputGuard(wish_session.clone());
                 debug!(
                     connection_id,
                     subsystem = %subsystem_name,
                     "Starting subsystem handler"
                 );
-                handler(wish_session).await;
+                handler(wish_session.clone()).await;
+                wish_session.close_input_async().await;
                 debug!(connection_id, "Subsystem handler completed");
             });
 
@@ -1006,32 +1152,11 @@ impl RusshHandler for WishHandler {
             "Data received"
         );
 
-        // Forward the raw bytes to the session's input stream.
-        let raw = self
-            .channels
-            .get(&channel)
-            .and_then(|state| Some((state.input_tx.clone()?, state.session.pty().1)));
-        if let Some((tx, has_pty)) = raw {
-            if has_pty {
-                // Interactive (TUI) sessions consume keys via messages and may
-                // never read the raw stream, so don't block on it.
-                if let Err(mpsc::error::TrySendError::Full(_)) = tx.try_send(data.to_vec()) {
-                    warn!(
-                        connection_id = self.connection_id,
-                        channel = ?channel,
-                        "Input buffer full, dropping data (app not reading input?)"
-                    );
-                }
-            } else if tx.send(data.to_vec()).await.is_err() {
-                // Non-PTY sessions (exec, git, scp, ...) carry byte streams
-                // that must not be truncated: apply backpressure instead of
-                // dropping. A send error only means the handler stopped
-                // reading, which is fine.
-                trace!(connection_id = self.connection_id, channel = ?channel, "input receiver dropped");
-            }
-        }
+        self.forward_raw_input(channel, data).await;
 
-        if let Some(state) = self.channels.get_mut(&channel) {
+        if let Some(state) = self.channels.get_mut(&channel)
+            && state.session.has_message_sender()
+        {
             // Append data to buffer, capping at 64KB to prevent
             // memory exhaustion from malicious or misbehaving clients
             const MAX_INPUT_BUFFER: usize = 64 * 1024;
@@ -1156,7 +1281,9 @@ impl RusshHandler for WishHandler {
             "Channel closed"
         );
 
-        self.channels.remove(&channel);
+        if let Some(state) = self.channels.remove(&channel) {
+            state.session.close_input();
+        }
         Ok(())
     }
 }

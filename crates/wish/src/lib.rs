@@ -86,6 +86,7 @@ use std::io::{self, Write};
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
@@ -437,11 +438,90 @@ pub struct Session {
     subsystem: Option<String>,
 
     /// Channel for sending output to the client.
-    output_tx: Option<tokio::sync::mpsc::UnboundedSender<SessionOutput>>,
+    output_tx: Option<OutputChannel>,
     /// Channel for receiving input from the client.
     input_rx: Arc<tokio::sync::Mutex<Option<tokio::sync::mpsc::Receiver<Vec<u8>>>>>,
+    /// Whether this session has stopped accepting inbound client bytes.
+    input_closed: Arc<AtomicBool>,
+    /// Wakes the connection loop immediately when `input_closed` flips to true.
+    input_closed_notify: Arc<tokio::sync::Notify>,
+    /// Whether any task has called [`Session::recv`] on this session.
+    input_read_started: Arc<AtomicBool>,
     /// Channel for injecting messages into the running bubbletea program.
     message_tx: Arc<RwLock<Option<Sender<Message>>>>,
+}
+
+/// Maximum queued outbound bytes per SSH session for backpressured streaming
+/// writes (`Session::write_async` / `Session::write_stderr_async`), preventing
+/// unbounded RAM growth when a client reads slowly (#99).
+pub(crate) const OUTPUT_BUFFER_LIMIT: usize = 2 * 1024 * 1024;
+const OUTPUT_CHUNK_LIMIT: usize = 32 * 1024;
+
+pub(crate) type ManagedOutputItem = (SessionOutput, Option<tokio::sync::OwnedSemaphorePermit>);
+
+#[derive(Clone)]
+enum OutputChannel {
+    /// External/test sender installed via [`Session::set_output_sender`].
+    Unbounded(tokio::sync::mpsc::UnboundedSender<SessionOutput>),
+    /// SSH channel sender with byte-budgeted backpressure for streaming writes.
+    Managed {
+        tx: tokio::sync::mpsc::UnboundedSender<ManagedOutputItem>,
+        budget: Arc<tokio::sync::Semaphore>,
+        chunk_cap: usize,
+    },
+}
+
+impl OutputChannel {
+    fn send_now(&self, msg: SessionOutput) -> bool {
+        match self {
+            Self::Unbounded(tx) => tx.send(msg).is_ok(),
+            Self::Managed { tx, .. } => tx.send((msg, None)).is_ok(),
+        }
+    }
+
+    async fn send_backpressured(&self, data: &[u8], stderr: bool) -> io::Result<usize> {
+        if data.is_empty() {
+            return Ok(0);
+        }
+        match self {
+            Self::Unbounded(tx) => {
+                let msg = if stderr {
+                    SessionOutput::Stderr(data.to_vec())
+                } else {
+                    SessionOutput::Stdout(data.to_vec())
+                };
+                tx.send(msg).map_err(|_| {
+                    io::Error::new(io::ErrorKind::BrokenPipe, "session output closed")
+                })?;
+            }
+            Self::Managed {
+                tx,
+                budget,
+                chunk_cap,
+            } => {
+                for chunk in data.chunks(*chunk_cap) {
+                    let permits = u32::try_from(chunk.len()).unwrap_or(u32::MAX);
+                    let permit =
+                        budget
+                            .clone()
+                            .acquire_many_owned(permits)
+                            .await
+                            .map_err(|_| {
+                                io::Error::new(io::ErrorKind::BrokenPipe, "session output closed")
+                            })?;
+                    let msg = if stderr {
+                        SessionOutput::Stderr(chunk.to_vec())
+                    } else {
+                        SessionOutput::Stdout(chunk.to_vec())
+                    };
+                    tx.send((msg, Some(permit))).map_err(|_| {
+                        io::Error::new(io::ErrorKind::BrokenPipe, "session output closed")
+                    })?;
+                }
+            }
+        }
+        Ok(data.len())
+    }
 }
 
 /// Output messages sent from Session to the SSH channel.
@@ -484,22 +564,41 @@ impl Session {
             subsystem: None,
             output_tx: None,
             input_rx: Arc::new(tokio::sync::Mutex::new(None)),
+            input_closed: Arc::new(AtomicBool::new(false)),
+            input_closed_notify: Arc::new(tokio::sync::Notify::new()),
+            input_read_started: Arc::new(AtomicBool::new(false)),
             message_tx: Arc::new(RwLock::new(None)),
         }
     }
 
     /// Sets the output sender.
     pub fn set_output_sender(&mut self, tx: tokio::sync::mpsc::UnboundedSender<SessionOutput>) {
-        self.output_tx = Some(tx);
+        self.output_tx = Some(OutputChannel::Unbounded(tx));
+    }
+
+    /// Installs a byte-budgeted output sender used by live SSH sessions.
+    pub(crate) fn set_managed_output_sender(
+        &mut self,
+        tx: tokio::sync::mpsc::UnboundedSender<ManagedOutputItem>,
+        budget: Arc<tokio::sync::Semaphore>,
+        budget_bytes: usize,
+    ) {
+        self.output_tx = Some(OutputChannel::Managed {
+            tx,
+            budget,
+            chunk_cap: budget_bytes.clamp(1, OUTPUT_CHUNK_LIMIT),
+        });
     }
 
     /// Sets the input receiver.
     pub async fn set_input_receiver(&self, rx: tokio::sync::mpsc::Receiver<Vec<u8>>) {
+        self.input_closed.store(false, Ordering::SeqCst);
         *self.input_rx.lock().await = Some(rx);
     }
 
     /// Receives input from the client.
     pub async fn recv(&self) -> Option<Vec<u8>> {
+        self.input_read_started.store(true, Ordering::SeqCst);
         let mut rx_guard = self.input_rx.lock().await;
         if let Some(rx) = rx_guard.as_mut() {
             rx.recv().await
@@ -508,9 +607,47 @@ impl Session {
         }
     }
 
+    /// Marks the session's input stream closed without blocking and drops the
+    /// receiver immediately if no task is currently holding the lock (#99).
+    pub(crate) fn close_input(&self) {
+        self.input_closed.store(true, Ordering::SeqCst);
+        self.input_closed_notify.notify_waiters();
+        if let Ok(mut rx_guard) = self.input_rx.try_lock() {
+            rx_guard.take();
+        }
+    }
+
+    /// Marks the session's input stream closed and unconditionally drops the
+    /// receiver once the handler finishes so buffered bytes are freed (#99).
+    pub(crate) async fn close_input_async(&self) {
+        self.input_closed.store(true, Ordering::SeqCst);
+        self.input_closed_notify.notify_waiters();
+        self.input_rx.lock().await.take();
+    }
+
+    /// Returns whether this session has closed its inbound byte stream.
+    pub(crate) fn is_input_closed(&self) -> bool {
+        self.input_closed.load(Ordering::SeqCst)
+    }
+
+    /// Returns the notification handle signaled when input closes.
+    pub(crate) fn input_closed_notify(&self) -> Arc<tokio::sync::Notify> {
+        Arc::clone(&self.input_closed_notify)
+    }
+
+    /// Returns whether any task has called [`Session::recv`].
+    pub(crate) fn has_input_reader(&self) -> bool {
+        self.input_read_started.load(Ordering::SeqCst)
+    }
+
     /// Sets the message sender for the bubbletea program.
     pub fn set_message_sender(&self, tx: Sender<Message>) {
         *self.message_tx.write() = Some(tx);
+    }
+
+    /// Returns whether a bubbletea message receiver is attached.
+    pub(crate) fn has_message_sender(&self) -> bool {
+        self.message_tx.read().is_some()
     }
 
     /// Sends a message to the bubbletea program (if running).
@@ -575,36 +712,59 @@ impl Session {
     pub fn write(&self, data: &[u8]) -> io::Result<usize> {
         // Send to client
         if let Some(tx) = &self.output_tx {
-            let _ = tx.send(SessionOutput::Stdout(data.to_vec()));
+            let _ = tx.send_now(SessionOutput::Stdout(data.to_vec()));
         }
 
         Ok(data.len())
+    }
+
+    /// Writes to stdout with backpressure against the session's outbound buffer
+    /// budget so streaming transfers (SCP download, git clone/fetch) do not
+    /// buffer unbounded payloads in memory for slow clients (#99).
+    pub async fn write_async(&self, data: &[u8]) -> io::Result<usize> {
+        if let Some(tx) = &self.output_tx {
+            tx.send_backpressured(data, false).await
+        } else {
+            Ok(data.len())
+        }
     }
 
     /// Writes to stderr.
     pub fn write_stderr(&self, data: &[u8]) -> io::Result<usize> {
         // Send to client
         if let Some(tx) = &self.output_tx {
-            let _ = tx.send(SessionOutput::Stderr(data.to_vec()));
+            let _ = tx.send_now(SessionOutput::Stderr(data.to_vec()));
         }
 
         Ok(data.len())
     }
 
+    /// Writes to stderr with backpressure against the session's outbound buffer
+    /// budget (#99).
+    pub async fn write_stderr_async(&self, data: &[u8]) -> io::Result<usize> {
+        if let Some(tx) = &self.output_tx {
+            tx.send_backpressured(data, true).await
+        } else {
+            Ok(data.len())
+        }
+    }
+
     /// Exits the session with the given code.
     pub fn exit(&self, code: i32) -> io::Result<()> {
+        self.close_input();
         *self.exit_code.write() = Some(code);
         if let Some(tx) = &self.output_tx {
-            let _ = tx.send(SessionOutput::Exit(code as u32));
+            let _ = tx.send_now(SessionOutput::Exit(code as u32));
         }
         Ok(())
     }
 
     /// Closes the session.
     pub fn close(&self) -> io::Result<()> {
+        self.close_input();
         *self.closed.write() = true;
         if let Some(tx) = &self.output_tx {
-            let _ = tx.send(SessionOutput::Close);
+            let _ = tx.send_now(SessionOutput::Close);
         }
         Ok(())
     }
@@ -1818,7 +1978,7 @@ pub mod middleware {
                     let path = if path.is_dir() {
                         path
                     } else {
-                        repo_dir.join(repo.trim_end_matches(".git"))
+                        repo_dir.join(repo.strip_suffix(".git").unwrap_or(repo))
                     };
                     if !path.is_dir() {
                         fatalln(session, ERR_INVALID_REPO);
@@ -1918,7 +2078,9 @@ pub mod middleware {
                     match stdout.read(&mut buf).await {
                         Ok(0) | Err(_) => break,
                         Ok(n) => {
-                            let _ = session.write(&buf[..n]);
+                            if session.write_async(&buf[..n]).await.is_err() {
+                                break;
+                            }
                         }
                     }
                 }
@@ -1929,7 +2091,9 @@ pub mod middleware {
                     match stderr.read(&mut buf).await {
                         Ok(0) | Err(_) => break,
                         Ok(n) => {
-                            let _ = session.write_stderr(&buf[..n]);
+                            if session.write_stderr_async(&buf[..n]).await.is_err() {
+                                break;
+                            }
                         }
                     }
                 }
@@ -2200,12 +2364,12 @@ pub mod middleware {
                 Ok(())
             }
 
-            fn write(&self, data: &[u8]) -> io::Result<()> {
-                self.session.write(data).map(|_| ())
+            async fn write(&self, data: &[u8]) -> io::Result<()> {
+                self.session.write_async(data).await.map(|_| ())
             }
 
-            fn ok(&self) -> io::Result<()> {
-                self.write(&[0])
+            async fn ok(&self) -> io::Result<()> {
+                self.write(&[0]).await
             }
 
             /// Waits for the client's acknowledgement.
@@ -2262,8 +2426,9 @@ pub mod middleware {
         #[cfg(unix)]
         async fn set_mode(path: &Path, mode: u32) {
             use std::os::unix::fs::PermissionsExt;
+            // Drop setuid/setgid/sticky bits from client-supplied modes, matching Go's os.ModePerm (#99).
             let _ =
-                tokio::fs::set_permissions(path, std::fs::Permissions::from_mode(mode & 0o7777))
+                tokio::fs::set_permissions(path, std::fs::Permissions::from_mode(mode & 0o0777))
                     .await;
         }
 
@@ -2281,7 +2446,7 @@ pub mod middleware {
             }
             // Directory stack; empty means "at the target itself".
             let mut dirs: Vec<PathBuf> = Vec::new();
-            io.ok()?;
+            io.ok().await?;
             loop {
                 let Some(kind) = io.byte().await? else {
                     return Ok(());
@@ -2304,7 +2469,7 @@ pub mod middleware {
                             set_mode(&dest, mode).await;
                             dirs.push(dest);
                         } else {
-                            io.ok()?;
+                            io.ok().await?;
                             let mut file = tokio::fs::File::create(&dest).await?;
                             io.copy_to(size, &mut file).await?;
                             file.flush().await?;
@@ -2313,17 +2478,17 @@ pub mod middleware {
                             // Each file's data is followed by a status byte.
                             io.ack().await?;
                         }
-                        io.ok()?;
+                        io.ok().await?;
                     }
                     b'E' => {
                         let _ = io.line().await?;
                         dirs.pop();
-                        io.ok()?;
+                        io.ok().await?;
                     }
                     b'T' => {
                         // Times are accepted but not applied.
                         let _ = io.line().await?;
-                        io.ok()?;
+                        io.ok().await?;
                     }
                     1 | 2 => {
                         let msg = io.line().await.unwrap_or_default();
@@ -2343,7 +2508,7 @@ pub mod middleware {
         #[cfg(unix)]
         fn mode_of(meta: &std::fs::Metadata) -> u32 {
             use std::os::unix::fs::PermissionsExt;
-            meta.permissions().mode() & 0o7777
+            meta.permissions().mode() & 0o0777
         }
 
         #[cfg(not(unix))]
@@ -2373,14 +2538,16 @@ pub mod middleware {
                 if req.preserve {
                     let mtime = unix_secs(meta.modified());
                     let atime = unix_secs(meta.accessed());
-                    io.write(format!("T{mtime} 0 {atime} 0\n").as_bytes())?;
+                    io.write(format!("T{mtime} 0 {atime} 0\n").as_bytes())
+                        .await?;
                     io.ack().await?;
                 }
                 if meta.is_dir() {
                     if !req.recursive {
                         return Err(invalid(format!("{}: not a regular file", path.display())));
                     }
-                    io.write(format!("D{:04o} 0 {name}\n", mode_of(&meta)).as_bytes())?;
+                    io.write(format!("D{:04o} 0 {name}\n", mode_of(&meta)).as_bytes())
+                        .await?;
                     io.ack().await?;
                     let mut entries = Vec::new();
                     let mut dir = tokio::fs::read_dir(path).await?;
@@ -2391,11 +2558,10 @@ pub mod middleware {
                     for entry in entries {
                         send_entry(io, req, &entry).await?;
                     }
-                    io.write(b"E\n")?;
+                    io.write(b"E\n").await?;
                 } else {
-                    io.write(
-                        format!("C{:04o} {} {name}\n", mode_of(&meta), meta.len()).as_bytes(),
-                    )?;
+                    io.write(format!("C{:04o} {} {name}\n", mode_of(&meta), meta.len()).as_bytes())
+                        .await?;
                     io.ack().await?;
                     let mut file = tokio::fs::File::open(path).await?;
                     let mut buf = vec![0u8; 32 * 1024];
@@ -2404,9 +2570,9 @@ pub mod middleware {
                         if n == 0 {
                             break;
                         }
-                        io.write(&buf[..n])?;
+                        io.write(&buf[..n]).await?;
                     }
-                    io.ok()?;
+                    io.ok().await?;
                 }
                 io.ack().await
             })
@@ -4178,5 +4344,58 @@ mod tests {
         assert!(config.methods.contains(&MethodKind::PublicKey));
         assert!(config.methods.contains(&MethodKind::Password));
         assert!(!config.methods.contains(&MethodKind::KeyboardInteractive));
+    }
+
+    #[tokio::test]
+    async fn managed_output_applies_backpressure_and_unblocks_on_close() {
+        let mut session = Session::new(Context::new(
+            "alice",
+            "127.0.0.1:1000".parse().unwrap(),
+            "127.0.0.1:2222".parse().unwrap(),
+        ));
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let budget = Arc::new(tokio::sync::Semaphore::new(64));
+        session.set_managed_output_sender(tx, Arc::clone(&budget), 64);
+
+        // Fill the entire 64-byte budget: succeeds immediately.
+        assert_eq!(session.write_async(&[b'a'; 64]).await.unwrap(), 64);
+
+        // Next write must block until the consumer drains and releases permits.
+        let writer_session = session.clone();
+        let blocked = tokio::spawn(async move { writer_session.write_async(&[b'b'; 32]).await });
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        assert!(
+            !blocked.is_finished(),
+            "write_async should apply backpressure when outbound byte budget is full"
+        );
+
+        // Drain the first chunk (dropping its permit frees 64 bytes).
+        let (msg, permit) = rx.recv().await.unwrap();
+        assert!(matches!(msg, SessionOutput::Stdout(ref d) if d.len() == 64));
+        drop(permit);
+
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(2), blocked)
+                .await
+                .expect("write_async unblocks once consumer drains")
+                .unwrap()
+                .unwrap(),
+            32
+        );
+
+        // Fill again and close the budget to simulate client disconnect: pending write errors cleanly.
+        assert_eq!(session.write_async(&[b'c'; 32]).await.unwrap(), 32);
+        let writer_session = session.clone();
+        let blocked_disconnect =
+            tokio::spawn(async move { writer_session.write_async(&[b'd'; 16]).await });
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        assert!(!blocked_disconnect.is_finished());
+        budget.close();
+        let err = tokio::time::timeout(Duration::from_secs(2), blocked_disconnect)
+            .await
+            .expect("write_async wakes on budget close")
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
     }
 }
